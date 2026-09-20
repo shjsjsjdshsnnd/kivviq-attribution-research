@@ -167,6 +167,7 @@ export interface PopulationCalibrationReport {
 export interface CustomerPopulationProvenance {
   readonly generatorVersion: CustomerPopulationGeneratorVersion;
   readonly merchantWorldId: string;
+  readonly merchantWorldFingerprint: string;
   readonly merchantGeneratorVersion: string;
   readonly merchantGroundTruthSchemaVersion: "1.0.0";
   readonly merchantWorldSeed: number;
