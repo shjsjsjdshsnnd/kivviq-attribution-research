@@ -1,4 +1,5 @@
 import { generateCustomerPopulation } from "../customer_population/generator.js";
+import { moneyMinor, positive } from "../core/units.js";
 import type { GeneratedMerchantWorld } from "../generation/config.js";
 import { generateMerchantWorldRecord } from "../generation/generator.js";
 import { validateGroundTruthManifest } from "../ground_truth/manifest.js";
@@ -82,8 +83,44 @@ export function createDiscountTrapFixture(): EcommerceAdversarialFixture {
     scale: "growth",
     complexity: "complex",
     promotionProfile: "promotion_heavy",
+    overrides: {
+      forceZeroIncrementalityChannels: ["meta"],
+    },
   });
   const world = structuredClone(original) as GeneratedMerchantWorld;
+
+  const metaMechanism =
+    (world.manifest.channelIncrementality as unknown as Array<{
+      channelId: string;
+      effect: { value: number };
+      responseCurveId?: string;
+    }>).find((item) => item.channelId === "meta");
+  if (!metaMechanism?.responseCurveId) {
+    throw new RangeError("discount trap requires Meta response curve");
+  }
+  const monthlyOrders =
+    world.summary.expectedAnnualOrders / 12;
+  metaMechanism.effect.value = monthlyOrders * 0.45;
+  const metaCurveIndex =
+    (world.manifest.responseCurves as unknown as Array<{
+      id: string;
+    }>).findIndex(
+      (curve) => curve.id === metaMechanism.responseCurveId,
+    );
+  (world.manifest.responseCurves as unknown as Array<Record<string, unknown>>)[
+    metaCurveIndex
+  ] = {
+    id: metaMechanism.responseCurveId,
+    kind: "hill",
+    inputUnit: "money_minor",
+    outputUnit: "orders",
+    maxIncrementalOutcome: positive(
+      Math.max(1, monthlyOrders * 1.1),
+    ),
+    halfSaturationSpend: moneyMinor(90_000),
+    hillCoefficient: positive(1.05),
+  };
+  validateGroundTruthManifest(world.manifest);
   (world.summary as { expectedDiscountRate: number }).expectedDiscountRate =
     0.17;
 
