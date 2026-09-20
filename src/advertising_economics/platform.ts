@@ -1,5 +1,13 @@
 import type { LatentCustomerPopulation } from "../customer_population/types.js";
-import type { SimulationResult } from "../simulation/types.js";
+import type {
+  PerfectObservableJourneyEvent,
+  RealizedPurchase,
+} from "../simulation/types.js";
+
+export interface CausalBlindSimulationView {
+  readonly observableEvents: readonly PerfectObservableJourneyEvent[];
+  readonly purchases: readonly RealizedPurchase[];
+}
 import type {
   ObservedChannelPerformance,
   PaidMarketingChannel,
@@ -68,7 +76,7 @@ function customerWeightMap(
 }
 
 function isClickLike(
-  event: SimulationResult["observableEvents"][number],
+  event: PerfectObservableJourneyEvent,
   channel: PaidMarketingChannel,
 ): boolean {
   if (event.source !== channel && event.channel !== channel) {
@@ -84,7 +92,7 @@ function isClickLike(
 }
 
 function isViewLike(
-  event: SimulationResult["observableEvents"][number],
+  event: PerfectObservableJourneyEvent,
   channel: PaidMarketingChannel,
 ): boolean {
   if (event.source !== channel && event.channel !== channel) {
@@ -95,7 +103,7 @@ function isViewLike(
 }
 
 function searchClassForTouch(
-  result: SimulationResult,
+  result: CausalBlindSimulationView,
   customerId: string,
   purchaseMs: number,
 ): "brand" | "nonbrand" | undefined {
@@ -120,7 +128,7 @@ function searchClassForTouch(
 }
 
 function hasPriorIntentSignal(
-  result: SimulationResult,
+  result: CausalBlindSimulationView,
   customerId: string,
   beforeMs: number,
 ): boolean {
@@ -135,8 +143,8 @@ function hasPriorIntentSignal(
 }
 
 function latestEligibleTouch(
-  result: SimulationResult,
-  purchase: SimulationResult["purchases"][number],
+  result: CausalBlindSimulationView,
+  purchase: RealizedPurchase,
   rule: SyntheticPlatformAttributionRule,
 ): {
   readonly touchKind: "click_like" | "view_through";
@@ -223,7 +231,7 @@ function latestEligibleTouch(
 }
 
 export function platformClaims(
-  result: SimulationResult,
+  result: CausalBlindSimulationView,
   channel: PaidMarketingChannel,
   rule: SyntheticPlatformAttributionRule =
     SYNTHETIC_PLATFORM_RULES[channel],
@@ -258,7 +266,7 @@ export function platformClaims(
 }
 
 export function buildPlatformChannelReport(
-  result: SimulationResult,
+  result: CausalBlindSimulationView,
   population: LatentCustomerPopulation,
   channel: PaidMarketingChannel,
   spendMinor: number,
@@ -304,7 +312,7 @@ export function buildPlatformChannelReport(
 }
 
 export function observedTouchPerformance(
-  result: SimulationResult,
+  result: CausalBlindSimulationView,
   population: LatentCustomerPopulation,
   channel: PaidMarketingChannel,
   spendMinor: number,
