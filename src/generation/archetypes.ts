@@ -94,7 +94,7 @@ export const ARCHETYPE_TENDENCIES: Readonly<
     priceSensitivity: { min: -2.1, max: -0.7 },
     inventoryLeadDays: { min: 20, max: 120 },
     inventoryDepthOrders: { min: 18, max: 80 },
-    catalogSkuRange: [30, 220],
+    catalogSkuRange: [40, 520],
     channelSuitability: channels({
       meta: 0.95,
       google_shopping: 0.82,
@@ -138,7 +138,7 @@ export const ARCHETYPE_TENDENCIES: Readonly<
     priceSensitivity: { min: -1.9, max: -0.55 },
     inventoryLeadDays: { min: 10, max: 75 },
     inventoryDepthOrders: { min: 30, max: 130 },
-    catalogSkuRange: [18, 150],
+    catalogSkuRange: [20, 260],
     channelSuitability: channels({
       meta: 0.94,
       google_shopping: 0.72,
@@ -176,7 +176,7 @@ export const ARCHETYPE_TENDENCIES: Readonly<
     priceSensitivity: { min: -1.4, max: -0.35 },
     inventoryLeadDays: { min: 35, max: 210 },
     inventoryDepthOrders: { min: 4, max: 30 },
-    catalogSkuRange: [18, 120],
+    catalogSkuRange: [18, 220],
     channelSuitability: channels({
       meta: 0.74,
       google_search: 0.9,
@@ -219,7 +219,7 @@ export const ARCHETYPE_TENDENCIES: Readonly<
     priceSensitivity: { min: -1.65, max: -0.45 },
     inventoryLeadDays: { min: 20, max: 150 },
     inventoryDepthOrders: { min: 7, max: 50 },
-    catalogSkuRange: [25, 180],
+    catalogSkuRange: [30, 420],
     channelSuitability: channels({
       meta: 0.82,
       google_search: 0.82,
@@ -257,7 +257,7 @@ export const ARCHETYPE_TENDENCIES: Readonly<
     priceSensitivity: { min: -1.8, max: -0.5 },
     inventoryLeadDays: { min: 8, max: 55 },
     inventoryDepthOrders: { min: 45, max: 180 },
-    catalogSkuRange: [8, 85],
+    catalogSkuRange: [8, 120],
     channelSuitability: channels({
       meta: 0.83,
       google_search: 0.85,
@@ -296,7 +296,7 @@ export const ARCHETYPE_TENDENCIES: Readonly<
     priceSensitivity: { min: -2.4, max: -0.7 },
     inventoryLeadDays: { min: 10, max: 90 },
     inventoryDepthOrders: { min: 10, max: 60 },
-    catalogSkuRange: [18, 150],
+    catalogSkuRange: [20, 350],
     channelSuitability: channels({
       meta: 0.45,
       google_search: 0.98,
@@ -334,7 +334,7 @@ export const ARCHETYPE_TENDENCIES: Readonly<
     priceSensitivity: { min: -1.9, max: -0.45 },
     inventoryLeadDays: { min: 10, max: 110 },
     inventoryDepthOrders: { min: 12, max: 90 },
-    catalogSkuRange: [12, 170],
+    catalogSkuRange: [15, 400],
     channelSuitability: channels({ google_search: 0.82, email: 0.72 }),
     aovBias: { medium: 1.2, high: 0.7 },
     frequencyBias: { occasional: 1.2, repeat: 0.9 },
@@ -365,7 +365,7 @@ export const ARCHETYPE_TENDENCIES: Readonly<
     priceSensitivity: { min: -0.9, max: -0.12 },
     inventoryLeadDays: { min: 25, max: 180 },
     inventoryDepthOrders: { min: 4, max: 35 },
-    catalogSkuRange: [6, 90],
+    catalogSkuRange: [6, 140],
     channelSuitability: channels({
       meta: 0.72,
       google_search: 0.62,
@@ -404,7 +404,7 @@ export const ARCHETYPE_TENDENCIES: Readonly<
     priceSensitivity: { min: -3.0, max: -1.0 },
     inventoryLeadDays: { min: 5, max: 65 },
     inventoryDepthOrders: { min: 40, max: 180 },
-    catalogSkuRange: [25, 220],
+    catalogSkuRange: [40, 700],
     channelSuitability: channels({
       meta: 0.55,
       google_search: 0.82,
@@ -442,7 +442,7 @@ export const ARCHETYPE_TENDENCIES: Readonly<
     priceSensitivity: { min: -1.8, max: -0.45 },
     inventoryLeadDays: { min: 5, max: 45 },
     inventoryDepthOrders: { min: 55, max: 220 },
-    catalogSkuRange: [6, 75],
+    catalogSkuRange: [6, 100],
     channelSuitability: channels({
       meta: 0.78,
       google_search: 0.78,
@@ -479,7 +479,7 @@ export const ARCHETYPE_TENDENCIES: Readonly<
     priceSensitivity: { min: -1.6, max: -0.35 },
     inventoryLeadDays: { min: 5, max: 50 },
     inventoryDepthOrders: { min: 50, max: 220 },
-    catalogSkuRange: [4, 60],
+    catalogSkuRange: [4, 80],
     channelSuitability: channels({
       meta: 0.8,
       google_search: 0.65,
