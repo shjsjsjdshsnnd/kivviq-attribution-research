@@ -189,6 +189,20 @@ function replaceInteractionNetwork(
   return clone as GeneratedMerchantWorld;
 }
 
+function zeroDirectEffects(
+  world: GeneratedMerchantWorld,
+  channels: readonly MarketingChannel[],
+): GeneratedMerchantWorld {
+  const clone = structuredClone(world) as any;
+  for (const mechanism of clone.manifest.channelIncrementality) {
+    if (channels.includes(mechanism.channelId)) {
+      mechanism.effect.value = 0;
+    }
+  }
+  validateGroundTruthManifest(clone.manifest);
+  return clone as GeneratedMerchantWorld;
+}
+
 function populationFor(
   world: GeneratedMerchantWorld,
   populationSeed: number,
@@ -227,7 +241,7 @@ export function createZeroInteractionControlFixture(): CrossChannelFixture {
     91001,
     ["meta", "google_search", "pinterest"],
   );
-  const world = replaceInteractionNetwork(base, [
+  const interacted = replaceInteractionNetwork(base, [
     {
       id: "step6_zero_meta_google",
       channelIds: ["meta", "google_search"],
@@ -247,6 +261,10 @@ export function createZeroInteractionControlFixture(): CrossChannelFixture {
       targets: ["marketing.google_search.branded_probability"],
     },
   ]);
+  const world = zeroDirectEffects(
+    interacted,
+    ["meta", "google_search", "pinterest"],
+  );
   return fixture(
     "zero_interaction_control",
     world,
