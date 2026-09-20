@@ -1,4 +1,8 @@
 import type { ResponseCurve } from "../ground_truth/ontology.js";
+import {
+  evaluateFrozenResponseCurve,
+  marginalFrozenResponsePerSpendMinor,
+} from "../ground_truth/response-functions.js";
 import type { GeneratedMerchantWorld } from "../generation/config.js";
 import type {
   ChannelEconomicCurve,
@@ -68,44 +72,7 @@ export function evaluateResponseCurve(
   curve: ResponseCurve,
   spendMinor: number,
 ): number {
-  assertSpend(spendMinor);
-
-  if (curve.kind === "linear") {
-    const effectiveSpend =
-      curve.maxSpend === undefined
-        ? spendMinor
-        : Math.min(spendMinor, Number(curve.maxSpend));
-    return curve.slopePerMoneyMinor * effectiveSpend;
-  }
-
-  if (curve.kind === "hill") {
-    if (spendMinor === 0) return 0;
-    const h = Number(curve.hillCoefficient);
-    const half = Number(curve.halfSaturationSpend);
-    const numerator = Math.pow(spendMinor, h);
-    const denominator = Math.pow(half, h) + numerator;
-    return Number(curve.maxIncrementalOutcome) *
-      (denominator === 0 ? 0 : numerator / denominator);
-  }
-
-  if (curve.kind === "threshold") {
-    const threshold = Number(curve.thresholdSpend);
-    const belowSpend = Math.min(spendMinor, threshold);
-    const aboveSpend = Math.max(0, spendMinor - threshold);
-    let outcome =
-      belowSpend * curve.belowThresholdSlope +
-      aboveSpend * curve.aboveThresholdSlope;
-
-    if (curve.maximumOutcome !== undefined) {
-      outcome = Math.min(
-        outcome,
-        Number(curve.maximumOutcome),
-      );
-    }
-    return outcome;
-  }
-
-  return piecewiseOutcome(curve, spendMinor);
+  return evaluateFrozenResponseCurve(curve, spendMinor);
 }
 
 export function marginalResponsePerSpendMinor(
@@ -113,23 +80,11 @@ export function marginalResponsePerSpendMinor(
   spendMinor: number,
   blockMinor: number,
 ): number | null {
-  assertSpend(spendMinor);
-  if (!Number.isFinite(blockMinor) || blockMinor <= 0) {
-    throw new AdvertisingResponseError(
-      "marginal block must be finite and positive",
-    );
-  }
-
-  const low = Math.max(0, spendMinor - blockMinor / 2);
-  const high = spendMinor + blockMinor / 2;
-  const deltaSpend = high - low;
-  if (deltaSpend <= 0) return null;
-
-  const deltaOutcome =
-    evaluateResponseCurve(curve, high) -
-    evaluateResponseCurve(curve, low);
-
-  return deltaOutcome / deltaSpend;
+  return marginalFrozenResponsePerSpendMinor(
+    curve,
+    spendMinor,
+    blockMinor,
+  );
 }
 
 export function responseEvaluation(
