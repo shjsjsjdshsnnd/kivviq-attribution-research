@@ -279,7 +279,9 @@ export function createLowInventoryAdvertisingTrapFixture(): EcommerceAdversarial
       simulationSeed: step5.evaluation.simulationSeed,
       periodStart: step5.evaluation.periodStart,
       periodEnd: step5.evaluation.periodEnd,
-      simulationConfig: step5.evaluation.simulationConfig,
+      ...(step5.evaluation.simulationConfig === undefined
+        ? {}
+        : { simulationConfig: step5.evaluation.simulationConfig }),
       interventions: [
         {
           variable: "inventory.available",
