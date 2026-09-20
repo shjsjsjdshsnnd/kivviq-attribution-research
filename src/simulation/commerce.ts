@@ -14,6 +14,7 @@ import {
 import type {
   PurchaseLine,
   RealizedPurchase,
+  SimulationCommercePolicy,
 } from "./types.js";
 
 export interface ProductOffer {
@@ -257,6 +258,17 @@ export function chooseProduct(
 
       const inventoryMultiplier =
         offer.availableUnits > 0 ? 1 : 0.04;
+      const cartProductIds = new Set(
+        customer.cart?.lines.map((line) => line.productId) ?? [],
+      );
+      const complementMultiplier = [...cartProductIds].some(
+        (cartProductId) =>
+          runtime.merchantWorld.manifest.productDemandMechanisms
+            .find((item) => item.productId === cartProductId)
+            ?.complementaryProductIds?.includes(productId) ?? false,
+      )
+        ? 2.4
+        : 1;
       const memory = totalMemoryLift(customer);
       const weight =
         Math.max(1e-9, preference) *
@@ -265,6 +277,7 @@ export function chooseProduct(
         offer.priceUtilityMultiplier *
         offer.promotionUtilityMultiplier *
         inventoryMultiplier *
+        complementMultiplier *
         (1 + memory.productPreference);
 
       return { value: offer, weight };
@@ -272,7 +285,36 @@ export function chooseProduct(
     .filter((entry) => entry.weight > 0);
 
   if (weighted.length === 0) return undefined;
-  return randomness.weightedPick(key, weighted);
+  const selected = randomness.weightedPick(key, weighted);
+  if (selected.availableUnits > 0) return selected;
+
+  const inventoryMechanism =
+    runtime.merchantWorld.manifest.inventoryMechanisms.find(
+      (item) => item.productId === selected.productId,
+    );
+  const substitutes = [
+    ...(inventoryMechanism?.substituteProductIds ?? []),
+    ...(runtime.merchantWorld.manifest.productDemandMechanisms.find(
+      (item) => item.productId === selected.productId,
+    )?.substitutionProductIds ?? []),
+  ];
+
+  const availableSubstitutes = [...new Set(substitutes)]
+    .map((productId) =>
+      offerForProduct(
+        runtime,
+        customer,
+        productId,
+        timestampMs,
+        intervention,
+        randomness,
+      ),
+    )
+    .filter((offer) => offer.availableUnits > 0);
+
+  return availableSubstitutes.length > 0
+    ? randomness.pick(`${key}:substitute`, availableSubstitutes)
+    : selected;
 }
 
 export function addToPersistentCart(
@@ -315,6 +357,7 @@ export function checkoutPurchaseProbability(
   intervention: SimulationInterventionState,
   randomness: SharedRandomness,
   interactionLift = 0,
+  commercePolicy?: SimulationCommercePolicy,
 ): number {
   refreshLatentCustomerState(customer, timestampMs);
   const memory = totalMemoryLift(customer);
@@ -356,12 +399,31 @@ export function checkoutPurchaseProbability(
     0.35,
   );
 
+  const threshold =
+    commercePolicy?.freeShippingThresholdMinor;
+  const shippingCharge =
+    commercePolicy?.customerShippingChargeMinor ?? 0;
+  const shippingFriction =
+    threshold !== undefined &&
+    threshold !== null &&
+    cartValue < threshold &&
+    shippingCharge > 0
+      ? clamp(
+          (shippingCharge / expectedAov) *
+            customer.source.priceSensitivityMultiplier *
+            0.9,
+          0,
+          0.45,
+        )
+      : 0;
+
   const probability =
     base *
     (0.35 + customer.intent * 0.65) *
     (0.45 + customer.need * 0.55) *
     (1 + Number(deviceEffect)) *
     (1 - valueFriction) *
+    (1 - shippingFriction) *
     (promotion.active
       ? 1 +
         0.18 *
