@@ -209,17 +209,23 @@ function compileRule(
     );
   }
 
+  const hasNonChannelStateParent =
+    sourceVariableIds.includes("promotion.discount_active") ||
+    sourceVariableIds.includes("inventory.available");
+
   const driverChannels =
-    mechanism.kind === "synergy"
+    mechanism.kind === "synergy" && !hasNonChannelStateParent
       ? participantChannels
       : participantChannels.slice(0, 1);
   const conditionedOnChannels =
-    mechanism.kind === "synergy"
-      ? participantChannels
-      : participantChannels.slice(1);
+    hasNonChannelStateParent
+      ? []
+      : mechanism.kind === "synergy"
+        ? participantChannels
+        : participantChannels.slice(1);
 
   const targetChannels =
-    mechanism.kind === "synergy"
+    hasNonChannelStateParent || mechanism.kind === "synergy"
       ? []
       : participantChannels.slice(1);
 
