@@ -655,9 +655,23 @@ export function paidExposureOpportunityMultiplier(
       context,
     ).channelMultipliers.get(channel) ?? 1;
 
+  const hasRetargetingCreation = network.rules.some(
+    (rule) =>
+      rule.targetSemantic === "retargeting_eligibility" &&
+      rule.kind !== "zero" &&
+      rule.effectValue !== 0,
+  );
+  const hasEmailCreation = network.rules.some(
+    (rule) =>
+      rule.targetSemantic === "email_eligibility" &&
+      rule.kind !== "zero" &&
+      rule.effectValue !== 0,
+  );
+
   if (
-    channel === "meta" ||
-    channel === "google_shopping"
+    hasRetargetingCreation &&
+    (channel === "meta" ||
+      channel === "google_shopping")
   ) {
     multiplier *=
       0.4 +
@@ -666,7 +680,10 @@ export function paidExposureOpportunityMultiplier(
         2.0;
   }
 
-  if (channel === "email") {
+  if (
+    hasEmailCreation &&
+    channel === "email"
+  ) {
     multiplier *=
       0.35 +
       customer.futureAudience.emailEligibility *
