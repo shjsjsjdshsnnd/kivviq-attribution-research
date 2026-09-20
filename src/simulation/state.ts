@@ -34,6 +34,22 @@ export interface PersistentCartLine {
   unitPriceMinor: number;
 }
 
+export interface InteractionMemoryState {
+  readonly mechanismId: string;
+  readonly participantChannels: readonly MarketingChannel[];
+  value: number;
+  lastUpdatedMs: number;
+  halfLifeMs: number;
+}
+
+export interface FutureAudienceState {
+  retargetingEligibility: number;
+  emailEligibility: number;
+  brandedSearchReadiness: number;
+  recentSiteVisitScore: number;
+  readonly createdByChannels: Set<MarketingChannel>;
+}
+
 export interface PersistentCart {
   readonly lines: PersistentCartLine[];
   updatedAtMs: number;
@@ -59,6 +75,8 @@ export interface RuntimeCustomerState {
   churned: boolean;
 
   channelMemory: Map<MarketingChannel, ChannelMemory>;
+  interactionMemory: Map<string, InteractionMemoryState>;
+  futureAudience: FutureAudienceState;
   cart?: PersistentCart;
 }
 
@@ -124,6 +142,17 @@ export function createRuntimeWorldState(
       nextNeedEligibleMs: startMs,
       churned: false,
       channelMemory: new Map(),
+      interactionMemory: new Map(),
+      futureAudience: {
+        retargetingEligibility:
+          customer.naturalSelection.retargetingEligibilityProbability,
+        emailEligibility:
+          customer.naturalSelection.emailSubscriptionProbability,
+        brandedSearchReadiness:
+          customer.naturalSelection.brandedDirectProbability,
+        recentSiteVisitScore: 0,
+        createdByChannels: new Set(),
+      },
     });
   }
 
@@ -173,6 +202,17 @@ export function decayAllCustomerMemory(
     decayChannelMemory(memory, nowMs);
   }
 
+  for (const memory of customer.interactionMemory.values()) {
+    if (nowMs <= memory.lastUpdatedMs) continue;
+    const elapsed = nowMs - memory.lastUpdatedMs;
+    const factor =
+      memory.halfLifeMs <= 0
+        ? 0
+        : Math.pow(0.5, elapsed / memory.halfLifeMs);
+    memory.value *= factor;
+    memory.lastUpdatedMs = nowMs;
+  }
+
   const elapsed = Math.max(0, nowMs - customer.lastActivityMs);
   if (elapsed > 0) {
     // Intent does not disappear immediately. It slowly drifts toward the
@@ -189,6 +229,21 @@ export function decayAllCustomerMemory(
       90,
     );
     customer.need *= Math.pow(0.5, elapsed / days(needHalfLifeDays));
+
+    const audienceDecay = Math.pow(0.5, elapsed / days(14));
+    customer.futureAudience.recentSiteVisitScore *= audienceDecay;
+    customer.futureAudience.retargetingEligibility = clamp(
+      customer.source.naturalSelection.retargetingEligibilityProbability * 0.45 +
+        customer.futureAudience.retargetingEligibility * audienceDecay,
+      0,
+      1,
+    );
+    customer.futureAudience.brandedSearchReadiness = clamp(
+      customer.source.naturalSelection.brandedDirectProbability * 0.5 +
+        customer.futureAudience.brandedSearchReadiness * Math.pow(0.5, elapsed / days(21)),
+      0,
+      1,
+    );
   }
 
   customer.lastActivityMs = nowMs;
@@ -373,5 +428,65 @@ export function transitionLifecycleForInactivity(
   ) {
     customer.lifecycle = "churned";
     customer.churned = true;
+  }
+}
+
+
+export function recordSiteVisitForFutureAudience(
+  customer: RuntimeCustomerState,
+  source: MarketingChannel | "organic_search" | "direct" | "referral",
+  nowMs: number,
+): void {
+  decayAllCustomerMemory(customer, nowMs);
+  customer.futureAudience.recentSiteVisitScore = clamp(
+    customer.futureAudience.recentSiteVisitScore + 0.3,
+    0,
+    1,
+  );
+  customer.futureAudience.retargetingEligibility = clamp(
+    Math.max(
+      customer.futureAudience.retargetingEligibility,
+      0.28 +
+        customer.intent * 0.42 +
+        customer.consideration * 0.2 +
+        customer.futureAudience.recentSiteVisitScore * 0.1,
+    ),
+    0,
+    1,
+  );
+  customer.futureAudience.emailEligibility = clamp(
+    Math.max(
+      customer.futureAudience.emailEligibility,
+      0.2 +
+        customer.brandAffinity * 0.45 +
+        customer.consideration * 0.2,
+    ),
+    0,
+    1,
+  );
+
+  if (
+    source !== "organic_search" &&
+    source !== "direct" &&
+    source !== "referral"
+  ) {
+    customer.futureAudience.createdByChannels.add(source);
+  }
+}
+
+export function recordBrandedSearchReadiness(
+  customer: RuntimeCustomerState,
+  lift: number,
+  sourceChannel: MarketingChannel,
+  nowMs: number,
+): void {
+  decayAllCustomerMemory(customer, nowMs);
+  customer.futureAudience.brandedSearchReadiness = clamp(
+    customer.futureAudience.brandedSearchReadiness + lift,
+    0,
+    1,
+  );
+  if (lift !== 0) {
+    customer.futureAudience.createdByChannels.add(sourceChannel);
   }
 }
