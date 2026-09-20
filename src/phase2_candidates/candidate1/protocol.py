@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
+from typing import Any
 
 from attribution_lab.phase2.development import DevelopmentWorldRecord
 from attribution_lab.phase2.holdout_families import HoldoutFamily
@@ -20,7 +21,7 @@ PREREGISTRATION_PATH = (
 )
 
 
-def preregistration_payload() -> dict[str, object]:
+def preregistration_payload() -> dict[str, Any]:
     loaded = json.loads(PREREGISTRATION_PATH.read_text(encoding="utf-8"))
     if not isinstance(loaded, dict):
         raise ValueError("Candidate 1 preregistration must be a JSON object")
