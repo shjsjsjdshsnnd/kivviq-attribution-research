@@ -11,14 +11,16 @@
     "check": "npm run architecture && npm run typecheck && npm test && npm run build",
     "architecture": "depcruise --config .dependency-cruiser.cjs src",
     "benchmark:diversity": "vitest run tests/generation/diversity-benchmark.test.ts --reporter=verbose",
-    "benchmark:customers": "vitest run tests/customer_population/benchmark.test.ts --reporter=verbose"
+    "benchmark:customers": "vitest run tests/customer_population/benchmark.test.ts --reporter=verbose",
+    "test:step4": "vitest run tests/simulation --reporter=verbose"
   },
   "exports": {
     ".": "./dist/index.js",
     "./ground-truth": "./dist/ground_truth/index.js",
     "./evaluation": "./dist/evaluation/index.js",
     "./generation": "./dist/generation/index.js",
-    "./customer-population": "./dist/customer_population/index.js"
+    "./customer-population": "./dist/customer_population/index.js",
+    "./simulation": "./dist/simulation/index.js"
   },
   "devDependencies": {
     "typescript": "^5.9.2",

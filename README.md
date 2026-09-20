@@ -2,86 +2,108 @@
 
 ## Growth Operator research
 
-This public repository is a synthetic-only research environment.
+This public repository is a synthetic-only causal ecommerce research environment.
 
-### Frozen foundations
+### Frozen research references
 
 **Step 1 — GroundTruth**
 
-- Accepted head: `cdea7f6c3d313578d2b40870bebadc2690f75495`
+- Frozen head: `cdea7f6c3d313578d2b40870bebadc2690f75495`
 - PR #2
 
 **Step 2 — merchant/world generation**
 
-- Accepted head: `74edb930affca78c8b8ea262821943bba223d770`
-- Branch: `step2/merchant-world-generation`
+- Frozen head: `74edb930affca78c8b8ea262821943bba223d770`
 - PR #5
 
-Neither frozen branch is modified by Step 3.
+**Step 3 — latent customer population**
 
-### Step 3 — latent customer population
+- Frozen head: `da2d6e90198b24b39c9c1e42552f825eb3a7436e`
+- PR #8
 
-Branch: `step3/latent-customer-population`
+Steps 1–3 are frozen and unchanged by Step 4.
 
-Draft PR: #8
+### Step 4 — customer journey / behavioral simulation
 
-Step 3 generates deterministic heterogeneous latent consumers inside frozen Step 2 merchant worlds.
+Branch: `step4/customer-journey-simulation`
+
+Draft PR: #11
+
+Bootstrap-only reference:
+
+`aa313e0981e846424c3a56bce73fda60977489f7`
+
+Step 4 turns the frozen merchant worlds and latent customer populations into deterministic-under-seed, time-evolving stochastic ecommerce economies.
 
 Implemented:
 
-- stable synthetic customer IDs only;
-- weighted-agent population semantics;
-- correlated latent behavioral/economic factors;
-- continuous purchase intent and current purchase need;
-- distinct price and promotion sensitivity;
-- brand affinity;
-- sparse merchant-aligned category/product preferences;
-- channel causal susceptibility;
-- separate natural channel-use propensity;
-- natural selection mechanisms for search, email, promotions and future retargeting;
-- probabilistic device preference;
-- repeat propensity and purchase-frequency hazard;
-- abstract lifecycle state without fabricated events;
-- customer expected CLV derived from underlying retention/economic mechanisms;
-- overlapping derived customer labels;
-- deterministic micro↔macro calibration;
-- strict runtime/reference validation;
-- simple/normal/complex/adversarial customer heterogeneity;
-- weighted-agent scalability benchmarking.
+- timestamp-ordered discrete-event kernel;
+- first-class simulation clock;
+- semantic keyed shared randomness;
+- latent need/intent/awareness/consideration state;
+- carryover and decay;
+- lifecycle/lapse/churn state transitions;
+- natural channel selection;
+- separate marketing exposure generation;
+- separate exposure causal treatment effects;
+- delayed effects;
+- cross-channel mediation/synergy/cannibalization;
+- natural search/direct/email/SMS/Pinterest/affiliate behavior;
+- stochastic source/device/landing selection;
+- multi-session browsing;
+- collection/search/PDP loops;
+- persistent carts;
+- checkout abandonment and later return;
+- product choice using sparse customer preferences;
+- inventory constraints and substitution pressure;
+- price/promotion response;
+- purchase/contribution economics;
+- purchase without marketing;
+- repeat need and repeat purchase;
+- merchant/product seasonality;
+- external shocks;
+- frozen Step 1 spend/price/promotion/inventory interventions;
+- shared-randomness factual/counterfactual replay;
+- observational platform-style channel metrics;
+- separate God-mode causal truth ledger;
+- individual factual/counterfactual purchase comparisons.
 
-Every population is rejected unless it reconciles to the frozen merchant world within explicit calibration tolerances.
+### Step 4 causal acceptance
 
-### Step 3 does NOT generate
+The validation harness demonstrates:
 
-- sessions;
-- impressions;
-- clicks;
-- ad exposures;
-- searches;
-- page views;
-- carts;
-- checkouts;
-- orders;
-- attribution records;
-- realized customer journeys;
-- recommendations;
-- optimization;
-- Growth Operator;
-- LLM reasoning.
+- paid channels can receive attributed revenue while true paid incrementality is exactly zero;
+- natural channel selection remains active when all paid causal effects are zero;
+- direct/organic commerce survives with paid media off;
+- zero-effect channel cohorts can look observationally stronger than untouched cohorts;
+- promotion purchasers can be compositionally more promotion-sensitive;
+- one identical Meta → Google → purchase path can correspond to:
+  - Meta only causal;
+  - Google only causal;
+  - both causal;
+  - neither causal;
+- re-enabling nonzero paid effects produces positive shared-randomness counterfactual revenue differences.
 
-No real names, emails, phone numbers, addresses or demographic records are used.
+Observed paths therefore do not encode causal truth.
 
 ### Information boundary
 
-Latent customer populations are God-mode information.
+Simulation and latent truth are God-mode research infrastructure.
 
-The architecture gate prevents Operator-facing modules and `src/index.ts` from importing:
+Operator-facing modules and the safe root API are prohibited from importing/exporting:
 
 - GroundTruth;
 - merchant generation;
-- latent customer population;
-- evaluation/oracle;
-- future simulation/God-mode internals.
+- latent customer populations;
+- simulation;
+- counterfactual replay;
+- causal evaluators.
+
+Observable event streams never contain latent intent, causal-effect ledgers or counterfactual truth.
+
+### Research isolation
+
+No private Kivviq, Maison Olive data, real merchant/customer data, production systems, credentials or private implementation details are used.
 
 ### Documentation
 
@@ -92,3 +114,5 @@ The architecture gate prevents Operator-facing modules and `src/index.ts` from i
 - `docs/step2-diversity-report.md`
 - `docs/latent-customer-population.md`
 - `docs/step3-customer-population-report.md`
+- `docs/step4-customer-journey-simulation.md`
+- `docs/step4-simulation-acceptance.md`
