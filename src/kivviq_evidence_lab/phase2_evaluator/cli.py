@@ -6,6 +6,7 @@ import json
 from ..phase2.candidates.anthropic_opus5 import AnthropicOpus5Backend, fixed_inference_settings
 from ..phase2.candidates.candidate1 import CANDIDATE_VERSION, PROMPT_VERSION, Candidate1ModelResolver
 from ..phase2.candidates.deterministic import DeterministicResolverCandidate
+from ..phase2.contracts import SemanticResolverCandidate
 from .evaluator import evaluate_holdout
 from .holdout_v1 import build_holdout_v1
 
@@ -18,6 +19,7 @@ def main(argv: list[str] | None = None) -> int:
 
     suite = build_holdout_v1()
     metadata: dict[str, object] = {}
+    candidate: SemanticResolverCandidate
     if args.candidate == "deterministic":
         candidate = DeterministicResolverCandidate()
     elif args.candidate == "candidate1":
