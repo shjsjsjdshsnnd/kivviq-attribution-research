@@ -38,6 +38,8 @@ jobs:
       - run: ruff check .
       - run: mypy
       - run: pytest
+      - name: Candidate 1 frozen-protocol preflight
+        run: python scripts/run_candidate1_evaluation.py --mode preflight --output /tmp/candidate1-preflight
       - name: Candidate 1 development worlds
         run: python scripts/run_candidate1_development.py --output /tmp/candidate1-development.json
       - uses: actions/upload-artifact@v4

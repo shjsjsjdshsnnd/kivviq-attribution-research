@@ -1,0 +1,70 @@
+{
+  "label": "DEVELOPMENT",
+  "candidate_id": "candidate1-stratified-lpm",
+  "version": "1.0.0",
+  "source_blob_sha": "1c5a8d8c75624df36eb9d8e6c18ea4ba51d3e7b3",
+  "worlds": [
+    {
+      "world_id": "dev-balanced",
+      "seed": 1101,
+      "n_subjects": 600,
+      "corruption": "none",
+      "mean_absolute_error": 0.031855952234859486,
+      "max_absolute_error": 0.06440280656399441,
+      "coverage_fraction": 1,
+      "interval_coverage_fraction": 0.875,
+      "mean_interval_width": 0.11165850954659437
+    },
+    {
+      "world_id": "dev-selection-null",
+      "seed": 1102,
+      "n_subjects": 600,
+      "corruption": "none",
+      "mean_absolute_error": 0.02394451313211943,
+      "max_absolute_error": 0.04808902959492038,
+      "coverage_fraction": 1,
+      "interval_coverage_fraction": 0.75,
+      "mean_interval_width": 0.09190053988068476
+    },
+    {
+      "world_id": "dev-negative",
+      "seed": 1103,
+      "n_subjects": 600,
+      "corruption": "none",
+      "mean_absolute_error": 0.02023751072526733,
+      "max_absolute_error": 0.03985199578501156,
+      "coverage_fraction": 1,
+      "interval_coverage_fraction": 1,
+      "mean_interval_width": 0.08840198924240675
+    },
+    {
+      "world_id": "dev-interaction",
+      "seed": 1104,
+      "n_subjects": 600,
+      "corruption": "none",
+      "mean_absolute_error": 0.016625128340244936,
+      "max_absolute_error": 0.04678469286503695,
+      "coverage_fraction": 1,
+      "interval_coverage_fraction": 1,
+      "mean_interval_width": 0.10203127577288622
+    },
+    {
+      "world_id": "dev-missing25",
+      "seed": 1105,
+      "n_subjects": 600,
+      "corruption": "random_missing_touch_probability=0.25",
+      "mean_absolute_error": 0.013660856626312284,
+      "max_absolute_error": 0.026133071673491617,
+      "coverage_fraction": 1,
+      "interval_coverage_fraction": 1,
+      "mean_interval_width": 0.10807863600662156
+    }
+  ],
+  "worst_development": {
+    "mean_absolute_error": 0.031855952234859486,
+    "max_absolute_error": 0.06440280656399441,
+    "minimum_interval_coverage_fraction": 0.75,
+    "maximum_mean_interval_width": 0.11165850954659437
+  },
+  "note": "Development-only results. No frozen Phase 1 or sealed holdout result was used to set the estimator or these summaries."
+}

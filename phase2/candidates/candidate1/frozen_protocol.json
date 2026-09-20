@@ -1,0 +1,426 @@
+{
+  "candidate_id": "candidate1-stratified-lpm",
+  "version": "1.0.0",
+  "parent_harness_commit": "3616d00c0855a0d3d9dcb8dbf578a3e68c26f9fa",
+  "frozen_phase1_commit": "1d92f4d2d5fd89de261127b8ed4bdcced6f18fdf",
+  "candidate_source_path": "phase2/candidates/candidate1/candidate.py",
+  "candidate_source_blob_sha": "1c5a8d8c75624df36eb9d8e6c18ea4ba51d3e7b3",
+  "preregistration_blob_sha": "4eef803533ab0b6f593c1acbc91d294cb2130d89",
+  "estimand": {
+    "kind": "incremental_conversion_probability",
+    "population": "synthetic subjects entering a 21-day observation window",
+    "treatment_or_exposure": "observed target-channel exposure",
+    "outcome": "qualifying conversion within 21 days",
+    "horizon_hours": 504,
+    "intervention": "set target-channel exposure present",
+    "comparison": "set target-channel exposure absent",
+    "unit_of_analysis": "synthetic subject",
+    "temporal_ordering": "eligible exposure precedes qualifying conversion",
+    "treatment_regime": "single-channel binary intervention",
+    "aggregation_target": "population-average channel risk difference"
+  },
+  "hypothesis": "Observable cross-channel exposure patterns can proxy part of selection and make adjusted linear risk differences closer to synthetic intervention truth.",
+  "required_observable_inputs": [
+    "channel presence indicators",
+    "conversion outcome",
+    "identity confidence",
+    "censoring status",
+    "observation-window duration"
+  ],
+  "assumptions": [
+    "approximate conditional exchangeability after observed adjustment",
+    "sufficient positivity",
+    "no interference",
+    "additive linear conditional mean is adequate for the marginal target"
+  ],
+  "intentionally_hidden_oracle_variables": [
+    "true latent purchase intent",
+    "true treatment effects",
+    "oracle counterfactual outcomes",
+    "hidden selection coefficients",
+    "hidden interaction effects",
+    "hidden heterogeneous-effect terms",
+    "holdout seeds",
+    "holdout parameter values",
+    "holdout corruption settings"
+  ],
+  "supported_outcome_type": "binary",
+  "negative_effects_representable": true,
+  "heterogeneous_effects_representable": false,
+  "interactions_representable": false,
+  "uncertainty_method": "HC1 robust 95% interval",
+  "hyperparameters": {
+    "ridge_lambda": "0.0001"
+  },
+  "hyperparameter_selection_procedure": "fixed for numerical stabilization before any frozen Phase 1 or holdout result; no holdout-based selection",
+  "randomization_behavior": "deterministic estimator; simulator randomization belongs to evaluator-owned worlds",
+  "expected_failure_conditions": [
+    "unmeasured latent intent not proxied by observed co-exposures",
+    "strong interactions or heterogeneous effects",
+    "positivity failure",
+    "severe measurement corruption",
+    "time-varying effects not represented by static binary exposure"
+  ],
+  "development_world_usage": [
+    "dev-balanced@seed1101@n600",
+    "dev-selection-null@seed1102@n600",
+    "dev-negative@seed1103@n600",
+    "dev-interaction@seed1104@n600",
+    "dev-missing25@seed1105@n600@25pct-random-touch-loss"
+  ],
+  "threshold_justification": {
+    "holdout_mean_absolute_error_max": "0.08 is 2.51x the worst development MAE (0.03186), allowing OOD degradation without making the gate trivial.",
+    "holdout_max_absolute_error_max": "0.20 is 3.11x the worst development max error (0.06440).",
+    "minimum_interval_coverage": "0.50 is below the development minimum 0.75 to allow OOD calibration degradation while still rejecting systematically uninformative intervals.",
+    "maximum_mean_interval_width": "0.30 is 2.69x the worst development mean width (0.11166), preventing trivially huge uncertainty intervals.",
+    "phase1_measurement_and_sparse_thresholds": "0.12 is 3.77x the worst development MAE and is reserved for severe measurement-loss/small-sample Phase 1 conditions."
+  },
+  "falsification_criteria": {
+    "primary_success_criteria": [
+      "Every required sealed holdout family must satisfy every preregistered family rule.",
+      "Frozen Phase 1 known-failure gates must pass before holdout exposure is consumed.",
+      "All required candidate outputs must be finite and channel-complete."
+    ],
+    "failure_criteria": [
+      "Any required holdout-family metric failure causes REJECT.",
+      "Any frozen Phase 1 key-failure gate failure causes REJECT before holdout.",
+      "Missing/invalid required outputs or uncertainty cause REJECT/INCONCLUSIVE according to the harness."
+    ],
+    "uncertainty_requirements": [
+      "HC1 interval for every emitted channel estimate"
+    ],
+    "robustness_requirements": [
+      "50% random touch-loss mean MAE <= 0.12 on preregistered Phase 1 robustness cases",
+      "identity-fragmentation mean MAE <= 0.12",
+      "small-sample n=80 mean MAE <= 0.12",
+      "aggregate interval coverage >= 0.50"
+    ],
+    "required_holdout_families": [
+      "selection_shift",
+      "latent_intent_shift",
+      "prevalence_ordering_shift",
+      "time_varying_delayed",
+      "unseen_interaction",
+      "negative_heterogeneous",
+      "sparse_identity_loss",
+      "compounded_measurement"
+    ],
+    "family_rules": [
+      {
+        "family": "selection_shift",
+        "metric": "mean_absolute_error",
+        "operator": "lte",
+        "threshold": 0.08
+      },
+      {
+        "family": "selection_shift",
+        "metric": "max_absolute_error",
+        "operator": "lte",
+        "threshold": 0.2
+      },
+      {
+        "family": "selection_shift",
+        "metric": "coverage_fraction",
+        "operator": "gte",
+        "threshold": 1
+      },
+      {
+        "family": "selection_shift",
+        "metric": "interval_coverage_fraction",
+        "operator": "gte",
+        "threshold": 0.5
+      },
+      {
+        "family": "selection_shift",
+        "metric": "mean_interval_width",
+        "operator": "lte",
+        "threshold": 0.3
+      },
+      {
+        "family": "latent_intent_shift",
+        "metric": "mean_absolute_error",
+        "operator": "lte",
+        "threshold": 0.08
+      },
+      {
+        "family": "latent_intent_shift",
+        "metric": "max_absolute_error",
+        "operator": "lte",
+        "threshold": 0.2
+      },
+      {
+        "family": "latent_intent_shift",
+        "metric": "coverage_fraction",
+        "operator": "gte",
+        "threshold": 1
+      },
+      {
+        "family": "latent_intent_shift",
+        "metric": "interval_coverage_fraction",
+        "operator": "gte",
+        "threshold": 0.5
+      },
+      {
+        "family": "latent_intent_shift",
+        "metric": "mean_interval_width",
+        "operator": "lte",
+        "threshold": 0.3
+      },
+      {
+        "family": "prevalence_ordering_shift",
+        "metric": "mean_absolute_error",
+        "operator": "lte",
+        "threshold": 0.08
+      },
+      {
+        "family": "prevalence_ordering_shift",
+        "metric": "max_absolute_error",
+        "operator": "lte",
+        "threshold": 0.2
+      },
+      {
+        "family": "prevalence_ordering_shift",
+        "metric": "coverage_fraction",
+        "operator": "gte",
+        "threshold": 1
+      },
+      {
+        "family": "prevalence_ordering_shift",
+        "metric": "interval_coverage_fraction",
+        "operator": "gte",
+        "threshold": 0.5
+      },
+      {
+        "family": "prevalence_ordering_shift",
+        "metric": "mean_interval_width",
+        "operator": "lte",
+        "threshold": 0.3
+      },
+      {
+        "family": "time_varying_delayed",
+        "metric": "mean_absolute_error",
+        "operator": "lte",
+        "threshold": 0.08
+      },
+      {
+        "family": "time_varying_delayed",
+        "metric": "max_absolute_error",
+        "operator": "lte",
+        "threshold": 0.2
+      },
+      {
+        "family": "time_varying_delayed",
+        "metric": "coverage_fraction",
+        "operator": "gte",
+        "threshold": 1
+      },
+      {
+        "family": "time_varying_delayed",
+        "metric": "interval_coverage_fraction",
+        "operator": "gte",
+        "threshold": 0.5
+      },
+      {
+        "family": "time_varying_delayed",
+        "metric": "mean_interval_width",
+        "operator": "lte",
+        "threshold": 0.3
+      },
+      {
+        "family": "unseen_interaction",
+        "metric": "mean_absolute_error",
+        "operator": "lte",
+        "threshold": 0.08
+      },
+      {
+        "family": "unseen_interaction",
+        "metric": "max_absolute_error",
+        "operator": "lte",
+        "threshold": 0.2
+      },
+      {
+        "family": "unseen_interaction",
+        "metric": "coverage_fraction",
+        "operator": "gte",
+        "threshold": 1
+      },
+      {
+        "family": "unseen_interaction",
+        "metric": "interval_coverage_fraction",
+        "operator": "gte",
+        "threshold": 0.5
+      },
+      {
+        "family": "unseen_interaction",
+        "metric": "mean_interval_width",
+        "operator": "lte",
+        "threshold": 0.3
+      },
+      {
+        "family": "negative_heterogeneous",
+        "metric": "mean_absolute_error",
+        "operator": "lte",
+        "threshold": 0.08
+      },
+      {
+        "family": "negative_heterogeneous",
+        "metric": "max_absolute_error",
+        "operator": "lte",
+        "threshold": 0.2
+      },
+      {
+        "family": "negative_heterogeneous",
+        "metric": "coverage_fraction",
+        "operator": "gte",
+        "threshold": 1
+      },
+      {
+        "family": "negative_heterogeneous",
+        "metric": "interval_coverage_fraction",
+        "operator": "gte",
+        "threshold": 0.5
+      },
+      {
+        "family": "negative_heterogeneous",
+        "metric": "mean_interval_width",
+        "operator": "lte",
+        "threshold": 0.3
+      },
+      {
+        "family": "sparse_identity_loss",
+        "metric": "mean_absolute_error",
+        "operator": "lte",
+        "threshold": 0.08
+      },
+      {
+        "family": "sparse_identity_loss",
+        "metric": "max_absolute_error",
+        "operator": "lte",
+        "threshold": 0.2
+      },
+      {
+        "family": "sparse_identity_loss",
+        "metric": "coverage_fraction",
+        "operator": "gte",
+        "threshold": 1
+      },
+      {
+        "family": "sparse_identity_loss",
+        "metric": "interval_coverage_fraction",
+        "operator": "gte",
+        "threshold": 0.5
+      },
+      {
+        "family": "sparse_identity_loss",
+        "metric": "mean_interval_width",
+        "operator": "lte",
+        "threshold": 0.3
+      },
+      {
+        "family": "compounded_measurement",
+        "metric": "mean_absolute_error",
+        "operator": "lte",
+        "threshold": 0.08
+      },
+      {
+        "family": "compounded_measurement",
+        "metric": "max_absolute_error",
+        "operator": "lte",
+        "threshold": 0.2
+      },
+      {
+        "family": "compounded_measurement",
+        "metric": "coverage_fraction",
+        "operator": "gte",
+        "threshold": 1
+      },
+      {
+        "family": "compounded_measurement",
+        "metric": "interval_coverage_fraction",
+        "operator": "gte",
+        "threshold": 0.5
+      },
+      {
+        "family": "compounded_measurement",
+        "metric": "mean_interval_width",
+        "operator": "lte",
+        "threshold": 0.3
+      }
+    ],
+    "known_unsupported_cases": [
+      "causal identification under completely hidden confounding with no observable proxy",
+      "explicit CATE recovery",
+      "explicit interaction decomposition",
+      "continuous-time treatment effects"
+    ]
+  },
+  "frozen_phase1_gate": {
+    "overall_mean_absolute_error_max": 0.08,
+    "minimum_channel_coverage_fraction": 1,
+    "minimum_interval_coverage_fraction": 0.5,
+    "demand_capture_google_brand_mean_abs_error_max": 0.08,
+    "retargeting_selection_meta_mean_abs_error_max": 0.08,
+    "null_paid_pinterest_mean_abs_error_max": 0.08,
+    "harmful_pinterest_mean_abs_error_max": 0.12,
+    "harmful_pinterest_mean_estimate_must_be_negative": true,
+    "missing50_mean_absolute_error_max": 0.12,
+    "identity_fragmentation_mean_absolute_error_max": 0.12,
+    "small_sample_n80_mean_absolute_error_max": 0.12
+  },
+  "frozen_phase1_evaluation_grid": {
+    "all_scenarios_perfect": {
+      "sample_size": 250,
+      "seeds": [
+        7,
+        17,
+        29,
+        41,
+        73
+      ]
+    },
+    "key_failure_scenarios_all_sample_sizes": {
+      "scenarios": [
+        "demand_capture",
+        "retargeting_selection",
+        "null_paid_channel",
+        "harmful_channel",
+        "channel_interaction"
+      ],
+      "sample_sizes": [
+        80,
+        250,
+        800
+      ],
+      "seeds": [
+        7,
+        17,
+        29,
+        41,
+        73
+      ],
+      "quality": "perfect"
+    },
+    "measurement_robustness": {
+      "scenarios": [
+        "balanced_multi_touch",
+        "retargeting_selection"
+      ],
+      "sample_size": 250,
+      "seeds": [
+        7,
+        17,
+        29,
+        41,
+        73
+      ],
+      "qualities": "all frozen Phase 1 observation qualities"
+    }
+  },
+  "sealed_holdout": {
+    "version": "holdout-v1",
+    "feedback_bearing_evaluations_allowed": 1,
+    "audit_replay_feedback": false,
+    "seed_policy": "evaluator-generated and sealed outside Git; never candidate-visible"
+  },
+  "required_public_holdout_disclosure": "The holdout-family architecture is public because this is a public research repository. Instantiated holdout seeds, parameter values, treatment effects, latent-intent strengths, interactions, selection mechanisms, and corruption settings remain sealed from candidate development. This provides strong research-process separation but is not equivalent to a completely secret external benchmark."
+}
