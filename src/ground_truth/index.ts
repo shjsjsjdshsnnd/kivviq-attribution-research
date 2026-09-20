@@ -3,3 +3,4 @@ export * from "./causal-graph.js";
 export * from "./interventions.js";
 export * from "./manifest.js";
 export * from "./runtime-schema.js";
+export * from "./response-functions.js";
