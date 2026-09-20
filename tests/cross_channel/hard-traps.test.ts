@@ -86,7 +86,7 @@ describe("Step 6 hard interaction traps", () => {
             spend.google_search
           : 0;
 
-      const transfer = spend.meta * 0.35;
+      const transfer = spend.meta * 0.65;
       const reallocation = evaluateReallocation(
         req,
         {
