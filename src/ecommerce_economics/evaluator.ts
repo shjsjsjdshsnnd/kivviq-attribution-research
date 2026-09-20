@@ -205,16 +205,42 @@ function decompositionRows(
   const byCustomerType = new Map<string, MutableRow>();
   const byPromotion = new Map<string, MutableRow>();
 
-  const returnByProduct = new Map<string, number>();
+  const returnByOrderProduct = new Map<
+    string,
+    {
+      refundedRevenueMinor: number;
+      recoveredCogsMinor: number;
+      returnCostsMinor: number;
+    }
+  >();
+  const returnCostsByOrder = new Map<string, number>();
+
   for (const returned of returns) {
-    const weight =
-      weights.get(returned.customerId) ?? 1;
+    returnCostsByOrder.set(
+      returned.orderId,
+      (returnCostsByOrder.get(returned.orderId) ?? 0) +
+        returned.incrementalReturnCostsMinor,
+    );
+
     for (const line of returned.lines) {
-      returnByProduct.set(
-        line.productId,
-        (returnByProduct.get(line.productId) ?? 0) +
-          line.refundedRevenueMinor * weight,
-      );
+      const key = `${returned.orderId}|${line.productId}`;
+      const current =
+        returnByOrderProduct.get(key) ?? {
+          refundedRevenueMinor: 0,
+          recoveredCogsMinor: 0,
+          returnCostsMinor: 0,
+        };
+
+      current.refundedRevenueMinor +=
+        line.refundedRevenueMinor;
+      current.recoveredCogsMinor +=
+        line.recoveredCogsMinor;
+      current.returnCostsMinor +=
+        line.returnShippingCostMinor +
+        line.returnHandlingCostMinor +
+        line.restockingCostMinor;
+
+      returnByOrderProduct.set(key, current);
     }
   }
 
@@ -225,6 +251,14 @@ function decompositionRows(
       (line) => line.netSalesBeforeReturnsMinor,
     );
 
+    const totalReturnCosts =
+      returnCostsByOrder.get(order.orderId) ?? 0;
+    const baseVariableOperatingCosts = Math.max(
+      0,
+      order.variableOperatingCostsMinor -
+        totalReturnCosts,
+    );
+
     const allocatedPayment = allocateInteger(
       order.paymentFeesMinor,
       lineWeights,
@@ -233,8 +267,8 @@ function decompositionRows(
       order.shippingSubsidyMinor,
       lineWeights,
     );
-    const allocatedVariable = allocateInteger(
-      order.variableOperatingCostsMinor,
+    const allocatedBaseVariable = allocateInteger(
+      baseVariableOperatingCosts,
       lineWeights,
     );
     const allocatedPromotion = allocateInteger(
@@ -244,21 +278,31 @@ function decompositionRows(
 
     for (let index = 0; index < order.lines.length; index += 1) {
       const line = order.lines[index]!;
-      const lineReturn =
-        returnByProduct.get(line.productId) ?? 0;
-      const net = Math.max(
-        0,
-        line.netSalesBeforeReturnsMinor - lineReturn,
-      );
+      const returnKey =
+        `${order.orderId}|${line.productId}`;
+      const returned =
+        returnByOrderProduct.get(returnKey) ?? {
+          refundedRevenueMinor: 0,
+          recoveredCogsMinor: 0,
+          returnCostsMinor: 0,
+        };
+
+      const net =
+        line.netSalesBeforeReturnsMinor -
+        returned.refundedRevenueMinor;
+      const adjustedCogs =
+        line.cogsMinor -
+        returned.recoveredCogsMinor;
       const grossProfit =
-        net - line.cogsMinor;
+        net - adjustedCogs;
       const contribution =
         grossProfit -
         allocatedPayment[index]! -
         allocatedShipping[index]! -
         line.fulfillmentCostMinor -
-        allocatedVariable[index]! -
-        allocatedPromotion[index]!;
+        allocatedBaseVariable[index]! -
+        allocatedPromotion[index]! -
+        returned.returnCostsMinor;
 
       const delta = {
         orders: weight,
@@ -269,7 +313,8 @@ function decompositionRows(
         grossProfitMinor: grossProfit * weight,
         contributionProfitBeforeAdvertisingMinor:
           contribution * weight,
-        returnsRefundsMinor: lineReturn * weight,
+        returnsRefundsMinor:
+          returned.refundedRevenueMinor * weight,
       };
 
       add(byProduct, line.productId, delta);
