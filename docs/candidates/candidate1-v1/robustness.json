@@ -1,0 +1,27 @@
+{
+  "key_case_seed_error_stddev": 0.010609794108570273,
+  "label": "PREREGISTERED_ROBUSTNESS",
+  "mean_absolute_error_by_key_sample_size": {
+    "250": 0.03321403636832764,
+    "80": 0.05578613297792311,
+    "800": 0.019036190900481458
+  },
+  "mean_absolute_error_by_measurement_quality": {
+    "channel_specific_missing": 0.03348397488964013,
+    "consent_exclusions": 0.03411011986766735,
+    "cookie_loss": 0.029529742203355053,
+    "delayed_events": 0.03411011986766735,
+    "duplicated_events": 0.03411011986766735,
+    "fragmented_identity": 0.02999486700183211,
+    "missing_10": 0.034437956225624664,
+    "missing_25": 0.04172786814549185,
+    "missing_50": 0.044238056586363324,
+    "missing_click_ids": 0.03411011986766735,
+    "observation_censoring": 0.03100805811431174,
+    "perfect": 0.03411011986766735,
+    "session_splitting": 0.03411011986766735,
+    "utm_corruption": 0.03411011986766735,
+    "utm_removal": 0.03411011986766735
+  },
+  "mean_interval_coverage_fraction": 0.8879310344827587
+}

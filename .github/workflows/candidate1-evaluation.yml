@@ -1,0 +1,76 @@
+name: Candidate 1 frozen evaluation
+
+on:
+  push:
+    branches: ["phase2/candidate1-stratified-lpm"]
+    paths:
+      - "phase2/candidates/candidate1/FROZEN"
+
+permissions:
+  contents: write
+
+jobs:
+  evaluate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+      - run: python -m pip install --upgrade pip
+      - run: python -m pip install -e ".[dev]"
+      - name: Repository safety
+        run: python scripts/check_repo_safety.py
+      - name: Frozen Phase 1 verification
+        run: python scripts/check_phase1_frozen.py
+      - run: ruff check .
+      - run: mypy
+      - run: pytest
+      - name: Verify frozen marker matches candidate source
+        shell: bash
+        run: |
+          set -euo pipefail
+          expected="$(awk '/candidate_source_blob_sha:/ {print $2}' phase2/candidates/candidate1/FROZEN)"
+          actual="$(git hash-object phase2/candidates/candidate1/candidate.py)"
+          test "$actual" = "$expected"
+      - name: Candidate 1 frozen evaluation
+        run: python scripts/run_candidate1_evaluation.py --mode evaluate --output /tmp/candidate1-evaluation
+      - name: Persist public Candidate 1 result
+        shell: bash
+        run: |
+          set -euo pipefail
+          report_dir="docs/candidates/candidate1-v1"
+          mkdir -p "$report_dir"
+          for name in candidate1_results.json candidate1_report.md robustness.json holdout_public_metadata.json research-ledger.jsonl; do
+            cp "/tmp/candidate1-evaluation/$name" "$report_dir/$name"
+          done
+
+          test ! -e "$report_dir/holdout-v1.seal.json"
+          test ! -e "$report_dir/evaluator-private-seal"
+          python scripts/check_repo_safety.py
+          git add -N "$report_dir"
+          git status --short
+          git diff --check
+          git diff -- "$report_dir"
+
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add "$report_dir"
+          git commit -m "Persist Candidate 1 frozen evaluation result"
+          git push origin "HEAD:${GITHUB_REF_NAME}"
+      - name: Upload public evaluation artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: candidate1-public-evaluation
+          path: |
+            /tmp/candidate1-evaluation/candidate1_results.json
+            /tmp/candidate1-evaluation/candidate1_report.md
+            /tmp/candidate1-evaluation/robustness.json
+            /tmp/candidate1-evaluation/holdout_public_metadata.json
+            /tmp/candidate1-evaluation/research-ledger.jsonl
+          if-no-files-found: error
+          retention-days: 30

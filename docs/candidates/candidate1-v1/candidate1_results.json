@@ -1,0 +1,172 @@
+{
+  "candidate_fingerprints": {
+    "code": "81bac36011c6f84cc9042d5db85ef8205c33b2340815c712afe47daf226d1769",
+    "declaration": "f17bc0e9fcff3da35f53c5a3f187ba97c0d3b6c1ee646decbcf9dfa1292326a0",
+    "development_record": "b6a0716d9ee6b9338c1998a54c73beb1d2efb34b26d1273f88c60ee92c12c991",
+    "lineage": "358d56b5850ded4f411047c64f61a7d7537758a19f23b5bf84131e6e238bed93",
+    "source_git_blob": "1c5a8d8c75624df36eb9d8e6c18ea4ba51d3e7b3"
+  },
+  "candidate_id": "candidate1-stratified-lpm",
+  "development": {
+    "candidate_id": "candidate1-stratified-lpm",
+    "label": "DEVELOPMENT",
+    "note": "Development-only results. No frozen Phase 1 or sealed holdout result was used to set the estimator or these summaries.",
+    "source_blob_sha": "1c5a8d8c75624df36eb9d8e6c18ea4ba51d3e7b3",
+    "version": "1.0.0",
+    "worlds": [
+      {
+        "corruption": "none",
+        "coverage_fraction": 1,
+        "interval_coverage_fraction": 0.875,
+        "max_absolute_error": 0.06440280656399441,
+        "mean_absolute_error": 0.031855952234859486,
+        "mean_interval_width": 0.11165850954659437,
+        "n_subjects": 600,
+        "seed": 1101,
+        "world_id": "dev-balanced"
+      },
+      {
+        "corruption": "none",
+        "coverage_fraction": 1,
+        "interval_coverage_fraction": 0.75,
+        "max_absolute_error": 0.04808902959492038,
+        "mean_absolute_error": 0.02394451313211943,
+        "mean_interval_width": 0.09190053988068476,
+        "n_subjects": 600,
+        "seed": 1102,
+        "world_id": "dev-selection-null"
+      },
+      {
+        "corruption": "none",
+        "coverage_fraction": 1,
+        "interval_coverage_fraction": 1,
+        "max_absolute_error": 0.03985199578501156,
+        "mean_absolute_error": 0.02023751072526733,
+        "mean_interval_width": 0.08840198924240675,
+        "n_subjects": 600,
+        "seed": 1103,
+        "world_id": "dev-negative"
+      },
+      {
+        "corruption": "none",
+        "coverage_fraction": 1,
+        "interval_coverage_fraction": 1,
+        "max_absolute_error": 0.04678469286503695,
+        "mean_absolute_error": 0.016625128340244936,
+        "mean_interval_width": 0.10203127577288622,
+        "n_subjects": 600,
+        "seed": 1104,
+        "world_id": "dev-interaction"
+      },
+      {
+        "corruption": "random_missing_touch_probability=0.25",
+        "coverage_fraction": 1,
+        "interval_coverage_fraction": 1,
+        "max_absolute_error": 0.026133071673491617,
+        "mean_absolute_error": 0.013660856626312284,
+        "mean_interval_width": 0.10807863600662156,
+        "n_subjects": 600,
+        "seed": 1105,
+        "world_id": "dev-missing25"
+      }
+    ],
+    "worst_development": {
+      "max_absolute_error": 0.06440280656399441,
+      "maximum_mean_interval_width": 0.11165850954659437,
+      "mean_absolute_error": 0.031855952234859486,
+      "minimum_interval_coverage_fraction": 0.75
+    }
+  },
+  "final_outcome": "REJECT",
+  "final_reasons": [
+    "FROZEN_PHASE1:demand_capture",
+    "SEALED_HOLDOUT:sealed holdout not consumed because frozen Phase 1 preregistered gate failed"
+  ],
+  "frozen_phase1": {
+    "case_count": 290,
+    "passed": false,
+    "rejection_reasons": [
+      "demand_capture"
+    ],
+    "summary": {
+      "cases": 290,
+      "checks": {
+        "channel_coverage": true,
+        "demand_capture": false,
+        "harmful_error": true,
+        "harmful_sign": true,
+        "identity_fragmentation": true,
+        "interval_coverage": true,
+        "missing50": true,
+        "null_paid": true,
+        "overall_mean_absolute_error": true,
+        "retargeting_selection": true,
+        "small_sample": true
+      },
+      "demand_capture_google_brand_mean_abs_error": 0.10876314475429201,
+      "harmful_pinterest_mean_abs_error": 0.02590203255064049,
+      "harmful_pinterest_mean_estimate": -0.05581462769507434,
+      "identity_fragmentation_mean_absolute_error": 0.02999486700183211,
+      "mean_interval_coverage_fraction": 0.8879310344827587,
+      "minimum_channel_coverage_fraction": 1.0,
+      "missing50_mean_absolute_error": 0.044238056586363324,
+      "null_paid_pinterest_mean_abs_error": 0.02830243143321186,
+      "overall_mean_absolute_error": 0.03560913189470558,
+      "retargeting_selection_meta_mean_abs_error": 0.054602527807257654,
+      "small_sample_n80_mean_absolute_error": 0.05578613297792311
+    }
+  },
+  "harness_reference": "3616d00c0855a0d3d9dcb8dbf578a3e68c26f9fa",
+  "limitations": [
+    "The holdout-family architecture is public; only instantiated holdout parameters are sealed.",
+    "Candidate 1 adjusts only for observable proxies and cannot guarantee identification under hidden confounding.",
+    "The estimator does not explicitly model interactions, heterogeneous treatment effects, or continuous-time effects.",
+    "Synthetic causal recovery does not establish real-world causal accuracy.",
+    "The evaluator-private holdout seal is intentionally not committed to this public repository."
+  ],
+  "no_private_or_production_data_accessed": true,
+  "phase1_reference": "1d92f4d2d5fd89de261127b8ed4bdcced6f18fdf",
+  "public_holdout_limitation": "The holdout-family architecture is public because this is a public research repository. Instantiated holdout seeds, parameter values, treatment effects, latent-intent strengths, interactions, selection mechanisms, and corruption settings remain sealed from candidate development. This provides strong research-process separation but is not equivalent to a completely secret external benchmark.",
+  "robustness": {
+    "passed": true,
+    "summary": {
+      "key_case_seed_error_stddev": 0.010609794108570273,
+      "label": "PREREGISTERED_ROBUSTNESS",
+      "mean_absolute_error_by_key_sample_size": {
+        "250": 0.03321403636832764,
+        "80": 0.05578613297792311,
+        "800": 0.019036190900481458
+      },
+      "mean_absolute_error_by_measurement_quality": {
+        "channel_specific_missing": 0.03348397488964013,
+        "consent_exclusions": 0.03411011986766735,
+        "cookie_loss": 0.029529742203355053,
+        "delayed_events": 0.03411011986766735,
+        "duplicated_events": 0.03411011986766735,
+        "fragmented_identity": 0.02999486700183211,
+        "missing_10": 0.034437956225624664,
+        "missing_25": 0.04172786814549185,
+        "missing_50": 0.044238056586363324,
+        "missing_click_ids": 0.03411011986766735,
+        "observation_censoring": 0.03100805811431174,
+        "perfect": 0.03411011986766735,
+        "session_splitting": 0.03411011986766735,
+        "utm_corruption": 0.03411011986766735,
+        "utm_removal": 0.03411011986766735
+      },
+      "mean_interval_coverage_fraction": 0.8879310344827587
+    }
+  },
+  "sealed_holdout": {
+    "feedback_consumed_count": 0,
+    "feedback_exposure_consumed": false,
+    "gate_outcome": "INCONCLUSIVE",
+    "gate_reasons": [
+      "sealed holdout not consumed because frozen Phase 1 preregistered gate failed"
+    ],
+    "public_metadata": {},
+    "results": [],
+    "version": "holdout-v1"
+  },
+  "version": "1.0.0"
+}

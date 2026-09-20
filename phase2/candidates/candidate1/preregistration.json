@@ -1,0 +1,91 @@
+{
+  "candidate_id": "candidate1-stratified-lpm",
+  "version": "1.0.0",
+  "status": "PREREGISTERED_ESTIMAND_AND_HYPOTHESIS_ONLY",
+  "estimand": {
+    "kind": "incremental_conversion_probability",
+    "population": "synthetic subjects entering a 21-day observation window",
+    "unit_of_analysis": "synthetic subject",
+    "treatment_or_exposure": "at least one observed exposure to the target channel before a qualifying conversion or horizon end",
+    "outcome": "qualifying conversion within 21 days",
+    "horizon_hours": 504,
+    "intervention": "set target-channel exposure indicator to 1 while holding declared observable adjustment covariates fixed",
+    "comparison": "set target-channel exposure indicator to 0 while holding declared observable adjustment covariates fixed",
+    "temporal_ordering": "eligible target-channel exposure must precede the qualifying conversion; otherwise it is outside the treatment definition",
+    "treatment_regime": "single-channel binary exposure intervention evaluated separately for each channel",
+    "aggregation_target": "population-average risk-difference vector, one incremental conversion-probability estimate per channel"
+  },
+  "hypothesis": {
+    "statement": "An interpretable covariate-adjusted linear-probability treatment-effect estimator can reduce synthetic causal-recovery error under selection bias relative to unadjusted descriptive attribution behavior, when observed cross-channel exposure patterns contain useful proxies for selection.",
+    "why_it_might_address_selection": [
+      "Other observed channel-exposure indicators can proxy part of latent purchase intent when intent influences exposure to several channels.",
+      "Jointly adjusting for measured co-exposures separates part of target-channel selection from outcome association.",
+      "The target coefficient remains an interpretable conditional risk-difference estimate rather than normalized conversion credit."
+    ],
+    "assumptions_required": [
+      "Conditional exchangeability is approximately achieved by the preregistered observable adjustment set.",
+      "Other-channel exposure indicators used for adjustment are not materially downstream mediators of the target exposure in the evaluated world.",
+      "There is sufficient overlap/positivity for treated and untreated subjects.",
+      "The additive linear conditional-mean approximation is adequate for the population-average target.",
+      "No interference between synthetic subjects.",
+      "Measurement corruption does not completely destroy the adjustment variables."
+    ],
+    "expected_failure_conditions": [
+      "Latent intent strongly drives treatment and outcome but is not proxied by observed co-exposures.",
+      "Strong treatment interactions or heterogeneous effects dominate the marginal average.",
+      "Near-deterministic treatment assignment destroys overlap.",
+      "Severe channel-dependent missingness or identity fragmentation distorts the observable adjustment set.",
+      "Time-varying treatment effects invalidate the static binary-exposure approximation."
+    ],
+    "rejection_logic": "The hypothesis is rejected if the frozen preregistered Phase 1/holdout criteria fail after development is frozen; no post-holdout tuning is permitted."
+  },
+  "method_selection": {
+    "selected_family": "covariate-adjusted linear probability outcome regression",
+    "selected_method": "ridge-stabilized linear probability model with heteroskedasticity-robust HC1 intervals",
+    "rationale": "This is the simplest interpretable estimator that directly targets a conversion-probability risk difference while adjusting for observable cross-channel selection proxies. It can represent positive or negative marginal effects, has inspectable coefficients, and does not require black-box sequence learning.",
+    "alternatives_not_implemented": [
+      "propensity weighting",
+      "doubly robust estimation",
+      "survival modeling",
+      "Bayesian modeling",
+      "causal forests",
+      "neural models"
+    ]
+  },
+  "observable_inputs": [
+    "binary presence of each observed channel in the subject journey",
+    "binary 21-day conversion outcome",
+    "identity_confidence",
+    "is_censored",
+    "observation-window duration"
+  ],
+  "observable_confounder_proxies": [
+    "other-channel exposure indicators",
+    "identity_confidence",
+    "censoring indicator",
+    "observation-window duration"
+  ],
+  "intentionally_hidden_oracle_variables": [
+    "true latent purchase intent",
+    "true channel treatment effects",
+    "oracle counterfactual outcomes",
+    "hidden selection coefficients",
+    "hidden interaction effects",
+    "hidden heterogeneous-effect terms",
+    "holdout seeds",
+    "holdout parameter values",
+    "holdout corruption settings"
+  ],
+  "representability": {
+    "negative_effects": true,
+    "heterogeneous_effects": false,
+    "interactions": false
+  },
+  "uncertainty_target": "95% heteroskedasticity-robust HC1 confidence interval for each channel risk-difference estimate",
+  "development_policy": {
+    "allowed": "development worlds only for implementation, numerical-stability work and fixed regularization selection",
+    "prohibited": "sealed holdout access, holdout-derived tuning, or modification of frozen Phase 1"
+  },
+  "falsification_plan_status": "Thresholds and exact family rules will be frozen after development and before any sealed holdout exposure.",
+  "required_public_holdout_disclosure": "The holdout-family architecture is public because this is a public research repository. Instantiated holdout seeds, parameter values, treatment effects, latent-intent strengths, interactions, selection mechanisms, and corruption settings remain sealed from candidate development. This provides strong research-process separation but is not equivalent to a completely secret external benchmark."
+}
