@@ -13,7 +13,6 @@ from attribution_lab.phase2_evaluator.results import EvaluationStage
 from attribution_lab.schemas.core import Channel
 from attribution_lab.simulation.config import WorldConfig
 from attribution_lab.simulation.generator import generate_world
-
 from phase2_candidates.candidate1.protocol import declaration
 
 ROOT = Path(__file__).resolve().parent
