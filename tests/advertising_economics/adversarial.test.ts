@@ -53,6 +53,19 @@ describe("Step 5 adversarial advertising worlds", () => {
       expect(trap.platformRoas!).toBeGreaterThan(
         trap.marginalIncrementalRoas!,
       );
+
+      console.info(
+        "STEP5_VANITY_TRAP",
+        JSON.stringify({
+          dashboardLeader: dashboardLeader.channel,
+          platformRoas: trap.platformRoas,
+          trueIncrementalRoas: trap.trueIncrementalRoas,
+          marginalIncrementalRoas: trap.marginalIncrementalRoas,
+          incrementalContributionProfitMinor:
+            trap.incrementalContributionProfitMinor,
+          bestAlternativeMarginalRoas: bestAlternativeMarginal,
+        }),
+      );
     },
     120_000,
   );
@@ -87,6 +100,23 @@ describe("Step 5 adversarial advertising worlds", () => {
 
       expect(trap!.platformAttributedRevenueMinor).toBeGreaterThan(
         trap!.trueIncrementalRevenueMinor,
+      );
+
+      console.info(
+        "STEP5_RETARGETING_TRAP",
+        JSON.stringify({
+          channel: trap!.channel,
+          platformRoas: trap!.platformRoas,
+          trueIncrementalRoas: trap!.trueIncrementalRoas,
+          platformReportedCacMinor:
+            trap!.platformReportedCacMinor,
+          averageIncrementalCacMinor:
+            trap!.averageIncrementalCacMinor,
+          platformAttributedRevenueMinor:
+            trap!.platformAttributedRevenueMinor,
+          trueIncrementalRevenueMinor:
+            trap!.trueIncrementalRevenueMinor,
+        }),
       );
     },
     120_000,
