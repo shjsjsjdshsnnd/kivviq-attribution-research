@@ -12,6 +12,7 @@ export type SimulationEventKind =
   | "return_visit"
   | "repeat_need"
   | "lifecycle_check"
+  | "inventory_replenishment"
   | "shock_start"
   | "shock_end";
 
