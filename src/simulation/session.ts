@@ -3,6 +3,7 @@ import type { SharedRandomness } from "./kernel.js";
 import type {
   ObservableSource,
   PerfectObservableJourneyEvent,
+  SimulationCommercePolicy,
 } from "./types.js";
 import type { SimulationInterventionState } from "./interventions.js";
 import {
@@ -248,6 +249,7 @@ export function advanceSession(
   intervention: SimulationInterventionState,
   randomness: SharedRandomness,
   maxSteps: number,
+  commercePolicy?: SimulationCommercePolicy,
 ): SessionStepResult {
   if (session.ended || session.step >= maxSteps) {
     session.ended = true;
@@ -437,6 +439,21 @@ export function advanceSession(
         )
       ) {
         addToPersistentCart(customer, offer, timestampMs);
+        const extraUnitProbability = clamp(
+          (runtime.merchantWorld.summary.expectedUnitsPerOrder - 1) *
+            0.22,
+          0,
+          0.45,
+        );
+        if (
+          offer.availableUnits > 1 &&
+          randomness.bool(
+            `${stepKey}:extra-unit`,
+            extraUnitProbability,
+          )
+        ) {
+          addToPersistentCart(customer, offer, timestampMs);
+        }
         session.currentPage = "cart";
         events.push({
           eventId: eventId(session.sessionId, `atc_${session.step}`),
@@ -470,6 +487,37 @@ export function advanceSession(
   }
 
   if (session.currentPage === "cart") {
+    const cartValue =
+      customer.cart?.lines.reduce(
+        (sum, line) =>
+          sum + line.quantity * line.unitPriceMinor,
+        0,
+      ) ?? 0;
+    const threshold =
+      commercePolicy?.freeShippingThresholdMinor;
+    const shippingCharge =
+      commercePolicy?.customerShippingChargeMinor ?? 0;
+    const belowThreshold =
+      threshold !== undefined &&
+      threshold !== null &&
+      cartValue < threshold &&
+      shippingCharge > 0;
+    const thresholdGap =
+      belowThreshold && threshold !== undefined && threshold !== null
+        ? threshold - cartValue
+        : 0;
+    const fillBasketMultiplier =
+      belowThreshold &&
+      threshold !== undefined &&
+      threshold !== null &&
+      thresholdGap <=
+        Math.max(
+          runtime.merchantWorld.summary.catalogMedianPriceMinor * 1.5,
+          threshold * 0.35,
+        )
+        ? 0.82
+        : 1;
+
     const checkoutProbability =
       funnelProbability(
         runtime,
@@ -477,12 +525,13 @@ export function advanceSession(
         "checkout",
         0.52,
       ) *
-      (0.55 + intent * 0.55);
+      (0.55 + intent * 0.55) *
+      fillBasketMultiplier;
 
     if (
       randomness.bool(
         `${stepKey}:checkout`,
-        clamp(checkoutProbability, 0.08, 0.9),
+        clamp(checkoutProbability, 0.05, 0.9),
       )
     ) {
       session.currentPage = "checkout";
@@ -497,7 +546,12 @@ export function advanceSession(
         device: session.device,
       });
     } else if (
-      randomness.bool(`${stepKey}:continue-shopping`, 0.34)
+      randomness.bool(
+        `${stepKey}:continue-shopping`,
+        belowThreshold && thresholdGap > 0
+          ? 0.58
+          : 0.34,
+      )
     ) {
       session.currentPage = "collection";
     } else {
