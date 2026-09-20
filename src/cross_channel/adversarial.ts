@@ -469,7 +469,7 @@ export function createMediationFixture(): CrossChannelFixture {
   return fixture(
     "mediation",
     world,
-    92060,
+    92660,
     93060,
   );
 }
