@@ -3,6 +3,7 @@ import { generateMerchantWorldRecord } from "../../src/generation/generator.js";
 import { generateCustomerPopulation } from "../../src/customer_population/generator.js";
 import {
   buildAdvertisingPerformanceReport,
+  evaluateSpendNeighborhood,
   evaluateSpendPair,
   referenceSpendMinor,
 } from "../../src/advertising_economics/evaluator.js";
@@ -113,6 +114,36 @@ describe("advertising performance separation", () => {
     expect(evaluated.performance.incrementalSpendMinor).toBe(0);
     expect(evaluated.performance.trueIncrementalRoas).toBeNull();
   }, 60_000);
+
+  it(
+    "evaluates forward and backward marginal spend around the current point",
+    () => {
+      const request = fixture();
+      const channel = request.merchantWorld.summary.activeChannels.find(
+        isPaidMarketingChannel,
+      )!;
+
+      const neighborhood = evaluateSpendNeighborhood(
+        request,
+        channel,
+        25_000,
+      );
+
+      expect(neighborhood.belowSpendMinor).toBeLessThan(
+        neighborhood.referenceSpendMinor,
+      );
+      expect(neighborhood.aboveSpendMinor).toBeGreaterThan(
+        neighborhood.referenceSpendMinor,
+      );
+      expect(
+        neighborhood.backward.incrementalSpendMinor,
+      ).toBeGreaterThan(0);
+      expect(
+        neighborhood.forward.incrementalSpendMinor,
+      ).toBeGreaterThan(0);
+    },
+    90_000,
+  );
 
   it("supports finite budgets and resolves delta/multiplier requests into set interventions", () => {
     const request = fixture();
