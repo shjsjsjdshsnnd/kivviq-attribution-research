@@ -1,0 +1,75 @@
+name: Phase 2 Candidate 1 Sealed Holdout
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  CANDIDATE_VERSION: "phase2-candidate1-model-semantic-v1.0.0"
+  PROMPT_VERSION: "phase2-candidate1-prompt-v1.0.0"
+  MODEL_ID: "claude-opus-5"
+  EFFORT: "high"
+  THINKING_TYPE: "adaptive"
+  MAX_TOKENS: "4096"
+  FROZEN_CANDIDATE_SHA: "UNFROZEN"
+
+jobs:
+  sealed-holdout:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      ANTHROPIC_API_KEY: ${{ secrets.KIVVIQ_RESEARCH_ANTHROPIC_API_KEY }}
+    steps:
+      - name: Refuse holdout before Candidate 1 freeze
+        run: |
+          test "$FROZEN_CANDIDATE_SHA" != "UNFROZEN"
+          test -n "$FROZEN_CANDIDATE_SHA"
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ env.FROZEN_CANDIDATE_SHA }}
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+      - name: Install development tooling
+        run: python -m pip install -e ".[dev]"
+      - name: Require research-only model credential
+        run: test -n "$ANTHROPIC_API_KEY"
+      - name: Repository safety
+        run: python -m kivviq_evidence_lab.cli safety .
+      - name: Candidate isolation
+        run: python -m kivviq_evidence_lab.phase2.cli firewall .
+      - name: Verify exact frozen Candidate 1 identity and inference settings
+        run: |
+          python - <<'PY'
+          from kivviq_evidence_lab.phase2.candidate1_cli import manifest
+          actual = manifest()
+          expected = {
+              "candidate_version": "phase2-candidate1-model-semantic-v1.0.0",
+              "prompt_version": "phase2-candidate1-prompt-v1.0.0",
+              "inference": {
+                  "provider": "anthropic",
+                  "model_id": "claude-opus-5",
+                  "max_tokens": 4096,
+                  "thinking": {"type": "adaptive"},
+                  "output_config": {"effort": "high"},
+                  "temperature": "omitted",
+                  "top_p": "omitted",
+                  "top_k": "omitted",
+                  "anthropic_version": "2023-06-01",
+                  "tools": "none",
+              },
+          }
+          if actual != expected:
+              raise SystemExit(f"Candidate 1 manifest mismatch: {actual!r}")
+          PY
+          test "$(git rev-parse HEAD)" = "$FROZEN_CANDIDATE_SHA"
+      - name: Run exactly one sealed Candidate 1 holdout evaluation
+        run: python -m kivviq_evidence_lab.phase2_evaluator.cli candidate1 --json | tee candidate1-holdout-v1.json
+      - uses: actions/upload-artifact@v4
+        with:
+          name: candidate1-holdout-v1-result
+          path: candidate1-holdout-v1.json
+          if-no-files-found: error

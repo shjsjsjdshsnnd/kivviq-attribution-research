@@ -38,3 +38,16 @@ class ModelSemanticBackend(Protocol):
         context: tuple[RequestSemantics, ...],
     ) -> SemanticBundle:
         ...
+
+
+class StructuredTextModel(Protocol):
+    """Text model boundary used by Candidate 1.
+
+    The backend receives interpretation instructions and merchant language only.
+    It does not receive evidence facts, governor outcomes, or holdout truth.
+    """
+
+    model_id: str
+
+    def complete(self, system_prompt: str, user_prompt: str) -> str:
+        ...
