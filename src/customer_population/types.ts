@@ -72,6 +72,7 @@ export interface ChannelLatentTrait {
 
 export interface NaturalSelectionPropensities {
   readonly searchUseProbability: number;
+  readonly organicDiscoveryProbability: number;
   readonly brandedDirectProbability: number;
   readonly emailSubscriptionProbability: number;
   readonly promotionWaitingProbability: number;
@@ -143,6 +144,7 @@ export interface CalibrationMetric {
     | "brand_affinity_mean"
     | "repeat_propensity_mean"
     | "mobile_share"
+    | "organic_propensity_mean"
     | "purchase_interval_mean"
     | "future_purchases_mean"
     | "purchase_weighted_aov"
