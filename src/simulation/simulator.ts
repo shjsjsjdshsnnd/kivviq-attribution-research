@@ -553,32 +553,34 @@ export function simulateWorld(
     queue.schedule(event);
   };
 
-  for (const inventory of request.merchantWorld.manifest.inventoryMechanisms) {
-    const units = Math.max(
-      0,
-      Math.floor(Number(inventory.replenishmentUnits)),
-    );
-    if (units <= 0) continue;
+  if (request.commercePolicy?.executeInventoryLifecycle === true) {
+    for (const inventory of request.merchantWorld.manifest.inventoryMechanisms) {
+      const units = Math.max(
+        0,
+        Math.floor(Number(inventory.replenishmentUnits)),
+      );
+      if (units <= 0) continue;
 
-    const leadMs =
-      Number(inventory.supplierLeadTimeSeconds) * 1_000;
-    const cadenceMs =
-      inventory.replenishmentEverySeconds === undefined
-        ? undefined
-        : Number(inventory.replenishmentEverySeconds) * 1_000;
+      const leadMs =
+        Number(inventory.supplierLeadTimeSeconds) * 1_000;
+      const cadenceMs =
+        inventory.replenishmentEverySeconds === undefined
+          ? undefined
+          : Number(inventory.replenishmentEverySeconds) * 1_000;
 
-    schedule<InventoryReplenishmentPayload>({
-      id: `inventory-replenishment:${inventory.productId}:0`,
-      kind: "inventory_replenishment",
-      timestampMs: clock.startMs + Math.max(0, leadMs),
-      priority: 5,
-      payload: {
-        productId: inventory.productId,
-        units,
-        ...(cadenceMs === undefined ? {} : { cadenceMs }),
-        ordinal: 0,
-      },
-    });
+      schedule<InventoryReplenishmentPayload>({
+        id: `inventory-replenishment:${inventory.productId}:0`,
+        kind: "inventory_replenishment",
+        timestampMs: clock.startMs + Math.max(0, leadMs),
+        priority: 5,
+        payload: {
+          productId: inventory.productId,
+          units,
+          ...(cadenceMs === undefined ? {} : { cadenceMs }),
+          ordinal: 0,
+        },
+      });
+    }
   }
 
   for (const customer of runtime.customers.values()) {
@@ -1138,6 +1140,7 @@ export function simulateWorld(
             orderId,
             interventionState,
             randomness,
+            request.commercePolicy,
           );
           if (purchase) {
             purchaseCount.set(
