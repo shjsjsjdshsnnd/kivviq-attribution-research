@@ -48,6 +48,10 @@ export function governDecision(
     return insufficient(candidate.target, 'UNKNOWN claims cannot support a directional recommendation.', candidate.supportingClaimIds)
   }
 
+  if (claims.some((claim) => claim.materiality === 'UNKNOWN') && candidate.state !== 'INVESTIGATE') {
+    return insufficient(candidate.target, 'Materiality is UNKNOWN; directional action is blocked until the evidence is decision-grade.', candidate.supportingClaimIds)
+  }
+
   const baseConfidence = evidenceConfidence(claims)
   if (baseConfidence < LOW_EVIDENCE_THRESHOLD) {
     return insufficient(candidate.target, 'Supporting evidence is below the minimum confidence/completeness threshold.', candidate.supportingClaimIds)

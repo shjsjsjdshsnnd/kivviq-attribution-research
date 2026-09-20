@@ -1,0 +1,29 @@
+name: Truth Voice Governor
+
+on:
+  push:
+    branches:
+      - prototype/truth-voice-governor
+    paths:
+      - 'prototype/truth-voice-governor/**'
+      - '.github/workflows/truth-voice-governor.yml'
+  pull_request:
+    paths:
+      - 'prototype/truth-voice-governor/**'
+      - '.github/workflows/truth-voice-governor.yml'
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: prototype/truth-voice-governor
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: npm install --no-audit --no-fund
+      - run: npm run typecheck
+      - run: npm test
+      - run: npm run build

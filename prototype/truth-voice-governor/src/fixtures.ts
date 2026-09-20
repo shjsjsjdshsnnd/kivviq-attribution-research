@@ -160,8 +160,8 @@ export const ADVERSARIAL_FIXTURES: readonly AdversarialFixture[] = Object.freeze
       reversibility: 'EASY',
       conditionsThatWouldChangeDecision: ['More observations accrue.'],
     },
-    expectedDecision: 'SCALE',
-    forbiddenClaims: ['Performance materially improved with confidence.'],
+    expectedDecision: 'INSUFFICIENT_EVIDENCE',
+    forbiddenClaims: ['Performance materially improved with confidence.', 'Scale from a three-observation sample.'],
     conclusionClaimIds: ['tiny-change'],
   },
   {
