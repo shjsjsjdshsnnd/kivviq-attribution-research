@@ -110,8 +110,8 @@ export function createLowInventoryProductRoasTrapFixture(): LowInventoryProductR
     channel: "meta",
     channelSpendMinor:
       step5.evaluation.spendMinorByChannel?.meta ?? 55_000,
-    campaignSpendMinor: 1_000,
-    proposedAdditionalSpendMinor: 5_000_000,
+    campaignSpendMinor: 25_000,
+    proposedAdditionalSpendMinor: 500_000,
   };
 }
 
