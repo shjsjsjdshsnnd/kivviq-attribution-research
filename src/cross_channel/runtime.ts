@@ -89,11 +89,14 @@ function conditionMultiplier(
 function allConditionChannelsActive(
   rule: CompiledInteractionRule,
   customer: RuntimeCustomerState,
+  currentDriver?: MarketingChannel,
 ): boolean {
-  return rule.conditionedOnChannels.every((channel) => {
-    const memory = customer.channelMemory.get(channel);
-    return memory !== undefined && memory.exposures > 0;
-  });
+  return rule.conditionedOnChannels
+    .filter((channel) => channel !== currentDriver)
+    .every((channel) => {
+      const memory = customer.channelMemory.get(channel);
+      return memory !== undefined && memory.exposures > 0;
+    });
 }
 
 function interactionMemoryValue(
@@ -140,7 +143,11 @@ export function prepareExposureInteractions(
 
     if (
       rule.kind === "synergy" &&
-      !allConditionChannelsActive(rule, customer)
+      !allConditionChannelsActive(
+        rule,
+        customer,
+        sourceChannel,
+      )
     ) {
       continue;
     }
