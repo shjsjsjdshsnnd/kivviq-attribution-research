@@ -533,7 +533,7 @@ export function generateLatentBusinessProfile(
         0.32,
       ),
       4,
-      260,
+      1_500,
     ),
   );
   const categoryCount = Math.round(
