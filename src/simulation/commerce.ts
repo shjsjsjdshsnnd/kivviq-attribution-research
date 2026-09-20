@@ -14,6 +14,7 @@ import {
 import type {
   PurchaseLine,
   RealizedPurchase,
+  SimulationCommercePolicy,
 } from "./types.js";
 
 export interface ProductOffer {
@@ -230,6 +231,7 @@ export function chooseProduct(
   intervention: SimulationInterventionState,
   randomness: SharedRandomness,
   key: string,
+  commercePolicy?: SimulationCommercePolicy,
 ): ProductOffer | undefined {
   const preferred = customer.source.productPreferences.map(
     (preference) => preference.productId,
@@ -255,8 +257,30 @@ export function chooseProduct(
         randomness,
       );
 
+      const inventoryMechanism =
+        runtime.merchantWorld.manifest.inventoryMechanisms.find(
+          (item) => item.productId === productId,
+        );
       const inventoryMultiplier =
-        offer.availableUnits > 0 ? 1 : 0.04;
+        offer.availableUnits > 0
+          ? 1
+          : commercePolicy?.executeInventoryLifecycle === true &&
+              inventoryMechanism?.allowBackorders
+            ? 0.35
+            : 0.04;
+      const cartProductIds = new Set(
+        customer.cart?.lines.map((line) => line.productId) ?? [],
+      );
+      const complementMultiplier =
+        commercePolicy?.enableProductRelationships === true &&
+        [...cartProductIds].some(
+          (cartProductId) =>
+            runtime.merchantWorld.manifest.productDemandMechanisms
+              .find((item) => item.productId === cartProductId)
+              ?.complementaryProductIds?.includes(productId) ?? false,
+        )
+          ? 2.4
+          : 1;
       const memory = totalMemoryLift(customer);
       const weight =
         Math.max(1e-9, preference) *
@@ -265,6 +289,7 @@ export function chooseProduct(
         offer.priceUtilityMultiplier *
         offer.promotionUtilityMultiplier *
         inventoryMultiplier *
+        complementMultiplier *
         (1 + memory.productPreference);
 
       return { value: offer, weight };
@@ -272,7 +297,41 @@ export function chooseProduct(
     .filter((entry) => entry.weight > 0);
 
   if (weighted.length === 0) return undefined;
-  return randomness.weightedPick(key, weighted);
+  const selected = randomness.weightedPick(key, weighted);
+  if (
+    selected.availableUnits > 0 ||
+    commercePolicy?.enableProductRelationships !== true
+  ) {
+    return selected;
+  }
+
+  const inventoryMechanism =
+    runtime.merchantWorld.manifest.inventoryMechanisms.find(
+      (item) => item.productId === selected.productId,
+    );
+  const substitutes = [
+    ...(inventoryMechanism?.substituteProductIds ?? []),
+    ...(runtime.merchantWorld.manifest.productDemandMechanisms.find(
+      (item) => item.productId === selected.productId,
+    )?.substitutionProductIds ?? []),
+  ];
+
+  const availableSubstitutes = [...new Set(substitutes)]
+    .map((productId) =>
+      offerForProduct(
+        runtime,
+        customer,
+        productId,
+        timestampMs,
+        intervention,
+        randomness,
+      ),
+    )
+    .filter((offer) => offer.availableUnits > 0);
+
+  return availableSubstitutes.length > 0
+    ? randomness.pick(`${key}:substitute`, availableSubstitutes)
+    : selected;
 }
 
 export function addToPersistentCart(
@@ -315,6 +374,7 @@ export function checkoutPurchaseProbability(
   intervention: SimulationInterventionState,
   randomness: SharedRandomness,
   interactionLift = 0,
+  commercePolicy?: SimulationCommercePolicy,
 ): number {
   refreshLatentCustomerState(customer, timestampMs);
   const memory = totalMemoryLift(customer);
@@ -356,12 +416,31 @@ export function checkoutPurchaseProbability(
     0.35,
   );
 
+  const threshold =
+    commercePolicy?.freeShippingThresholdMinor;
+  const shippingCharge =
+    commercePolicy?.customerShippingChargeMinor ?? 0;
+  const shippingFriction =
+    threshold !== undefined &&
+    threshold !== null &&
+    cartValue < threshold &&
+    shippingCharge > 0
+      ? clamp(
+          (shippingCharge / expectedAov) *
+            customer.source.priceSensitivityMultiplier *
+            0.9,
+          0,
+          0.45,
+        )
+      : 0;
+
   const probability =
     base *
     (0.35 + customer.intent * 0.65) *
     (0.45 + customer.need * 0.55) *
     (1 + Number(deviceEffect)) *
     (1 - valueFriction) *
+    (1 - shippingFriction) *
     (promotion.active
       ? 1 +
         0.18 *
@@ -394,6 +473,7 @@ export function completePurchase(
   orderId: string,
   intervention: SimulationInterventionState,
   randomness: SharedRandomness,
+  commercePolicy?: SimulationCommercePolicy,
 ): RealizedPurchase | undefined {
   if (!customer.cart || customer.cart.lines.length === 0) return undefined;
 
@@ -401,7 +481,17 @@ export function completePurchase(
 
   for (const cartLine of customer.cart.lines) {
     const available = runtime.inventory.get(cartLine.productId) ?? 0;
-    if (available < cartLine.quantity) continue;
+    const inventoryMechanism =
+      runtime.merchantWorld.manifest.inventoryMechanisms.find(
+        (item) => item.productId === cartLine.productId,
+      );
+    const allowBackorders =
+      intervention.inventoryOverrideUnits === undefined &&
+      commercePolicy?.executeInventoryLifecycle === true &&
+      inventoryMechanism?.allowBackorders === true &&
+      inventoryMechanism.stockoutBehavior === "backorder";
+
+    if (available < cartLine.quantity && !allowBackorders) continue;
 
     const offer = offerForProduct(
       runtime,
@@ -412,7 +502,9 @@ export function completePurchase(
       randomness,
     );
 
-    const quantity = Math.min(cartLine.quantity, available);
+    const quantity = allowBackorders
+      ? cartLine.quantity
+      : Math.min(cartLine.quantity, available);
     if (quantity <= 0) continue;
 
     const gross = offer.unitPriceMinor * quantity;
@@ -478,12 +570,20 @@ export function completePurchase(
     allocatedMarketing;
 
   for (const line of lines) {
+    const mechanism =
+      runtime.merchantWorld.manifest.inventoryMechanisms.find(
+        (item) => item.productId === line.productId,
+      );
+    const next =
+      (runtime.inventory.get(line.productId) ?? 0) -
+      line.quantity;
     runtime.inventory.set(
       line.productId,
-      Math.max(
-        0,
-        (runtime.inventory.get(line.productId) ?? 0) - line.quantity,
-      ),
+      commercePolicy?.executeInventoryLifecycle === true &&
+        mechanism?.allowBackorders === true &&
+        mechanism.stockoutBehavior === "backorder"
+        ? next
+        : Math.max(0, next),
     );
   }
 

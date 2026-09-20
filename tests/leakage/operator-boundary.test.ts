@@ -132,5 +132,13 @@ describe("Operator information boundary", () => {
     expect(operatorSafeApi).not.toHaveProperty("evaluateReallocation");
     expect(operatorSafeApi).not.toHaveProperty("createPortfolioReallocationTrapFixture");
     expect(operatorSafeApi).not.toHaveProperty("createProspectingCutTrapFixture");
+    expect(operatorSafeApi).not.toHaveProperty("evaluateEcommerceEconomics");
+    expect(operatorSafeApi).not.toHaveProperty("evaluateEconomicCounterfactual");
+    expect(operatorSafeApi).not.toHaveProperty("evaluateChannelContributionEconomics");
+    expect(operatorSafeApi).not.toHaveProperty("productOpportunityRows");
+    expect(operatorSafeApi).not.toHaveProperty("acquisitionEconomicsBySource");
+    expect(operatorSafeApi).not.toHaveProperty("createDiscountTrapFixture");
+    expect(operatorSafeApi).not.toHaveProperty("createBestSellerTrapFixture");
+    expect(operatorSafeApi).not.toHaveProperty("createHighAovTrapFixture");
   });
 });

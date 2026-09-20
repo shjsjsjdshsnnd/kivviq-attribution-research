@@ -205,6 +205,14 @@ export interface SimulationResult {
   readonly provenance: SimulationProvenance;
 }
 
+export interface SimulationCommercePolicy {
+  readonly freeShippingThresholdMinor?: number | null;
+  readonly customerShippingChargeMinor?: number;
+  readonly enableProductRelationships?: boolean;
+  readonly enableEnhancedBasketEconomics?: boolean;
+  readonly executeInventoryLifecycle?: boolean;
+}
+
 export interface SimulateWorldRequest {
   readonly merchantWorld: GeneratedMerchantWorld;
   readonly latentPopulation: LatentCustomerPopulation;
@@ -212,6 +220,7 @@ export interface SimulateWorldRequest {
   readonly startTime: string;
   readonly endTime: string;
   readonly interventions?: readonly Intervention[];
+  readonly commercePolicy?: SimulationCommercePolicy;
   readonly config?: SimulationConfig;
 }
 

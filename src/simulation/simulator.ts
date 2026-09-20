@@ -102,6 +102,13 @@ interface LifecyclePayload {
   readonly ordinal: number;
 }
 
+interface InventoryReplenishmentPayload {
+  readonly productId: string;
+  readonly units: number;
+  readonly cadenceMs?: number;
+  readonly ordinal: number;
+}
+
 const DEFAULT_MAX_EVENTS = 500_000;
 const DEFAULT_MAX_SESSION_STEPS = 18;
 const DEFAULT_MAX_SESSIONS_PER_CUSTOMER = 24;
@@ -546,6 +553,36 @@ export function simulateWorld(
     queue.schedule(event);
   };
 
+  if (request.commercePolicy?.executeInventoryLifecycle === true) {
+    for (const inventory of request.merchantWorld.manifest.inventoryMechanisms) {
+      const units = Math.max(
+        0,
+        Math.floor(Number(inventory.replenishmentUnits)),
+      );
+      if (units <= 0) continue;
+
+      const leadMs =
+        Number(inventory.supplierLeadTimeSeconds) * 1_000;
+      const cadenceMs =
+        inventory.replenishmentEverySeconds === undefined
+          ? undefined
+          : Number(inventory.replenishmentEverySeconds) * 1_000;
+
+      schedule<InventoryReplenishmentPayload>({
+        id: `inventory-replenishment:${inventory.productId}:0`,
+        kind: "inventory_replenishment",
+        timestampMs: clock.startMs + Math.max(0, leadMs),
+        priority: 5,
+        payload: {
+          productId: inventory.productId,
+          units,
+          ...(cadenceMs === undefined ? {} : { cadenceMs }),
+          ordinal: 0,
+        },
+      });
+    }
+  }
+
   for (const customer of runtime.customers.values()) {
     const initialDelay =
       customer.need > 0.45
@@ -588,6 +625,47 @@ export function simulateWorld(
     const event = queue.pop()!;
     if (!clock.contains(event.timestampMs)) continue;
     clock.advanceTo(event.timestampMs);
+
+    if (event.kind === "inventory_replenishment") {
+      const payload =
+        event.payload as InventoryReplenishmentPayload;
+      const interventionState =
+        buildSimulationInterventionState(
+          request.merchantWorld,
+          request.interventions ?? [],
+          event.timestampMs,
+        );
+
+      if (interventionState.inventoryOverrideUnits !== undefined) {
+        runtime.inventory.set(
+          payload.productId,
+          interventionState.inventoryOverrideUnits,
+        );
+      } else {
+        runtime.inventory.set(
+          payload.productId,
+          (runtime.inventory.get(payload.productId) ?? 0) +
+            payload.units,
+        );
+      }
+
+      if (payload.cadenceMs !== undefined) {
+        schedule<InventoryReplenishmentPayload>({
+          id: `inventory-replenishment:${payload.productId}:${payload.ordinal + 1}`,
+          kind: "inventory_replenishment",
+          timestampMs:
+            event.timestampMs + payload.cadenceMs,
+          priority: 5,
+          payload: {
+            productId: payload.productId,
+            units: payload.units,
+            cadenceMs: payload.cadenceMs,
+            ordinal: payload.ordinal + 1,
+          },
+        });
+      }
+      continue;
+    }
 
     if (!event.customerId) continue;
     const customer = runtime.customers.get(event.customerId);
@@ -1008,6 +1086,7 @@ export function simulateWorld(
         interventionState,
         randomness,
         maxSessionSteps,
+        request.commercePolicy,
       );
       observableEvents.push(...step.observableEvents);
 
@@ -1038,6 +1117,7 @@ export function simulateWorld(
               customer,
               interactionContext,
             ),
+            request.commercePolicy,
           );
 
         const ordinal =
@@ -1060,6 +1140,7 @@ export function simulateWorld(
             orderId,
             interventionState,
             randomness,
+            request.commercePolicy,
           );
           if (purchase) {
             purchaseCount.set(
