@@ -6,6 +6,7 @@ import re
 from dataclasses import asdict
 from pathlib import Path
 from statistics import mean
+from typing import Any
 
 from attribution_lab.phase2.observable import to_observable_dataset
 from attribution_lab.phase2_evaluator.evaluator import evaluate_known_case
@@ -144,9 +145,9 @@ def source_for(l2: float, clip: float, bootstrap_reps: int = 100) -> str:
     return source
 
 
-def run_development() -> dict[str, object]:
+def run_development() -> dict[str, Any]:
     worlds = [generate_world(config) for config in development_configs()]
-    results: list[dict[str, object]] = []
+    results: list[dict[str, Any]] = []
     for l2, clip in GRID:
         source = source_for(l2, clip)
         decl = declaration(
@@ -154,7 +155,7 @@ def run_development() -> dict[str, object]:
             propensity_clip=clip,
             bootstrap_reps=100,
         )
-        world_records: list[dict[str, object]] = []
+        world_records: list[dict[str, Any]] = []
         for world in worlds:
             evaluation = evaluate_known_case(
                 decl,
