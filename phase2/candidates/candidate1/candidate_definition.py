@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+# ruff: noqa: I001
+
 from attribution_lab.phase2.development import DevelopmentWorldRecord
 from attribution_lab.phase2.holdout_families import HoldoutFamily
 from phase2_candidate_sdk import (
