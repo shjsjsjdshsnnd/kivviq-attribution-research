@@ -5,7 +5,9 @@ import {
   createPortfolioReallocationTrapFixture,
 } from "../../src/cross_channel/adversarial.js";
 import {
+  decomposePairwiseInteraction,
   evaluateChannelRemoval,
+  evaluatePairwiseInteraction,
 } from "../../src/cross_channel/evaluator.js";
 import type {
   CrossChannelFixture,
@@ -165,6 +167,80 @@ describe("Step 6 mediated demand and cannibalization", () => {
       );
 
       expect(substituted).toBe(true);
+    },
+    90_000,
+  );
+
+
+
+  it(
+    "God mode quantifies mediated Google observed revenue separately from Meta direct value",
+    () => {
+      const fixture = createMediationFixture();
+      const req = request(fixture);
+      const pair = evaluatePairwiseInteraction(
+        req,
+        "meta",
+        "google_search",
+      );
+      const decomposition =
+        decomposePairwiseInteraction(
+          pair,
+          "google_search",
+        );
+
+      expect(
+        decomposition.observedMediatedRevenueShiftMinor,
+      ).toBeGreaterThan(0);
+      expect(
+        decomposition.totalJointRevenueMinor,
+      ).toBe(
+        pair.both.representedRevenueMinor -
+          pair.neither.representedRevenueMinor,
+      );
+    },
+    90_000,
+  );
+
+  it(
+    "Search cannibalization can move attribution/routes more than total merchant revenue",
+    () => {
+      const fixture = createCannibalizationFixture();
+      const removal = evaluateChannelRemoval(
+        request(fixture),
+        "google_search",
+      );
+
+      const google = sourceDelta(
+        removal,
+        "google_search",
+      );
+      const direct = sourceDelta(
+        removal,
+        "direct",
+      );
+      const organic = sourceDelta(
+        removal,
+        "organic_search",
+      );
+
+      const routeRevenueMovement =
+        Math.abs(
+          google?.attributedRevenueMinorDelta ?? 0,
+        ) +
+        Math.abs(
+          direct?.attributedRevenueMinorDelta ?? 0,
+        ) +
+        Math.abs(
+          organic?.attributedRevenueMinorDelta ?? 0,
+        );
+
+      expect(routeRevenueMovement).toBeGreaterThan(0);
+      expect(routeRevenueMovement).toBeGreaterThanOrEqual(
+        Math.abs(
+          removal.delta.representedRevenueMinor,
+        ),
+      );
     },
     90_000,
   );
