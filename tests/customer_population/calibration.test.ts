@@ -146,9 +146,12 @@ describe("customer micro-macro calibration", () => {
 
         const impliedAggregateEffect =
           merchantMechanism.effect.value * multiplierMean;
-        expect(impliedAggregateEffect).toBeCloseTo(
-          merchantMechanism.effect.value,
-          5,
+        expect(
+          Math.abs(
+            impliedAggregateEffect - merchantMechanism.effect.value,
+          ),
+        ).toBeLessThanOrEqual(
+          Math.abs(merchantMechanism.effect.value) * 2e-6 + 1e-9,
         );
       }
     });
