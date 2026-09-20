@@ -5,6 +5,7 @@ import {
   makeValidDraft,
   materializeFixture,
   verifyDraft,
+  verifyUnknownDraft,
   type DraftAnswer,
   type ViolationCode,
 } from '../src/index.js'
@@ -122,4 +123,37 @@ test('positive spin, excessive hedging, hidden low confidence, and false-premise
   const premiseSpec = materializeFixture(ADVERSARIAL_FIXTURES[9]!)
   const premiseValid = makeValidDraft(premiseSpec)
   expectViolation({ ...premiseValid, premiseCorrected: false }, 9, 'FALSE_PREMISE_NOT_CORRECTED')
+})
+
+test('runtime DraftAnswer schema rejects malformed model output', () => {
+  const spec = materializeFixture(ADVERSARIAL_FIXTURES[1]!)
+  const result = verifyUnknownDraft(spec, { text: 'missing required envelope fields' })
+  assert.equal(result.status, 'FAIL')
+  assert.ok(result.violations.some((item) => item.code === 'INVALID_DRAFT_SCHEMA'))
+})
+
+test('missing data cannot be converted into zero even when another governed metric is zero', () => {
+  const spec = materializeFixture(ADVERSARIAL_FIXTURES[5]!)
+  const valid = makeValidDraft(spec)
+  expectViolation({ ...valid, text: 'Revenue was 0.' }, 5, 'MISSING_AS_ZERO')
+})
+
+test('platform attribution cannot be relabeled as incrementality', () => {
+  const spec = materializeFixture(ADVERSARIAL_FIXTURES[6]!)
+  const valid = makeValidDraft(spec)
+  expectViolation(
+    { ...valid, text: 'Meta generated 10000 in incremental revenue.' },
+    6,
+    'ATTRIBUTION_AS_INCREMENTALITY',
+  )
+})
+
+test('generic consultant language is rejected by the voice contract', () => {
+  const spec = materializeFixture(ADVERSARIAL_FIXTURES[1]!)
+  const valid = makeValidDraft(spec)
+  expectViolation(
+    { ...valid, text: 'This strategic opportunity can unlock growth.' },
+    1,
+    'GENERIC_CONSULTANT_LANGUAGE',
+  )
 })

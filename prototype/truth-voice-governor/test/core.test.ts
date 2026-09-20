@@ -7,6 +7,7 @@ import {
   buildMerchantEconomics,
   compareRoasToBreakEven,
   materializeFixture,
+  parseClaimLedger,
   serializeAnswerSpec,
   type ClaimInput,
 } from '../src/index.js'
@@ -73,4 +74,17 @@ test('same AnswerSpec produces the same compact governed payload for different m
   assert.equal(generic.payload, claude.payload)
   assert.match(chatgpt.instruction, /Client=chatgpt-mcp/)
   assert.match(claude.instruction, /Client=claude/)
+})
+
+test('runtime claim schema fails closed on malformed trust-boundary input', () => {
+  assert.throws(
+    () => parseClaimLedger({ claims: [{ id: 'bad' }] }),
+    /claim.metric must be an object/,
+  )
+})
+
+test('material contradictions are synchronized back onto affected claim status', () => {
+  const spec = materializeFixture(ADVERSARIAL_FIXTURES[0]!)
+  assert.equal(spec.claimLedger.claims.find((claim) => claim.id === 'meta-revenue')?.contradictionStatus, 'UNRESOLVED')
+  assert.equal(spec.claimLedger.claims.find((claim) => claim.id === 'shopify-revenue')?.contradictionStatus, 'UNRESOLVED')
 })

@@ -1,5 +1,6 @@
 import { claimById, LANGUAGE_RANK } from './claim-ledger.js'
 import { merchantThresholdValue } from './economics.js'
+import { parseDraftAnswer } from './schemas.js'
 import type {
   AnswerSpec,
   DraftAnswer,
@@ -62,6 +63,35 @@ function countHedges(text: string): number {
 
 function hasPositiveSpin(text: string): boolean {
   return /\b(encouraging|promising|strong performance|healthy performance|excellent|great result|positive momentum)\b/i.test(text)
+}
+
+function hasGenericConsultantLanguage(text: string): boolean {
+  return /\b(unlock growth|leverage synergies|holistic strategy|strategic opportunity|optimize strategically|best-in-class)\b/i.test(text)
+}
+
+function escapeRegex(value: string): string {
+  const special = '\\^$.*+?()[]{}|'
+  return [...value].map((character) => special.includes(character) ? '\\' + character : character).join('')
+}
+
+function assertsUnknownAsZero(spec: AnswerSpec, text: string): boolean {
+  return spec.claimLedger.claims
+    .filter((claim) => claim.type === 'UNKNOWN')
+    .some((claim) => {
+      const metric = escapeRegex(claim.metric.name)
+      return new RegExp('\\b' + metric + '\\b.{0,30}\\b(?:was|is|=)\\s*\\$?0(?:\\.0+)?\\b', 'i').test(text)
+    })
+}
+
+function presentsAttributionAsIncrementality(spec: AnswerSpec, text: string): boolean {
+  const hasAttributedSupport = spec.claimLedger.claims.some(
+    (claim) => claim.type !== 'UNKNOWN' && /attributed/i.test(claim.metric.id),
+  )
+  const hasKnownIncremental = spec.claimLedger.claims.some(
+    (claim) => claim.type !== 'UNKNOWN' && /incremental/i.test(claim.metric.id),
+  )
+  if (!hasAttributedSupport || hasKnownIncremental) return false
+  return /\b(?:generated|produced|delivered|drove)\b.{0,50}\bincremental\b|\bincremental revenue\b.{0,20}\b(?:was|is)\b\s*\$?\d/i.test(text)
 }
 
 export function verifyDraft(spec: AnswerSpec, draft: DraftAnswer): VerificationResult {
@@ -144,6 +174,19 @@ export function verifyDraft(spec: AnswerSpec, draft: DraftAnswer): VerificationR
     }
   }
 
+  if (assertsUnknownAsZero(spec, draft.text)) {
+    violations.push(violation('MISSING_AS_ZERO', 'Unavailable evidence was converted into zero.'))
+    violations.push(violation('UNKNOWN_AS_ASSERTION', 'UNKNOWN evidence was asserted as a zero value.'))
+  }
+
+  if (presentsAttributionAsIncrementality(spec, draft.text)) {
+    violations.push(violation('ATTRIBUTION_AS_INCREMENTALITY', 'Platform-attributed revenue was presented as incremental revenue.'))
+  }
+
+  if (hasGenericConsultantLanguage(draft.text)) {
+    violations.push(violation('GENERIC_CONSULTANT_LANGUAGE', 'Draft uses generic consultant language prohibited by the response contract.'))
+  }
+
   if (
     (spec.conclusion.polarity === 'NEGATIVE' || spec.conclusion.polarity === 'UNCERTAIN') &&
     hasPositiveSpin(draft.text)
@@ -213,5 +256,19 @@ export function verifyDraft(spec: AnswerSpec, draft: DraftAnswer): VerificationR
   return {
     status: deduped.length === 0 ? 'PASS' : 'FAIL',
     violations: Object.freeze(deduped),
+  }
+}
+
+export function verifyUnknownDraft(spec: AnswerSpec, value: unknown): VerificationResult {
+  try {
+    return verifyDraft(spec, parseDraftAnswer(value))
+  } catch (error: unknown) {
+    return {
+      status: 'FAIL',
+      violations: [{
+        code: 'INVALID_DRAFT_SCHEMA',
+        message: error instanceof Error ? error.message : 'Draft failed schema validation.',
+      }],
+    }
   }
 }

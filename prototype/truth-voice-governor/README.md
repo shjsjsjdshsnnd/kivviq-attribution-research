@@ -24,6 +24,7 @@ The language model may choose prose. It may not choose what is known, unknown, c
 | Truth & Voice Governor | Builds the immutable `AnswerSpec`, required unknowns/disclosures, premise correction, conclusion polarity, and response contract. | Directness is constrained by evidence strength. |
 | LLM adapter | Serializes the same governed state into a compact vendor-neutral payload. | ChatGPT, Claude, and other clients receive the same factual/decision boundary. |
 | LLM | Writes prose only. | Prose is untrusted until verified. |
+| Runtime schemas | Parse untrusted claim/economics payloads and the LLM DraftAnswer envelope before governance/verification. | Malformed external structures fail closed rather than entering typed logic. |
 | Answer Verifier | Rejects numeric hallucination, altered numbers, unsupported claims/causality, UNKNOWN promotion, contradiction omission, decision drift, source errors, threshold invention, spin, and excessive hedging. | Failed drafts are safe to regenerate automatically; they are not user-ready. |
 
 ## Epistemic ladder
@@ -77,7 +78,7 @@ Every governed decision carries target, reason, supporting/contradicting claims,
 
 The verifier returns exactly `PASS` or `FAIL` plus machine-readable violation codes. It is designed for a regeneration loop: a failed draft can be discarded and the same AnswerSpec can be sent to the same or a different model.
 
-The DraftAnswer envelope supplies structured annotations for claim use, language strength, numbers, sources, contradictions, unknowns, recommendations, merchant thresholds, and premise correction. The verifier additionally scans prose for ungoverned numbers, causal verbs, positive-spin terms, and unnecessary hedge terms.
+The DraftAnswer envelope supplies structured annotations for claim use, language strength, numbers, sources, contradictions, unknowns, recommendations, merchant thresholds, and premise correction. Runtime parsers treat that envelope as untrusted. The verifier additionally scans prose for ungoverned numbers, causal verbs, missing-data-as-zero assertions, attribution presented as incrementality, generic consultant language, positive-spin terms, and unnecessary hedge terms.
 
 ## Adversarial suite
 
@@ -132,3 +133,7 @@ npm run build
 ```
 
 No model API, secrets, production integration, private code, or merchant data are required.
+
+## Prototype limitations
+
+The deterministic verifier is intentionally conservative but is not a general natural-language theorem prover. It can prove many boundary violations from structured annotations plus lexical and numeric checks, but subtle semantic paraphrases may require a stronger structured answer AST or a separately governed semantic verifier. Upstream evidence quality, metric resolution, identity resolution, and causal estimation remain outside this prototype. These limitations are explicit rather than being converted into certainty the system does not possess.
