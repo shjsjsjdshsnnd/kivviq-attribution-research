@@ -6,10 +6,7 @@ from dataclasses import asdict
 from pathlib import Path
 
 from attribution_lab.phase2.registration import CandidateRegistry
-from phase2.candidates.candidate1.candidate_definition import (
-    build_declaration,
-    build_development_record,
-)
+from candidate_definition import build_declaration, build_development_record
 
 ROOT = Path(__file__).resolve().parent
 
