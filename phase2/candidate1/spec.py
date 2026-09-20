@@ -6,8 +6,8 @@ from phase2_candidate_sdk import (
     CandidateDeclaration,
     EstimandDefinition,
     EstimandKind,
-    FamilyCriterion,
     FalsificationCriteria,
+    FamilyCriterion,
 )
 
 CANDIDATE_ID = "phase2-candidate1-aipw"
