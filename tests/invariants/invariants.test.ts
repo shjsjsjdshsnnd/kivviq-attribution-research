@@ -13,8 +13,8 @@ describe("GroundTruth invariants", () => {
       serializeGroundTruthManifest(validManifest()),
     ) as Record<string, any>;
 
-    raw.inventoryMechanisms[0].initialAvailableUnits = 2;
-    raw.inventoryMechanisms[0].initialReservedUnits = 3;
+    raw["inventoryMechanisms"][0].initialAvailableUnits = 2;
+    raw["inventoryMechanisms"][0].initialReservedUnits = 3;
 
     expect(() => parseGroundTruthManifest(raw)).toThrow(
       /reserved inventory cannot exceed available inventory/,
@@ -22,9 +22,7 @@ describe("GroundTruth invariants", () => {
   });
 
   it("rejects non-finite values", () => {
-    const manifest = validManifest() as GroundTruthManifest & {
-      seed: number;
-    };
+    const manifest = validManifest();
 
     const corrupted = {
       ...manifest,
@@ -46,7 +44,7 @@ describe("GroundTruth invariants", () => {
       serializeGroundTruthManifest(validManifest()),
     ) as Record<string, any>;
 
-    raw.channelIncrementality[0].responseCurveId = "missing-curve";
+    raw["channelIncrementality"][0].responseCurveId = "missing-curve";
 
     expect(() => parseGroundTruthManifest(raw)).toThrow(
       /unknown response curve/,
@@ -58,7 +56,7 @@ describe("GroundTruth invariants", () => {
       serializeGroundTruthManifest(validManifest()),
     ) as Record<string, any>;
 
-    raw.causalGraph.edges[0].lagSeconds = -1;
+    raw["causalGraph"].edges[0].lagSeconds = -1;
 
     expect(() => parseGroundTruthManifest(raw)).toThrow(
       /lag must be finite and non-negative/,
@@ -70,7 +68,7 @@ describe("GroundTruth invariants", () => {
       serializeGroundTruthManifest(validManifest()),
     ) as Record<string, any>;
 
-    raw.channelIncrementality[0].effect.value = 0;
+    raw["channelIncrementality"][0].effect.value = 0;
 
     const parsed = parseGroundTruthManifest(raw);
     expect(parsed.channelIncrementality[0]!.effect.value).toBe(0);
