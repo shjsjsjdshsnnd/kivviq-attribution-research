@@ -86,3 +86,9 @@ No generated large result dataset is committed to Git.
 SYNTHETIC CAUSAL RECOVERY is distance from simulator-defined intervention truth. It is not real-world causal accuracy. No overall winner, model score, arbitrary ranking, or production recommendation is produced.
 
 Future model families remain deferred until the Phase 1 validation gate is satisfied.
+
+## Verified implementation defect fixed during validation
+
+The initial corruption implementation flattened all retained touches into one reconstructed session even when session-splitting corruption was disabled. That behavior masked identity-fragmentation stress because multi-session journeys no longer had boundaries available to fragment.
+
+The corruption layer now preserves existing session boundaries by default and splits sessions only when the explicit session-splitting corruption is enabled. Regression tests verify both default session preservation and actual identity fragmentation. This was an implementation defect fix, not model tuning.

@@ -88,41 +88,55 @@ def _corrupt_sessions(
     config: CorruptionConfig,
     rng: random.Random,
 ) -> tuple[Session, ...]:
-    touches: list[Touchpoint] = []
-    for touch in journey.ordered_touchpoints():
-        corrupted = _corrupt_touch(touch, config, rng)
-        if corrupted is None:
-            continue
-        touches.append(corrupted)
-        if rng.random() < config.duplicate_event_probability:
-            touches.append(
-                replace(
-                    corrupted,
-                    event_id=f"{corrupted.event_id}-dup",
-                    timestamp=corrupted.timestamp + timedelta(milliseconds=1),
+    preserved: list[Session] = []
+    for source_session in journey.sessions:
+        touches: list[Touchpoint] = []
+        for touch in source_session.touchpoints:
+            corrupted = _corrupt_touch(touch, config, rng)
+            if corrupted is None:
+                continue
+            touches.append(corrupted)
+            if rng.random() < config.duplicate_event_probability:
+                touches.append(
+                    replace(
+                        corrupted,
+                        event_id=f"{corrupted.event_id}-dup",
+                        timestamp=corrupted.timestamp + timedelta(milliseconds=1),
+                    )
                 )
-            )
-    touches.sort(key=lambda item: (item.timestamp, item.event_id))
-    if not touches:
-        return ()
-
-    groups = (
-        [[touch] for touch in touches]
-        if rng.random() < config.session_splitting_probability
-        else [touches]
-    )
-    sessions: list[Session] = []
-    for index, group in enumerate(groups):
-        sessions.append(
+        touches.sort(key=lambda item: (item.timestamp, item.event_id))
+        if not touches:
+            continue
+        preserved.append(
             Session(
-                session_id=f"{journey.subject_id}-corrupt-{index:02d}",
-                start=group[0].timestamp,
-                end=group[-1].timestamp + timedelta(minutes=1),
-                touchpoints=tuple(group),
-                device="mobile" if rng.random() < 0.5 else "desktop",
+                session_id=f"{source_session.session_id}-corrupt",
+                start=touches[0].timestamp,
+                end=touches[-1].timestamp + timedelta(minutes=1),
+                touchpoints=tuple(touches),
+                device=source_session.device,
             )
         )
-    return tuple(sessions)
+
+    preserved.sort(key=lambda session: (session.start, session.session_id))
+    if not preserved:
+        return ()
+    if rng.random() >= config.session_splitting_probability:
+        return tuple(preserved)
+
+    split: list[Session] = []
+    for session in preserved:
+        for touch in session.touchpoints:
+            split.append(
+                Session(
+                    session_id=f"{journey.subject_id}-split-{len(split):02d}",
+                    start=touch.timestamp,
+                    end=touch.timestamp + timedelta(minutes=1),
+                    touchpoints=(touch,),
+                    device=session.device,
+                )
+            )
+    split.sort(key=lambda session: (session.start, session.session_id))
+    return tuple(split)
 
 
 def _truncate_sessions(

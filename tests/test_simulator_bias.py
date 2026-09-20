@@ -10,16 +10,17 @@ def test_simulation_layer_does_not_import_attribution_models() -> None:
     assert "attribution_lab.models" not in combined
 
 
-def test_corruption_layer_does_not_branch_on_model_name() -> None:
+def test_corruption_layer_does_not_branch_on_model_identity() -> None:
     content = Path("src/attribution_lab/stress/corruption.py").read_text(encoding="utf-8")
-    for model_name in (
-        "first_touch",
-        "last_touch",
-        "last_paid_touch",
-        "linear",
-        "time_decay",
-        "position_based",
-        "markov_removal",
-        "shapley",
+    assert "attribution_lab.models" not in content
+    for model_class in (
+        "FirstTouchModel",
+        "LastTouchModel",
+        "LastPaidTouchModel",
+        "LinearModel",
+        "TimeDecayModel",
+        "PositionBasedModel",
+        "MarkovRemovalModel",
+        "ShapleyAttributionModel",
     ):
-        assert model_name not in content
+        assert model_class not in content

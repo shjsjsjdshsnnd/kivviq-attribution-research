@@ -67,6 +67,14 @@ def _manual_world() -> SyntheticWorld:
     return SyntheticWorld(Dataset((journey,)), manifest)
 
 
+def test_default_corruption_preserves_existing_session_boundaries() -> None:
+    world = _manual_world()
+    corrupted = corrupt_world(world, CorruptionConfig(), seed=4)
+    observed = corrupted.dataset.journeys[0]
+    assert len(observed.sessions) == len(world.dataset.journeys[0].sessions)
+    assert [len(session.touchpoints) for session in observed.sessions] == [1, 1, 1]
+
+
 def test_identity_fragmentation_actually_splits_observed_path() -> None:
     world = _manual_world()
     corrupted = corrupt_world(
