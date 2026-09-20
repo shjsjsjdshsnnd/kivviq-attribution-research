@@ -1,0 +1,516 @@
+{
+  "schemaVersion": "1.0.0",
+  "simulatorVersion": "contract-only-step1",
+  "worldId": "synthetic-example-001",
+  "seed": 424242,
+  "merchant": {
+    "currency": "CAD",
+    "marketSize": 100000,
+    "timezone": "America/Toronto",
+    "baselineBrandAwareness": 0.18,
+    "baselineBrandPreference": 0.08
+  },
+  "customers": {
+    "populationSize": 10000,
+    "segmentShares": [
+      {
+        "segmentId": "prospect",
+        "probability": 0.7
+      },
+      {
+        "segmentId": "existing",
+        "probability": 0.3
+      }
+    ],
+    "latentIntentDistribution": {
+      "kind": "beta",
+      "alpha": 2,
+      "beta": 5
+    },
+    "existingCustomerShare": 0.3
+  },
+  "baselineDemand": [
+    {
+      "id": "baseline-organic-orders",
+      "component": "organic",
+      "outcome": "orders",
+      "cadence": "day",
+      "baseRate": 22,
+      "paidMarketingIncluded": false,
+      "timeVarying": true
+    }
+  ],
+  "channelIncrementality": [
+    {
+      "id": "meta-incrementality",
+      "channelId": "meta",
+      "outcomeVariable": "commerce.orders",
+      "effect": {
+        "scale": "absolute",
+        "value": 6,
+        "unit": "orders"
+      },
+      "responseCurveId": "meta-hill",
+      "saturationMechanismId": "meta-saturation",
+      "timeDependent": true
+    }
+  ],
+  "responseCurves": [
+    {
+      "id": "meta-hill",
+      "kind": "hill",
+      "inputUnit": "money_minor",
+      "outputUnit": "orders",
+      "maxIncrementalOutcome": 60,
+      "halfSaturationSpend": 150000,
+      "hillCoefficient": 1.4
+    }
+  ],
+  "cacMechanisms": [
+    {
+      "id": "meta-cac",
+      "channelId": "meta",
+      "averageIncrementalCAC": 4200,
+      "marginalCACCurveId": "meta-hill",
+      "definition": "incremental_new_customers_only"
+    }
+  ],
+  "conversionMechanisms": [
+    {
+      "id": "purchase-conversion",
+      "outcome": "purchase",
+      "baseProbability": 0.025,
+      "modifiers": [
+        {
+          "condition": "intent",
+          "multiplier": 2
+        },
+        {
+          "condition": "device",
+          "selector": {
+            "devices": [
+              "mobile"
+            ]
+          },
+          "multiplier": 0.85
+        }
+      ]
+    }
+  ],
+  "priceElasticities": [
+    {
+      "id": "sku-a-own-price",
+      "kind": "own_price",
+      "sourceProductId": "sku-a",
+      "targetProductId": "sku-a",
+      "relationship": "self",
+      "form": "constant",
+      "elasticity": -1.2
+    }
+  ],
+  "promotionElasticities": [
+    {
+      "id": "sitewide-promo",
+      "promotionType": "sitewide",
+      "effects": [
+        {
+          "outcome": "conversion_probability",
+          "effect": {
+            "scale": "probability_point",
+            "value": 0.01,
+            "unit": "probability"
+          }
+        },
+        {
+          "outcome": "margin",
+          "effect": {
+            "scale": "relative",
+            "value": -0.08,
+            "unit": "dimensionless"
+          }
+        }
+      ]
+    }
+  ],
+  "clvMechanisms": [
+    {
+      "id": "default-clv",
+      "horizonDays": 365,
+      "expectedFuturePurchases": 1.8,
+      "expectedGrossMarginMinor": 28000,
+      "expectedDiscountsMinor": 2000,
+      "expectedReturnsMinor": 1200,
+      "expectedFulfillmentCostsMinor": 2400,
+      "expectedAcquisitionCostsMinor": 4200,
+      "retentionProbability": 0.42,
+      "annualDiscountRate": 0.08,
+      "valueKind": "expected_future_value"
+    }
+  ],
+  "repeatPurchaseMechanisms": [
+    {
+      "id": "repeat-default",
+      "baseRepeatProbability": 0.24,
+      "dependsOn": [
+        "previous_purchases",
+        "product",
+        "acquisition_source",
+        "elapsed_time",
+        "lifecycle_state"
+      ]
+    }
+  ],
+  "productDemandMechanisms": [
+    {
+      "id": "sku-a-demand",
+      "productId": "sku-a",
+      "categoryId": "chairs",
+      "baseLatentDemandUnits": 18,
+      "cadence": "day",
+      "substitutionProductIds": [
+        "sku-b"
+      ],
+      "complementaryProductIds": [
+        "sku-c"
+      ],
+      "timeVarying": true
+    }
+  ],
+  "inventoryMechanisms": [
+    {
+      "id": "sku-a-inventory",
+      "productId": "sku-a",
+      "initialAvailableUnits": 40,
+      "initialReservedUnits": 3,
+      "replenishmentUnits": 20,
+      "replenishmentEverySeconds": 604800,
+      "supplierLeadTimeSeconds": 1209600,
+      "allowBackorders": false,
+      "stockoutBehavior": "substitute",
+      "substituteProductIds": [
+        "sku-b"
+      ]
+    }
+  ],
+  "seasonality": [
+    {
+      "id": "weekday-seasonality",
+      "kind": "weekday",
+      "multipliers": [
+        {
+          "key": "monday",
+          "multiplier": 0.9
+        },
+        {
+          "key": "saturday",
+          "multiplier": 1.2
+        }
+      ]
+    }
+  ],
+  "deviceEffects": [
+    {
+      "id": "mobile-conversion",
+      "device": "mobile",
+      "outcome": "conversion_probability",
+      "effect": {
+        "scale": "relative",
+        "value": -0.15,
+        "unit": "dimensionless"
+      },
+      "populationAdjusted": true
+    }
+  ],
+  "funnelMechanisms": [
+    {
+      "id": "pdp-to-cart",
+      "from": "pdp",
+      "to": "add_to_cart",
+      "baseProbability": 0.09,
+      "allowsReentry": true,
+      "allowsMultipleSessions": true
+    },
+    {
+      "id": "checkout-to-purchase",
+      "from": "checkout",
+      "to": "purchase",
+      "baseProbability": 0.58,
+      "allowsReentry": true,
+      "allowsMultipleSessions": true
+    }
+  ],
+  "channelInteractions": [
+    {
+      "id": "meta-brand-search-mediation",
+      "channelIds": [
+        "meta",
+        "google_brand"
+      ],
+      "kind": "mediation",
+      "functionalForm": "nonlinear",
+      "effect": {
+        "scale": "relative",
+        "value": 0.12,
+        "unit": "dimensionless"
+      },
+      "mediatorVariable": "customer.brand_awareness"
+    }
+  ],
+  "saturationMechanisms": [
+    {
+      "id": "meta-saturation",
+      "channelId": "meta",
+      "responseCurveId": "meta-hill",
+      "finiteOptimalSpendPossible": true
+    }
+  ],
+  "organicDemand": {
+    "id": "organic-counterfactual",
+    "counterfactualDefinition": "demand_without_modeled_paid_intervention",
+    "baselineDemandMechanismIds": [
+      "baseline-organic-orders"
+    ]
+  },
+  "marginEconomics": {
+    "currency": "CAD",
+    "accountingIdentity": "contribution_profit_v1",
+    "includeVariableOperatingCosts": true
+  },
+  "externalShocks": [
+    {
+      "id": "synthetic-weather-shock",
+      "kind": "weather",
+      "start": "2026-01-15T00:00:00Z",
+      "durationSeconds": 86400,
+      "affectedVariables": [
+        "demand.product_units"
+      ],
+      "mechanism": {
+        "functionalForm": "multiplicative",
+        "effect": {
+          "scale": "relative",
+          "value": -0.1,
+          "unit": "dimensionless"
+        }
+      }
+    }
+  ],
+  "causalGraph": {
+    "nodes": [
+      {
+        "id": "customer.latent_intent",
+        "domain": "customer",
+        "temporalScope": "time_indexed",
+        "valueType": "number",
+        "unit": "probability",
+        "intervenable": false,
+        "visibility": "latent"
+      },
+      {
+        "id": "marketing.meta_spend",
+        "domain": "marketing",
+        "temporalScope": "time_indexed",
+        "valueType": "number",
+        "unit": "money_minor",
+        "intervenable": true,
+        "visibility": "merchant_observation"
+      },
+      {
+        "id": "marketing.meta_exposure",
+        "domain": "marketing",
+        "temporalScope": "time_indexed",
+        "valueType": "number",
+        "unit": "impressions",
+        "intervenable": false,
+        "visibility": "perfect_observation"
+      },
+      {
+        "id": "customer.brand_awareness",
+        "domain": "customer",
+        "temporalScope": "time_indexed",
+        "valueType": "number",
+        "unit": "probability",
+        "intervenable": false,
+        "visibility": "latent"
+      },
+      {
+        "id": "marketing.branded_search_probability",
+        "domain": "marketing",
+        "temporalScope": "time_indexed",
+        "valueType": "number",
+        "unit": "probability",
+        "intervenable": false,
+        "visibility": "latent"
+      },
+      {
+        "id": "pricing.product_price",
+        "domain": "pricing",
+        "temporalScope": "time_indexed",
+        "valueType": "number",
+        "unit": "money_minor",
+        "intervenable": true,
+        "visibility": "merchant_observation"
+      },
+      {
+        "id": "promotion.discount_active",
+        "domain": "promotion",
+        "temporalScope": "time_indexed",
+        "valueType": "boolean",
+        "unit": "boolean",
+        "intervenable": true,
+        "visibility": "merchant_observation"
+      },
+      {
+        "id": "inventory.available",
+        "domain": "inventory",
+        "temporalScope": "time_indexed",
+        "valueType": "number",
+        "unit": "units",
+        "intervenable": true,
+        "visibility": "merchant_observation"
+      },
+      {
+        "id": "demand.product_units",
+        "domain": "demand",
+        "temporalScope": "time_indexed",
+        "valueType": "number",
+        "unit": "units",
+        "intervenable": false,
+        "visibility": "latent"
+      },
+      {
+        "id": "funnel.purchase_probability",
+        "domain": "funnel",
+        "temporalScope": "time_indexed",
+        "valueType": "number",
+        "unit": "probability",
+        "intervenable": false,
+        "visibility": "latent"
+      },
+      {
+        "id": "commerce.orders",
+        "domain": "commerce",
+        "temporalScope": "time_indexed",
+        "valueType": "number",
+        "unit": "orders",
+        "intervenable": false,
+        "visibility": "perfect_observation"
+      },
+      {
+        "id": "commerce.revenue",
+        "domain": "commerce",
+        "temporalScope": "time_indexed",
+        "valueType": "number",
+        "unit": "money_minor",
+        "intervenable": false,
+        "visibility": "perfect_observation"
+      },
+      {
+        "id": "economics.contribution_profit",
+        "domain": "economics",
+        "temporalScope": "time_indexed",
+        "valueType": "number",
+        "unit": "money_minor",
+        "intervenable": false,
+        "visibility": "latent"
+      }
+    ],
+    "edges": [
+      {
+        "parent": "marketing.meta_spend",
+        "child": "marketing.meta_exposure",
+        "relationship": "direct",
+        "mechanismId": "meta-hill"
+      },
+      {
+        "parent": "marketing.meta_exposure",
+        "child": "customer.brand_awareness",
+        "relationship": "direct",
+        "mechanismId": "meta-incrementality",
+        "lagSeconds": 3600
+      },
+      {
+        "parent": "customer.brand_awareness",
+        "child": "marketing.branded_search_probability",
+        "relationship": "mediated",
+        "mechanismId": "meta-brand-search-mediation"
+      },
+      {
+        "parent": "marketing.branded_search_probability",
+        "child": "funnel.purchase_probability",
+        "relationship": "direct",
+        "mechanismId": "purchase-conversion"
+      },
+      {
+        "parent": "customer.latent_intent",
+        "child": "funnel.purchase_probability",
+        "relationship": "direct",
+        "mechanismId": "purchase-conversion"
+      },
+      {
+        "parent": "pricing.product_price",
+        "child": "demand.product_units",
+        "relationship": "direct",
+        "mechanismId": "sku-a-own-price"
+      },
+      {
+        "parent": "promotion.discount_active",
+        "child": "funnel.purchase_probability",
+        "relationship": "direct",
+        "mechanismId": "sitewide-promo"
+      },
+      {
+        "parent": "demand.product_units",
+        "child": "commerce.orders",
+        "relationship": "direct",
+        "mechanismId": "sku-a-demand"
+      },
+      {
+        "parent": "funnel.purchase_probability",
+        "child": "commerce.orders",
+        "relationship": "direct",
+        "mechanismId": "purchase-conversion"
+      },
+      {
+        "parent": "inventory.available",
+        "child": "commerce.orders",
+        "relationship": "constraint",
+        "mechanismId": "sku-a-inventory"
+      },
+      {
+        "parent": "commerce.orders",
+        "child": "commerce.revenue",
+        "relationship": "direct",
+        "mechanismId": "contribution-profit-v1"
+      },
+      {
+        "parent": "commerce.revenue",
+        "child": "economics.contribution_profit",
+        "relationship": "direct",
+        "mechanismId": "contribution-profit-v1"
+      }
+    ]
+  },
+  "interventionDefinitions": [
+    {
+      "variable": "marketing.meta_spend",
+      "allowedOperation": "set",
+      "description": "Set modeled Meta spend for a counterfactual world."
+    },
+    {
+      "variable": "pricing.product_price",
+      "allowedOperation": "set",
+      "description": "Set product price in minor currency units."
+    },
+    {
+      "variable": "promotion.discount_active",
+      "allowedOperation": "set",
+      "description": "Turn the modeled promotion on or off."
+    },
+    {
+      "variable": "inventory.available",
+      "allowedOperation": "set",
+      "description": "Set available inventory for inventory counterfactuals."
+    }
+  ]
+}
