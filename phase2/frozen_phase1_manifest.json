@@ -1,0 +1,28 @@
+{
+  "frozen_commit": "1d92f4d2d5fd89de261127b8ed4bdcced6f18fdf",
+  "files": {
+    "docs/phase1.md": "a506832ece5548eb8abe21c155b79402f6b4d26b",
+    "docs/reports/phase1/failure_modes.json": "e2606710a71187f1d7eb3611ebc8c8e468c60353",
+    "docs/reports/phase1/failure_modes.md": "894ffee3e49e80e82d42d549b01500403340e78e",
+    "docs/reports/phase1/matrix.json": "36a875d85dcf8f673d089e91e4264c364fc9abcb",
+    "docs/reports/phase1/research_report.md": "6e9209d706f516ea7bc2f9de722752035d72977a",
+    "docs/reports/phase1/simulator_bias_audit.json": "7c0e1b57ca57f3ef4a6743e3edf43299faf254a8",
+    "examples/run_benchmark.py": "786d0f72cb510fba55b999ee6bdf8a9c0722a642",
+    "src/attribution_lab/evaluation/__init__.py": "0052d6c009b6d8d5f9e7e2a3a663e1b676750c39",
+    "src/attribution_lab/evaluation/analysis.py": "57bccca959be1c3f68b12410896b7237613b05ed",
+    "src/attribution_lab/evaluation/horizon.py": "6fe552114fa929e16577fe1c1a83bec7d356cad3",
+    "src/attribution_lab/evaluation/metrics.py": "658689655bd5c925c0bac007a833bb2b965c83a5",
+    "src/attribution_lab/models/__init__.py": "b3368269126bae665f4e787784a65aad7d1654cc",
+    "src/attribution_lab/models/base.py": "734665bdb381117b617d6b5c9afe7d8587fc583d",
+    "src/attribution_lab/models/markov.py": "c9cfc46229f8f7c66870f5a5b0328dce7866365b",
+    "src/attribution_lab/models/rules.py": "d08cf6ea1d5580a24d291e658c8d39aa45480d9a",
+    "src/attribution_lab/models/shapley.py": "928f4555cd642d36f6af60b2ff37864a4824056c",
+    "src/attribution_lab/runner.py": "2cd8676ac6260151805664939db201984a0d18cc",
+    "src/attribution_lab/simulation/__init__.py": "47fde2c3ce934d9ece7abdc8a25570381aedcd9a",
+    "src/attribution_lab/simulation/config.py": "7247a62ff677ea1f80393d52b8a83c8e06b5753d",
+    "src/attribution_lab/simulation/generator.py": "b4e65b0492822218a6da77b4e5e23123a1717dc3",
+    "src/attribution_lab/simulation/manifest.py": "317db9e5119fd0ab46e20e3b092ff86280342052",
+    "src/attribution_lab/stress/__init__.py": "b8d6258f917824bcc4db0be340df98b44d0a9795",
+    "src/attribution_lab/stress/corruption.py": "b9e4ee34b2cb8ac51f34828812f7cd6d575fc7fb"
+  }
+}
