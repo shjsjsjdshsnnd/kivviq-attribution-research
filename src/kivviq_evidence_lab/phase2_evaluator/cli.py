@@ -15,9 +15,16 @@ def main(argv: list[str] | None = None) -> int:
     args = parser.parse_args(argv)
 
     suite = build_holdout_v1()
-    candidate = DeterministicResolverCandidate()
+    if args.candidate == "deterministic":
+        candidate = DeterministicResolverCandidate()
+    else:
+        return 2
     report = evaluate_holdout(candidate, suite)
-    print(json.dumps(report, indent=2, sort_keys=True, default=str))
+    if args.json:
+        print(json.dumps(report, indent=2, sort_keys=True, default=str))
+    else:
+        for key, value in report.items():
+            print(f"{key}: {value}")
     return 0
 
 

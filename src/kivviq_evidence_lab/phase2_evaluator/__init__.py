@@ -1,1 +1,1 @@
-"""Evaluator-only Phase 2 holdout package."""\n
+"""Evaluator-only Phase 2 holdout package."""
