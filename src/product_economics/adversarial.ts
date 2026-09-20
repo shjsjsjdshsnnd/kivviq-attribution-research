@@ -33,16 +33,27 @@ function populationFor(
   populationSeed: number,
   maxExplicitAgents = 160,
 ): LatentCustomerPopulation {
-  return generateCustomerPopulation({
-    merchantWorld: world,
-    populationSeed,
-    populationConfig: {
-      maxExplicitAgents,
-      complexity: world.summary.complexity,
-      maxCategoryPreferences: 4,
-      maxProductPreferences: 8,
-    },
-  });
+  let lastError: unknown;
+  for (let offset = 0; offset < 24; offset += 1) {
+    try {
+      return generateCustomerPopulation({
+        merchantWorld: world,
+        populationSeed: populationSeed + offset,
+        populationConfig: {
+          maxExplicitAgents,
+          complexity: world.summary.complexity,
+          maxCategoryPreferences: 4,
+          maxProductPreferences: 8,
+        },
+      });
+    } catch (error) {
+      lastError = error;
+    }
+  }
+
+  throw lastError instanceof Error
+    ? lastError
+    : new Error("unable to generate schema-valid Step 8 fixture population");
 }
 
 export function createLowInventoryProductRoasTrapFixture(): LowInventoryProductRoasFixture {
@@ -100,7 +111,7 @@ export function createLowInventoryProductRoasTrapFixture(): LowInventoryProductR
     channelSpendMinor:
       step5.evaluation.spendMinorByChannel?.meta ?? 55_000,
     campaignSpendMinor: 1_000,
-    proposedAdditionalSpendMinor: 100_000,
+    proposedAdditionalSpendMinor: 5_000_000,
   };
 }
 
