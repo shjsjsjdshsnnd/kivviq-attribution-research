@@ -606,3 +606,54 @@ export function buildAdvertisingPerformanceReport(
     simulation,
   };
 }
+
+
+export interface SpendNeighborhoodEvaluation {
+  readonly channel: PaidMarketingChannel;
+  readonly belowSpendMinor: number;
+  readonly referenceSpendMinor: number;
+  readonly aboveSpendMinor: number;
+  readonly backward: TrueIncrementalPerformance;
+  readonly forward: TrueIncrementalPerformance;
+}
+
+export function evaluateSpendNeighborhood(
+  request: AdvertisingEvaluationRequest,
+  channel: PaidMarketingChannel,
+  blockMinor: number,
+): SpendNeighborhoodEvaluation {
+  if (!Number.isFinite(blockMinor) || blockMinor <= 0) {
+    throw new RangeError(
+      "spend-neighborhood block must be finite and positive",
+    );
+  }
+
+  const allocation = mergedAllocation(request);
+  const reference =
+    allocation.spendMinorByChannel[channel] ?? 0;
+  const below = Math.max(0, reference - blockMinor);
+  const above = reference + blockMinor;
+
+  const backward = evaluateSpendPair(
+    request,
+    channel,
+    reference,
+    below,
+  ).performance;
+
+  const forward = evaluateSpendPair(
+    request,
+    channel,
+    above,
+    reference,
+  ).performance;
+
+  return {
+    channel,
+    belowSpendMinor: below,
+    referenceSpendMinor: reference,
+    aboveSpendMinor: above,
+    backward,
+    forward,
+  };
+}
