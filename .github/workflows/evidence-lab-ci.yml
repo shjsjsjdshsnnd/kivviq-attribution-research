@@ -2,7 +2,7 @@ name: Evidence Lab CI
 
 on:
   push:
-    branches: [main, "phase1/**"]
+    branches: [main, "phase1/**", "phase2/**"]
   pull_request:
 
 permissions:
@@ -22,13 +22,19 @@ jobs:
         run: python -m pip install -e ".[dev]"
       - name: Repository safety
         run: python -m kivviq_evidence_lab.cli safety .
+      - name: Phase 2 candidate isolation
+        run: python -m kivviq_evidence_lab.phase2.cli firewall .
       - name: Lint
         run: ruff check .
       - name: Type check
         run: mypy src
       - name: Unit tests
         run: python -m unittest discover -s tests -v
-      - name: Benchmark
+      - name: Phase 1 benchmark
         run: python -m kivviq_evidence_lab.cli benchmark --json
-      - name: Mutation regression suite
+      - name: Phase 1 mutation regression suite
         run: python -m kivviq_evidence_lab.cli mutations
+      - name: Phase 2 development measurement
+        run: python -m kivviq_evidence_lab.phase2.cli development --json
+      - name: Phase 2 sealed holdout measurement
+        run: python -m kivviq_evidence_lab.phase2_evaluator.cli deterministic --json

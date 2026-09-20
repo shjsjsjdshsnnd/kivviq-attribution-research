@@ -1,0 +1,106 @@
+{
+  "phase1_frozen": {
+    "commit": "0f08e73915c0984d13ed47ac10059d41abc46e45",
+    "ref": "frozen/phase1-evidence-reasoning-v1",
+    "benchmark_version": "phase1-evidence-reasoning-v1.0.0",
+    "benchmark_cases": 545,
+    "unit_tests": {"passed": 35, "total": 35},
+    "benchmark": {"passed": 545, "total": 545},
+    "mutations": {"detected": 10, "total": 10},
+    "false_refusal_rate": 0.0,
+    "false_claim_rate": 0.0,
+    "reference_clock": "2026-09-20T12:00:00-04:00",
+    "runtime": {
+      "github_actions_runner": "ubuntu-latest",
+      "python": "3.11.16"
+    }
+  },
+  "phase2": {
+    "first_observed_commit": "5785e7df796001d58a597a27696c9be27ce11ad8",
+    "development_version": "phase2-development-v1.0.0",
+    "development_cases": 96,
+    "holdout_version": "phase2-holdout-v1.0.0",
+    "holdout_digest": "534a7ece84044d71e53b3765ef47c20a62a8fe352a2b612191ffe4b660fe11cd",
+    "holdout": {
+      "semantic_cases": 160,
+      "dialogue_turns": 16,
+      "metamorphic_cases": 20,
+      "governor_cases": 12,
+      "contradiction_cases": 6,
+      "evaluation_units": 214
+    },
+    "languages": ["en", "fr", "mixed"],
+    "deterministic_development_results": {
+      "exact_semantic_accuracy": 0.28125,
+      "metric_accuracy": 0.6666666666666666,
+      "source_provider_accuracy": 0.6666666666666666,
+      "scope_accuracy": 0.59375,
+      "period_accuracy": 0.8333333333333334,
+      "breakdown_dimension_accuracy": 0.8854166666666666,
+      "language_accuracy": {
+        "en": 0.38571428571428573,
+        "fr": 0.0,
+        "mixed": 0.0
+      }
+    },
+    "deterministic_holdout_results": {
+      "exact_semantic_resolution_accuracy": 0.1375,
+      "metric_accuracy": 0.3953488372093023,
+      "provider_accuracy": 0.38953488372093026,
+      "scope_accuracy": 0.4011627906976744,
+      "period_accuracy": 0.7558139534883721,
+      "breakdown_accuracy": 0.7325581395348837,
+      "ambiguity_precision": 0.1485148514851485,
+      "ambiguity_recall": 0.9375,
+      "false_ambiguity_rate": 0.5972222222222222,
+      "false_certainty_rate": 0.0625,
+      "conversational_context_accuracy": 0.1875,
+      "multilingual_accuracy": 0.045454545454545456,
+      "metamorphic_consistency": 0.7,
+      "evidence_governor_acceptance_accuracy": 1.0,
+      "unsupported_claim_rate": 0.0,
+      "false_refusal_rate": 0.0,
+      "semantic_false_refusal_rate": 0.5972222222222222,
+      "contradiction_safety_accuracy": 0.6666666666666666,
+      "category_accuracy": {
+        "adversarial_premise": 0.0,
+        "ambiguity": 0.0,
+        "breakdown": 0.0,
+        "code_switch": 0.25,
+        "irrelevant_context": 0.9,
+        "multilingual": 0.0,
+        "multiple_requests": 0.0,
+        "noisy_language": 0.06666666666666667,
+        "unseen_paraphrase": 0.20408163265306123
+      },
+      "language_accuracy": {
+        "en": 0.1724137931034483,
+        "fr": 0.0,
+        "mixed": 0.25
+      },
+      "failure_categories": {
+        "adversarial_premise": 4,
+        "ambiguity": 16,
+        "breakdown": 20,
+        "code_switch": 6,
+        "irrelevant_context": 1,
+        "multilingual": 30,
+        "multiple_requests": 8,
+        "noisy_language": 14,
+        "unseen_paraphrase": 39
+      }
+    },
+    "model_based_resolver": {
+      "interface_implemented": true,
+      "holdout_results": null,
+      "status": "not_evaluated",
+      "reason": "No external model backend was configured; the public benchmark uses no API credentials or external inference service."
+    },
+    "holdout_exposure": {
+      "candidate_imports_evaluator": false,
+      "candidate_received_expected_answers": false,
+      "candidate_received_holdout_prompts": false,
+      "note": "The public repository provides an architectural/module boundary rather than cryptographic secrecy from a human repository reader."
+    }
+  }
+}
