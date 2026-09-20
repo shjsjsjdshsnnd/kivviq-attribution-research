@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+# ruff: noqa: I001
+
 import math
 import random as stdlib_random
 from dataclasses import dataclass

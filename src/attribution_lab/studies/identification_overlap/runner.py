@@ -15,7 +15,6 @@ from attribution_lab.studies.identification_overlap.matrix import (
     FOCAL_CHANNEL,
     LARGE_REFERENCE_SIZE,
     MEASUREMENT_QUALITIES,
-    SAMPLE_SIZES,
     StructuralCell,
     large_reference_config,
     measurement_corruption,
