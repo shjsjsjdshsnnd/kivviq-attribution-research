@@ -138,6 +138,13 @@ export interface FutureAudienceSummary {
   readonly representedRecentVisitors: number;
 }
 
+export interface SourceMetricSnapshot {
+  readonly source: string;
+  readonly sessions: number;
+  readonly purchases: number;
+  readonly attributedRevenueMinor: number;
+}
+
 export interface SourceMetricDelta {
   readonly source: string;
   readonly sessionsDelta: number;
@@ -146,6 +153,16 @@ export interface SourceMetricDelta {
 }
 
 export interface PortfolioOutcome {
+  readonly representedOrders: number;
+  readonly representedRevenueMinor: number;
+  readonly representedContributionProfitMinor: number;
+  readonly representedNewCustomers: number;
+  readonly platformAttributedRevenueMinor: number;
+  readonly sourceMetrics: readonly SourceMetricSnapshot[];
+  readonly futureAudience: FutureAudienceSummary;
+}
+
+export interface PortfolioDelta {
   readonly representedOrders: number;
   readonly representedRevenueMinor: number;
   readonly representedContributionProfitMinor: number;
@@ -191,13 +208,13 @@ export interface ChannelRemovalEvaluation {
   readonly channel: MarketingChannel;
   readonly factual: PortfolioEvaluation;
   readonly removed: PortfolioEvaluation;
-  readonly delta: PortfolioOutcome;
+  readonly delta: PortfolioDelta;
 }
 
 export interface ReallocationEvaluation {
   readonly factual: PortfolioEvaluation;
   readonly reallocated: PortfolioEvaluation;
-  readonly delta: PortfolioOutcome;
+  readonly delta: PortfolioDelta;
   readonly spendDeltaByChannel: Readonly<
     Partial<Record<MarketingChannel, number>>
   >;
