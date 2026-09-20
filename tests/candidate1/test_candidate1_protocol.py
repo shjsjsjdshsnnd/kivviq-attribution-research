@@ -1,16 +1,16 @@
-from __future__ import annotations
-
-import json
-from pathlib import Path
+PROTOCOL = "phase2/candidates/candidate1/frozen_protocol.json"
+DEVELOPMENT = "phase2/candidates/candidate1/development_summary.json"
 
 
-PROTOCOL = Path("phase2/candidates/candidate1/frozen_protocol.json")
-DEVELOPMENT = Path("phase2/candidates/candidate1/development_summary.json")
+def _load(path: str):
+    json_module = __import__("json")
+    with open(path, encoding="utf-8") as handle:
+        return json_module.load(handle)
 
 
 def test_frozen_protocol_is_development_derived_and_complete() -> None:
-    protocol = json.loads(PROTOCOL.read_text(encoding="utf-8"))
-    development = json.loads(DEVELOPMENT.read_text(encoding="utf-8"))
+    protocol = _load(PROTOCOL)
+    development = _load(DEVELOPMENT)
 
     assert protocol["candidate_id"] == "candidate1-stratified-lpm"
     assert protocol["version"] == "1.0.0"
@@ -18,10 +18,7 @@ def test_frozen_protocol_is_development_derived_and_complete() -> None:
         protocol["parent_harness_commit"]
         == "3616d00c0855a0d3d9dcb8dbf578a3e68c26f9fa"
     )
-    assert (
-        protocol["candidate_source_blob_sha"]
-        == development["source_blob_sha"]
-    )
+    assert protocol["candidate_source_blob_sha"] == development["source_blob_sha"]
     assert development["label"] == "DEVELOPMENT"
     assert len(development["worlds"]) == 5
 
@@ -43,7 +40,7 @@ def test_frozen_protocol_is_development_derived_and_complete() -> None:
 
 
 def test_frozen_protocol_excludes_oracle_inputs() -> None:
-    protocol = json.loads(PROTOCOL.read_text(encoding="utf-8"))
+    protocol = _load(PROTOCOL)
     hidden = set(protocol["intentionally_hidden_oracle_variables"])
     assert "true latent purchase intent" in hidden
     assert "true treatment effects" in hidden
