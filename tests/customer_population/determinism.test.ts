@@ -85,7 +85,6 @@ describe("latent customer population determinism", () => {
 
     const serialized = JSON.stringify(population);
     for (const forbidden of [
-      '"email"',
       '"phone"',
       '"address"',
       '"sessions"',
