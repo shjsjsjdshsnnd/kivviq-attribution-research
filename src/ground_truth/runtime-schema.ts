@@ -265,7 +265,7 @@ const piecewiseResponseCurveSchema = z
     }
   });
 
-export const responseCurveSchema = z.discriminatedUnion("kind", [
+export const responseCurveSchema = z.union([
   linearResponseCurveSchema,
   hillResponseCurveSchema,
   thresholdResponseCurveSchema,
@@ -305,7 +305,7 @@ const discreteDelayDistributionSchema = z
     }
   });
 
-export const delayDistributionSchema = z.discriminatedUnion("kind", [
+export const delayDistributionSchema = z.union([
   fixedDelayDistributionSchema,
   discreteDelayDistributionSchema,
 ]);
