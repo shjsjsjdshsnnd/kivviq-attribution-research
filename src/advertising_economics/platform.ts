@@ -119,6 +119,21 @@ function searchClassForTouch(
     : "nonbrand";
 }
 
+function hasPriorIntentSignal(
+  result: SimulationResult,
+  customerId: string,
+  beforeMs: number,
+): boolean {
+  return result.observableEvents.some(
+    (event) =>
+      event.anonymousSubjectId === customerId &&
+      Date.parse(event.occurredAt) < beforeMs &&
+      (event.eventType === "product_view" ||
+        event.eventType === "add_to_cart" ||
+        event.eventType === "checkout_start"),
+  );
+}
+
 function latestEligibleTouch(
   result: SimulationResult,
   purchase: SimulationResult["purchases"][number],
@@ -130,8 +145,19 @@ function latestEligibleTouch(
 } | undefined {
   const purchaseMs = Date.parse(purchase.occurredAt);
 
+  const retargetingMultiplier = hasPriorIntentSignal(
+    result,
+    purchase.customerId,
+    purchaseMs,
+  )
+    ? 1 + rule.retargetingBias
+    : 1;
+
   const clickCutoff =
-    purchaseMs - rule.clickWindowDays * DAY_MS;
+    purchaseMs -
+    rule.clickWindowDays *
+      retargetingMultiplier *
+      DAY_MS;
   const clicks = result.observableEvents
     .filter(
       (event) =>
@@ -170,7 +196,10 @@ function latestEligibleTouch(
   }
 
   const viewCutoff =
-    purchaseMs - rule.viewWindowDays * DAY_MS;
+    purchaseMs -
+    rule.viewWindowDays *
+      retargetingMultiplier *
+      DAY_MS;
   const views = result.observableEvents
     .filter(
       (event) =>
