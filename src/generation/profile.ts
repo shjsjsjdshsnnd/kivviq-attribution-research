@@ -185,6 +185,7 @@ const COMPLEXITY_CHANNEL_TARGET: Readonly<
 
 export interface LatentBusinessProfile {
   readonly merchantId: string;
+  readonly complexity: ComplexityLevel;
   readonly aovProfile: AovProfile;
   readonly purchaseFrequency: PurchaseFrequencyProfile;
   readonly marketingDependence: MarketingDependenceProfile;
@@ -291,6 +292,16 @@ function chooseChannels(
 
   if (!chosen.includes("email") && rng.bool(tendencies.lifecycleAffinity * 0.45)) {
     chosen[chosen.length - 1] = "email";
+  }
+
+  for (const forced of config.overrides?.forceZeroIncrementalityChannels ?? []) {
+    if (!chosen.includes(forced)) {
+      if (chosen.length < maxChannels) {
+        chosen.push(forced);
+      } else {
+        chosen[chosen.length - 1] = forced;
+      }
+    }
   }
 
   return [...new Set(chosen)];
@@ -579,6 +590,7 @@ export function generateLatentBusinessProfile(
 
   return {
     merchantId: syntheticMerchantId(config, rng),
+    complexity: config.complexity,
     aovProfile,
     purchaseFrequency,
     marketingDependence,
