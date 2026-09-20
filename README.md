@@ -104,6 +104,42 @@ Ecommerce economics, opportunity diagnostics, economic counterfactuals and adver
 
 The Operator-safe root API cannot import/export them.
 
+### Step 8 — product economics
+
+Branch: `step8/product-economics`
+
+Draft PR: #20
+
+Step 8 unifies SKU-level product economics and separates intrinsic product demand from observed demand created by inventory and substitution.
+
+Every SKU now exposes:
+
+- price;
+- COGS;
+- margin;
+- inventory;
+- category;
+- explicit synthetic brand assignment;
+- conversion propensity;
+- structural demand;
+- seasonality;
+- substitutions;
+- complements;
+- return rate;
+- shipping cost;
+- discount sensitivity;
+- expected contribution per unit.
+
+Hard Step 8 traps:
+
+**17-unit ROAS trap**
+
+A SKU with only 17 units remaining shows ~54.67× platform product ROAS, but the maximum optimistic contribution from all remaining inventory is ~122K minor units versus a 500K proposed scale block. Even perfect sell-through cannot make scaling economically rational.
+
+**Sellout substitution trap**
+
+When Product A becomes unavailable, Product B gains ~5,507 weighted selections while Product B structural demand and latent preference both remain unchanged. The system can therefore distinguish substitution-driven observed growth from genuine increased desirability.
+
 ### Research isolation
 
 No private Kivviq, Maison Olive data, real merchant/customer data, production systems, credentials or private implementation details are used.
@@ -125,3 +161,5 @@ No private Kivviq, Maison Olive data, real merchant/customer data, production sy
 - `docs/step6-cross-channel-acceptance.md`
 - `docs/step7-ecommerce-economics.md`
 - `docs/step7-ecommerce-economics-acceptance.md`
+- `docs/step8-product-economics.md`
+- `docs/step8-product-economics-acceptance.md`
