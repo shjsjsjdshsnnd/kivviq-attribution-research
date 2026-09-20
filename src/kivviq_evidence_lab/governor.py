@@ -13,8 +13,9 @@ from .model import (
 )
 
 
+CONFLICT_GOVERNOR_VERSION = "evidence-governor-conflict-v2.0.0"
 ABSOLUTE_CONFLICT_TOLERANCE = 0.01
-RELATIVE_CONFLICT_TOLERANCE = 0.005
+RELATIVE_CONFLICT_TOLERANCE = 0.001
 
 
 def _same_fact_identity(left: EvidenceFact, right: EvidenceFact) -> bool:

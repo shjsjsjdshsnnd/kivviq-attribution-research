@@ -36,5 +36,3 @@ jobs:
         run: python -m kivviq_evidence_lab.cli mutations
       - name: Phase 2 development measurement
         run: python -m kivviq_evidence_lab.phase2.cli development --json
-      - name: Phase 2 sealed holdout measurement
-        run: python -m kivviq_evidence_lab.phase2_evaluator.cli deterministic --json

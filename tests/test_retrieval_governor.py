@@ -96,7 +96,9 @@ class RetrievalGovernorTests(unittest.TestCase):
     def test_material_same_authority_disagreement_is_conflict(self) -> None:
         req = RequestSemantics("metric", "total_sales", "commerce", "all_channels", None, self.p)
         first = self.world.fact("total_sales", "commerce", "all_channels", self.p, currency="CAD")
-        second = replace(first, value=float(first.value) + 500.0)  # type: ignore[arg-type]
+        self.assertIsInstance(first.value, (int, float))
+        first_value = float(first.value)
+        second = replace(first, value=first_value * 1.002)
         answer = ProposedAnswer("total_sales", "commerce", "all_channels", self.p, first.value, (first, second))
         result = self.gov.validate(answer, contract_for_request(req, self.registry))
         self.assertEqual(result.outcome, ExpectedOutcome.CONFLICT)
@@ -108,12 +110,23 @@ class RetrievalGovernorTests(unittest.TestCase):
     def test_immaterial_same_authority_difference_is_not_conflict(self) -> None:
         req = RequestSemantics("metric", "total_sales", "commerce", "all_channels", None, self.p)
         first = self.world.fact("total_sales", "commerce", "all_channels", self.p, currency="CAD")
-        first_value = float(first.value)  # type: ignore[arg-type]
-        second = replace(first, value=first_value * 1.001)
+        self.assertIsInstance(first.value, (int, float))
+        first_value = float(first.value)
+        second = replace(first, value=first_value * 1.0005)
         answer = ProposedAnswer("total_sales", "commerce", "all_channels", self.p, first.value, (first, second))
         result = self.gov.validate(answer, contract_for_request(req, self.registry))
         self.assertEqual(result.outcome, ExpectedOutcome.SUPPORTED_EXACT)
         self.assertEqual(result.conflicts, ())
+
+    def test_one_tenth_percent_boundary_is_material(self) -> None:
+        req = RequestSemantics("metric", "total_sales", "commerce", "all_channels", None, self.p)
+        first = self.world.fact("total_sales", "commerce", "all_channels", self.p, currency="CAD")
+        self.assertIsInstance(first.value, (int, float))
+        first_value = float(first.value)
+        second = replace(first, value=first_value * 1.0011)
+        answer = ProposedAnswer("total_sales", "commerce", "all_channels", self.p, first.value, (first, second))
+        result = self.gov.validate(answer, contract_for_request(req, self.registry))
+        self.assertEqual(result.outcome, ExpectedOutcome.CONFLICT)
 
     def test_different_sources_are_not_same_authority_conflict(self) -> None:
         req = RequestSemantics("metric", "total_sales", "commerce", "all_channels", None, self.p)
