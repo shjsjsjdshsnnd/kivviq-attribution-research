@@ -396,8 +396,8 @@
           "coverage_fraction": 1.0,
           "max_absolute_error": 0.06771868861907715,
           "maximum_extreme_propensity_fraction": 0.034375,
-          "mean_absolute_error": 0.03634908833930644,
-          "minimum_arm_ess": 28.052141576516917,
+          "mean_absolute_error": 0.036349088339306446,
+          "minimum_arm_ess": 28.05214157651689,
           "n_subjects": 320,
           "numerical_valid": true,
           "world": "c2-dev-balanced-v1"
@@ -425,7 +425,7 @@
           "max_absolute_error": 0.03407358751932621,
           "maximum_extreme_propensity_fraction": 0.05277777777777778,
           "mean_absolute_error": 0.024876276174208414,
-          "minimum_arm_ess": 44.684974167977046,
+          "minimum_arm_ess": 44.68497416797706,
           "n_subjects": 360,
           "numerical_valid": true,
           "world": "c2-dev-observed-selection-v1"
@@ -450,10 +450,10 @@
             "session_splitting_probability": 0.0
           },
           "coverage_fraction": 1.0,
-          "max_absolute_error": 0.06777840698120366,
+          "max_absolute_error": 0.06777840698120362,
           "maximum_extreme_propensity_fraction": 0.03611111111111111,
-          "mean_absolute_error": 0.03438223161569505,
-          "minimum_arm_ess": 47.582569989430574,
+          "mean_absolute_error": 0.03438223161569504,
+          "minimum_arm_ess": 47.58256998943056,
           "n_subjects": 360,
           "numerical_valid": true,
           "world": "c2-dev-null-selection-v1"
@@ -481,7 +481,7 @@
           "max_absolute_error": 0.0707821119056959,
           "maximum_extreme_propensity_fraction": 0.04411764705882353,
           "mean_absolute_error": 0.03694092198715566,
-          "minimum_arm_ess": 42.64678958217763,
+          "minimum_arm_ess": 42.64678958217762,
           "n_subjects": 340,
           "numerical_valid": true,
           "world": "c2-dev-negative-v1"
@@ -506,10 +506,10 @@
             "session_splitting_probability": 0.0
           },
           "coverage_fraction": 1.0,
-          "max_absolute_error": 0.04927031300305697,
+          "max_absolute_error": 0.04927031300305696,
           "maximum_extreme_propensity_fraction": 0.05277777777777778,
-          "mean_absolute_error": 0.027513671410476757,
-          "minimum_arm_ess": 29.802492848254772,
+          "mean_absolute_error": 0.027513671410476753,
+          "minimum_arm_ess": 29.802492848254783,
           "n_subjects": 360,
           "numerical_valid": true,
           "world": "c2-dev-positivity-v1"
@@ -534,10 +534,10 @@
             "session_splitting_probability": 0.0
           },
           "coverage_fraction": 1.0,
-          "max_absolute_error": 0.0772511651900828,
+          "max_absolute_error": 0.07725116519008277,
           "maximum_extreme_propensity_fraction": 0.08648648648648649,
-          "mean_absolute_error": 0.04311460302054723,
-          "minimum_arm_ess": 25.907976070763468,
+          "mean_absolute_error": 0.043114603020547225,
+          "minimum_arm_ess": 25.90797607076349,
           "n_subjects": 360,
           "numerical_valid": true,
           "world": "c2-dev-measurement-v1"
@@ -573,7 +573,7 @@
           "max_absolute_error": 0.067906135122325,
           "maximum_extreme_propensity_fraction": 0.0,
           "mean_absolute_error": 0.035777809186715144,
-          "minimum_arm_ess": 32.44828262910124,
+          "minimum_arm_ess": 32.44828262910125,
           "n_subjects": 320,
           "numerical_valid": true,
           "world": "c2-dev-balanced-v1"
@@ -598,10 +598,10 @@
             "session_splitting_probability": 0.0
           },
           "coverage_fraction": 1.0,
-          "max_absolute_error": 0.03148597704725529,
+          "max_absolute_error": 0.0314859770472553,
           "maximum_extreme_propensity_fraction": 0.0,
           "mean_absolute_error": 0.022209947330740793,
-          "minimum_arm_ess": 54.1453788308176,
+          "minimum_arm_ess": 54.14537883081761,
           "n_subjects": 360,
           "numerical_valid": true,
           "world": "c2-dev-observed-selection-v1"
@@ -626,10 +626,10 @@
             "session_splitting_probability": 0.0
           },
           "coverage_fraction": 1.0,
-          "max_absolute_error": 0.06582342586776502,
+          "max_absolute_error": 0.065823425867765,
           "maximum_extreme_propensity_fraction": 0.0,
-          "mean_absolute_error": 0.03299252843587322,
-          "minimum_arm_ess": 53.915502745975616,
+          "mean_absolute_error": 0.03299252843587323,
+          "minimum_arm_ess": 53.9155027459756,
           "n_subjects": 360,
           "numerical_valid": true,
           "world": "c2-dev-null-selection-v1"
@@ -654,9 +654,9 @@
             "session_splitting_probability": 0.0
           },
           "coverage_fraction": 1.0,
-          "max_absolute_error": 0.06841655770040976,
+          "max_absolute_error": 0.06841655770040975,
           "maximum_extreme_propensity_fraction": 0.0,
-          "mean_absolute_error": 0.03673482373183826,
+          "mean_absolute_error": 0.03673482373183827,
           "minimum_arm_ess": 47.457144703995716,
           "n_subjects": 340,
           "numerical_valid": true,
@@ -682,9 +682,9 @@
             "session_splitting_probability": 0.0
           },
           "coverage_fraction": 1.0,
-          "max_absolute_error": 0.054042650686143334,
+          "max_absolute_error": 0.05404265068614332,
           "maximum_extreme_propensity_fraction": 0.0,
-          "mean_absolute_error": 0.025872592941958605,
+          "mean_absolute_error": 0.025872592941958608,
           "minimum_arm_ess": 40.5027209495558,
           "n_subjects": 360,
           "numerical_valid": true,
@@ -713,7 +713,7 @@
           "max_absolute_error": 0.0746531715633719,
           "maximum_extreme_propensity_fraction": 0.0,
           "mean_absolute_error": 0.04026247621402149,
-          "minimum_arm_ess": 31.195485278156244,
+          "minimum_arm_ess": 31.195485278156248,
           "n_subjects": 360,
           "numerical_valid": true,
           "world": "c2-dev-measurement-v1"
@@ -749,7 +749,7 @@
           "max_absolute_error": 0.06797463488000781,
           "maximum_extreme_propensity_fraction": 0.0,
           "mean_absolute_error": 0.03580676576575188,
-          "minimum_arm_ess": 36.653885030643785,
+          "minimum_arm_ess": 36.65388503064378,
           "n_subjects": 320,
           "numerical_valid": true,
           "world": "c2-dev-balanced-v1"
@@ -774,10 +774,10 @@
             "session_splitting_probability": 0.0
           },
           "coverage_fraction": 1.0,
-          "max_absolute_error": 0.031660212247135944,
+          "max_absolute_error": 0.03166021224713594,
           "maximum_extreme_propensity_fraction": 0.0,
           "mean_absolute_error": 0.021760495121428636,
-          "minimum_arm_ess": 62.33127530964021,
+          "minimum_arm_ess": 62.331275309640205,
           "n_subjects": 360,
           "numerical_valid": true,
           "world": "c2-dev-observed-selection-v1"
@@ -830,7 +830,7 @@
             "session_splitting_probability": 0.0
           },
           "coverage_fraction": 1.0,
-          "max_absolute_error": 0.06525319948743095,
+          "max_absolute_error": 0.06525319948743094,
           "maximum_extreme_propensity_fraction": 0.0,
           "mean_absolute_error": 0.03657365152603684,
           "minimum_arm_ess": 50.18841686234603,
@@ -860,8 +860,8 @@
           "coverage_fraction": 1.0,
           "max_absolute_error": 0.055302318083420676,
           "maximum_extreme_propensity_fraction": 0.0,
-          "mean_absolute_error": 0.02462696814267456,
-          "minimum_arm_ess": 43.886857892315426,
+          "mean_absolute_error": 0.024626968142674566,
+          "minimum_arm_ess": 43.88685789231544,
           "n_subjects": 360,
           "numerical_valid": true,
           "world": "c2-dev-positivity-v1"
@@ -888,8 +888,8 @@
           "coverage_fraction": 1.0,
           "max_absolute_error": 0.07253536302747693,
           "maximum_extreme_propensity_fraction": 0.0,
-          "mean_absolute_error": 0.03788682566961657,
-          "minimum_arm_ess": 35.23633648197436,
+          "mean_absolute_error": 0.037886825669616576,
+          "minimum_arm_ess": 35.23633648197437,
           "n_subjects": 360,
           "numerical_valid": true,
           "world": "c2-dev-measurement-v1"
@@ -897,7 +897,7 @@
       ]
     },
     {
-      "mean_absolute_error": 0.032130919906870094,
+      "mean_absolute_error": 0.03213091990687009,
       "numerically_valid": true,
       "outcome_l2": 1.0,
       "propensity_l2": 0.1,
@@ -922,10 +922,10 @@
             "session_splitting_probability": 0.0
           },
           "coverage_fraction": 1.0,
-          "max_absolute_error": 0.06636321556989415,
+          "max_absolute_error": 0.06636321556989418,
           "maximum_extreme_propensity_fraction": 0.034375,
-          "mean_absolute_error": 0.03475843336691046,
-          "minimum_arm_ess": 28.052141576516917,
+          "mean_absolute_error": 0.034758433366910466,
+          "minimum_arm_ess": 28.05214157651689,
           "n_subjects": 320,
           "numerical_valid": true,
           "world": "c2-dev-balanced-v1"
@@ -950,10 +950,10 @@
             "session_splitting_probability": 0.0
           },
           "coverage_fraction": 1.0,
-          "max_absolute_error": 0.030567687936455826,
+          "max_absolute_error": 0.030567687936455833,
           "maximum_extreme_propensity_fraction": 0.05277777777777778,
-          "mean_absolute_error": 0.022309357316955138,
-          "minimum_arm_ess": 44.684974167977046,
+          "mean_absolute_error": 0.02230935731695514,
+          "minimum_arm_ess": 44.68497416797706,
           "n_subjects": 360,
           "numerical_valid": true,
           "world": "c2-dev-observed-selection-v1"
@@ -978,10 +978,10 @@
             "session_splitting_probability": 0.0
           },
           "coverage_fraction": 1.0,
-          "max_absolute_error": 0.06594192017441357,
+          "max_absolute_error": 0.06594192017441355,
           "maximum_extreme_propensity_fraction": 0.03611111111111111,
-          "mean_absolute_error": 0.03165195871811524,
-          "minimum_arm_ess": 47.582569989430574,
+          "mean_absolute_error": 0.031651958718115235,
+          "minimum_arm_ess": 47.58256998943056,
           "n_subjects": 360,
           "numerical_valid": true,
           "world": "c2-dev-null-selection-v1"
@@ -1006,10 +1006,10 @@
             "session_splitting_probability": 0.0
           },
           "coverage_fraction": 1.0,
-          "max_absolute_error": 0.06739364419145492,
+          "max_absolute_error": 0.06739364419145494,
           "maximum_extreme_propensity_fraction": 0.04411764705882353,
-          "mean_absolute_error": 0.03606506228348877,
-          "minimum_arm_ess": 42.64678958217763,
+          "mean_absolute_error": 0.036065062283488776,
+          "minimum_arm_ess": 42.64678958217762,
           "n_subjects": 340,
           "numerical_valid": true,
           "world": "c2-dev-negative-v1"
@@ -1036,8 +1036,8 @@
           "coverage_fraction": 1.0,
           "max_absolute_error": 0.05031254077114399,
           "maximum_extreme_propensity_fraction": 0.05277777777777778,
-          "mean_absolute_error": 0.025619025526548093,
-          "minimum_arm_ess": 29.802492848254772,
+          "mean_absolute_error": 0.02561902552654809,
+          "minimum_arm_ess": 29.802492848254783,
           "n_subjects": 360,
           "numerical_valid": true,
           "world": "c2-dev-positivity-v1"
@@ -1064,8 +1064,8 @@
           "coverage_fraction": 1.0,
           "max_absolute_error": 0.07445770213492692,
           "maximum_extreme_propensity_fraction": 0.08648648648648649,
-          "mean_absolute_error": 0.04238168222920284,
-          "minimum_arm_ess": 25.907976070763468,
+          "mean_absolute_error": 0.04238168222920283,
+          "minimum_arm_ess": 25.90797607076349,
           "n_subjects": 360,
           "numerical_valid": true,
           "world": "c2-dev-measurement-v1"
@@ -1073,7 +1073,7 @@
       ]
     },
     {
-      "mean_absolute_error": 0.030297846483711813,
+      "mean_absolute_error": 0.03029784648371182,
       "numerically_valid": true,
       "outcome_l2": 1.0,
       "propensity_l2": 1.0,
@@ -1100,8 +1100,8 @@
           "coverage_fraction": 1.0,
           "max_absolute_error": 0.06653637182273861,
           "maximum_extreme_propensity_fraction": 0.0,
-          "mean_absolute_error": 0.03426202795173664,
-          "minimum_arm_ess": 32.44828262910124,
+          "mean_absolute_error": 0.034262027951736634,
+          "minimum_arm_ess": 32.44828262910125,
           "n_subjects": 320,
           "numerical_valid": true,
           "world": "c2-dev-balanced-v1"
@@ -1126,10 +1126,10 @@
             "session_splitting_probability": 0.0
           },
           "coverage_fraction": 1.0,
-          "max_absolute_error": 0.03224739263723843,
+          "max_absolute_error": 0.03224739263723844,
           "maximum_extreme_propensity_fraction": 0.0,
-          "mean_absolute_error": 0.019363956119454632,
-          "minimum_arm_ess": 54.1453788308176,
+          "mean_absolute_error": 0.019363956119454635,
+          "minimum_arm_ess": 54.14537883081761,
           "n_subjects": 360,
           "numerical_valid": true,
           "world": "c2-dev-observed-selection-v1"
@@ -1156,8 +1156,8 @@
           "coverage_fraction": 1.0,
           "max_absolute_error": 0.06505569348017312,
           "maximum_extreme_propensity_fraction": 0.0,
-          "mean_absolute_error": 0.030104067131504014,
-          "minimum_arm_ess": 53.915502745975616,
+          "mean_absolute_error": 0.03010406713150401,
+          "minimum_arm_ess": 53.9155027459756,
           "n_subjects": 360,
           "numerical_valid": true,
           "world": "c2-dev-null-selection-v1"
@@ -1184,7 +1184,7 @@
           "coverage_fraction": 1.0,
           "max_absolute_error": 0.06300752586780509,
           "maximum_extreme_propensity_fraction": 0.0,
-          "mean_absolute_error": 0.03570220656426752,
+          "mean_absolute_error": 0.03570220656426753,
           "minimum_arm_ess": 47.457144703995716,
           "n_subjects": 340,
           "numerical_valid": true,
@@ -1210,9 +1210,9 @@
             "session_splitting_probability": 0.0
           },
           "coverage_fraction": 1.0,
-          "max_absolute_error": 0.05577233782609384,
+          "max_absolute_error": 0.05577233782609383,
           "maximum_extreme_propensity_fraction": 0.0,
-          "mean_absolute_error": 0.02374882466906113,
+          "mean_absolute_error": 0.023748824669061138,
           "minimum_arm_ess": 40.5027209495558,
           "n_subjects": 360,
           "numerical_valid": true,
@@ -1240,8 +1240,8 @@
           "coverage_fraction": 1.0,
           "max_absolute_error": 0.07068518759132489,
           "maximum_extreme_propensity_fraction": 0.0,
-          "mean_absolute_error": 0.03860599646624695,
-          "minimum_arm_ess": 31.195485278156244,
+          "mean_absolute_error": 0.038605996466246954,
+          "minimum_arm_ess": 31.195485278156248,
           "n_subjects": 360,
           "numerical_valid": true,
           "world": "c2-dev-measurement-v1"
@@ -1249,7 +1249,7 @@
       ]
     },
     {
-      "mean_absolute_error": 0.029409034782489824,
+      "mean_absolute_error": 0.029409034782489827,
       "numerically_valid": true,
       "outcome_l2": 1.0,
       "propensity_l2": 5.0,
@@ -1276,8 +1276,8 @@
           "coverage_fraction": 1.0,
           "max_absolute_error": 0.066749088933035,
           "maximum_extreme_propensity_fraction": 0.0,
-          "mean_absolute_error": 0.03548036160949224,
-          "minimum_arm_ess": 36.653885030643785,
+          "mean_absolute_error": 0.03548036160949225,
+          "minimum_arm_ess": 36.65388503064378,
           "n_subjects": 320,
           "numerical_valid": true,
           "world": "c2-dev-balanced-v1"
@@ -1302,10 +1302,10 @@
             "session_splitting_probability": 0.0
           },
           "coverage_fraction": 1.0,
-          "max_absolute_error": 0.03264553236770986,
+          "max_absolute_error": 0.03264553236770985,
           "maximum_extreme_propensity_fraction": 0.0,
-          "mean_absolute_error": 0.018906414826345308,
-          "minimum_arm_ess": 62.33127530964021,
+          "mean_absolute_error": 0.01890641482634531,
+          "minimum_arm_ess": 62.331275309640205,
           "n_subjects": 360,
           "numerical_valid": true,
           "world": "c2-dev-observed-selection-v1"
@@ -1360,7 +1360,7 @@
           "coverage_fraction": 1.0,
           "max_absolute_error": 0.05890532708604748,
           "maximum_extreme_propensity_fraction": 0.0,
-          "mean_absolute_error": 0.03503495777682027,
+          "mean_absolute_error": 0.03503495777682028,
           "minimum_arm_ess": 50.18841686234603,
           "n_subjects": 340,
           "numerical_valid": true,
@@ -1386,10 +1386,10 @@
             "session_splitting_probability": 0.0
           },
           "coverage_fraction": 1.0,
-          "max_absolute_error": 0.057768452481374175,
+          "max_absolute_error": 0.05776845248137416,
           "maximum_extreme_propensity_fraction": 0.0,
           "mean_absolute_error": 0.022112036897778783,
-          "minimum_arm_ess": 43.886857892315426,
+          "minimum_arm_ess": 43.88685789231544,
           "n_subjects": 360,
           "numerical_valid": true,
           "world": "c2-dev-positivity-v1"
@@ -1417,7 +1417,7 @@
           "max_absolute_error": 0.06812868752475326,
           "maximum_extreme_propensity_fraction": 0.0,
           "mean_absolute_error": 0.03593145822208204,
-          "minimum_arm_ess": 35.23633648197436,
+          "minimum_arm_ess": 35.23633648197437,
           "n_subjects": 360,
           "numerical_valid": true,
           "world": "c2-dev-measurement-v1"
@@ -1450,10 +1450,10 @@
             "session_splitting_probability": 0.0
           },
           "coverage_fraction": 1.0,
-          "max_absolute_error": 0.06577410163030525,
+          "max_absolute_error": 0.06577410163030527,
           "maximum_extreme_propensity_fraction": 0.034375,
-          "mean_absolute_error": 0.03437124251528929,
-          "minimum_arm_ess": 28.052141576516917,
+          "mean_absolute_error": 0.0343712425152893,
+          "minimum_arm_ess": 28.05214157651689,
           "n_subjects": 320,
           "numerical_valid": true,
           "world": "c2-dev-balanced-v1"
@@ -1478,10 +1478,10 @@
             "session_splitting_probability": 0.0
           },
           "coverage_fraction": 1.0,
-          "max_absolute_error": 0.030546943801971056,
+          "max_absolute_error": 0.030546943801971066,
           "maximum_extreme_propensity_fraction": 0.05277777777777778,
           "mean_absolute_error": 0.02057115955163766,
-          "minimum_arm_ess": 44.684974167977046,
+          "minimum_arm_ess": 44.68497416797706,
           "n_subjects": 360,
           "numerical_valid": true,
           "world": "c2-dev-observed-selection-v1"
@@ -1506,10 +1506,10 @@
             "session_splitting_probability": 0.0
           },
           "coverage_fraction": 1.0,
-          "max_absolute_error": 0.06464842510241904,
+          "max_absolute_error": 0.06464842510241903,
           "maximum_extreme_propensity_fraction": 0.03611111111111111,
-          "mean_absolute_error": 0.029895420509218604,
-          "minimum_arm_ess": 47.582569989430574,
+          "mean_absolute_error": 0.02989542050921861,
+          "minimum_arm_ess": 47.58256998943056,
           "n_subjects": 360,
           "numerical_valid": true,
           "world": "c2-dev-null-selection-v1"
@@ -1534,10 +1534,10 @@
             "session_splitting_probability": 0.0
           },
           "coverage_fraction": 1.0,
-          "max_absolute_error": 0.06517079460760028,
+          "max_absolute_error": 0.0651707946076003,
           "maximum_extreme_propensity_fraction": 0.04411764705882353,
           "mean_absolute_error": 0.03545736814768243,
-          "minimum_arm_ess": 42.64678958217763,
+          "minimum_arm_ess": 42.64678958217762,
           "n_subjects": 340,
           "numerical_valid": true,
           "world": "c2-dev-negative-v1"
@@ -1564,8 +1564,8 @@
           "coverage_fraction": 1.0,
           "max_absolute_error": 0.05037792549474015,
           "maximum_extreme_propensity_fraction": 0.05277777777777778,
-          "mean_absolute_error": 0.025182552171194684,
-          "minimum_arm_ess": 29.802492848254772,
+          "mean_absolute_error": 0.02518255217119468,
+          "minimum_arm_ess": 29.802492848254783,
           "n_subjects": 360,
           "numerical_valid": true,
           "world": "c2-dev-positivity-v1"
@@ -1592,8 +1592,8 @@
           "coverage_fraction": 1.0,
           "max_absolute_error": 0.07349852941068546,
           "maximum_extreme_propensity_fraction": 0.08648648648648649,
-          "mean_absolute_error": 0.042005516651239146,
-          "minimum_arm_ess": 25.907976070763468,
+          "mean_absolute_error": 0.04200551665123914,
+          "minimum_arm_ess": 25.90797607076349,
           "n_subjects": 360,
           "numerical_valid": true,
           "world": "c2-dev-measurement-v1"
@@ -1601,7 +1601,7 @@
       ]
     },
     {
-      "mean_absolute_error": 0.029159136097986028,
+      "mean_absolute_error": 0.029159136097986035,
       "numerically_valid": true,
       "outcome_l2": 5.0,
       "propensity_l2": 1.0,
@@ -1626,10 +1626,10 @@
             "session_splitting_probability": 0.0
           },
           "coverage_fraction": 1.0,
-          "max_absolute_error": 0.06527424712823275,
+          "max_absolute_error": 0.06527424712823277,
           "maximum_extreme_propensity_fraction": 0.0,
           "mean_absolute_error": 0.03374519330169353,
-          "minimum_arm_ess": 32.44828262910124,
+          "minimum_arm_ess": 32.44828262910125,
           "n_subjects": 320,
           "numerical_valid": true,
           "world": "c2-dev-balanced-v1"
@@ -1654,10 +1654,10 @@
             "session_splitting_probability": 0.0
           },
           "coverage_fraction": 1.0,
-          "max_absolute_error": 0.03201349751445044,
+          "max_absolute_error": 0.03201349751445045,
           "maximum_extreme_propensity_fraction": 0.0,
-          "mean_absolute_error": 0.017489401009949813,
-          "minimum_arm_ess": 54.1453788308176,
+          "mean_absolute_error": 0.017489401009949817,
+          "minimum_arm_ess": 54.14537883081761,
           "n_subjects": 360,
           "numerical_valid": true,
           "world": "c2-dev-observed-selection-v1"
@@ -1685,7 +1685,7 @@
           "max_absolute_error": 0.06354060649001825,
           "maximum_extreme_propensity_fraction": 0.0,
           "mean_absolute_error": 0.027691916483172173,
-          "minimum_arm_ess": 53.915502745975616,
+          "minimum_arm_ess": 53.9155027459756,
           "n_subjects": 360,
           "numerical_valid": true,
           "world": "c2-dev-null-selection-v1"
@@ -1710,9 +1710,9 @@
             "session_splitting_probability": 0.0
           },
           "coverage_fraction": 1.0,
-          "max_absolute_error": 0.061772079302591626,
+          "max_absolute_error": 0.06177207930259161,
           "maximum_extreme_propensity_fraction": 0.0,
-          "mean_absolute_error": 0.03470394427182398,
+          "mean_absolute_error": 0.03470394427182399,
           "minimum_arm_ess": 47.457144703995716,
           "n_subjects": 340,
           "numerical_valid": true,
@@ -1738,9 +1738,9 @@
             "session_splitting_probability": 0.0
           },
           "coverage_fraction": 1.0,
-          "max_absolute_error": 0.05568560248829935,
+          "max_absolute_error": 0.055685602488299346,
           "maximum_extreme_propensity_fraction": 0.0,
-          "mean_absolute_error": 0.023263317633387837,
+          "mean_absolute_error": 0.023263317633387844,
           "minimum_arm_ess": 40.5027209495558,
           "n_subjects": 360,
           "numerical_valid": true,
@@ -1769,7 +1769,7 @@
           "max_absolute_error": 0.06946176255389283,
           "maximum_extreme_propensity_fraction": 0.0,
           "mean_absolute_error": 0.03806104388788885,
-          "minimum_arm_ess": 31.195485278156244,
+          "minimum_arm_ess": 31.195485278156248,
           "n_subjects": 360,
           "numerical_valid": true,
           "world": "c2-dev-measurement-v1"
@@ -1805,7 +1805,7 @@
           "max_absolute_error": 0.06580376302428825,
           "maximum_extreme_propensity_fraction": 0.0,
           "mean_absolute_error": 0.035501385448895965,
-          "minimum_arm_ess": 36.653885030643785,
+          "minimum_arm_ess": 36.65388503064378,
           "n_subjects": 320,
           "numerical_valid": true,
           "world": "c2-dev-balanced-v1"
@@ -1830,10 +1830,10 @@
             "session_splitting_probability": 0.0
           },
           "coverage_fraction": 1.0,
-          "max_absolute_error": 0.03242578694759822,
+          "max_absolute_error": 0.03242578694759821,
           "maximum_extreme_propensity_fraction": 0.0,
           "mean_absolute_error": 0.0170137429811551,
-          "minimum_arm_ess": 62.33127530964021,
+          "minimum_arm_ess": 62.331275309640205,
           "n_subjects": 360,
           "numerical_valid": true,
           "world": "c2-dev-observed-selection-v1"
@@ -1860,7 +1860,7 @@
           "coverage_fraction": 1.0,
           "max_absolute_error": 0.061785737290853064,
           "maximum_extreme_propensity_fraction": 0.0,
-          "mean_absolute_error": 0.026567295281950808,
+          "mean_absolute_error": 0.026567295281950804,
           "minimum_arm_ess": 60.05398188943972,
           "n_subjects": 360,
           "numerical_valid": true,
@@ -1888,7 +1888,7 @@
           "coverage_fraction": 1.0,
           "max_absolute_error": 0.06137818187750031,
           "maximum_extreme_propensity_fraction": 0.0,
-          "mean_absolute_error": 0.03367396733082719,
+          "mean_absolute_error": 0.0336739673308272,
           "minimum_arm_ess": 50.18841686234603,
           "n_subjects": 340,
           "numerical_valid": true,
@@ -1916,8 +1916,8 @@
           "coverage_fraction": 1.0,
           "max_absolute_error": 0.05826557461584566,
           "maximum_extreme_propensity_fraction": 0.0,
-          "mean_absolute_error": 0.021135532678104182,
-          "minimum_arm_ess": 43.886857892315426,
+          "mean_absolute_error": 0.021135532678104186,
+          "minimum_arm_ess": 43.88685789231544,
           "n_subjects": 360,
           "numerical_valid": true,
           "world": "c2-dev-positivity-v1"
@@ -1942,10 +1942,10 @@
             "session_splitting_probability": 0.0
           },
           "coverage_fraction": 1.0,
-          "max_absolute_error": 0.06692341427836843,
+          "max_absolute_error": 0.06692341427836841,
           "maximum_extreme_propensity_fraction": 0.0,
-          "mean_absolute_error": 0.03521674572514466,
-          "minimum_arm_ess": 35.23633648197436,
+          "mean_absolute_error": 0.03521674572514467,
+          "minimum_arm_ess": 35.23633648197437,
           "n_subjects": 360,
           "numerical_valid": true,
           "world": "c2-dev-measurement-v1"
