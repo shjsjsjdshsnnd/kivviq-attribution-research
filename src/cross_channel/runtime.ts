@@ -402,6 +402,13 @@ export function opportunityModifiers(
       "branded_search_probability"
     ) {
       brandedSearchMultiplier *= 1 + effect;
+      for (const target of rule.targetChannels) {
+        targetChannelMultiplier(
+          channelMultipliers,
+          target,
+          effect * 0.55,
+        );
+      }
     } else if (
       rule.targetSemantic ===
       "organic_visit_probability"
