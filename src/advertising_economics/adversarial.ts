@@ -123,16 +123,16 @@ export function createVanityRoasTrapFixture(): AdvertisingAdversarialFixture {
     hillCoefficient: 1.7,
   });
   world = replaceOrderResponseCurve(world, "google_search", {
-    effectOrders: monthlyOrders * 0.28,
-    maxIncrementalOrders: monthlyOrders * 0.65,
-    halfSaturationSpendMinor: 280_000,
+    effectOrders: monthlyOrders * 0.6,
+    maxIncrementalOrders: monthlyOrders * 1.2,
+    halfSaturationSpendMinor: 350_000,
     hillCoefficient: 1.05,
   });
   world = replaceOrderResponseCurve(world, "pinterest", {
-    effectOrders: monthlyOrders * 0.16,
-    maxIncrementalOrders: monthlyOrders * 0.48,
-    halfSaturationSpendMinor: 220_000,
-    hillCoefficient: 1.15,
+    effectOrders: monthlyOrders * 0.4,
+    maxIncrementalOrders: monthlyOrders * 0.9,
+    halfSaturationSpendMinor: 300_000,
+    hillCoefficient: 1.1,
   });
 
   const population = buildPopulation(world, 95001, 130);
@@ -150,10 +150,10 @@ export function createVanityRoasTrapFixture(): AdvertisingAdversarialFixture {
       periodEnd: "2026-05-01T00:00:00.000Z",
       spendMinorByChannel: {
         meta: 55_000,
-        google_search: 310_000,
-        pinterest: 240_000,
+        google_search: 420_000,
+        pinterest: 340_000,
       },
-      marginalBlockMinor: 25_000,
+      marginalBlockMinor: 150_000,
       simulationConfig: {
         maxEvents: 180_000,
         maxSessionsPerCustomer: 18,
