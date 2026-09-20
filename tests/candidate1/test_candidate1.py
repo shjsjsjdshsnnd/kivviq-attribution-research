@@ -20,7 +20,7 @@ def _load_spec() -> ModuleType:
     return module
 
 
-DECLARATION = _load_spec()
+DECLARATION = _load_spec().DECLARATION
 SOURCE_PATH = ROOT / "phase2" / "candidate1" / "candidate.py"
 
 
