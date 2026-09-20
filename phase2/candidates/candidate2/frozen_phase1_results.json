@@ -1,0 +1,93 @@
+{
+  "candidate1_comparator_reference": {
+    "candidate1_holdout_used": false,
+    "candidate_id": "candidate1-outcome-regression-gcomp",
+    "candidate_version": "1.0.0",
+    "source_file": "phase2/candidates/candidate1/frozen_phase1_results.json",
+    "source_pr": 10
+  },
+  "candidate1_holdout_metrics_used_for_tuning": false,
+  "candidate2_holdout_exposure_consumed": false,
+  "candidate_id": "candidate2-aipw-dr-observable",
+  "candidate_version": "1.0.0",
+  "cases_evaluated": 215,
+  "criteria": {
+    "fragmented_identity_mean_absolute_effect_vector_change": {
+      "pass": true,
+      "threshold": 0.15,
+      "value": 0.008062715122903814
+    },
+    "harmful_effect": {
+      "error_threshold": 0.07,
+      "mean_absolute_error": 0.008367124003682901,
+      "mean_estimate": -0.04355735974384124,
+      "pass": true
+    },
+    "known_zero_aggregate": {
+      "pass": true,
+      "scenario_means": {
+        "demand_capture": 0.08112614104685474,
+        "null_channel_high_intent": 0.06394065848364665,
+        "null_channel_high_prevalence": 0.009800644418311851,
+        "null_channel_last_touch": 0.008941512804439897,
+        "null_channel_retargeting": 0.05836099085564691,
+        "null_paid_channel": 0.012736751285103983,
+        "retargeting_selection": 0.06080570793551785
+      },
+      "threshold": 0.06,
+      "value": 0.04224462954707455
+    },
+    "mean_interval_coverage_fraction": {
+      "pass": true,
+      "threshold": 0.8,
+      "value": 0.85375
+    },
+    "missing_50_mean_absolute_effect_vector_change": {
+      "pass": true,
+      "threshold": 0.15,
+      "value": 0.0230803516494093
+    },
+    "numerical_validity": {
+      "pass": true
+    },
+    "observed_selection_comparison_vs_candidate1": {
+      "candidate1_aggregate": 0.06498341134425899,
+      "candidate1_scenario_mean_absolute_estimates": {
+        "demand_capture": 0.08094958665694453,
+        "null_channel_high_intent": 0.06180087542742139,
+        "null_channel_retargeting": 0.06027504267981989,
+        "retargeting_selection": 0.056908140612850155
+      },
+      "candidate2_aggregate": 0.06605837458041654,
+      "candidate2_scenario_mean_absolute_estimates": {
+        "demand_capture": 0.08112614104685474,
+        "null_channel_high_intent": 0.06394065848364665,
+        "null_channel_retargeting": 0.05836099085564691,
+        "retargeting_selection": 0.06080570793551785
+      },
+      "pass": false,
+      "required_improved_scenarios": 3,
+      "scenario_means_improved": 1
+    },
+    "overall_perfect_observation_mean_effect_mae": {
+      "pass": true,
+      "threshold": 0.05,
+      "value": 0.020361533095270796
+    },
+    "perfect_complete_channel_coverage": {
+      "pass": true
+    },
+    "small_sample_finite_outputs": {
+      "pass": true
+    }
+  },
+  "overall_preregistered_phase1_pass": false,
+  "overlap_summary": {
+    "maximum_extreme_propensity_fraction_across_perfect_cases": 0.68375,
+    "maximum_inverse_weight_across_perfect_cases": 40.0,
+    "minimum_arm_ess_across_perfect_cases": 20.62154716203216
+  },
+  "phase1_reference": "1d92f4d2d5fd89de261127b8ed4bdcced6f18fdf",
+  "preholdout_eligible": false,
+  "stage": "FROZEN_PHASE1"
+}
