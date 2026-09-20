@@ -3,7 +3,7 @@ from __future__ import annotations
 import random
 from collections.abc import Mapping
 from dataclasses import dataclass, field, replace
-from datetime import timedelta
+from datetime import datetime, timedelta
 
 from attribution_lab.schemas.core import (
     AcquisitionEvidence,
@@ -124,6 +124,115 @@ def _corrupt_sessions(
     return tuple(sessions)
 
 
+def _truncate_sessions(
+    sessions: tuple[Session, ...],
+    observation_end: datetime,
+) -> tuple[Session, ...]:
+    end = observation_end
+    truncated: list[Session] = []
+    for session in sessions:
+        touches = tuple(touch for touch in session.touchpoints if touch.timestamp < end)
+        if not touches:
+            continue
+        truncated.append(
+            replace(
+                session,
+                start=touches[0].timestamp,
+                end=min(session.end, end),
+                touchpoints=touches,
+            )
+        )
+    return tuple(truncated)
+
+
+def _evidence_for_sessions(
+    sessions: tuple[Session, ...],
+    fallback: AcquisitionEvidence,
+) -> AcquisitionEvidence:
+    if not sessions or not sessions[0].touchpoints:
+        return AcquisitionEvidence.UNKNOWN
+    first_touch = sessions[0].touchpoints[0]
+    if first_touch.click_id is not None:
+        return AcquisitionEvidence.CLICK_ID
+    if first_touch.utm_source or first_touch.utm_medium or first_touch.utm_campaign:
+        return AcquisitionEvidence.UTM
+    if first_touch.referrer:
+        return AcquisitionEvidence.REFERRER
+    if first_touch.channel == Channel.DIRECT:
+        return AcquisitionEvidence.DIRECT
+    return fallback if fallback == AcquisitionEvidence.UNKNOWN else AcquisitionEvidence.UNKNOWN
+
+
+def _split_identity(
+    journey: Journey,
+    *,
+    sessions: tuple[Session, ...],
+    conversion: Conversion | None,
+    identity_confidence: float,
+    rng: random.Random,
+    identity_trigger: bool,
+    cookie_trigger: bool,
+) -> list[Journey]:
+    if not (identity_trigger or cookie_trigger) or len(sessions) < 2:
+        return [
+            replace(
+                journey,
+                sessions=sessions,
+                conversion=conversion,
+                identity_confidence=identity_confidence,
+                acquisition_evidence=_evidence_for_sessions(
+                    sessions,
+                    journey.acquisition_evidence,
+                ),
+            )
+        ]
+
+    split_index = rng.randint(1, len(sessions) - 1)
+    early_sessions = sessions[:split_index]
+    late_sessions = sessions[split_index:]
+    boundary = late_sessions[0].start
+    early_conversion = (
+        conversion
+        if conversion is not None and conversion.timestamp < boundary
+        else None
+    )
+    late_conversion = (
+        conversion
+        if conversion is not None and conversion.timestamp >= boundary
+        else None
+    )
+    factor = 0.45 if identity_trigger else 0.60
+    confidence = max(min(identity_confidence * factor, 1.0), 0.0)
+
+    early = replace(
+        journey,
+        subject_id=f"{journey.subject_id}-fragment-a",
+        observation_end=boundary,
+        sessions=early_sessions,
+        conversion=early_conversion,
+        identity_confidence=confidence,
+        acquisition_evidence=_evidence_for_sessions(
+            early_sessions,
+            journey.acquisition_evidence,
+        ),
+        is_censored=True,
+    )
+    late = replace(
+        journey,
+        subject_id=f"{journey.subject_id}-fragment-b",
+        observation_start=boundary,
+        sessions=late_sessions,
+        conversion=late_conversion,
+        identity_confidence=confidence,
+        acquisition_evidence=_evidence_for_sessions(
+            late_sessions,
+            AcquisitionEvidence.UNKNOWN,
+        ),
+        is_censored=journey.is_censored,
+    )
+    return [early, late]
+
+
 def corrupt_world(
     world: SyntheticWorld,
     config: CorruptionConfig,
@@ -148,37 +257,43 @@ def corrupt_world(
         if rng.random() < config.consent_exclusion_probability:
             consent = ConsentState.DENIED
 
+        observation_end = journey.observation_end
+        censored = journey.is_censored
+        if rng.random() < config.censor_probability:
+            fraction = rng.uniform(0.35, 0.80)
+            duration = journey.observation_end - journey.observation_start
+            observation_end = journey.observation_start + duration * fraction
+            sessions = _truncate_sessions(sessions, observation_end)
+            if conversion is not None and conversion.timestamp >= observation_end:
+                conversion = None
+            censored = True
+
         identity_confidence = journey.identity_confidence
-        subject_id = journey.subject_id
-        if rng.random() < config.identity_fragmentation_probability:
-            identity_confidence *= 0.45
-            subject_id = f"{subject_id}-fragment"
-        if rng.random() < config.cross_device_fragmentation_probability:
+        cross_device_trigger = rng.random() < config.cross_device_fragmentation_probability
+        if cross_device_trigger:
             identity_confidence *= 0.65
-        if rng.random() < config.cookie_loss_probability:
-            identity_confidence *= 0.60
 
-        first_touch = sessions[0].touchpoints[0] if sessions and sessions[0].touchpoints else None
-        evidence = journey.acquisition_evidence
-        if first_touch is None:
-            evidence = AcquisitionEvidence.UNKNOWN
-        elif first_touch.click_id is None and evidence == AcquisitionEvidence.CLICK_ID:
-            evidence = (
-                AcquisitionEvidence.UTM
-                if first_touch.utm_source is not None
-                else AcquisitionEvidence.UNKNOWN
-            )
+        identity_trigger = rng.random() < config.identity_fragmentation_probability
+        cookie_trigger = rng.random() < config.cookie_loss_probability
 
-        corrupted_journeys.append(
-            replace(
-                journey,
-                subject_id=subject_id,
-                sessions=sessions,
-                conversion=conversion,
-                consent_state=consent,
-                identity_confidence=max(min(identity_confidence, 1.0), 0.0),
-                acquisition_evidence=evidence,
-                is_censored=journey.is_censored or rng.random() < config.censor_probability,
+        base = replace(
+            journey,
+            observation_end=observation_end,
+            sessions=sessions,
+            conversion=conversion,
+            consent_state=consent,
+            identity_confidence=max(min(identity_confidence, 1.0), 0.0),
+            is_censored=censored,
+        )
+        corrupted_journeys.extend(
+            _split_identity(
+                base,
+                sessions=base.sessions,
+                conversion=base.conversion,
+                identity_confidence=base.identity_confidence,
+                rng=rng,
+                identity_trigger=identity_trigger,
+                cookie_trigger=cookie_trigger,
             )
         )
 

@@ -51,3 +51,17 @@ def test_nonconverting_world_does_not_create_conversion_credit(
     ]
     result = model.attribute(nonconverters)
     assert result.total_credit == pytest.approx(0.0, abs=1e-12)
+
+
+def test_markov_exposes_transition_support_diagnostics() -> None:
+    world = generate_world(scenario_config("balanced_multi_touch", seed=5, n_subjects=100))
+    diagnostics = MarkovRemovalModel().attribute(world.dataset.journeys).diagnostics
+    assert diagnostics["unique_transitions"] >= 1
+    assert 0.0 <= diagnostics["rare_transition_fraction"] <= 1.0
+
+
+def test_shapley_exposes_coalition_support_diagnostics() -> None:
+    world = generate_world(scenario_config("balanced_multi_touch", seed=5, n_subjects=100))
+    diagnostics = ShapleyAttributionModel().attribute(world.dataset.journeys).diagnostics
+    assert diagnostics["coalition_universe"] >= diagnostics["unique_path_sets"]
+    assert 0.0 <= diagnostics["observed_set_support_ratio"] <= 1.0

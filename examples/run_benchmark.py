@@ -12,7 +12,21 @@ def main() -> None:
     args = parser.parse_args()
     records = run_benchmark(quick=args.quick)
     write_outputs(records, args.output)
-    print(f"wrote {len(records)} synthetic experiment-model records to {args.output}")
+    experiments = len(
+        {
+            (
+                record["spec"]["scenario"],
+                record["spec"]["seed"],
+                record["spec"]["sample_size"],
+                record["spec"]["observation_quality"],
+            )
+            for record in records
+        }
+    )
+    print(
+        f"wrote {experiments} synthetic experiments and "
+        f"{len(records)} model evaluations to {args.output}"
+    )
 
 
 if __name__ == "__main__":

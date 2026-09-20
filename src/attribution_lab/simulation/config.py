@@ -19,6 +19,13 @@ def _default_exposure() -> dict[Channel, float]:
     }
 
 
+def _scaled_exposure(multiplier: float) -> dict[Channel, float]:
+    return {
+        channel: min(max(probability * multiplier, 0.01), 0.90)
+        for channel, probability in _default_exposure().items()
+    }
+
+
 @dataclass(frozen=True, slots=True)
 class WorldConfig:
     scenario_name: str = "balanced_multi_touch"
@@ -74,6 +81,38 @@ def scenario_config(name: str, *, seed: int = 17, n_subjects: int = 1000) -> Wor
         )
     if name == "balanced_multi_touch":
         return replace(base, scenario_name=name, channel_log_odds_effect=balanced_effects)
+    if name == "balanced_short_journeys":
+        return replace(
+            base,
+            scenario_name=name,
+            max_touchpoints=2,
+            channel_log_odds_effect=balanced_effects,
+        )
+    if name == "balanced_long_journeys":
+        return replace(
+            base,
+            scenario_name=name,
+            max_touchpoints=8,
+            channel_exposure_probability={
+                channel: max(probability, 0.55)
+                for channel, probability in _default_exposure().items()
+            },
+            channel_log_odds_effect=balanced_effects,
+        )
+    if name == "balanced_rare_channels":
+        return replace(
+            base,
+            scenario_name=name,
+            channel_exposure_probability=_scaled_exposure(0.35),
+            channel_log_odds_effect=balanced_effects,
+        )
+    if name == "balanced_common_channels":
+        return replace(
+            base,
+            scenario_name=name,
+            channel_exposure_probability=_scaled_exposure(2.0),
+            channel_log_odds_effect=balanced_effects,
+        )
     if name == "pure_acquisition":
         return replace(
             base,
@@ -125,6 +164,38 @@ def scenario_config(name: str, *, seed: int = 17, n_subjects: int = 1000) -> Wor
             scenario_name="null_channel",
             channel_exposure_probability={**_default_exposure(), Channel.PINTEREST: 0.52},
             channel_log_odds_effect={Channel.META: 0.65, Channel.PINTEREST: 0.0},
+        )
+    if name == "null_channel_high_prevalence":
+        return replace(
+            base,
+            scenario_name=name,
+            channel_exposure_probability={**_default_exposure(), Channel.PINTEREST: 0.85},
+            channel_log_odds_effect={Channel.META: 0.65, Channel.PINTEREST: 0.0},
+        )
+    if name == "null_channel_last_touch":
+        return replace(
+            base,
+            scenario_name=name,
+            channel_exposure_probability={**_default_exposure(), Channel.PINTEREST: 0.52},
+            channel_log_odds_effect={Channel.META: 0.65, Channel.PINTEREST: 0.0},
+            temporal_position={Channel.PINTEREST: 0.98},
+        )
+    if name == "null_channel_high_intent":
+        return replace(
+            base,
+            scenario_name=name,
+            channel_exposure_probability={**_default_exposure(), Channel.PINTEREST: 0.52},
+            channel_log_odds_effect={Channel.META: 0.65, Channel.PINTEREST: 0.0},
+            selection_strength={Channel.PINTEREST: 2.50},
+        )
+    if name == "null_channel_retargeting":
+        return replace(
+            base,
+            scenario_name=name,
+            channel_exposure_probability={**_default_exposure(), Channel.PINTEREST: 0.52},
+            channel_log_odds_effect={Channel.META: 0.65, Channel.PINTEREST: 0.0},
+            selection_strength={Channel.PINTEREST: 2.20},
+            temporal_position={Channel.PINTEREST: 0.92},
         )
     if name == "harmful_channel":
         return replace(

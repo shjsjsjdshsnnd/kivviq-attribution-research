@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from collections import defaultdict
+from collections import Counter, defaultdict
 from collections.abc import Sequence
 
 from attribution_lab.models.base import (
@@ -22,6 +22,30 @@ def _collapse_consecutive(path: list[Channel]) -> list[Channel]:
         if not collapsed or collapsed[-1] != channel:
             collapsed.append(channel)
     return collapsed
+
+
+def _support_diagnostics(paths: Sequence[tuple[list[Channel], bool]]) -> dict[str, float | int]:
+    transition_counts: Counter[tuple[str, str]] = Counter()
+    path_patterns: Counter[tuple[str, ...]] = Counter()
+    for path, converted in paths:
+        labels = tuple(channel.value for channel in path)
+        path_patterns[labels] += 1
+        destination = _CONVERSION if converted else _NULL
+        chain = (_START, *labels, destination)
+        transition_counts.update(zip(chain, chain[1:], strict=False))
+
+    counts = list(transition_counts.values())
+    rare = sum(count <= 2 for count in counts)
+    return {
+        "unique_path_patterns": len(path_patterns),
+        "unique_transitions": len(transition_counts),
+        "min_transition_count": min(counts) if counts else 0,
+        "rare_transition_count": rare,
+        "rare_transition_fraction": rare / len(counts) if counts else 0.0,
+        "nonempty_path_fraction": (
+            sum(bool(path) for path, _ in paths) / len(paths) if paths else 0.0
+        ),
+    }
 
 
 class MarkovRemovalModel(AttributionModel):
@@ -101,14 +125,13 @@ class MarkovRemovalModel(AttributionModel):
             )
             for channel in present
         }
-        return AttributionResult(
-            normalize_scores(raw_effects),
-            {
-                "model": self.name,
-                "base_conversion_probability": base_probability,
-                "raw_removal_effects": {
-                    channel.value: raw_effects.get(channel, 0.0) for channel in Channel
-                },
-                "completed_paths": len(paths),
+        diagnostics: dict[str, object] = {
+            "model": self.name,
+            "base_conversion_probability": base_probability,
+            "raw_removal_effects": {
+                channel.value: raw_effects.get(channel, 0.0) for channel in Channel
             },
-        )
+            "completed_paths": len(paths),
+        }
+        diagnostics.update(_support_diagnostics(paths))
+        return AttributionResult(normalize_scores(raw_effects), diagnostics)

@@ -4,82 +4,85 @@
 
 Build a falsifiable synthetic laboratory for marketing attribution. Phase 1 compares behavioral fingerprints and failure modes; it does not crown a model and it does not validate real-world incrementality.
 
-## Canonical observed schema
+## Baseline freeze
 
-A synthetic subject can contain multiple ordered sessions and touchpoints, an optional conversion with value, an observation window, consent state, identity confidence, and acquisition evidence. Model-specific assumptions do not live in the schema.
+The model registry is frozen to exactly eight baselines: first touch, last touch, last paid touch, linear, time decay, position based, Markov removal, and Shapley-based attribution. Phase 1 validation may fix verified defects but does not tune or add models.
 
-## Baselines
+## Ground-truth manifest
 
-The common interface includes first touch, last touch, last paid touch, linear, time decay, position based, first-order Markov removal, and an exact Shapley-based empirical conversion game. Parameters such as time-decay half-life, position weights and Shapley prior strength are explicit.
+Every causal world persists baseline conversion probability, channel treatment effects, interactions, exposure/selection mechanisms, temporal effects, latent-intent parameters, the outcome equation, seed, simulator parameters, and derived synthetic incremental effects.
 
-## Causal synthetic worlds
+Evaluation consumes this manifest directly. Corruption reuses the exact manifest object. Regression tests verify that altered observations cannot mutate or redefine latent truth.
 
-Configured worlds include pure acquisition, demand capture, retargeting selection bias, assisted conversion, channel interaction, organic/direct return, null-channel, harmful-channel, strong first-touch, and strong final-touch effects.
+## Full repeated validation matrix
 
-### Ground-truth manifest
+The manual research benchmark spans:
 
-Every causal world persists a machine-readable manifest containing:
+- 20 declared scenario variants covering all Phase 1 families plus journey-length, channel-prevalence, and null-channel stress variants;
+- 5 deterministic seeds;
+- sample sizes 80, 250, and 800;
+- 15 observation-quality conditions;
+- all 8 frozen baseline models.
 
-- baseline conversion probability;
-- channel treatment effects;
-- channel interactions;
-- exposure and selection mechanisms;
-- temporal effects;
-- latent-intent variables;
-- the outcome-generation equation;
-- random seed;
-- all simulator parameters;
-- derived average channel incremental effects from the latent synthetic world.
+That is 4,500 synthetic experiment cells and 36,000 model evaluations.
 
-Evaluation consumes the manifest directly. It must not reconstruct or infer truth from observed journeys.
+The matrix includes perfect observation; 10%, 25%, and 50% random touch loss; channel-specific missingness; identity fragmentation; missing click IDs; UTM corruption/removal; cookie loss; session splitting; delayed and duplicated events; consent exclusions; and observation censoring.
 
-The corruption layer receives a `SyntheticWorld` and returns a new observed dataset while retaining the exact original manifest object. Tests verify the manifest digest and object identity do not change after observation corruption. Experiment output separately persists deduplicated manifests.
+The fast PR benchmark remains intentionally smaller. The full matrix runs in the separate public GitHub Actions research workflow and emits a compressed machine-readable result set plus summary analysis artifacts.
 
-## Measurement failures
+## Measurement failure semantics
 
-The corruption layer controls random and channel-specific missing touches, missing/corrupted UTMs, missing click IDs, identity fragmentation, cross-device fragmentation, cookie loss, session splitting, delayed events, duplication, missing purchases, missing non-purchasers, consent exclusion, and horizon censoring.
+Identity fragmentation and cookie loss split observed journey identity rather than merely lowering a confidence number. Observation censoring truncates the visible observation window and later evidence. Session splitting deliberately preserves touch order so models that ignore session boundaries can demonstrate that invariance empirically.
 
-The intended pipeline is:
+The intended pipeline remains:
 
-`perfect latent synthetic world -> observed synthetic dataset -> corrupted observed dataset`
+`latent synthetic truth -> pristine observed synthetic data -> corrupted observed synthetic data`
 
 ## Leakage rule
 
-For horizon `H`:
-
-`Y_H(s)=1`
-
-only when a purchase occurs in:
-
-`[subject_start, subject_start + H)`
-
-A completed horizon with no qualifying purchase is negative. An incomplete horizon is censored. A purchase after the horizon cannot change the earlier negative label. Touchpoints at or after a conversion cannot receive credit for that conversion. Later identity evidence does not rewrite earlier features.
+For horizon `H`, a purchase counts only inside `[subject_start, subject_start + H)`. Completed horizons without purchase are negative; incomplete horizons are censored. Touches at or after an attributed outcome cannot receive credit. Later identity information does not rewrite earlier features.
 
 ## Evaluation
 
-Phase 1 reports credit conservation, rank agreement, absolute and normalized error relative to normalized positive synthetic effect, channel-level bias, false credit to null channels, and an explicitly named synthetic-causal-recovery distance.
+Per-experiment metrics include credit conservation, rank agreement, absolute and normalized attribution error, channel-level bias, false credit to null channels, and explicitly labeled SYNTHETIC CAUSAL RECOVERY.
 
-These diagnostics answer questions about declared synthetic worlds only. They do not establish real-world causal accuracy.
+Cross-replication analysis adds mean, median, standard deviation, p10/p90 intervals, seed replication counts, model divergence from its own perfect-observation output, sample-size behavior, and measurement-degradation curves.
 
-## Initial benchmark suite
+Markov reports transition/path support. Shapley reports observed path-set and coalition support.
 
-The benchmark runs all eight baselines across:
+## Failure-mode catalog
 
-- simple single-touch;
-- balanced multi-touch;
-- strong first-touch effect;
-- strong final-touch effect;
-- brand-search capture bias;
-- retargeting selection bias;
-- null paid channel;
-- interaction-effect world;
-- fragmented identity;
-- 10%, 25%, and 50% missing-touch conditions.
+The benchmark generator emits machine-readable and human-readable failure catalogs with model, scenario, conditions, observed behavior, stored ground truth, magnitude, repeatability, explanation, mathematical-versus-empirical classification, measurement quality, and sample-size dependence.
 
-Full runs repeat the suite across multiple random seeds.
+## Simulator-bias audit
 
-## Phase 1 limitations
+Validation checks that:
 
-The simulator is deliberately inspectable rather than realistic in every ecommerce detail. Markov and Shapley are baseline implementations, not claims that a particular production formulation is canonical. The causal effects in the manifest are known because the simulator defines them; external validity is intentionally out of scope.
+- the simulation package does not import attribution models;
+- corruption does not branch on model identity;
+- all models in an experiment receive the same corrupted data summary and stored truth;
+- manifest digests remain stable across corruption conditions;
+- positional assumptions are declared in manifests rather than hidden.
 
-Future research may add survival/hazard, probabilistic sequence, Bayesian, uplift, heterogeneous-treatment-effect, doubly robust, causal-forest, representation-learning, or sequence-neural approaches. Those are explicitly deferred until the benchmark laboratory is stable.
+Unavoidable synthetic assumptions are documented in the generated report.
+
+## Outputs
+
+A full run writes:
+
+- `results.jsonl.gz`
+- `ground_truth_manifests.json`
+- `matrix.json`
+- `uncertainty.json`
+- `failure_modes.json`
+- `failure_modes.md`
+- `simulator_bias_audit.json`
+- `phase1_research_report.md`
+
+No generated large result dataset is committed to Git.
+
+## Interpretation
+
+SYNTHETIC CAUSAL RECOVERY is distance from simulator-defined intervention truth. It is not real-world causal accuracy. No overall winner, model score, arbitrary ranking, or production recommendation is produced.
+
+Future model families remain deferred until the Phase 1 validation gate is satisfied.

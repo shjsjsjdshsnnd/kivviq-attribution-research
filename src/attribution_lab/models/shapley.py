@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import math
+from collections import defaultdict
 from collections.abc import Sequence
 from itertools import combinations
 
@@ -25,32 +26,47 @@ class ShapleyAttributionModel(AttributionModel):
 
     def attribute(self, journeys: Sequence[Journey]) -> AttributionResult:
         completed = completed_analysis_journeys(journeys)
-        rows = [
-            (
-                frozenset(touch.channel for touch in journey.attribution_touchpoints()),
-                journey.qualifying_conversion() is not None,
+        path_summary: dict[frozenset[Channel], list[int]] = defaultdict(lambda: [0, 0])
+        for journey in completed:
+            path = frozenset(
+                touch.channel for touch in journey.attribution_touchpoints()
             )
-            for journey in completed
-        ]
+            path_summary[path][0] += 1
+            path_summary[path][1] += int(journey.qualifying_conversion() is not None)
+
         present = sorted(
-            {channel for path, _ in rows for channel in path},
+            {channel for path in path_summary for channel in path},
             key=lambda channel: channel.value,
         )
-        if not rows or not present:
+        completed_count = sum(count for count, _ in path_summary.values())
+        conversion_count = sum(converted for _, converted in path_summary.values())
+        if completed_count == 0 or not present:
             return AttributionResult(
                 normalize_scores({}),
-                {"model": self.name, "raw_shapley": {}, "completed_paths": len(rows)},
+                {
+                    "model": self.name,
+                    "raw_shapley": {},
+                    "completed_paths": completed_count,
+                    "unique_path_sets": len(path_summary),
+                    "coalition_universe": 1,
+                    "observed_set_support_ratio": 0.0,
+                    "min_path_set_count": 0,
+                },
             )
 
-        global_rate = sum(int(converted) for _, converted in rows) / len(rows)
+        global_rate = conversion_count / completed_count
         cache: dict[frozenset[Channel], float] = {}
 
         def value(coalition: frozenset[Channel]) -> float:
             if coalition in cache:
                 return cache[coalition]
-            selected = [converted for path, converted in rows if path.issubset(coalition)]
-            successes = sum(int(converted) for converted in selected)
-            denominator = len(selected) + self.prior_strength
+            selected_count = 0
+            successes = 0
+            for path, (count, converted) in path_summary.items():
+                if path.issubset(coalition):
+                    selected_count += count
+                    successes += converted
+            denominator = selected_count + self.prior_strength
             result = (
                 global_rate
                 if denominator <= 0
@@ -76,6 +92,8 @@ class ShapleyAttributionModel(AttributionModel):
                     contribution += weight * (value(subset | {channel}) - value(subset))
             raw[channel] = contribution
 
+        coalition_universe = 2**n_channels
+        path_counts = [count for count, _ in path_summary.values()]
         return AttributionResult(
             normalize_scores({channel: max(score, 0.0) for channel, score in raw.items()}),
             {
@@ -84,6 +102,12 @@ class ShapleyAttributionModel(AttributionModel):
                 "raw_shapley": {
                     channel.value: raw.get(channel, 0.0) for channel in Channel
                 },
-                "completed_paths": len(rows),
+                "completed_paths": completed_count,
+                "unique_path_sets": len(path_summary),
+                "coalition_universe": coalition_universe,
+                "observed_set_support_ratio": len(path_summary) / coalition_universe,
+                "min_path_set_count": min(path_counts) if path_counts else 0,
+                "max_path_set_count": max(path_counts) if path_counts else 0,
+                "evaluated_coalitions": len(cache),
             },
         )
