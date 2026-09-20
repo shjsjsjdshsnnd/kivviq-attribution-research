@@ -146,8 +146,8 @@ def generate_cases() -> tuple[BenchmarkCase, ...]:
     for template in causal_questions:
         for p in periods[:6]:
             q = template.format(p=p)
-            source: str | None = "ads.paid_social" if "meta" in q.lower() else None
-            add("causality", q, _req(q, metric=None, source=source, scope="all_channels", intent="causal_question", attribution="causal"), outcome=ExpectedOutcome.UNSUPPORTED_CAUSAL_CLAIM)
+            causal_source: str | None = "ads.paid_social" if "meta" in q.lower() else None
+            add("causality", q, _req(q, metric=None, source=causal_source, scope="all_channels", intent="causal_question", attribution="causal"), outcome=ExpectedOutcome.UNSUPPORTED_CAUSAL_CLAIM)
 
     ambiguous = ["How is it doing?", "How much did that make?", "What about that?", "What is the number?", "How are things?"]
     for i in range(30):
