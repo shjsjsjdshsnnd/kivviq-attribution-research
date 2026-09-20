@@ -1,0 +1,47 @@
+{
+  "candidate1_holdout_reused": false,
+  "candidate1_holdout_version": "candidate1-holdout-v1",
+  "candidate1_role": "historical evidence only; not a development target",
+  "candidate_lineage": "candidate2",
+  "configuration_fingerprint": "138f7864be008b618443a49aacfbae674479869066cd75a24a7887009a317c74",
+  "creation_timestamp": "2026-09-20T22:16:14.215287+00:00",
+  "evaluation_protocol_version": "phase2-evaluation-v1",
+  "generator_fingerprint": "acdc2014358b7171a57118d2dc32ea2dfbf41a431a720421180b38e6c5a2e4d7",
+  "private_seal_committed_to_git": false,
+  "scenario_family_manifest": [
+    [
+      "selection_shift",
+      "Unseen selection mechanisms with independently varied treatment effects."
+    ],
+    [
+      "latent_intent_shift",
+      "Altered latent-intent strength and exposure coupling."
+    ],
+    [
+      "prevalence_ordering_shift",
+      "Changed channel/treatment prevalence and journey ordering structure."
+    ],
+    [
+      "time_varying_delayed",
+      "Treatment effects with hidden temporal change points and delayed components."
+    ],
+    [
+      "unseen_interaction",
+      "Interaction structures not directly represented by frozen Phase 1 worlds."
+    ],
+    [
+      "negative_heterogeneous",
+      "Negative and heterogeneous treatment effects."
+    ],
+    [
+      "sparse_identity_loss",
+      "Sparse paths combined with identity fragmentation."
+    ],
+    [
+      "compounded_measurement",
+      "Multiple simultaneous measurement failures including channel-dependent missingness."
+    ]
+  ],
+  "status": "SEALED_BEFORE_CANDIDATE2_IMPLEMENTATION",
+  "version": "candidate2-holdout-v1"
+}
