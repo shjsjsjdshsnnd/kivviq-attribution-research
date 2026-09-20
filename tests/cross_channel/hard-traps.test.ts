@@ -170,6 +170,27 @@ describe("Step 6 hard interaction traps", () => {
         (entry) => entry.horizonDays === 90,
       )!.evaluation.delta;
 
+      console.info(
+        "STEP6_PROSPECTING_CUT_TRAP",
+        JSON.stringify({
+          sevenDayContributionDelta:
+            seven.representedContributionProfitMinor,
+          ninetyDayContributionDelta:
+            ninety.representedContributionProfitMinor,
+          ninetyDayRevenueDelta:
+            ninety.representedRevenueMinor,
+          ninetyDayBrandedAudienceDelta:
+            ninety.futureAudience
+              .representedBrandedSearchReady,
+          ninetyDayRetargetingAudienceDelta:
+            ninety.futureAudience
+              .representedRetargetingEligible,
+          ninetyDayEmailAudienceDelta:
+            ninety.futureAudience
+              .representedEmailEligible,
+        }),
+      );
+
       expect(
         seven.representedContributionProfitMinor,
       ).toBeGreaterThan(0);
@@ -193,26 +214,7 @@ describe("Step 6 hard interaction traps", () => {
           .representedEmailEligible,
       ).toBeLessThan(0);
 
-      console.info(
-        "STEP6_PROSPECTING_CUT_TRAP",
-        JSON.stringify({
-          sevenDayContributionDelta:
-            seven.representedContributionProfitMinor,
-          ninetyDayContributionDelta:
-            ninety.representedContributionProfitMinor,
-          ninetyDayRevenueDelta:
-            ninety.representedRevenueMinor,
-          ninetyDayBrandedAudienceDelta:
-            ninety.futureAudience
-              .representedBrandedSearchReady,
-          ninetyDayRetargetingAudienceDelta:
-            ninety.futureAudience
-              .representedRetargetingEligible,
-          ninetyDayEmailAudienceDelta:
-            ninety.futureAudience
-              .representedEmailEligible,
-        }),
-      );
+
     },
     150_000,
   );
