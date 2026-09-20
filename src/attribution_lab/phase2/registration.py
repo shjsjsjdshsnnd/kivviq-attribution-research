@@ -4,6 +4,7 @@ import json
 from dataclasses import asdict, dataclass
 from datetime import UTC, datetime
 from pathlib import Path
+from typing import Any, cast
 
 from attribution_lab.phase2.development import DevelopmentWorldRecord
 from phase2_candidate_sdk import CandidateDeclaration, fingerprint_payload
@@ -49,7 +50,7 @@ class CandidateRegistry:
         registered_at: str | None = None,
     ) -> RegisteredCandidate:
         code_fingerprint = fingerprint_source(source)
-        payload = {
+        payload: dict[str, Any] = {
             "candidate_id": declaration.candidate_id,
             "version": declaration.version,
             "declaration": asdict(declaration),
@@ -78,7 +79,7 @@ class CandidateRegistry:
                 declaration_fingerprint=existing["declaration_fingerprint"],
                 code_fingerprint=existing["code_fingerprint"],
                 development_record_fingerprint=existing["development_record_fingerprint"],
-                registered_at=existing["registered_at"],
+                registered_at=str(existing["registered_at"]),
             )
 
         path.write_text(
@@ -91,7 +92,7 @@ class CandidateRegistry:
             declaration_fingerprint=declaration.fingerprint,
             code_fingerprint=code_fingerprint,
             development_record_fingerprint=development_record.fingerprint,
-            registered_at=payload["registered_at"],
+            registered_at=str(payload["registered_at"]),
         )
 
     def mark_holdout_exposure(
@@ -136,6 +137,9 @@ class CandidateRegistry:
             encoding="utf-8",
         )
 
-    def read(self, candidate_id: str, version: str) -> dict[str, object]:
+    def read(self, candidate_id: str, version: str) -> dict[str, Any]:
         path = self._path(candidate_id, version)
-        return json.loads(path.read_text(encoding="utf-8"))
+        loaded = json.loads(path.read_text(encoding="utf-8"))
+        if not isinstance(loaded, dict):
+            raise CandidateVersionConflict("candidate registration payload is invalid")
+        return cast(dict[str, Any], loaded)
