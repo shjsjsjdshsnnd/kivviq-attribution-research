@@ -439,6 +439,7 @@ export function advanceSession(
           (item) => item.productId === offer.productId,
         );
       const backorderEligible =
+        intervention.inventoryOverrideUnits === undefined &&
         commercePolicy?.executeInventoryLifecycle === true &&
         inventoryMechanism?.allowBackorders === true &&
         inventoryMechanism.stockoutBehavior === "backorder";
