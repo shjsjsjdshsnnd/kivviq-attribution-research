@@ -13,7 +13,7 @@ This public repository is a synthetic-only causal ecommerce research environment
 
 **Step 2 — merchant/world generation**
 
-- Frozen head: `74edb930affca78c8b8ea262821943bba223d770`
+- Frozen head: `74edb930affca78c8ea262821943bba223d770`
 - PR #5
 
 **Step 3 — latent customer population**
@@ -26,74 +26,88 @@ This public repository is a synthetic-only causal ecommerce research environment
 - Frozen head: `0c30df8973c27f6ad6b96f4a4b426de74fd0cf3b`
 - PR #11
 
-Steps 1–4 are frozen and unchanged by Step 5.
+**Step 5 — advertising economics**
 
-### Step 5 — advertising economics
+- Frozen head: `23d8372a6fec2b3271ff70ecf9c065d625c9a7c3`
+- PR #14
 
-Branch: `step5/advertising-economics`
+Steps 1–5 are frozen and unchanged by Step 6.
 
-Draft PR: #14
+### Step 6 — cross-channel interactions
 
-Step 5 makes advertising performance explicitly multi-layered:
+Branch: `step6/cross-channel-interactions`
 
-```
-platform reported
-observed
-true incremental
-marginal incremental
-```
+Draft PR: #15
+
+Step 6 makes channel value conditional on the rest of the marketing system.
 
 Implemented:
 
-- deterministic evaluation of frozen response curves;
-- total / average / marginal response;
-- diminishing returns and saturation;
-- negative marginal-return regions;
-- spend→delivery machinery;
-- CPM/CPC-like synthetic delivery;
-- reach/frequency saturation;
-- reachable audiences;
-- audience-quality decay;
-- Step 3 susceptibility-driven heterogeneous response;
-- average/marginal true CAC;
-- causal-blind synthetic platform attribution;
-- click/view windows;
-- view-through attribution;
-- retargeting-style claim expansion;
-- overlapping platform claims;
-- branded vs non-brand Search reporting;
-- platform ROAS/CAC;
-- observed touch-associated ROAS/CAC;
-- shared-randomness true incremental ROAS;
-- local marginal ROAS;
-- gross/net/gross-profit/contribution economics;
-- break-even economics;
-- evaluator-only optimal-spend diagnostics;
-- finite-budget candidate evaluation;
-- promotion/inventory/time-varying response;
-- spend delta/multiplier helpers resolved to frozen `set` interventions;
-- platform-vs-true performance reports;
-- deterministic vanity-ROAS and retargeting traps.
+- typed interaction rules compiled from frozen Step 1 GroundTruth mechanisms and causal-graph edges;
+- mediation;
+- synergy/complementarity;
+- cannibalization;
+- substitution;
+- audience creation;
+- audience depletion/saturation;
+- delayed interactions;
+- state-dependent interactions;
+- explicit zero interaction;
+- sparse higher-order interactions;
+- directional/asymmetric interactions;
+- customer-level interaction heterogeneity;
+- product/category selectors;
+- calendar/promotion/inventory/lifecycle state gating;
+- Step 4 memory/decay reuse;
+- Step 5 spend/saturation integration;
+- audience-overlap diagnostics;
+- Meta → branded Search mediation;
+- Pinterest → Organic/Direct delayed mediation;
+- Email × promotion non-additivity;
+- Meta × Google synergy;
+- future retargeting/email/search audience creation;
+- Paid Search → Direct/Organic cannibalization/substitution;
+- conditional channel response;
+- portfolio response surfaces;
+- joint interventions;
+- pairwise interaction value;
+- interaction decomposition where structurally meaningful;
+- channel-removal spillovers;
+- controlled budget reallocation;
+- multi-horizon evaluation;
+- zero-interaction control worlds;
+- positive-synergy worlds;
+- cannibalization worlds;
+- mediation worlds;
+- interaction-reversal worlds;
+- hard portfolio-reallocation trap;
+- hard 7-day vs 90-day prospecting-cut trap.
 
-### Adversarial Step 5 acceptance
+### Hard Step 6 acceptance
 
-**Vanity ROAS trap**
+**Portfolio reallocation trap**
 
-The deterministic fixture produces Meta as the platform ROAS leader (~196.9×) while true and marginal incremental ROAS are 0× and another channel has ~4.36× marginal iROAS.
+Google shows much stronger independent dashboard signals than Meta, but reallocating 65% of Meta spend to Google reduces true contribution profit by ~257,645 minor units and true revenue by ~497,952 minor units.
 
-**Retargeting trap**
+**Prospecting-cut trap**
 
-The deterministic fixture produces ~31.17× platform ROAS for Meta while true incremental ROAS is 0×.
+A 50% Meta prospecting cut improves 7-day contribution profit slightly, but over 90 days:
 
-These are fixture outputs, not universal assumptions about real platforms.
+- contribution profit falls ~214,418 minor units;
+- revenue falls ~424,341 minor units;
+- branded-search readiness falls;
+- retargeting audience falls;
+- email audience falls.
+
+**Interaction reversal**
+
+Google marginal iROAS changes materially depending on whether Meta is active.
 
 ### Information boundary
 
-Advertising economics, platform-vs-truth comparison and optimal-spend diagnostics are God-mode/evaluator infrastructure.
+Cross-channel network compilation, portfolio counterfactuals, interaction decomposition and adversarial fixtures are God-mode evaluator infrastructure.
 
-The Operator-safe root package cannot import or export them.
-
-Synthetic platform attribution is type-level causal blind: it accepts observable events and purchases, not the God-mode causal ledger.
+The Operator-safe root package cannot import/export them.
 
 ### Research isolation
 
@@ -112,3 +126,5 @@ No private Kivviq, Maison Olive data, real merchant/customer data, production sy
 - `docs/step4-simulation-acceptance.md`
 - `docs/step5-advertising-economics.md`
 - `docs/step5-advertising-economics-acceptance.md`
+- `docs/step6-cross-channel-interactions.md`
+- `docs/step6-cross-channel-acceptance.md`
