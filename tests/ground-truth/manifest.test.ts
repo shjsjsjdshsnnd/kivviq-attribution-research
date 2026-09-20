@@ -26,7 +26,7 @@ describe("GroundTruthManifest", () => {
     raw["schemaVersion"] = "2.0.0";
 
     expect(() => parseGroundTruthManifest(raw)).toThrow(
-      /unsupported GroundTruth schema version/,
+      /schemaVersion.*expected "1\.0\.0"/i,
     );
   });
 
@@ -37,7 +37,7 @@ describe("GroundTruthManifest", () => {
     delete raw["causalGraph"];
 
     expect(() => parseGroundTruthManifest(raw)).toThrow(
-      /missing required field: causalGraph/,
+      /causalGraph.*Required/i,
     );
   });
 
@@ -48,7 +48,7 @@ describe("GroundTruthManifest", () => {
     raw["hiddenTruth"] = { value: 1 };
 
     expect(() => parseGroundTruthManifest(raw)).toThrow(
-      /unknown top-level field/,
+      /Unrecognized key.*hiddenTruth/i,
     );
   });
 
@@ -59,7 +59,7 @@ describe("GroundTruthManifest", () => {
     raw["conversionMechanisms"][0].baseProbability = 1.2;
 
     expect(() => parseGroundTruthManifest(raw)).toThrow(
-      /must be within \[0,1\]/,
+      /baseProbability.*less than or equal to 1/i,
     );
   });
 
@@ -70,7 +70,7 @@ describe("GroundTruthManifest", () => {
     raw["baselineDemand"][0].paidMarketingIncluded = true;
 
     expect(() => parseGroundTruthManifest(raw)).toThrow(
-      /baseline demand must exclude/,
+      /paidMarketingIncluded.*expected false/i,
     );
   });
 
