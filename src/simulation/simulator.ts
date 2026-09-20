@@ -893,7 +893,6 @@ export function simulateWorld(
           interactionContext,
         );
       for (const prepared of preparedInteractions) {
-        interactionTruth.push(prepared.truth);
         schedule<InteractionEffectPayload>({
           id: `interaction-effect:${prepared.truth.mechanismId}:${event.id}`,
           kind: "interaction_effect",
@@ -986,6 +985,10 @@ export function simulateWorld(
         payload.truth,
         event.timestampMs,
       );
+      interactionTruth.push({
+        ...payload.truth,
+        occurredAt: new Date(event.timestampMs).toISOString(),
+      });
       continue;
     }
 
