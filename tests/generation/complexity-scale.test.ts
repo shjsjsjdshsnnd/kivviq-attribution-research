@@ -131,6 +131,30 @@ describe("generation scale and difficulty semantics", () => {
     ).toBe(true);
   });
 
+  it("supports genuinely large long-tail catalogs", () => {
+    const worlds = Array.from({ length: 220 }, (_, index) =>
+      generateMerchantWorldRecord({
+        seed: 850_000 + index,
+        archetype: "commodity_value_retail",
+        scale: "large",
+        complexity: "normal",
+        catalogProfile: "long_tail",
+      }),
+    );
+
+    expect(
+      Math.max(...worlds.map((world) => world.summary.skuCount)),
+    ).toBeGreaterThan(1_000);
+    expect(
+      worlds.every((world) => world.summary.skuCount <= 1_500),
+    ).toBe(true);
+    expect(
+      worlds.some(
+        (world) => world.summary.productConcentrationTop5 < 0.2,
+      ),
+    ).toBe(true);
+  }, 30_000);
+
   it("represents both negative channels and negative marginal returns", () => {
     const worlds = Array.from({ length: 180 }, (_, index) =>
       generateMerchantWorldRecord({
