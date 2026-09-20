@@ -486,7 +486,7 @@ export function completePurchase(
   }
 
   const repeatPurchase = customer.purchaseCount > 0;
-  customer.cart = undefined;
+  delete customer.cart;
   transitionAfterPurchase(customer, timestampMs);
 
   return {
