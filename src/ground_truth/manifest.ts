@@ -1,5 +1,5 @@
-import type { MoneyMinor } from "../core/units.js";
-import { validateCausalGraph, type CausalGraph } from "./causal-graph.js";
+import type { CausalEffectValue, MoneyMinor } from "../core/units.js";
+import { validateCausalGraph, type CausalGraph, type CausalNode } from "./causal-graph.js";
 import { validateIntervention, type InterventionDefinition } from "./interventions.js";
 import type {
   BaselineDemandMechanism,
@@ -26,6 +26,10 @@ import type {
   SeasonalityMechanism,
   WorldId,
 } from "./ontology.js";
+import {
+  formatRuntimeSchemaIssues,
+  groundTruthManifestRuntimeSchema,
+} from "./runtime-schema.js";
 
 export const CURRENT_GROUND_TRUTH_SCHEMA_VERSION = "1.0.0" as const;
 export type GroundTruthSchemaVersion =
@@ -65,217 +69,215 @@ export interface GroundTruthManifest {
 
 export class GroundTruthValidationError extends Error {}
 
-const REQUIRED_TOP_LEVEL_KEYS = [
-  "schemaVersion",
-  "simulatorVersion",
-  "worldId",
-  "seed",
-  "merchant",
-  "customers",
-  "baselineDemand",
-  "channelIncrementality",
-  "responseCurves",
-  "cacMechanisms",
-  "conversionMechanisms",
-  "priceElasticities",
-  "promotionElasticities",
-  "clvMechanisms",
-  "repeatPurchaseMechanisms",
-  "productDemandMechanisms",
-  "inventoryMechanisms",
-  "seasonality",
-  "deviceEffects",
-  "funnelMechanisms",
-  "channelInteractions",
-  "saturationMechanisms",
-  "organicDemand",
-  "marginEconomics",
-  "externalShocks",
-  "causalGraph",
-  "interventionDefinitions",
-] as const;
-
-function assertPlainObject(
-  value: unknown,
-  label: string,
-): asserts value is Record<string, unknown> {
-  if (typeof value !== "object" || value === null || Array.isArray(value)) {
-    throw new GroundTruthValidationError(`${label} must be an object`);
-  }
-}
-
-function assertNoNonFiniteNumbers(value: unknown, path = "$"): void {
-  if (typeof value === "number") {
-    if (!Number.isFinite(value)) {
-      throw new GroundTruthValidationError(
-        `${path} contains NaN or Infinity`,
-      );
-    }
-    return;
-  }
-
-  if (Array.isArray(value)) {
-    value.forEach((entry, index) =>
-      assertNoNonFiniteNumbers(entry, `${path}[${index}]`),
-    );
-    return;
-  }
-
-  if (typeof value === "object" && value !== null) {
-    for (const [key, entry] of Object.entries(value)) {
-      assertNoNonFiniteNumbers(entry, `${path}.${key}`);
-    }
-  }
-}
-
-function assertProbabilityFields(value: unknown, path = "$"): void {
-  if (Array.isArray(value)) {
-    value.forEach((entry, index) =>
-      assertProbabilityFields(entry, `${path}[${index}]`),
-    );
-    return;
-  }
-
-  if (typeof value !== "object" || value === null) return;
-
-  for (const [key, entry] of Object.entries(value)) {
-    const isProbabilityField =
-      /probability$/i.test(key) ||
-      /probabilities$/i.test(key) ||
-      key === "baselineBrandAwareness" ||
-      key === "baselineBrandPreference" ||
-      key === "existingCustomerShare" ||
-      key === "annualDiscountRate";
-
-    if (
-      isProbabilityField &&
-      typeof entry === "number" &&
-      (entry < 0 || entry > 1)
-    ) {
-      throw new GroundTruthValidationError(
-        `${path}.${key} must be within [0,1]`,
-      );
-    }
-
-    assertProbabilityFields(entry, `${path}.${key}`);
-  }
-}
-
-function assertRequiredArrays(raw: Record<string, unknown>): void {
-  const arrayFields = [
-    "baselineDemand",
-    "channelIncrementality",
-    "responseCurves",
-    "cacMechanisms",
-    "conversionMechanisms",
-    "priceElasticities",
-    "promotionElasticities",
-    "clvMechanisms",
-    "repeatPurchaseMechanisms",
-    "productDemandMechanisms",
-    "inventoryMechanisms",
-    "seasonality",
-    "deviceEffects",
-    "funnelMechanisms",
-    "channelInteractions",
-    "saturationMechanisms",
-    "externalShocks",
-    "interventionDefinitions",
-  ] as const;
-
-  for (const key of arrayFields) {
-    if (!Array.isArray(raw[key])) {
-      throw new GroundTruthValidationError(`${key} must be an array`);
-    }
-  }
-}
-
-function exampleValueForNode(graph: CausalGraph, variable: string) {
-  const node = graph.nodes.find((candidate) => candidate.id === variable);
-
-  if (!node) {
+function assertRuntimeShape(value: unknown): void {
+  const parsed = groundTruthManifestRuntimeSchema.safeParse(value);
+  if (!parsed.success) {
     throw new GroundTruthValidationError(
-      `unknown intervention variable: ${variable}`,
-    );
-  }
-
-  if (node.valueType === "number") {
-    return {
-      kind: "number" as const,
-      value: 0,
-      unit: node.unit,
-    };
-  }
-
-  if (node.valueType === "boolean") {
-    return { kind: "boolean" as const, value: false };
-  }
-
-  return { kind: "category" as const, value: "__validation__" };
-}
-
-export function validateGroundTruthManifest(
-  manifest: GroundTruthManifest,
-): void {
-  assertNoNonFiniteNumbers(manifest);
-  assertProbabilityFields(manifest);
-
-  if (
-    manifest.schemaVersion !== CURRENT_GROUND_TRUTH_SCHEMA_VERSION
-  ) {
-    throw new GroundTruthValidationError(
-      `unsupported GroundTruth schema version: ${String(
-        manifest.schemaVersion,
+      `invalid GroundTruth runtime schema: ${formatRuntimeSchemaIssues(
+        parsed.error,
       )}`,
     );
   }
+}
 
-  if (!Number.isSafeInteger(manifest.seed) || manifest.seed < 0) {
-    throw new GroundTruthValidationError(
-      "seed must be a non-negative safe integer",
-    );
-  }
-
+function effectCompatibleWithNode(
+  effect: CausalEffectValue,
+  node: CausalNode,
+): boolean {
   if (
-    manifest.baselineDemand.some(
-      (item) => item.paidMarketingIncluded !== false,
-    )
+    effect.scale === "relative" ||
+    effect.scale === "multiplicative" ||
+    effect.scale === "log"
   ) {
-    throw new GroundTruthValidationError(
-      "baseline demand must exclude modeled paid-marketing effects",
-    );
+    return effect.unit === "dimensionless" && node.valueType === "number";
   }
 
-  for (const inventory of manifest.inventoryMechanisms) {
-    if (
-      Number(inventory.initialAvailableUnits) < 0 ||
-      Number(inventory.initialReservedUnits) < 0
-    ) {
+  if (effect.scale === "probability_point") {
+    return node.valueType === "number" && node.unit === "probability";
+  }
+
+  if (effect.scale === "money_minor") {
+    return node.valueType === "number" && node.unit === "money_minor";
+  }
+
+  if (effect.scale === "units") {
+    return node.valueType === "number" && node.unit === "units";
+  }
+
+  return effect.unit === node.unit;
+}
+
+function assertUniqueMechanismIds(manifest: GroundTruthManifest): Set<string> {
+  const entries: Array<readonly [string, string]> = [];
+
+  const push = (collection: string, values: readonly { readonly id: string }[]) => {
+    for (const value of values) entries.push([value.id, collection]);
+  };
+
+  push("baselineDemand", manifest.baselineDemand);
+  push("channelIncrementality", manifest.channelIncrementality);
+  push("responseCurves", manifest.responseCurves);
+  push("cacMechanisms", manifest.cacMechanisms);
+  push("conversionMechanisms", manifest.conversionMechanisms);
+  push("priceElasticities", manifest.priceElasticities);
+  push("promotionElasticities", manifest.promotionElasticities);
+  push("clvMechanisms", manifest.clvMechanisms);
+  push("repeatPurchaseMechanisms", manifest.repeatPurchaseMechanisms);
+  push("productDemandMechanisms", manifest.productDemandMechanisms);
+  push("inventoryMechanisms", manifest.inventoryMechanisms);
+  push("seasonality", manifest.seasonality);
+  push("deviceEffects", manifest.deviceEffects);
+  push("funnelMechanisms", manifest.funnelMechanisms);
+  push("channelInteractions", manifest.channelInteractions);
+  push("saturationMechanisms", manifest.saturationMechanisms);
+  push("externalShocks", manifest.externalShocks);
+  entries.push([manifest.organicDemand.id, "organicDemand"]);
+
+  const ownerById = new Map<string, string>();
+  for (const [id, collection] of entries) {
+    const existing = ownerById.get(id);
+    if (existing) {
       throw new GroundTruthValidationError(
-        "inventory cannot be negative",
+        `duplicate mechanism id "${id}" appears in ${existing} and ${collection}`,
       );
     }
-
-    if (
-      Number(inventory.initialReservedUnits) >
-      Number(inventory.initialAvailableUnits)
-    ) {
-      throw new GroundTruthValidationError(
-        "reserved inventory cannot exceed available inventory",
-      );
-    }
+    ownerById.set(id, collection);
   }
 
-  if (
-    manifest.marginEconomics.accountingIdentity !==
-    "contribution_profit_v1"
-  ) {
-    throw new GroundTruthValidationError(
-      "unsupported contribution-profit accounting identity",
-    );
-  }
+  return new Set([
+    ...ownerById.keys(),
+    manifest.marginEconomics.accountingIdentity,
+  ]);
+}
 
+function validateGroundTruthSemantics(
+  manifest: GroundTruthManifest,
+): void {
   validateCausalGraph(manifest.causalGraph);
+
+  if (manifest.merchant.currency !== manifest.marginEconomics.currency) {
+    throw new GroundTruthValidationError(
+      "merchant currency must match margin-economics currency",
+    );
+  }
+
+  const knownMechanismIds = assertUniqueMechanismIds(manifest);
+  const nodeById = new Map(
+    manifest.causalGraph.nodes.map((node) => [node.id, node] as const),
+  );
+  const curveById = new Map(
+    manifest.responseCurves.map((curve) => [curve.id, curve] as const),
+  );
+  const saturationById = new Map(
+    manifest.saturationMechanisms.map(
+      (mechanism) => [mechanism.id, mechanism] as const,
+    ),
+  );
+  const baselineIds = new Set(
+    manifest.baselineDemand.map((mechanism) => mechanism.id),
+  );
+
+  for (const edge of manifest.causalGraph.edges) {
+    if (!knownMechanismIds.has(edge.mechanismId)) {
+      throw new GroundTruthValidationError(
+        `causal edge references unknown mechanism: ${edge.mechanismId}`,
+      );
+    }
+  }
+
+  for (const channel of manifest.channelIncrementality) {
+    const outcomeNode = nodeById.get(channel.outcomeVariable);
+    if (!outcomeNode) {
+      throw new GroundTruthValidationError(
+        `channel incrementality references unknown outcome variable: ${channel.outcomeVariable}`,
+      );
+    }
+
+    if (!effectCompatibleWithNode(channel.effect, outcomeNode)) {
+      throw new GroundTruthValidationError(
+        `channel incrementality effect units are incompatible with ${channel.outcomeVariable}`,
+      );
+    }
+
+    if (channel.responseCurveId) {
+      const curve = curveById.get(channel.responseCurveId);
+      if (!curve) {
+        throw new GroundTruthValidationError(
+          `channel incrementality references unknown response curve: ${channel.responseCurveId}`,
+        );
+      }
+      if (curve.outputUnit !== outcomeNode.unit) {
+        throw new GroundTruthValidationError(
+          `response curve ${curve.id} output unit ${curve.outputUnit} does not match outcome variable unit ${outcomeNode.unit}`,
+        );
+      }
+    }
+
+    if (channel.saturationMechanismId) {
+      const saturation = saturationById.get(channel.saturationMechanismId);
+      if (!saturation) {
+        throw new GroundTruthValidationError(
+          `channel incrementality references unknown saturation mechanism: ${channel.saturationMechanismId}`,
+        );
+      }
+      if (saturation.channelId !== channel.channelId) {
+        throw new GroundTruthValidationError(
+          `saturation mechanism ${saturation.id} belongs to a different channel`,
+        );
+      }
+    }
+  }
+
+  for (const saturation of manifest.saturationMechanisms) {
+    if (!curveById.has(saturation.responseCurveId)) {
+      throw new GroundTruthValidationError(
+        `saturation references unknown response curve: ${saturation.responseCurveId}`,
+      );
+    }
+  }
+
+  for (const cac of manifest.cacMechanisms) {
+    if (!curveById.has(cac.marginalCACCurveId)) {
+      throw new GroundTruthValidationError(
+        `CAC mechanism references unknown marginal curve: ${cac.marginalCACCurveId}`,
+      );
+    }
+  }
+
+  for (const baselineId of manifest.organicDemand.baselineDemandMechanismIds) {
+    if (!baselineIds.has(baselineId)) {
+      throw new GroundTruthValidationError(
+        `organic demand references unknown baseline-demand mechanism: ${baselineId}`,
+      );
+    }
+  }
+
+  for (const interaction of manifest.channelInteractions) {
+    if (
+      interaction.mediatorVariable &&
+      !nodeById.has(interaction.mediatorVariable)
+    ) {
+      throw new GroundTruthValidationError(
+        `channel interaction references unknown mediator variable: ${interaction.mediatorVariable}`,
+      );
+    }
+  }
+
+  for (const shock of manifest.externalShocks) {
+    for (const variable of shock.affectedVariables) {
+      const node = nodeById.get(variable);
+      if (!node) {
+        throw new GroundTruthValidationError(
+          `external shock references unknown causal variable: ${variable}`,
+        );
+      }
+      if (!effectCompatibleWithNode(shock.mechanism.effect, node)) {
+        throw new GroundTruthValidationError(
+          `external shock effect units are incompatible with ${variable}`,
+        );
+      }
+    }
+  }
 
   const interventionTargets = new Set(
     manifest.interventionDefinitions.map((item) => item.variable),
@@ -291,67 +293,50 @@ export function validateGroundTruthManifest(
   }
 
   for (const definition of manifest.interventionDefinitions) {
+    const node = nodeById.get(definition.variable);
+    if (!node) {
+      throw new GroundTruthValidationError(
+        `unknown intervention variable: ${definition.variable}`,
+      );
+    }
+
+    const value =
+      node.valueType === "number"
+        ? { kind: "number" as const, value: 0, unit: node.unit }
+        : node.valueType === "boolean"
+          ? { kind: "boolean" as const, value: false }
+          : { kind: "category" as const, value: "__validation__" };
+
     validateIntervention(manifest.causalGraph, {
       variable: definition.variable,
       operation: "set",
-      value: exampleValueForNode(
-        manifest.causalGraph,
-        definition.variable,
-      ),
+      value,
     });
   }
+}
 
-  const curveIds = new Set(
-    manifest.responseCurves.map((curve) => curve.id),
-  );
-
-  for (const channel of manifest.channelIncrementality) {
-    if (
-      channel.responseCurveId &&
-      !curveIds.has(channel.responseCurveId)
-    ) {
-      throw new GroundTruthValidationError(
-        `channel incrementality references unknown response curve: ${channel.responseCurveId}`,
-      );
-    }
-  }
-
-  for (const saturation of manifest.saturationMechanisms) {
-    if (!curveIds.has(saturation.responseCurveId)) {
-      throw new GroundTruthValidationError(
-        `saturation references unknown response curve: ${saturation.responseCurveId}`,
-      );
-    }
-  }
+export function validateGroundTruthManifest(
+  manifest: GroundTruthManifest,
+): void {
+  assertRuntimeShape(manifest);
+  validateGroundTruthSemantics(manifest);
 }
 
 export function parseGroundTruthManifest(
   raw: unknown,
 ): GroundTruthManifest {
-  assertPlainObject(raw, "GroundTruthManifest");
+  const parsed = groundTruthManifestRuntimeSchema.safeParse(raw);
 
-  for (const required of REQUIRED_TOP_LEVEL_KEYS) {
-    if (!(required in raw)) {
-      throw new GroundTruthValidationError(
-        `missing required field: ${required}`,
-      );
-    }
+  if (!parsed.success) {
+    throw new GroundTruthValidationError(
+      `invalid GroundTruth runtime schema: ${formatRuntimeSchemaIssues(
+        parsed.error,
+      )}`,
+    );
   }
 
-  for (const key of Object.keys(raw)) {
-    if (
-      !(REQUIRED_TOP_LEVEL_KEYS as readonly string[]).includes(key)
-    ) {
-      throw new GroundTruthValidationError(
-        `unknown top-level field: ${key}`,
-      );
-    }
-  }
-
-  assertRequiredArrays(raw);
-
-  const manifest = raw as unknown as GroundTruthManifest;
-  validateGroundTruthManifest(manifest);
+  const manifest = parsed.data as unknown as GroundTruthManifest;
+  validateGroundTruthSemantics(manifest);
   return manifest;
 }
 
@@ -376,9 +361,15 @@ export function serializeGroundTruthManifest(
 export function deserializeGroundTruthManifest(
   serialized: string,
 ): GroundTruthManifest {
-  return parseGroundTruthManifest(
-    JSON.parse(serialized) as unknown,
-  );
+  let raw: unknown;
+  try {
+    raw = JSON.parse(serialized) as unknown;
+  } catch {
+    throw new GroundTruthValidationError(
+      "GroundTruth manifest must be valid JSON",
+    );
+  }
+  return parseGroundTruthManifest(raw);
 }
 
 export function reproducibilityKey(
@@ -396,6 +387,20 @@ export function reproducibilityKey(
 export function contributionProfitMinor(
   input: ContributionProfitInputs,
 ): MoneyMinor {
+  const values = Object.entries(input);
+  for (const [key, value] of values) {
+    if (!Number.isSafeInteger(value)) {
+      throw new GroundTruthValidationError(
+        `${key} must be a finite integer in minor currency units`,
+      );
+    }
+    if (value < 0) {
+      throw new GroundTruthValidationError(
+        `${key} must be non-negative`,
+      );
+    }
+  }
+
   const result =
     Number(input.grossRevenueMinor) -
     Number(input.discountsMinor) -
