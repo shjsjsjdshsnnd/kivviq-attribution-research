@@ -1,0 +1,173 @@
+{
+  "candidate_id": "candidate2-aipw-dr-observable",
+  "version": "1.0.0",
+  "protocol_status": "METHOD_AND_FALSIFICATION_PROTOCOL_PREREGISTERED_BEFORE_ESTIMATOR_IMPLEMENTATION",
+  "method": {
+    "family": "augmented_inverse_probability_weighting",
+    "one_method_only": true,
+    "estimating_equation": "For each focal channel, average m1(X)-m0(X) + A*(Y-m1(X))/e(X) - (1-A)*(Y-m0(X))/(1-e(X)), using the preregistered clipped propensity only for numerical stabilization.",
+    "outcome_nuisance_model": "Interpretable L2-regularized logistic regression of conversion on focal treatment plus declared observable adjustment variables.",
+    "propensity_nuisance_model": "Interpretable L2-regularized logistic regression of focal treatment on the declared observable adjustment variables.",
+    "rationale": "AIPW directly targets the preregistered average probability-difference estimand and combines outcome and treatment models without requiring a flexible black-box learner. Its failure remains diagnostically interpretable.",
+    "double_robustness_limit": "The double-robustness property is conditional on causal identification assumptions. It does not repair unobserved confounding or positivity failure."
+  },
+  "observable_features": {
+    "focal_treatment": "binary focal-channel exposure indicator",
+    "adjustment": [
+      "binary indicators for each non-focal observed channel",
+      "log1p observable pre-outcome touch count",
+      "log1p observable session count",
+      "normalized earliest observable touch position in the horizon",
+      "normalized latest observable touch position in the horizon",
+      "identity confidence",
+      "consent-granted indicator",
+      "censoring/observation-completeness indicator"
+    ],
+    "hidden": [
+      "latent purchase intent",
+      "true treatment effects",
+      "counterfactual outcomes",
+      "selection coefficients",
+      "interaction coefficients",
+      "holdout parameters and seed",
+      "oracle causal truth"
+    ]
+  },
+  "propensity_policy": {
+    "raw_propensity_diagnostics": true,
+    "clipping_lower": 0.025,
+    "clipping_upper": 0.975,
+    "clipping_status": "fixed before development; not tuned",
+    "extreme_raw_definition": "raw e(X) < 0.025 or raw e(X) > 0.975",
+    "diagnostics": [
+      "raw propensity min/p01/p05/median/p95/p99/max",
+      "extreme raw propensity fraction",
+      "treatment prevalence",
+      "treated inverse-weight effective sample size",
+      "control inverse-weight effective sample size",
+      "maximum clipped inverse weight",
+      "nuisance convergence"
+    ]
+  },
+  "nuisance_hyperparameter_development": {
+    "outcome_l2_grid": [
+      0.1,
+      1,
+      5
+    ],
+    "propensity_l2_grid": [
+      0.1,
+      1,
+      5
+    ],
+    "probability_numerical_clip": 0.000001,
+    "maximum_newton_iterations": 60,
+    "convergence_tolerance": 1e-8,
+    "selection_rule": "Use DEVELOPMENT worlds only. Among numerically valid combinations, choose the pair with lowest unweighted mean channel-effect MAE across the preregistered development worlds. If tied within 1e-6, choose the pair with the larger sum of L2 penalties. Candidate 1 holdout information and frozen Phase 1 results are prohibited.",
+    "candidate1_holdout_used": false
+  },
+  "uncertainty": {
+    "method": "90% normal interval from the empirical standard error of the AIPW influence/pseudo-outcome values",
+    "z_value": 1.6448536269514722,
+    "nuisance_uncertainty_note": "This finite-sample interval treats fitted nuisance functions as estimated inputs; undercoverage is a preregistered possible failure and is externally evaluated."
+  },
+  "development_worlds": [
+    {
+      "id": "c2-dev-balanced-v1",
+      "purpose": "basic numerical and signed-effect recovery",
+      "used_for_hyperparameter_selection": true
+    },
+    {
+      "id": "c2-dev-observed-selection-v1",
+      "purpose": "selection correlated with observable co-exposure/history proxies",
+      "used_for_hyperparameter_selection": true
+    },
+    {
+      "id": "c2-dev-null-selection-v1",
+      "purpose": "known-zero focal effect under selected exposure",
+      "used_for_hyperparameter_selection": true
+    },
+    {
+      "id": "c2-dev-negative-v1",
+      "purpose": "signed harmful effect",
+      "used_for_hyperparameter_selection": true
+    },
+    {
+      "id": "c2-dev-positivity-v1",
+      "purpose": "overlap and extreme-weight diagnostics",
+      "used_for_hyperparameter_selection": true
+    },
+    {
+      "id": "c2-dev-measurement-v1",
+      "purpose": "measurement-degradation numerical stability",
+      "used_for_hyperparameter_selection": true
+    }
+  ],
+  "frozen_phase1_falsification": {
+    "primary_observed_selection_comparison": {
+      "scenarios": [
+        "demand_capture",
+        "retargeting_selection",
+        "null_channel_high_intent",
+        "null_channel_retargeting"
+      ],
+      "rule": "Candidate 2 aggregate absolute known-zero error across the same frozen seeds must be strictly lower than frozen Candidate 1 on the same Phase 1 cases, and Candidate 2 must improve at least 3 of the 4 scenario-level mean errors.",
+      "comparator_source": "Candidate 1 FROZEN_PHASE1 historical results only; Candidate 1 sealed holdout is prohibited."
+    },
+    "known_zero_absolute_error": {
+      "scenarios": [
+        "demand_capture",
+        "retargeting_selection",
+        "null_paid_channel",
+        "null_channel_high_prevalence",
+        "null_channel_last_touch",
+        "null_channel_high_intent",
+        "null_channel_retargeting"
+      ],
+      "aggregate_mean_absolute_estimate_lte": 0.06,
+      "justification": "Six percentage points on the probability-effect scale is an ex-ante absolute calibration tolerance, not derived from Candidate 1 holdout results."
+    },
+    "harmful_effect": {
+      "mean_estimate_required_sign": "negative",
+      "mean_absolute_error_lte": 0.07
+    },
+    "overall_perfect_observation_mean_effect_mae_lte": 0.05,
+    "mean_interval_coverage_fraction_gte": 0.8,
+    "missing_50_mean_absolute_effect_vector_change_lte": 0.15,
+    "fragmented_identity_mean_absolute_effect_vector_change_lte": 0.15,
+    "small_sample_requires_finite_outputs": true,
+    "numerical_validity_required": true
+  },
+  "sealed_holdout_falsification": {
+    "required_families": "all public holdout families",
+    "mean_absolute_error_lte_each_family": 0.09,
+    "coverage_fraction_gte_each_family": 1,
+    "interval_coverage_fraction_gte_each_family": 0.875,
+    "mean_interval_width_lte_each_family": 0.35,
+    "extreme_raw_propensity_fraction_lte_each_family": 0.25,
+    "minimum_treated_or_control_ess_gte_each_family": 8,
+    "numerical_validity_required": true,
+    "missing_required_family": "REJECT",
+    "threshold_justification": "The effect-error tolerance is a single ex-ante nine-percentage-point probability-scale bound across all holdout families rather than family-specific tuning. Requiring at least 7 of 8 channel truths inside nominal 90% intervals corresponds to 0.875 family coverage. Overlap limits are preregistered diagnostics against reliance on extreme inverse weights. None use Candidate 1 holdout-v1 values."
+  },
+  "reporting_separation": {
+    "observed_selection": [
+      "selection_shift",
+      "prevalence_ordering_shift"
+    ],
+    "hidden_confounding": [
+      "latent_intent_shift"
+    ],
+    "structural_stress": [
+      "time_varying_delayed",
+      "unseen_interaction",
+      "negative_heterogeneous",
+      "sparse_identity_loss",
+      "compounded_measurement"
+    ],
+    "never_blend_observed_and_hidden_confounding": true
+  },
+  "freeze_rule": "After development hyperparameters are selected, freeze code, nuisance definitions, hyperparameters, clipping policy, uncertainty, declaration and criteria before FROZEN_PHASE1. No tuning after frozen Phase 1.",
+  "holdout_rule": "Only a frozen candidate that passes every preregistered pre-holdout gate may consume exactly one feedback-bearing candidate2-holdout-v1 exposure.",
+  "no_candidate1_holdout_tuning": true
+}

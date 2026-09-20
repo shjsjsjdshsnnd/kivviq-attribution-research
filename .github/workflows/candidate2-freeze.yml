@@ -1,0 +1,49 @@
+name: Candidate 2 Freeze
+
+on:
+  push:
+    branches: ["phase2/candidate2-aipw-dr"]
+    paths:
+      - "phase2/candidates/candidate2/model.py"
+      - "phase2/candidates/candidate2/candidate_definition.py"
+      - "phase2/candidates/candidate2/freeze_candidate.py"
+      - "phase2/candidates/candidate2/FREEZE_REQUESTED"
+      - "tests/candidate2/test_candidate2_freeze.py"
+
+permissions:
+  contents: write
+
+jobs:
+  freeze:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+      - run: python -m pip install --upgrade pip
+      - run: python -m pip install -e ".[dev]"
+      - run: python scripts/check_repo_safety.py
+      - run: python scripts/check_phase1_frozen.py
+      - run: pytest tests/candidate2
+      - name: Freeze Candidate 2
+        run: python phase2/candidates/candidate2/freeze_candidate.py
+      - name: Persist frozen manifest
+        shell: bash
+        run: |
+          set -euo pipefail
+          python scripts/check_repo_safety.py
+          git add phase2/candidates/candidate2/FROZEN.json
+          git diff --cached --check
+          if git diff --cached --quiet; then
+            echo "Freeze manifest unchanged."
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git commit -m "Freeze Candidate 2 before Phase 1 evaluation"
+          git push origin "HEAD:${GITHUB_REF_NAME}"

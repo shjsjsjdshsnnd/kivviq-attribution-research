@@ -1,0 +1,85 @@
+{
+  "candidate_id": "candidate2-aipw-dr-observable",
+  "version": "1.0.0",
+  "research_status": "ESTIMAND_AND_HYPOTHESIS_PREREGISTERED_BEFORE_ESTIMATOR_IMPLEMENTATION",
+  "harness_reference": "3616d00c0855a0d3d9dcb8dbf578a3e68c26f9fa",
+  "phase1_reference": "1d92f4d2d5fd89de261127b8ed4bdcced6f18fdf",
+  "candidate1_reference": {
+    "candidate_id": "candidate1-outcome-regression-gcomp",
+    "version": "1.0.0",
+    "pr": 10,
+    "final_outcome": "REJECT",
+    "role": "historical scientific evidence only; not a Candidate 2 tuning target"
+  },
+  "candidate2_holdout": {
+    "version": "candidate2-holdout-v1",
+    "metadata_source": "phase2/candidates/candidate2/holdout_public_metadata.json",
+    "sealed_before_implementation": true,
+    "candidate1_holdout_reused": false
+  },
+  "estimand": {
+    "kind": "incremental_conversion_probability",
+    "population": "Synthetic subjects in the declared 21-day observation population with an observable treatment/outcome record under the declared measurement condition.",
+    "unit_of_analysis": "Synthetic subject.",
+    "treatment_or_exposure": "Binary presence versus absence of one focal synthetic channel exposure before the qualifying outcome/horizon.",
+    "outcome": "Qualifying conversion within the 21-day observation horizon.",
+    "horizon_hours": 504,
+    "intervention": "Set the focal channel exposure indicator to present while retaining the subject's declared observable non-focal exposure/history covariates as the controlled background regime.",
+    "comparison": "Set the same focal channel exposure indicator to absent under the same declared observable covariate pattern.",
+    "temporal_ordering": "Only information observable before the qualifying outcome or end of horizon may enter treatment, outcome or adjustment features.",
+    "treatment_regime": "One-channel-at-a-time static binary intervention under the declared observed background treatment/history regime.",
+    "aggregation_target": "Population-average signed conversion-probability difference for each synthetic channel."
+  },
+  "observable_adjustment_variables": [
+    "non-focal observed channel exposure indicators",
+    "observable pre-outcome touch count",
+    "observable session count",
+    "normalized timing summaries computed from observable pre-outcome touches",
+    "identity confidence",
+    "consent observability",
+    "censoring/observation completeness"
+  ],
+  "unavailable_latent_variables": [
+    "latent purchase intent",
+    "true treatment effects",
+    "oracle counterfactual outcomes",
+    "hidden treatment-selection coefficients",
+    "hidden interaction coefficients",
+    "holdout seeds",
+    "instantiated holdout parameters",
+    "oracle causal truth"
+  ],
+  "identification_assumptions": [
+    "Conditional exchangeability given the declared observable adjustment variables.",
+    "Positivity/overlap for focal-channel treatment after conditioning on the declared observables.",
+    "Consistency of the declared binary channel intervention.",
+    "No interference between synthetic subjects.",
+    "The controlled background exposure/history regime is a scientifically acceptable conditioning set for this synthetic estimand.",
+    "At least one nuisance model is sufficiently specified for the doubly robust estimating equation under the identification assumptions."
+  ],
+  "scientific_limit": "Doubly robust does not mean robust to unobserved confounding. If important latent intent remains unobserved and exchangeability fails, Candidate 2 may remain biased even when one nuisance model is correctly specified.",
+  "uncertainty_target": "Approximate 90% influence-function interval for each population-average channel effect, with interval calibration evaluated by the external evaluator.",
+  "hypothesis": {
+    "statement": "An interpretable doubly robust estimator combining an outcome model with a treatment-propensity model may reduce synthetic bias from observed treatment-selection mechanisms relative to the frozen Candidate 1 outcome-regression estimator while retaining signed effects and calibrated uncertainty, provided the causal identification assumptions hold and at least one nuisance model is sufficiently specified.",
+    "falsifiable_failure_conditions": [
+      "important confounders remain unobserved",
+      "positivity or effective overlap fails",
+      "both nuisance models are materially misspecified",
+      "measurement loss removes necessary confounders or exposure information",
+      "support is sparse",
+      "interactions or time variation exceed the declared model structure",
+      "numerical instability produces invalid propensity or effect estimates"
+    ]
+  },
+  "candidate1_holdout_restriction": {
+    "prohibited_uses": [
+      "Candidate 1 sealed-holdout family MAEs as development targets",
+      "Candidate 1 sealed-holdout coverage values as tuning targets",
+      "Candidate 1 exact holdout failure magnitudes",
+      "Candidate 1 holdout numerical thresholds",
+      "Candidate 1 revealed relative family difficulty"
+    ],
+    "allowed_use": "Only the general scientific questions of observable treatment selection, known-zero behavior, hidden confounding/latent intent and uncertainty calibration may motivate Candidate 2."
+  },
+  "public_holdout_limitation_disclosure": "The holdout-family architecture is public because the repository is public. The instantiated holdout seeds, parameter values, treatment effects, latent-intent strengths, interactions, selection mechanisms and corruption settings remain sealed from Candidate 2 development. This is strong research-process separation, not a completely secret external benchmark."
+}
