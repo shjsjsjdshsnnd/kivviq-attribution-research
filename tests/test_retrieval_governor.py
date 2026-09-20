@@ -93,6 +93,38 @@ class RetrievalGovernorTests(unittest.TestCase):
         result = self.gov.validate(answer, contract_for_request(req, self.registry))
         self.assertIn(FailureClass.UNSUPPORTED_PROFIT, result.failures)
 
+    def test_material_same_authority_disagreement_is_conflict(self) -> None:
+        req = RequestSemantics("metric", "total_sales", "commerce", "all_channels", None, self.p)
+        first = self.world.fact("total_sales", "commerce", "all_channels", self.p, currency="CAD")
+        second = replace(first, value=float(first.value) + 500.0)  # type: ignore[arg-type]
+        answer = ProposedAnswer("total_sales", "commerce", "all_channels", self.p, first.value, (first, second))
+        result = self.gov.validate(answer, contract_for_request(req, self.registry))
+        self.assertEqual(result.outcome, ExpectedOutcome.CONFLICT)
+        self.assertFalse(result.supported)
+        self.assertIn(FailureClass.EVIDENCE_CONFLICT, result.failures)
+        self.assertEqual(len(result.conflicts), 1)
+        self.assertEqual(result.conflicts[0].metric_id, "total_sales")
+
+    def test_immaterial_same_authority_difference_is_not_conflict(self) -> None:
+        req = RequestSemantics("metric", "total_sales", "commerce", "all_channels", None, self.p)
+        first = self.world.fact("total_sales", "commerce", "all_channels", self.p, currency="CAD")
+        first_value = float(first.value)  # type: ignore[arg-type]
+        second = replace(first, value=first_value * 1.001)
+        answer = ProposedAnswer("total_sales", "commerce", "all_channels", self.p, first.value, (first, second))
+        result = self.gov.validate(answer, contract_for_request(req, self.registry))
+        self.assertEqual(result.outcome, ExpectedOutcome.SUPPORTED_EXACT)
+        self.assertEqual(result.conflicts, ())
+
+    def test_different_sources_are_not_same_authority_conflict(self) -> None:
+        req = RequestSemantics("metric", "total_sales", "commerce", "all_channels", None, self.p)
+        commerce = self.world.fact("total_sales", "commerce", "all_channels", self.p, currency="CAD")
+        analytics = self.world.fact("analytics_revenue", "analytics", "all_channels", self.p, currency="CAD")
+        selected = EvidenceRetriever().select(req, (commerce, analytics))
+        answer = ProposedAnswer("total_sales", "commerce", "all_channels", self.p, commerce.value, selected)
+        result = self.gov.validate(answer, contract_for_request(req, self.registry))
+        self.assertEqual(result.outcome, ExpectedOutcome.SUPPORTED_EXACT)
+        self.assertEqual(result.conflicts, ())
+
     def test_missing_provider_is_source_degraded(self) -> None:
         req = RequestSemantics("metric", "ad_spend", None, "all_ad_providers", "provider", self.p)
         facts = self.world.advertising_bundle("ad_spend", self.p)[1:]

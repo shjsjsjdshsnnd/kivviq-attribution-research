@@ -35,6 +35,7 @@ class ExpectedOutcome(str, Enum):
     SOURCE_DEGRADED = "SOURCE_DEGRADED"
     INSUFFICIENT_EVIDENCE = "INSUFFICIENT_EVIDENCE"
     UNSUPPORTED_CAUSAL_CLAIM = "UNSUPPORTED_CAUSAL_CLAIM"
+    CONFLICT = "CONFLICT"
 
 
 class FailureClass(str, Enum):
@@ -55,6 +56,7 @@ class FailureClass(str, Enum):
     UNSUPPORTED_CALCULATION = "UNSUPPORTED_CALCULATION"
     MISSING_CAVEAT = "MISSING_CAVEAT"
     EVIDENCE_AVAILABLE_BUT_REJECTED = "EVIDENCE_AVAILABLE_BUT_REJECTED"
+    EVIDENCE_CONFLICT = "EVIDENCE_CONFLICT"
 
 
 @dataclass(frozen=True)
@@ -174,8 +176,19 @@ class ProposedAnswer:
 
 
 @dataclass(frozen=True)
+class EvidenceConflict:
+    metric_id: str
+    source: str
+    scope: str
+    period: Period
+    values: tuple[Any, ...]
+    fact_count: int
+
+
+@dataclass(frozen=True)
 class ValidationResult:
     outcome: ExpectedOutcome
     supported: bool
     failures: tuple[FailureClass, ...] = ()
     notes: tuple[str, ...] = ()
+    conflicts: tuple[EvidenceConflict, ...] = ()

@@ -133,7 +133,11 @@ def _evaluate_contradiction(kind: str) -> bool:
         second = replace(first, value=float(cast(float | int, first.value)) + 500.0)
         answer = ProposedAnswer("total_sales", "commerce", "all_channels", period, first.value, (first, second))
         result = governor.validate(answer, contract)
-        return not result.supported
+        return (
+            result.outcome is ExpectedOutcome.CONFLICT
+            and not result.supported
+            and len(result.conflicts) == 1
+        )
 
     if kind == "different_definition":
         request = RequestSemantics("metric", "total_sales", "commerce", "all_channels", None, period)

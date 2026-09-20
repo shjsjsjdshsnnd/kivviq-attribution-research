@@ -2,6 +2,8 @@ from __future__ import annotations
 
 from .model import (
     AnswerContract,
+    EvidenceConflict,
+    EvidenceFact,
     ExpectedOutcome,
     FailureClass,
     FreshnessState,
@@ -9,6 +11,67 @@ from .model import (
     ProposedAnswer,
     ValidationResult,
 )
+
+
+ABSOLUTE_CONFLICT_TOLERANCE = 0.01
+RELATIVE_CONFLICT_TOLERANCE = 0.005
+
+
+def _same_fact_identity(left: EvidenceFact, right: EvidenceFact) -> bool:
+    return (
+        left.metric_id == right.metric_id
+        and left.source == right.source
+        and left.scope == right.scope
+        and left.served_range == right.served_range
+        and left.currency == right.currency
+        and left.breakdown_dimension == right.breakdown_dimension
+        and left.attribution_basis == right.attribution_basis
+        and left.profit_basis == right.profit_basis
+    )
+
+
+def _materially_disagree(left: object, right: object) -> bool:
+    if isinstance(left, (int, float)) and isinstance(right, (int, float)):
+        scale = max(abs(float(left)), abs(float(right)), 1.0)
+        tolerance = max(ABSOLUTE_CONFLICT_TOLERANCE, RELATIVE_CONFLICT_TOLERANCE * scale)
+        return abs(float(left) - float(right)) > tolerance
+    return left != right
+
+
+def _detect_conflicts(facts: tuple[EvidenceFact, ...]) -> tuple[EvidenceConflict, ...]:
+    conflicts: list[EvidenceConflict] = []
+    usable = tuple(
+        fact
+        for fact in facts
+        if fact.measurement_status in {MeasurementStatus.MEASURED, MeasurementStatus.ESTIMATED, MeasurementStatus.DEGRADED}
+        and fact.value is not None
+    )
+    consumed: set[int] = set()
+    for index, fact in enumerate(usable):
+        if index in consumed:
+            continue
+        group = [fact]
+        for other_index in range(index + 1, len(usable)):
+            other = usable[other_index]
+            if _same_fact_identity(fact, other):
+                group.append(other)
+                consumed.add(other_index)
+        if len(group) < 2:
+            continue
+        values = tuple(item.value for item in group)
+        first = values[0]
+        if any(_materially_disagree(first, value) for value in values[1:]):
+            conflicts.append(
+                EvidenceConflict(
+                    metric_id=fact.metric_id,
+                    source=fact.source,
+                    scope=fact.scope,
+                    period=fact.served_range,
+                    values=values,
+                    fact_count=len(group),
+                )
+            )
+    return tuple(conflicts)
 
 
 class EvidenceGovernor:
@@ -30,6 +93,15 @@ class EvidenceGovernor:
         failures: list[FailureClass] = []
         notes: list[str] = []
         facts = answer.evidence
+        conflicts = _detect_conflicts(facts)
+        if conflicts:
+            return ValidationResult(
+                ExpectedOutcome.CONFLICT,
+                False,
+                (FailureClass.EVIDENCE_CONFLICT,),
+                ("authoritative evidence conflict blocks a definitive answer",),
+                conflicts,
+            )
 
         if contract.required_metric is not None and answer.metric_id != contract.required_metric:
             failures.append(FailureClass.WRONG_METRIC)
