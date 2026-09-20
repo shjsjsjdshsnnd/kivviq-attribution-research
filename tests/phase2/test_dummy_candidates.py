@@ -11,16 +11,16 @@ from attribution_lab.phase2_evaluator.evaluator import (
     evaluate_known_case,
 )
 from attribution_lab.phase2_evaluator.gates import apply_preregistered_gate
+from attribution_lab.phase2_evaluator.isolation import (
+    CandidateRunner,
+    ForbiddenCandidateImport,
+)
 from attribution_lab.phase2_evaluator.results import (
     EvaluationStage,
     GateOutcome,
     SeparatedEvaluationReport,
 )
 from attribution_lab.phase2_evaluator.seals import HoldoutSealStore
-from attribution_lab.phase2_evaluator.isolation import (
-    CandidateRunner,
-    ForbiddenCandidateImport,
-)
 from phase2_candidate_sdk import DeclaredContext, ObservableDataset
 
 
