@@ -8,7 +8,8 @@
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "build": "tsc -p tsconfig.build.json",
-    "check": "npm run typecheck && npm test && npm run build"
+    "check": "npm run architecture && npm run typecheck && npm test && npm run build",
+    "architecture": "depcruise --config .dependency-cruiser.cjs src"
   },
   "exports": {
     ".": "./dist/index.js",
@@ -17,6 +18,10 @@
   },
   "devDependencies": {
     "typescript": "^5.9.2",
-    "vitest": "^3.2.4"
+    "vitest": "^3.2.4",
+    "dependency-cruiser": "^16.10.4"
+  },
+  "dependencies": {
+    "zod": "^3.25.76"
   }
 }
