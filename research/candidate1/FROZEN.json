@@ -1,0 +1,14 @@
+{
+  "candidate_id": "candidate1-observable-gcomp",
+  "candidate_version": "1.0.0",
+  "frozen_source_commit": "ad5f49097b1572087c10dffd7558e69287299099",
+  "harness_reference": "3616d00c0855a0d3d9dcb8dbf578a3e68c26f9fa",
+  "preregistration_commit": "3a3ac6068127a1c8855a7a9e7d14e58844fa99d3",
+  "status": "FROZEN",
+  "files": {
+    "research/candidate1/PROTOCOL.md": "df984c2792ae2d076cb9e8c0a13e0b2653ded9c2",
+    "research/candidate1/candidate.py": "787ce2907878488e797bb9eaf92739dd2bad02de",
+    "research/candidate1/development_worlds.py": "ea54466c976c69a38441c7da5eee22333957f776",
+    "research/candidate1/preregistration.py": "5360420cd5af09ad9a20e1a481bb985dfa5033de"
+  }
+}
