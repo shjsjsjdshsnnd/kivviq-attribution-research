@@ -1,0 +1,42 @@
+{
+  "checks": [
+    {
+      "check": "frozen_baseline_registry",
+      "evidence": "observed model set: ['first_touch', 'last_paid_touch', 'last_touch', 'linear', 'markov_removal', 'position_based', 'shapley', 'time_decay']",
+      "status": "pass"
+    },
+    {
+      "check": "manifest_invariant_across_corruption",
+      "evidence": "every scenario/seed/sample-size group retained one manifest digest across all observation qualities",
+      "status": "pass"
+    },
+    {
+      "check": "truth_consistent_across_models",
+      "evidence": "all models in an experiment received identical stored synthetic truth",
+      "status": "pass"
+    },
+    {
+      "check": "corruption_dataset_model_agnostic",
+      "evidence": "all models in an experiment evaluated the same corrupted dataset summary",
+      "status": "pass"
+    },
+    {
+      "check": "outcome_generation_separate_from_attribution",
+      "evidence": "simulator tests enforce that the simulation package does not import the attribution model package",
+      "status": "pass"
+    },
+    {
+      "check": "ordering_assumptions",
+      "evidence": "default ordering is synthetic/random; scenarios with first/last effects declare temporal_position or temporal_log_odds_effect in the manifest",
+      "status": "documented_assumption"
+    }
+  ],
+  "overall_status": "pass",
+  "unavoidable_assumptions": [
+    "outcomes use a logistic synthetic response model",
+    "exposure depends on declared channel prevalence and optional latent-intent selection",
+    "the channel universe is fixed to the Phase 1 synthetic schema",
+    "counterfactual channel effects are simulator-defined and do not imply external validity",
+    "corruption mechanisms are simplified controlled failures rather than browser-specific emulation"
+  ]
+}

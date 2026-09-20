@@ -1,0 +1,1709 @@
+[
+  {
+    "classification": "empirical simulation result",
+    "conditions": "perfect observation; largest sample size; repeated seeds",
+    "ground_truth": "The target paid channel has zero structural and synthetic incremental effect.",
+    "likely_explanation": "observed path presence can receive credit despite a null causal effect",
+    "magnitude": {
+      "mean_target_credit": 0.2528799026930757,
+      "mean_target_truth": 0.0
+    },
+    "measurement_quality": "perfect",
+    "model": "first_touch",
+    "observed_behavior": "Known-null paid channel receives descriptive credit.",
+    "repeatability": {
+      "affected_replications": 5,
+      "rate": 1.0,
+      "replications": 5
+    },
+    "sample_size_dependence": {
+      "large_sample_mean": 0.2528799026930757,
+      "small_sample_mean": 0.12392435589478727
+    },
+    "scenario": "null_paid_channel"
+  },
+  {
+    "classification": "empirical simulation result",
+    "conditions": "perfect observation; largest sample size; repeated seeds",
+    "ground_truth": "The target paid channel has zero structural and synthetic incremental effect.",
+    "likely_explanation": "observed path presence can receive credit despite a null causal effect",
+    "magnitude": {
+      "mean_target_credit": 0.25962065204635937,
+      "mean_target_truth": 0.0
+    },
+    "measurement_quality": "perfect",
+    "model": "last_touch",
+    "observed_behavior": "Known-null paid channel receives descriptive credit.",
+    "repeatability": {
+      "affected_replications": 5,
+      "rate": 1.0,
+      "replications": 5
+    },
+    "sample_size_dependence": {
+      "large_sample_mean": 0.25962065204635937,
+      "small_sample_mean": 0.17102318094180094
+    },
+    "scenario": "null_paid_channel"
+  },
+  {
+    "classification": "empirical simulation result",
+    "conditions": "perfect observation; largest sample size; repeated seeds",
+    "ground_truth": "The target paid channel has zero structural and synthetic incremental effect.",
+    "likely_explanation": "observed path presence can receive credit despite a null causal effect",
+    "magnitude": {
+      "mean_target_credit": 0.3966267153880471,
+      "mean_target_truth": 0.0
+    },
+    "measurement_quality": "perfect",
+    "model": "last_paid_touch",
+    "observed_behavior": "Known-null paid channel receives descriptive credit.",
+    "repeatability": {
+      "affected_replications": 5,
+      "rate": 1.0,
+      "replications": 5
+    },
+    "sample_size_dependence": {
+      "large_sample_mean": 0.3966267153880471,
+      "small_sample_mean": 0.3198969652902126
+    },
+    "scenario": "null_paid_channel"
+  },
+  {
+    "classification": "empirical simulation result",
+    "conditions": "perfect observation; largest sample size; repeated seeds",
+    "ground_truth": "The target paid channel has zero structural and synthetic incremental effect.",
+    "likely_explanation": "observed path presence can receive credit despite a null causal effect",
+    "magnitude": {
+      "mean_target_credit": 0.2726840959978285,
+      "mean_target_truth": 0.0
+    },
+    "measurement_quality": "perfect",
+    "model": "linear",
+    "observed_behavior": "Known-null paid channel receives descriptive credit.",
+    "repeatability": {
+      "affected_replications": 5,
+      "rate": 1.0,
+      "replications": 5
+    },
+    "sample_size_dependence": {
+      "large_sample_mean": 0.2726840959978285,
+      "small_sample_mean": 0.2223701637217513
+    },
+    "scenario": "null_paid_channel"
+  },
+  {
+    "classification": "empirical simulation result",
+    "conditions": "perfect observation; largest sample size; repeated seeds",
+    "ground_truth": "The target paid channel has zero structural and synthetic incremental effect.",
+    "likely_explanation": "observed path presence can receive credit despite a null causal effect",
+    "magnitude": {
+      "mean_target_credit": 0.27578955058491894,
+      "mean_target_truth": 0.0
+    },
+    "measurement_quality": "perfect",
+    "model": "time_decay",
+    "observed_behavior": "Known-null paid channel receives descriptive credit.",
+    "repeatability": {
+      "affected_replications": 5,
+      "rate": 1.0,
+      "replications": 5
+    },
+    "sample_size_dependence": {
+      "large_sample_mean": 0.27578955058491894,
+      "small_sample_mean": 0.22774199900028974
+    },
+    "scenario": "null_paid_channel"
+  },
+  {
+    "classification": "empirical simulation result",
+    "conditions": "perfect observation; largest sample size; repeated seeds",
+    "ground_truth": "The target paid channel has zero structural and synthetic incremental effect.",
+    "likely_explanation": "observed path presence can receive credit despite a null causal effect",
+    "magnitude": {
+      "mean_target_credit": 0.26418439887323614,
+      "mean_target_truth": 0.0
+    },
+    "measurement_quality": "perfect",
+    "model": "position_based",
+    "observed_behavior": "Known-null paid channel receives descriptive credit.",
+    "repeatability": {
+      "affected_replications": 5,
+      "rate": 1.0,
+      "replications": 5
+    },
+    "sample_size_dependence": {
+      "large_sample_mean": 0.26418439887323614,
+      "small_sample_mean": 0.1924116056003684
+    },
+    "scenario": "null_paid_channel"
+  },
+  {
+    "classification": "empirical simulation result",
+    "conditions": "perfect observation; largest sample size; repeated seeds",
+    "ground_truth": "The target paid channel has zero structural and synthetic incremental effect.",
+    "likely_explanation": "observed path presence can receive credit despite a null causal effect",
+    "magnitude": {
+      "mean_target_credit": 0.15314739982679926,
+      "mean_target_truth": 0.0
+    },
+    "measurement_quality": "perfect",
+    "model": "shapley",
+    "observed_behavior": "Known-null paid channel receives descriptive credit.",
+    "repeatability": {
+      "affected_replications": 3,
+      "rate": 0.6,
+      "replications": 5
+    },
+    "sample_size_dependence": {
+      "large_sample_mean": 0.15314739982679926,
+      "small_sample_mean": 0.09010942559495357
+    },
+    "scenario": "null_paid_channel"
+  },
+  {
+    "classification": "empirical simulation result",
+    "conditions": "perfect observation; largest sample size; repeated seeds",
+    "ground_truth": "The target channel remains causally null while appearing frequently.",
+    "likely_explanation": "prevalence can increase descriptive opportunity without creating causal effect",
+    "magnitude": {
+      "mean_target_credit": 0.32981827195865915,
+      "mean_target_truth": 0.0
+    },
+    "measurement_quality": "perfect",
+    "model": "first_touch",
+    "observed_behavior": "High-prevalence null channel receives descriptive credit.",
+    "repeatability": {
+      "affected_replications": 5,
+      "rate": 1.0,
+      "replications": 5
+    },
+    "sample_size_dependence": {
+      "large_sample_mean": 0.32981827195865915,
+      "small_sample_mean": 0.15502619368204046
+    },
+    "scenario": "null_channel_high_prevalence"
+  },
+  {
+    "classification": "empirical simulation result",
+    "conditions": "perfect observation; largest sample size; repeated seeds",
+    "ground_truth": "The target channel remains causally null while appearing frequently.",
+    "likely_explanation": "prevalence can increase descriptive opportunity without creating causal effect",
+    "magnitude": {
+      "mean_target_credit": 0.47051982727244585,
+      "mean_target_truth": 0.0
+    },
+    "measurement_quality": "perfect",
+    "model": "last_touch",
+    "observed_behavior": "High-prevalence null channel receives descriptive credit.",
+    "repeatability": {
+      "affected_replications": 5,
+      "rate": 1.0,
+      "replications": 5
+    },
+    "sample_size_dependence": {
+      "large_sample_mean": 0.47051982727244585,
+      "small_sample_mean": 0.43553039847141456
+    },
+    "scenario": "null_channel_high_prevalence"
+  },
+  {
+    "classification": "empirical simulation result",
+    "conditions": "perfect observation; largest sample size; repeated seeds",
+    "ground_truth": "The target channel remains causally null while appearing frequently.",
+    "likely_explanation": "prevalence can increase descriptive opportunity without creating causal effect",
+    "magnitude": {
+      "mean_target_credit": 0.6144745634554643,
+      "mean_target_truth": 0.0
+    },
+    "measurement_quality": "perfect",
+    "model": "last_paid_touch",
+    "observed_behavior": "High-prevalence null channel receives descriptive credit.",
+    "repeatability": {
+      "affected_replications": 5,
+      "rate": 1.0,
+      "replications": 5
+    },
+    "sample_size_dependence": {
+      "large_sample_mean": 0.6144745634554643,
+      "small_sample_mean": 0.6716593895172335
+    },
+    "scenario": "null_channel_high_prevalence"
+  },
+  {
+    "classification": "empirical simulation result",
+    "conditions": "perfect observation; largest sample size; repeated seeds",
+    "ground_truth": "The target channel remains causally null while appearing frequently.",
+    "likely_explanation": "prevalence can increase descriptive opportunity without creating causal effect",
+    "magnitude": {
+      "mean_target_credit": 0.38896853835452394,
+      "mean_target_truth": 0.0
+    },
+    "measurement_quality": "perfect",
+    "model": "linear",
+    "observed_behavior": "High-prevalence null channel receives descriptive credit.",
+    "repeatability": {
+      "affected_replications": 5,
+      "rate": 1.0,
+      "replications": 5
+    },
+    "sample_size_dependence": {
+      "large_sample_mean": 0.38896853835452394,
+      "small_sample_mean": 0.33191903859998734
+    },
+    "scenario": "null_channel_high_prevalence"
+  },
+  {
+    "classification": "empirical simulation result",
+    "conditions": "perfect observation; largest sample size; repeated seeds",
+    "ground_truth": "The target channel remains causally null while appearing frequently.",
+    "likely_explanation": "prevalence can increase descriptive opportunity without creating causal effect",
+    "magnitude": {
+      "mean_target_credit": 0.42412473673616957,
+      "mean_target_truth": 0.0
+    },
+    "measurement_quality": "perfect",
+    "model": "time_decay",
+    "observed_behavior": "High-prevalence null channel receives descriptive credit.",
+    "repeatability": {
+      "affected_replications": 5,
+      "rate": 1.0,
+      "replications": 5
+    },
+    "sample_size_dependence": {
+      "large_sample_mean": 0.42412473673616957,
+      "small_sample_mean": 0.3998991791944209
+    },
+    "scenario": "null_channel_high_prevalence"
+  },
+  {
+    "classification": "empirical simulation result",
+    "conditions": "perfect observation; largest sample size; repeated seeds",
+    "ground_truth": "The target channel remains causally null while appearing frequently.",
+    "likely_explanation": "prevalence can increase descriptive opportunity without creating causal effect",
+    "magnitude": {
+      "mean_target_credit": 0.395902505400883,
+      "mean_target_truth": 0.0
+    },
+    "measurement_quality": "perfect",
+    "model": "position_based",
+    "observed_behavior": "High-prevalence null channel receives descriptive credit.",
+    "repeatability": {
+      "affected_replications": 5,
+      "rate": 1.0,
+      "replications": 5
+    },
+    "sample_size_dependence": {
+      "large_sample_mean": 0.395902505400883,
+      "small_sample_mean": 0.32606280670350496
+    },
+    "scenario": "null_channel_high_prevalence"
+  },
+  {
+    "classification": "empirical simulation result",
+    "conditions": "perfect observation; largest sample size; repeated seeds",
+    "ground_truth": "The target channel remains causally null while appearing frequently.",
+    "likely_explanation": "prevalence can increase descriptive opportunity without creating causal effect",
+    "magnitude": {
+      "mean_target_credit": 0.2441965064876631,
+      "mean_target_truth": 0.0
+    },
+    "measurement_quality": "perfect",
+    "model": "shapley",
+    "observed_behavior": "High-prevalence null channel receives descriptive credit.",
+    "repeatability": {
+      "affected_replications": 3,
+      "rate": 0.6,
+      "replications": 5
+    },
+    "sample_size_dependence": {
+      "large_sample_mean": 0.2441965064876631,
+      "small_sample_mean": 0.16412186399675172
+    },
+    "scenario": "null_channel_high_prevalence"
+  },
+  {
+    "classification": "empirical simulation result",
+    "conditions": "perfect observation; largest sample size; repeated seeds",
+    "ground_truth": "The target channel is causally null but intentionally positioned late.",
+    "likely_explanation": "purchase proximity can be mistaken for contribution",
+    "magnitude": {
+      "mean_target_credit": 0.09389232502857683,
+      "mean_target_truth": 0.0
+    },
+    "measurement_quality": "perfect",
+    "model": "first_touch",
+    "observed_behavior": "Late-position null channel receives descriptive credit.",
+    "repeatability": {
+      "affected_replications": 5,
+      "rate": 1.0,
+      "replications": 5
+    },
+    "sample_size_dependence": {
+      "large_sample_mean": 0.09389232502857683,
+      "small_sample_mean": 0.0
+    },
+    "scenario": "null_channel_last_touch"
+  },
+  {
+    "classification": "empirical simulation result",
+    "conditions": "perfect observation; largest sample size; repeated seeds",
+    "ground_truth": "The target channel is causally null but intentionally positioned late.",
+    "likely_explanation": "purchase proximity can be mistaken for contribution",
+    "magnitude": {
+      "mean_target_credit": 0.5888387580686536,
+      "mean_target_truth": 0.0
+    },
+    "measurement_quality": "perfect",
+    "model": "last_touch",
+    "observed_behavior": "Late-position null channel receives descriptive credit.",
+    "repeatability": {
+      "affected_replications": 5,
+      "rate": 1.0,
+      "replications": 5
+    },
+    "sample_size_dependence": {
+      "large_sample_mean": 0.5888387580686536,
+      "small_sample_mean": 0.5819073483996511
+    },
+    "scenario": "null_channel_last_touch"
+  },
+  {
+    "classification": "empirical simulation result",
+    "conditions": "perfect observation; largest sample size; repeated seeds",
+    "ground_truth": "The target channel is causally null but intentionally positioned late.",
+    "likely_explanation": "purchase proximity can be mistaken for contribution",
+    "magnitude": {
+      "mean_target_credit": 0.5888387580686535,
+      "mean_target_truth": 0.0
+    },
+    "measurement_quality": "perfect",
+    "model": "last_paid_touch",
+    "observed_behavior": "Late-position null channel receives descriptive credit.",
+    "repeatability": {
+      "affected_replications": 5,
+      "rate": 1.0,
+      "replications": 5
+    },
+    "sample_size_dependence": {
+      "large_sample_mean": 0.5888387580686535,
+      "small_sample_mean": 0.5819073483996511
+    },
+    "scenario": "null_channel_last_touch"
+  },
+  {
+    "classification": "empirical simulation result",
+    "conditions": "perfect observation; largest sample size; repeated seeds",
+    "ground_truth": "The target channel is causally null but intentionally positioned late.",
+    "likely_explanation": "purchase proximity can be mistaken for contribution",
+    "magnitude": {
+      "mean_target_credit": 0.2726840959978285,
+      "mean_target_truth": 0.0
+    },
+    "measurement_quality": "perfect",
+    "model": "linear",
+    "observed_behavior": "Late-position null channel receives descriptive credit.",
+    "repeatability": {
+      "affected_replications": 5,
+      "rate": 1.0,
+      "replications": 5
+    },
+    "sample_size_dependence": {
+      "large_sample_mean": 0.2726840959978285,
+      "small_sample_mean": 0.2223701637217513
+    },
+    "scenario": "null_channel_last_touch"
+  },
+  {
+    "classification": "empirical simulation result",
+    "conditions": "perfect observation; largest sample size; repeated seeds",
+    "ground_truth": "The target channel is causally null but intentionally positioned late.",
+    "likely_explanation": "purchase proximity can be mistaken for contribution",
+    "magnitude": {
+      "mean_target_credit": 0.3965935271581739,
+      "mean_target_truth": 0.0
+    },
+    "measurement_quality": "perfect",
+    "model": "time_decay",
+    "observed_behavior": "Late-position null channel receives descriptive credit.",
+    "repeatability": {
+      "affected_replications": 5,
+      "rate": 1.0,
+      "replications": 5
+    },
+    "sample_size_dependence": {
+      "large_sample_mean": 0.3965935271581739,
+      "small_sample_mean": 0.3756697248555821
+    },
+    "scenario": "null_channel_last_touch"
+  },
+  {
+    "classification": "empirical simulation result",
+    "conditions": "perfect observation; largest sample size; repeated seeds",
+    "ground_truth": "The target channel is causally null but intentionally positioned late.",
+    "likely_explanation": "purchase proximity can be mistaken for contribution",
+    "magnitude": {
+      "mean_target_credit": 0.307633162767831,
+      "mean_target_truth": 0.0
+    },
+    "measurement_quality": "perfect",
+    "model": "position_based",
+    "observed_behavior": "Late-position null channel receives descriptive credit.",
+    "repeatability": {
+      "affected_replications": 5,
+      "rate": 1.0,
+      "replications": 5
+    },
+    "sample_size_dependence": {
+      "large_sample_mean": 0.307633162767831,
+      "small_sample_mean": 0.249803567912981
+    },
+    "scenario": "null_channel_last_touch"
+  },
+  {
+    "classification": "empirical simulation result",
+    "conditions": "perfect observation; largest sample size; repeated seeds",
+    "ground_truth": "The target channel is causally null but intentionally positioned late.",
+    "likely_explanation": "purchase proximity can be mistaken for contribution",
+    "magnitude": {
+      "mean_target_credit": 0.27001849736994876,
+      "mean_target_truth": 0.0
+    },
+    "measurement_quality": "perfect",
+    "model": "markov_removal",
+    "observed_behavior": "Late-position null channel receives descriptive credit.",
+    "repeatability": {
+      "affected_replications": 3,
+      "rate": 0.6,
+      "replications": 5
+    },
+    "sample_size_dependence": {
+      "large_sample_mean": 0.27001849736994876,
+      "small_sample_mean": 0.24891957629703473
+    },
+    "scenario": "null_channel_last_touch"
+  },
+  {
+    "classification": "empirical simulation result",
+    "conditions": "perfect observation; largest sample size; repeated seeds",
+    "ground_truth": "The target channel is causally null but intentionally positioned late.",
+    "likely_explanation": "purchase proximity can be mistaken for contribution",
+    "magnitude": {
+      "mean_target_credit": 0.15314739982679926,
+      "mean_target_truth": 0.0
+    },
+    "measurement_quality": "perfect",
+    "model": "shapley",
+    "observed_behavior": "Late-position null channel receives descriptive credit.",
+    "repeatability": {
+      "affected_replications": 3,
+      "rate": 0.6,
+      "replications": 5
+    },
+    "sample_size_dependence": {
+      "large_sample_mean": 0.15314739982679926,
+      "small_sample_mean": 0.09010942559495357
+    },
+    "scenario": "null_channel_last_touch"
+  },
+  {
+    "classification": "empirical simulation result",
+    "conditions": "perfect observation; largest sample size; repeated seeds",
+    "ground_truth": "The target channel is causally null but exposure is selected by latent intent.",
+    "likely_explanation": "selection on latent intent creates observational association",
+    "magnitude": {
+      "mean_target_credit": 0.37171854515044983,
+      "mean_target_truth": 0.0
+    },
+    "measurement_quality": "perfect",
+    "model": "first_touch",
+    "observed_behavior": "Intent-selected null channel receives descriptive credit.",
+    "repeatability": {
+      "affected_replications": 5,
+      "rate": 1.0,
+      "replications": 5
+    },
+    "sample_size_dependence": {
+      "large_sample_mean": 0.37171854515044983,
+      "small_sample_mean": 0.41634444016438826
+    },
+    "scenario": "null_channel_high_intent"
+  },
+  {
+    "classification": "empirical simulation result",
+    "conditions": "perfect observation; largest sample size; repeated seeds",
+    "ground_truth": "The target channel is causally null but exposure is selected by latent intent.",
+    "likely_explanation": "selection on latent intent creates observational association",
+    "magnitude": {
+      "mean_target_credit": 0.3992562016174706,
+      "mean_target_truth": 0.0
+    },
+    "measurement_quality": "perfect",
+    "model": "last_touch",
+    "observed_behavior": "Intent-selected null channel receives descriptive credit.",
+    "repeatability": {
+      "affected_replications": 5,
+      "rate": 1.0,
+      "replications": 5
+    },
+    "sample_size_dependence": {
+      "large_sample_mean": 0.3992562016174706,
+      "small_sample_mean": 0.4157274077178286
+    },
+    "scenario": "null_channel_high_intent"
+  },
+  {
+    "classification": "empirical simulation result",
+    "conditions": "perfect observation; largest sample size; repeated seeds",
+    "ground_truth": "The target channel is causally null but exposure is selected by latent intent.",
+    "likely_explanation": "selection on latent intent creates observational association",
+    "magnitude": {
+      "mean_target_credit": 0.5359757146531569,
+      "mean_target_truth": 0.0
+    },
+    "measurement_quality": "perfect",
+    "model": "last_paid_touch",
+    "observed_behavior": "Intent-selected null channel receives descriptive credit.",
+    "repeatability": {
+      "affected_replications": 5,
+      "rate": 1.0,
+      "replications": 5
+    },
+    "sample_size_dependence": {
+      "large_sample_mean": 0.5359757146531569,
+      "small_sample_mean": 0.4968858289963027
+    },
+    "scenario": "null_channel_high_intent"
+  },
+  {
+    "classification": "empirical simulation result",
+    "conditions": "perfect observation; largest sample size; repeated seeds",
+    "ground_truth": "The target channel is causally null but exposure is selected by latent intent.",
+    "likely_explanation": "selection on latent intent creates observational association",
+    "magnitude": {
+      "mean_target_credit": 0.36895719547002,
+      "mean_target_truth": 0.0
+    },
+    "measurement_quality": "perfect",
+    "model": "linear",
+    "observed_behavior": "Intent-selected null channel receives descriptive credit.",
+    "repeatability": {
+      "affected_replications": 5,
+      "rate": 1.0,
+      "replications": 5
+    },
+    "sample_size_dependence": {
+      "large_sample_mean": 0.36895719547002,
+      "small_sample_mean": 0.3585808849864603
+    },
+    "scenario": "null_channel_high_intent"
+  },
+  {
+    "classification": "empirical simulation result",
+    "conditions": "perfect observation; largest sample size; repeated seeds",
+    "ground_truth": "The target channel is causally null but exposure is selected by latent intent.",
+    "likely_explanation": "selection on latent intent creates observational association",
+    "magnitude": {
+      "mean_target_credit": 0.38296295328587987,
+      "mean_target_truth": 0.0
+    },
+    "measurement_quality": "perfect",
+    "model": "time_decay",
+    "observed_behavior": "Intent-selected null channel receives descriptive credit.",
+    "repeatability": {
+      "affected_replications": 5,
+      "rate": 1.0,
+      "replications": 5
+    },
+    "sample_size_dependence": {
+      "large_sample_mean": 0.38296295328587987,
+      "small_sample_mean": 0.39210955119891355
+    },
+    "scenario": "null_channel_high_intent"
+  },
+  {
+    "classification": "empirical simulation result",
+    "conditions": "perfect observation; largest sample size; repeated seeds",
+    "ground_truth": "The target channel is causally null but exposure is selected by latent intent.",
+    "likely_explanation": "selection on latent intent creates observational association",
+    "magnitude": {
+      "mean_target_credit": 0.3763960613363138,
+      "mean_target_truth": 0.0
+    },
+    "measurement_quality": "perfect",
+    "model": "position_based",
+    "observed_behavior": "Intent-selected null channel receives descriptive credit.",
+    "repeatability": {
+      "affected_replications": 5,
+      "rate": 1.0,
+      "replications": 5
+    },
+    "sample_size_dependence": {
+      "large_sample_mean": 0.3763960613363138,
+      "small_sample_mean": 0.3893374896775696
+    },
+    "scenario": "null_channel_high_intent"
+  },
+  {
+    "classification": "empirical simulation result",
+    "conditions": "perfect observation; largest sample size; repeated seeds",
+    "ground_truth": "The target channel is causally null but exposure is selected by latent intent.",
+    "likely_explanation": "selection on latent intent creates observational association",
+    "magnitude": {
+      "mean_target_credit": 0.582475679133543,
+      "mean_target_truth": 0.0
+    },
+    "measurement_quality": "perfect",
+    "model": "shapley",
+    "observed_behavior": "Intent-selected null channel receives descriptive credit.",
+    "repeatability": {
+      "affected_replications": 5,
+      "rate": 1.0,
+      "replications": 5
+    },
+    "sample_size_dependence": {
+      "large_sample_mean": 0.582475679133543,
+      "small_sample_mean": 0.2803824396328272
+    },
+    "scenario": "null_channel_high_intent"
+  },
+  {
+    "classification": "empirical simulation result",
+    "conditions": "perfect observation; largest sample size; repeated seeds",
+    "ground_truth": "The target channel is causally null, intent-selected, and late in the path.",
+    "likely_explanation": "selection and temporal proximity compound descriptive credit",
+    "magnitude": {
+      "mean_target_credit": 0.11124691930152271,
+      "mean_target_truth": 0.0
+    },
+    "measurement_quality": "perfect",
+    "model": "first_touch",
+    "observed_behavior": "Retargeting-like null channel receives descriptive credit.",
+    "repeatability": {
+      "affected_replications": 5,
+      "rate": 1.0,
+      "replications": 5
+    },
+    "sample_size_dependence": {
+      "large_sample_mean": 0.11124691930152271,
+      "small_sample_mean": 0.037101926813581695
+    },
+    "scenario": "null_channel_retargeting"
+  },
+  {
+    "classification": "empirical simulation result",
+    "conditions": "perfect observation; largest sample size; repeated seeds",
+    "ground_truth": "The target channel is causally null, intent-selected, and late in the path.",
+    "likely_explanation": "selection and temporal proximity compound descriptive credit",
+    "magnitude": {
+      "mean_target_credit": 0.7886196975777313,
+      "mean_target_truth": 0.0
+    },
+    "measurement_quality": "perfect",
+    "model": "last_touch",
+    "observed_behavior": "Retargeting-like null channel receives descriptive credit.",
+    "repeatability": {
+      "affected_replications": 5,
+      "rate": 1.0,
+      "replications": 5
+    },
+    "sample_size_dependence": {
+      "large_sample_mean": 0.7886196975777313,
+      "small_sample_mean": 0.8438932829208163
+    },
+    "scenario": "null_channel_retargeting"
+  },
+  {
+    "classification": "empirical simulation result",
+    "conditions": "perfect observation; largest sample size; repeated seeds",
+    "ground_truth": "The target channel is causally null, intent-selected, and late in the path.",
+    "likely_explanation": "selection and temporal proximity compound descriptive credit",
+    "magnitude": {
+      "mean_target_credit": 0.7886196975777313,
+      "mean_target_truth": 0.0
+    },
+    "measurement_quality": "perfect",
+    "model": "last_paid_touch",
+    "observed_behavior": "Retargeting-like null channel receives descriptive credit.",
+    "repeatability": {
+      "affected_replications": 5,
+      "rate": 1.0,
+      "replications": 5
+    },
+    "sample_size_dependence": {
+      "large_sample_mean": 0.7886196975777313,
+      "small_sample_mean": 0.8438932829208163
+    },
+    "scenario": "null_channel_retargeting"
+  },
+  {
+    "classification": "empirical simulation result",
+    "conditions": "perfect observation; largest sample size; repeated seeds",
+    "ground_truth": "The target channel is causally null, intent-selected, and late in the path.",
+    "likely_explanation": "selection and temporal proximity compound descriptive credit",
+    "magnitude": {
+      "mean_target_credit": 0.36376706880724424,
+      "mean_target_truth": 0.0
+    },
+    "measurement_quality": "perfect",
+    "model": "linear",
+    "observed_behavior": "Retargeting-like null channel receives descriptive credit.",
+    "repeatability": {
+      "affected_replications": 5,
+      "rate": 1.0,
+      "replications": 5
+    },
+    "sample_size_dependence": {
+      "large_sample_mean": 0.36376706880724424,
+      "small_sample_mean": 0.338765975320153
+    },
+    "scenario": "null_channel_retargeting"
+  },
+  {
+    "classification": "empirical simulation result",
+    "conditions": "perfect observation; largest sample size; repeated seeds",
+    "ground_truth": "The target channel is causally null, intent-selected, and late in the path.",
+    "likely_explanation": "selection and temporal proximity compound descriptive credit",
+    "magnitude": {
+      "mean_target_credit": 0.529399596626216,
+      "mean_target_truth": 0.0
+    },
+    "measurement_quality": "perfect",
+    "model": "time_decay",
+    "observed_behavior": "Retargeting-like null channel receives descriptive credit.",
+    "repeatability": {
+      "affected_replications": 5,
+      "rate": 1.0,
+      "replications": 5
+    },
+    "sample_size_dependence": {
+      "large_sample_mean": 0.529399596626216,
+      "small_sample_mean": 0.5430019562073188
+    },
+    "scenario": "null_channel_retargeting"
+  },
+  {
+    "classification": "empirical simulation result",
+    "conditions": "perfect observation; largest sample size; repeated seeds",
+    "ground_truth": "The target channel is causally null, intent-selected, and late in the path.",
+    "likely_explanation": "selection and temporal proximity compound descriptive credit",
+    "magnitude": {
+      "mean_target_credit": 0.408576018592013,
+      "mean_target_truth": 0.0
+    },
+    "measurement_quality": "perfect",
+    "model": "position_based",
+    "observed_behavior": "Retargeting-like null channel receives descriptive credit.",
+    "repeatability": {
+      "affected_replications": 5,
+      "rate": 1.0,
+      "replications": 5
+    },
+    "sample_size_dependence": {
+      "large_sample_mean": 0.408576018592013,
+      "small_sample_mean": 0.3882211942897933
+    },
+    "scenario": "null_channel_retargeting"
+  },
+  {
+    "classification": "empirical simulation result",
+    "conditions": "perfect observation; largest sample size; repeated seeds",
+    "ground_truth": "The target channel is causally null, intent-selected, and late in the path.",
+    "likely_explanation": "selection and temporal proximity compound descriptive credit",
+    "magnitude": {
+      "mean_target_credit": 0.6874901057782256,
+      "mean_target_truth": 0.0
+    },
+    "measurement_quality": "perfect",
+    "model": "markov_removal",
+    "observed_behavior": "Retargeting-like null channel receives descriptive credit.",
+    "repeatability": {
+      "affected_replications": 4,
+      "rate": 0.8,
+      "replications": 5
+    },
+    "sample_size_dependence": {
+      "large_sample_mean": 0.6874901057782256,
+      "small_sample_mean": 0.31384827036848173
+    },
+    "scenario": "null_channel_retargeting"
+  },
+  {
+    "classification": "empirical simulation result",
+    "conditions": "perfect observation; largest sample size; repeated seeds",
+    "ground_truth": "The target channel is causally null, intent-selected, and late in the path.",
+    "likely_explanation": "selection and temporal proximity compound descriptive credit",
+    "magnitude": {
+      "mean_target_credit": 0.5963640591730384,
+      "mean_target_truth": 0.0
+    },
+    "measurement_quality": "perfect",
+    "model": "shapley",
+    "observed_behavior": "Retargeting-like null channel receives descriptive credit.",
+    "repeatability": {
+      "affected_replications": 5,
+      "rate": 1.0,
+      "replications": 5
+    },
+    "sample_size_dependence": {
+      "large_sample_mean": 0.5963640591730384,
+      "small_sample_mean": 0.37207118324580946
+    },
+    "scenario": "null_channel_retargeting"
+  },
+  {
+    "classification": "empirical simulation result",
+    "conditions": "perfect observation; largest sample size; repeated seeds",
+    "ground_truth": "Brand-search capture has zero structural effect in this synthetic world.",
+    "likely_explanation": "late observed proximity captures demand created elsewhere",
+    "magnitude": {
+      "mean_target_credit": 0.11862653125112083,
+      "mean_target_truth": 0.0
+    },
+    "measurement_quality": "perfect",
+    "model": "first_touch",
+    "observed_behavior": "Demand-capture channel receives credit despite zero effect.",
+    "repeatability": {
+      "affected_replications": 5,
+      "rate": 1.0,
+      "replications": 5
+    },
+    "sample_size_dependence": {
+      "large_sample_mean": 0.11862653125112083,
+      "small_sample_mean": 0.14329202745104386
+    },
+    "scenario": "demand_capture"
+  },
+  {
+    "classification": "empirical simulation result",
+    "conditions": "perfect observation; largest sample size; repeated seeds",
+    "ground_truth": "Brand-search capture has zero structural effect in this synthetic world.",
+    "likely_explanation": "late observed proximity captures demand created elsewhere",
+    "magnitude": {
+      "mean_target_credit": 0.5342280782218771,
+      "mean_target_truth": 0.0
+    },
+    "measurement_quality": "perfect",
+    "model": "last_touch",
+    "observed_behavior": "Demand-capture channel receives credit despite zero effect.",
+    "repeatability": {
+      "affected_replications": 5,
+      "rate": 1.0,
+      "replications": 5
+    },
+    "sample_size_dependence": {
+      "large_sample_mean": 0.5342280782218771,
+      "small_sample_mean": 0.4704365600698394
+    },
+    "scenario": "demand_capture"
+  },
+  {
+    "classification": "empirical simulation result",
+    "conditions": "perfect observation; largest sample size; repeated seeds",
+    "ground_truth": "Brand-search capture has zero structural effect in this synthetic world.",
+    "likely_explanation": "late observed proximity captures demand created elsewhere",
+    "magnitude": {
+      "mean_target_credit": 0.5342280782218771,
+      "mean_target_truth": 0.0
+    },
+    "measurement_quality": "perfect",
+    "model": "last_paid_touch",
+    "observed_behavior": "Demand-capture channel receives credit despite zero effect.",
+    "repeatability": {
+      "affected_replications": 5,
+      "rate": 1.0,
+      "replications": 5
+    },
+    "sample_size_dependence": {
+      "large_sample_mean": 0.5342280782218771,
+      "small_sample_mean": 0.4704365600698394
+    },
+    "scenario": "demand_capture"
+  },
+  {
+    "classification": "empirical simulation result",
+    "conditions": "perfect observation; largest sample size; repeated seeds",
+    "ground_truth": "Brand-search capture has zero structural effect in this synthetic world.",
+    "likely_explanation": "late observed proximity captures demand created elsewhere",
+    "magnitude": {
+      "mean_target_credit": 0.27601877869862185,
+      "mean_target_truth": 0.0
+    },
+    "measurement_quality": "perfect",
+    "model": "linear",
+    "observed_behavior": "Demand-capture channel receives credit despite zero effect.",
+    "repeatability": {
+      "affected_replications": 5,
+      "rate": 1.0,
+      "replications": 5
+    },
+    "sample_size_dependence": {
+      "large_sample_mean": 0.27601877869862185,
+      "small_sample_mean": 0.27047255788983066
+    },
+    "scenario": "demand_capture"
+  },
+  {
+    "classification": "empirical simulation result",
+    "conditions": "perfect observation; largest sample size; repeated seeds",
+    "ground_truth": "Brand-search capture has zero structural effect in this synthetic world.",
+    "likely_explanation": "late observed proximity captures demand created elsewhere",
+    "magnitude": {
+      "mean_target_credit": 0.3775085706807153,
+      "mean_target_truth": 0.0
+    },
+    "measurement_quality": "perfect",
+    "model": "time_decay",
+    "observed_behavior": "Demand-capture channel receives credit despite zero effect.",
+    "repeatability": {
+      "affected_replications": 5,
+      "rate": 1.0,
+      "replications": 5
+    },
+    "sample_size_dependence": {
+      "large_sample_mean": 0.3775085706807153,
+      "small_sample_mean": 0.35011277295915266
+    },
+    "scenario": "demand_capture"
+  },
+  {
+    "classification": "empirical simulation result",
+    "conditions": "perfect observation; largest sample size; repeated seeds",
+    "ground_truth": "Brand-search capture has zero structural effect in this synthetic world.",
+    "likely_explanation": "late observed proximity captures demand created elsewhere",
+    "magnitude": {
+      "mean_target_credit": 0.3028641788055807,
+      "mean_target_truth": 0.0
+    },
+    "measurement_quality": "perfect",
+    "model": "position_based",
+    "observed_behavior": "Demand-capture channel receives credit despite zero effect.",
+    "repeatability": {
+      "affected_replications": 5,
+      "rate": 1.0,
+      "replications": 5
+    },
+    "sample_size_dependence": {
+      "large_sample_mean": 0.3028641788055807,
+      "small_sample_mean": 0.2858927963217646
+    },
+    "scenario": "demand_capture"
+  },
+  {
+    "classification": "empirical simulation result",
+    "conditions": "perfect observation; largest sample size; repeated seeds",
+    "ground_truth": "Brand-search capture has zero structural effect in this synthetic world.",
+    "likely_explanation": "late observed proximity captures demand created elsewhere",
+    "magnitude": {
+      "mean_target_credit": 0.345094559828537,
+      "mean_target_truth": 0.0
+    },
+    "measurement_quality": "perfect",
+    "model": "markov_removal",
+    "observed_behavior": "Demand-capture channel receives credit despite zero effect.",
+    "repeatability": {
+      "affected_replications": 5,
+      "rate": 1.0,
+      "replications": 5
+    },
+    "sample_size_dependence": {
+      "large_sample_mean": 0.345094559828537,
+      "small_sample_mean": 0.28381888520156207
+    },
+    "scenario": "demand_capture"
+  },
+  {
+    "classification": "empirical simulation result",
+    "conditions": "perfect observation; largest sample size; repeated seeds",
+    "ground_truth": "Brand-search capture has zero structural effect in this synthetic world.",
+    "likely_explanation": "late observed proximity captures demand created elsewhere",
+    "magnitude": {
+      "mean_target_credit": 0.5209193032844175,
+      "mean_target_truth": 0.0
+    },
+    "measurement_quality": "perfect",
+    "model": "shapley",
+    "observed_behavior": "Demand-capture channel receives credit despite zero effect.",
+    "repeatability": {
+      "affected_replications": 5,
+      "rate": 1.0,
+      "replications": 5
+    },
+    "sample_size_dependence": {
+      "large_sample_mean": 0.5209193032844175,
+      "small_sample_mean": 0.39861957385011665
+    },
+    "scenario": "demand_capture"
+  },
+  {
+    "classification": "empirical simulation result",
+    "conditions": "perfect observation; largest sample size; repeated seeds",
+    "ground_truth": "The retargeting channel has zero structural effect and high-intent selection.",
+    "likely_explanation": "selection into exposure produces association without incremental contribution",
+    "magnitude": {
+      "mean_target_credit": 0.1032162579280604,
+      "mean_target_truth": 0.0
+    },
+    "measurement_quality": "perfect",
+    "model": "first_touch",
+    "observed_behavior": "Retargeting-selected channel receives credit despite zero effect.",
+    "repeatability": {
+      "affected_replications": 5,
+      "rate": 1.0,
+      "replications": 5
+    },
+    "sample_size_dependence": {
+      "large_sample_mean": 0.1032162579280604,
+      "small_sample_mean": 0.1715431760669549
+    },
+    "scenario": "retargeting_selection"
+  },
+  {
+    "classification": "empirical simulation result",
+    "conditions": "perfect observation; largest sample size; repeated seeds",
+    "ground_truth": "The retargeting channel has zero structural effect and high-intent selection.",
+    "likely_explanation": "selection into exposure produces association without incremental contribution",
+    "magnitude": {
+      "mean_target_credit": 0.8063806860156364,
+      "mean_target_truth": 0.0
+    },
+    "measurement_quality": "perfect",
+    "model": "last_touch",
+    "observed_behavior": "Retargeting-selected channel receives credit despite zero effect.",
+    "repeatability": {
+      "affected_replications": 5,
+      "rate": 1.0,
+      "replications": 5
+    },
+    "sample_size_dependence": {
+      "large_sample_mean": 0.8063806860156364,
+      "small_sample_mean": 0.7548737941785088
+    },
+    "scenario": "retargeting_selection"
+  },
+  {
+    "classification": "empirical simulation result",
+    "conditions": "perfect observation; largest sample size; repeated seeds",
+    "ground_truth": "The retargeting channel has zero structural effect and high-intent selection.",
+    "likely_explanation": "selection into exposure produces association without incremental contribution",
+    "magnitude": {
+      "mean_target_credit": 0.8063806860156364,
+      "mean_target_truth": 0.0
+    },
+    "measurement_quality": "perfect",
+    "model": "last_paid_touch",
+    "observed_behavior": "Retargeting-selected channel receives credit despite zero effect.",
+    "repeatability": {
+      "affected_replications": 5,
+      "rate": 1.0,
+      "replications": 5
+    },
+    "sample_size_dependence": {
+      "large_sample_mean": 0.8063806860156364,
+      "small_sample_mean": 0.7548737941785088
+    },
+    "scenario": "retargeting_selection"
+  },
+  {
+    "classification": "empirical simulation result",
+    "conditions": "perfect observation; largest sample size; repeated seeds",
+    "ground_truth": "The retargeting channel has zero structural effect and high-intent selection.",
+    "likely_explanation": "selection into exposure produces association without incremental contribution",
+    "magnitude": {
+      "mean_target_credit": 0.3874883785822386,
+      "mean_target_truth": 0.0
+    },
+    "measurement_quality": "perfect",
+    "model": "linear",
+    "observed_behavior": "Retargeting-selected channel receives credit despite zero effect.",
+    "repeatability": {
+      "affected_replications": 5,
+      "rate": 1.0,
+      "replications": 5
+    },
+    "sample_size_dependence": {
+      "large_sample_mean": 0.3874883785822386,
+      "small_sample_mean": 0.41883644826441807
+    },
+    "scenario": "retargeting_selection"
+  },
+  {
+    "classification": "empirical simulation result",
+    "conditions": "perfect observation; largest sample size; repeated seeds",
+    "ground_truth": "The retargeting channel has zero structural effect and high-intent selection.",
+    "likely_explanation": "selection into exposure produces association without incremental contribution",
+    "magnitude": {
+      "mean_target_credit": 0.5402430161825906,
+      "mean_target_truth": 0.0
+    },
+    "measurement_quality": "perfect",
+    "model": "time_decay",
+    "observed_behavior": "Retargeting-selected channel receives credit despite zero effect.",
+    "repeatability": {
+      "affected_replications": 5,
+      "rate": 1.0,
+      "replications": 5
+    },
+    "sample_size_dependence": {
+      "large_sample_mean": 0.5402430161825906,
+      "small_sample_mean": 0.5694729158119068
+    },
+    "scenario": "retargeting_selection"
+  },
+  {
+    "classification": "empirical simulation result",
+    "conditions": "perfect observation; largest sample size; repeated seeds",
+    "ground_truth": "The retargeting channel has zero structural effect and high-intent selection.",
+    "likely_explanation": "selection into exposure produces association without incremental contribution",
+    "magnitude": {
+      "mean_target_credit": 0.42119702020579997,
+      "mean_target_truth": 0.0
+    },
+    "measurement_quality": "perfect",
+    "model": "position_based",
+    "observed_behavior": "Retargeting-selected channel receives credit despite zero effect.",
+    "repeatability": {
+      "affected_replications": 5,
+      "rate": 1.0,
+      "replications": 5
+    },
+    "sample_size_dependence": {
+      "large_sample_mean": 0.42119702020579997,
+      "small_sample_mean": 0.43928635278500006
+    },
+    "scenario": "retargeting_selection"
+  },
+  {
+    "classification": "empirical simulation result",
+    "conditions": "perfect observation; largest sample size; repeated seeds",
+    "ground_truth": "The retargeting channel has zero structural effect and high-intent selection.",
+    "likely_explanation": "selection into exposure produces association without incremental contribution",
+    "magnitude": {
+      "mean_target_credit": 0.2319272789366645,
+      "mean_target_truth": 0.0
+    },
+    "measurement_quality": "perfect",
+    "model": "markov_removal",
+    "observed_behavior": "Retargeting-selected channel receives credit despite zero effect.",
+    "repeatability": {
+      "affected_replications": 4,
+      "rate": 0.8,
+      "replications": 5
+    },
+    "sample_size_dependence": {
+      "large_sample_mean": 0.2319272789366645,
+      "small_sample_mean": 0.1046808609440665
+    },
+    "scenario": "retargeting_selection"
+  },
+  {
+    "classification": "empirical simulation result",
+    "conditions": "perfect observation; largest sample size; repeated seeds",
+    "ground_truth": "The retargeting channel has zero structural effect and high-intent selection.",
+    "likely_explanation": "selection into exposure produces association without incremental contribution",
+    "magnitude": {
+      "mean_target_credit": 0.6953945782244881,
+      "mean_target_truth": 0.0
+    },
+    "measurement_quality": "perfect",
+    "model": "shapley",
+    "observed_behavior": "Retargeting-selected channel receives credit despite zero effect.",
+    "repeatability": {
+      "affected_replications": 5,
+      "rate": 1.0,
+      "replications": 5
+    },
+    "sample_size_dependence": {
+      "large_sample_mean": 0.6953945782244881,
+      "small_sample_mean": 0.3724188278923996
+    },
+    "scenario": "retargeting_selection"
+  },
+  {
+    "classification": "mathematical consequence",
+    "conditions": "negative synthetic incremental effect",
+    "ground_truth": "The target channel has a negative incremental effect.",
+    "likely_explanation": "The Phase 1 credit interface is non-negative and normalized; negative causal effects are outside its representational range.",
+    "magnitude": {
+      "mean_target_credit": 0.05408971655132653,
+      "mean_target_truth": -0.03782765598152362
+    },
+    "measurement_quality": "perfect",
+    "model": "first_touch",
+    "observed_behavior": "Final normalized descriptive credit cannot express a negative channel contribution.",
+    "repeatability": {
+      "affected_replications": 5,
+      "rate": 1.0,
+      "replications": 5
+    },
+    "sample_size_dependence": {
+      "large_sample_mean": 0.05408971655132653,
+      "small_sample_mean": 0.06443009872937808
+    },
+    "scenario": "harmful_channel"
+  },
+  {
+    "classification": "empirical simulation result",
+    "conditions": "50% random touch loss versus the same model under perfect observation",
+    "ground_truth": "Latent synthetic truth is unchanged by observation corruption.",
+    "likely_explanation": "missing measurement changes the path evidence available to the model",
+    "magnitude": {
+      "mean_l1_from_perfect": 0.37539991193168437
+    },
+    "measurement_quality": "missing_50",
+    "model": "first_touch",
+    "observed_behavior": "Model credit moves materially as observed touches disappear.",
+    "repeatability": {
+      "affected_replications": 100,
+      "rate": 1.0,
+      "replications": 100
+    },
+    "sample_size_dependence": {},
+    "scenario": "all scenarios"
+  },
+  {
+    "classification": "mathematical consequence",
+    "conditions": "negative synthetic incremental effect",
+    "ground_truth": "The target channel has a negative incremental effect.",
+    "likely_explanation": "The Phase 1 credit interface is non-negative and normalized; negative causal effects are outside its representational range.",
+    "magnitude": {
+      "mean_target_credit": 0.12854849480267963,
+      "mean_target_truth": -0.03782765598152362
+    },
+    "measurement_quality": "perfect",
+    "model": "last_touch",
+    "observed_behavior": "Final normalized descriptive credit cannot express a negative channel contribution.",
+    "repeatability": {
+      "affected_replications": 5,
+      "rate": 1.0,
+      "replications": 5
+    },
+    "sample_size_dependence": {
+      "large_sample_mean": 0.12854849480267963,
+      "small_sample_mean": 0.07240413717279569
+    },
+    "scenario": "harmful_channel"
+  },
+  {
+    "classification": "empirical simulation result",
+    "conditions": "50% random touch loss versus the same model under perfect observation",
+    "ground_truth": "Latent synthetic truth is unchanged by observation corruption.",
+    "likely_explanation": "missing measurement changes the path evidence available to the model",
+    "magnitude": {
+      "mean_l1_from_perfect": 0.4197620939898785
+    },
+    "measurement_quality": "missing_50",
+    "model": "last_touch",
+    "observed_behavior": "Model credit moves materially as observed touches disappear.",
+    "repeatability": {
+      "affected_replications": 100,
+      "rate": 1.0,
+      "replications": 100
+    },
+    "sample_size_dependence": {},
+    "scenario": "all scenarios"
+  },
+  {
+    "classification": "mathematical consequence",
+    "conditions": "negative synthetic incremental effect",
+    "ground_truth": "The target channel has a negative incremental effect.",
+    "likely_explanation": "The Phase 1 credit interface is non-negative and normalized; negative causal effects are outside its representational range.",
+    "magnitude": {
+      "mean_target_credit": 0.19035430762201946,
+      "mean_target_truth": -0.03782765598152362
+    },
+    "measurement_quality": "perfect",
+    "model": "last_paid_touch",
+    "observed_behavior": "Final normalized descriptive credit cannot express a negative channel contribution.",
+    "repeatability": {
+      "affected_replications": 5,
+      "rate": 1.0,
+      "replications": 5
+    },
+    "sample_size_dependence": {
+      "large_sample_mean": 0.19035430762201946,
+      "small_sample_mean": 0.13802013289999218
+    },
+    "scenario": "harmful_channel"
+  },
+  {
+    "classification": "empirical simulation result",
+    "conditions": "50% random touch loss versus the same model under perfect observation",
+    "ground_truth": "Latent synthetic truth is unchanged by observation corruption.",
+    "likely_explanation": "missing measurement changes the path evidence available to the model",
+    "magnitude": {
+      "mean_l1_from_perfect": 0.4605606925351861
+    },
+    "measurement_quality": "missing_50",
+    "model": "last_paid_touch",
+    "observed_behavior": "Model credit moves materially as observed touches disappear.",
+    "repeatability": {
+      "affected_replications": 100,
+      "rate": 1.0,
+      "replications": 100
+    },
+    "sample_size_dependence": {},
+    "scenario": "all scenarios"
+  },
+  {
+    "classification": "mathematical consequence",
+    "conditions": "negative synthetic incremental effect",
+    "ground_truth": "The target channel has a negative incremental effect.",
+    "likely_explanation": "The Phase 1 credit interface is non-negative and normalized; negative causal effects are outside its representational range.",
+    "magnitude": {
+      "mean_target_credit": 0.09253946187556628,
+      "mean_target_truth": -0.03782765598152362
+    },
+    "measurement_quality": "perfect",
+    "model": "linear",
+    "observed_behavior": "Final normalized descriptive credit cannot express a negative channel contribution.",
+    "repeatability": {
+      "affected_replications": 5,
+      "rate": 1.0,
+      "replications": 5
+    },
+    "sample_size_dependence": {
+      "large_sample_mean": 0.09253946187556628,
+      "small_sample_mean": 0.08062622022211197
+    },
+    "scenario": "harmful_channel"
+  },
+  {
+    "classification": "empirical simulation result",
+    "conditions": "50% random touch loss versus the same model under perfect observation",
+    "ground_truth": "Latent synthetic truth is unchanged by observation corruption.",
+    "likely_explanation": "missing measurement changes the path evidence available to the model",
+    "magnitude": {
+      "mean_l1_from_perfect": 0.2668405726405496
+    },
+    "measurement_quality": "missing_50",
+    "model": "linear",
+    "observed_behavior": "Model credit moves materially as observed touches disappear.",
+    "repeatability": {
+      "affected_replications": 100,
+      "rate": 1.0,
+      "replications": 100
+    },
+    "sample_size_dependence": {},
+    "scenario": "all scenarios"
+  },
+  {
+    "classification": "mathematical consequence",
+    "conditions": "negative synthetic incremental effect",
+    "ground_truth": "The target channel has a negative incremental effect.",
+    "likely_explanation": "The Phase 1 credit interface is non-negative and normalized; negative causal effects are outside its representational range.",
+    "magnitude": {
+      "mean_target_credit": 0.1065499930507668,
+      "mean_target_truth": -0.03782765598152362
+    },
+    "measurement_quality": "perfect",
+    "model": "time_decay",
+    "observed_behavior": "Final normalized descriptive credit cannot express a negative channel contribution.",
+    "repeatability": {
+      "affected_replications": 5,
+      "rate": 1.0,
+      "replications": 5
+    },
+    "sample_size_dependence": {
+      "large_sample_mean": 0.1065499930507668,
+      "small_sample_mean": 0.08180157110510364
+    },
+    "scenario": "harmful_channel"
+  },
+  {
+    "classification": "empirical simulation result",
+    "conditions": "50% random touch loss versus the same model under perfect observation",
+    "ground_truth": "Latent synthetic truth is unchanged by observation corruption.",
+    "likely_explanation": "missing measurement changes the path evidence available to the model",
+    "magnitude": {
+      "mean_l1_from_perfect": 0.29844815876822706
+    },
+    "measurement_quality": "missing_50",
+    "model": "time_decay",
+    "observed_behavior": "Model credit moves materially as observed touches disappear.",
+    "repeatability": {
+      "affected_replications": 100,
+      "rate": 1.0,
+      "replications": 100
+    },
+    "sample_size_dependence": {},
+    "scenario": "all scenarios"
+  },
+  {
+    "classification": "mathematical consequence",
+    "conditions": "negative synthetic incremental effect",
+    "ground_truth": "The target channel has a negative incremental effect.",
+    "likely_explanation": "The Phase 1 credit interface is non-negative and normalized; negative causal effects are outside its representational range.",
+    "magnitude": {
+      "mean_target_credit": 0.09183370869185165,
+      "mean_target_truth": -0.03782765598152362
+    },
+    "measurement_quality": "perfect",
+    "model": "position_based",
+    "observed_behavior": "Final normalized descriptive credit cannot express a negative channel contribution.",
+    "repeatability": {
+      "affected_replications": 5,
+      "rate": 1.0,
+      "replications": 5
+    },
+    "sample_size_dependence": {
+      "large_sample_mean": 0.09183370869185165,
+      "small_sample_mean": 0.07574257931370193
+    },
+    "scenario": "harmful_channel"
+  },
+  {
+    "classification": "empirical simulation result",
+    "conditions": "50% random touch loss versus the same model under perfect observation",
+    "ground_truth": "Latent synthetic truth is unchanged by observation corruption.",
+    "likely_explanation": "missing measurement changes the path evidence available to the model",
+    "magnitude": {
+      "mean_l1_from_perfect": 0.2778615637047982
+    },
+    "measurement_quality": "missing_50",
+    "model": "position_based",
+    "observed_behavior": "Model credit moves materially as observed touches disappear.",
+    "repeatability": {
+      "affected_replications": 100,
+      "rate": 1.0,
+      "replications": 100
+    },
+    "sample_size_dependence": {},
+    "scenario": "all scenarios"
+  },
+  {
+    "classification": "mathematical consequence",
+    "conditions": "negative synthetic incremental effect",
+    "ground_truth": "The target channel has a negative incremental effect.",
+    "likely_explanation": "The Phase 1 credit interface is non-negative and normalized; negative causal effects are outside its representational range.",
+    "magnitude": {
+      "mean_target_credit": 0.0,
+      "mean_target_truth": -0.03782765598152362
+    },
+    "measurement_quality": "perfect",
+    "model": "markov_removal",
+    "observed_behavior": "Final normalized descriptive credit cannot express a negative channel contribution.",
+    "repeatability": {
+      "affected_replications": 5,
+      "rate": 1.0,
+      "replications": 5
+    },
+    "sample_size_dependence": {
+      "large_sample_mean": 0.0,
+      "small_sample_mean": 0.0
+    },
+    "scenario": "harmful_channel"
+  },
+  {
+    "classification": "empirical simulation result",
+    "conditions": "50% random touch loss versus the same model under perfect observation",
+    "ground_truth": "Latent synthetic truth is unchanged by observation corruption.",
+    "likely_explanation": "missing measurement changes the path evidence available to the model",
+    "magnitude": {
+      "mean_l1_from_perfect": 1.1083309252130533
+    },
+    "measurement_quality": "missing_50",
+    "model": "markov_removal",
+    "observed_behavior": "Model credit moves materially as observed touches disappear.",
+    "repeatability": {
+      "affected_replications": 90,
+      "rate": 0.9,
+      "replications": 100
+    },
+    "sample_size_dependence": {},
+    "scenario": "all scenarios"
+  },
+  {
+    "classification": "mathematical consequence",
+    "conditions": "negative synthetic incremental effect",
+    "ground_truth": "The target channel has a negative incremental effect.",
+    "likely_explanation": "The Phase 1 credit interface is non-negative and normalized; negative causal effects are outside its representational range.",
+    "magnitude": {
+      "mean_target_credit": 0.0,
+      "mean_target_truth": -0.03782765598152362
+    },
+    "measurement_quality": "perfect",
+    "model": "shapley",
+    "observed_behavior": "Final normalized descriptive credit cannot express a negative channel contribution.",
+    "repeatability": {
+      "affected_replications": 5,
+      "rate": 1.0,
+      "replications": 5
+    },
+    "sample_size_dependence": {
+      "large_sample_mean": 0.0,
+      "small_sample_mean": 0.06462268813000445
+    },
+    "scenario": "harmful_channel"
+  },
+  {
+    "classification": "empirical simulation result",
+    "conditions": "50% random touch loss versus the same model under perfect observation",
+    "ground_truth": "Latent synthetic truth is unchanged by observation corruption.",
+    "likely_explanation": "missing measurement changes the path evidence available to the model",
+    "magnitude": {
+      "mean_l1_from_perfect": 0.7986177397353781
+    },
+    "measurement_quality": "missing_50",
+    "model": "shapley",
+    "observed_behavior": "Model credit moves materially as observed touches disappear.",
+    "repeatability": {
+      "affected_replications": 100,
+      "rate": 1.0,
+      "replications": 100
+    },
+    "sample_size_dependence": {},
+    "scenario": "all scenarios"
+  },
+  {
+    "classification": "empirical simulation result",
+    "conditions": "effect(Meta + Email) differs from the sum of isolated effects",
+    "ground_truth": "The outcome equation contains an explicit Meta \u00d7 Email interaction.",
+    "likely_explanation": "Observed-credit rules do not identify a causal interaction merely from path co-occurrence.",
+    "magnitude": {
+      "mean_synthetic_causal_recovery_l1": 1.2676176059939228
+    },
+    "measurement_quality": "perfect",
+    "model": "first_touch",
+    "observed_behavior": "Descriptive channel credit differs materially from the intervention-derived synthetic truth.",
+    "repeatability": {
+      "affected_replications": 5,
+      "rate": 1.0,
+      "replications": 5
+    },
+    "sample_size_dependence": {},
+    "scenario": "channel_interaction"
+  },
+  {
+    "classification": "empirical simulation result",
+    "conditions": "effect(Meta + Email) differs from the sum of isolated effects",
+    "ground_truth": "The outcome equation contains an explicit Meta \u00d7 Email interaction.",
+    "likely_explanation": "Observed-credit rules do not identify a causal interaction merely from path co-occurrence.",
+    "magnitude": {
+      "mean_synthetic_causal_recovery_l1": 1.4011150456125296
+    },
+    "measurement_quality": "perfect",
+    "model": "last_touch",
+    "observed_behavior": "Descriptive channel credit differs materially from the intervention-derived synthetic truth.",
+    "repeatability": {
+      "affected_replications": 5,
+      "rate": 1.0,
+      "replications": 5
+    },
+    "sample_size_dependence": {},
+    "scenario": "channel_interaction"
+  },
+  {
+    "classification": "empirical simulation result",
+    "conditions": "effect(Meta + Email) differs from the sum of isolated effects",
+    "ground_truth": "The outcome equation contains an explicit Meta \u00d7 Email interaction.",
+    "likely_explanation": "Observed-credit rules do not identify a causal interaction merely from path co-occurrence.",
+    "magnitude": {
+      "mean_synthetic_causal_recovery_l1": 1.3199752815408512
+    },
+    "measurement_quality": "perfect",
+    "model": "last_paid_touch",
+    "observed_behavior": "Descriptive channel credit differs materially from the intervention-derived synthetic truth.",
+    "repeatability": {
+      "affected_replications": 5,
+      "rate": 1.0,
+      "replications": 5
+    },
+    "sample_size_dependence": {},
+    "scenario": "channel_interaction"
+  },
+  {
+    "classification": "empirical simulation result",
+    "conditions": "effect(Meta + Email) differs from the sum of isolated effects",
+    "ground_truth": "The outcome equation contains an explicit Meta \u00d7 Email interaction.",
+    "likely_explanation": "Observed-credit rules do not identify a causal interaction merely from path co-occurrence.",
+    "magnitude": {
+      "mean_synthetic_causal_recovery_l1": 1.3486228871878514
+    },
+    "measurement_quality": "perfect",
+    "model": "linear",
+    "observed_behavior": "Descriptive channel credit differs materially from the intervention-derived synthetic truth.",
+    "repeatability": {
+      "affected_replications": 5,
+      "rate": 1.0,
+      "replications": 5
+    },
+    "sample_size_dependence": {},
+    "scenario": "channel_interaction"
+  },
+  {
+    "classification": "empirical simulation result",
+    "conditions": "effect(Meta + Email) differs from the sum of isolated effects",
+    "ground_truth": "The outcome equation contains an explicit Meta \u00d7 Email interaction.",
+    "likely_explanation": "Observed-credit rules do not identify a causal interaction merely from path co-occurrence.",
+    "magnitude": {
+      "mean_synthetic_causal_recovery_l1": 1.3770613213005074
+    },
+    "measurement_quality": "perfect",
+    "model": "time_decay",
+    "observed_behavior": "Descriptive channel credit differs materially from the intervention-derived synthetic truth.",
+    "repeatability": {
+      "affected_replications": 5,
+      "rate": 1.0,
+      "replications": 5
+    },
+    "sample_size_dependence": {},
+    "scenario": "channel_interaction"
+  },
+  {
+    "classification": "empirical simulation result",
+    "conditions": "effect(Meta + Email) differs from the sum of isolated effects",
+    "ground_truth": "The outcome equation contains an explicit Meta \u00d7 Email interaction.",
+    "likely_explanation": "Observed-credit rules do not identify a causal interaction merely from path co-occurrence.",
+    "magnitude": {
+      "mean_synthetic_causal_recovery_l1": 1.339629132720647
+    },
+    "measurement_quality": "perfect",
+    "model": "position_based",
+    "observed_behavior": "Descriptive channel credit differs materially from the intervention-derived synthetic truth.",
+    "repeatability": {
+      "affected_replications": 5,
+      "rate": 1.0,
+      "replications": 5
+    },
+    "sample_size_dependence": {},
+    "scenario": "channel_interaction"
+  },
+  {
+    "classification": "empirical simulation result",
+    "conditions": "effect(Meta + Email) differs from the sum of isolated effects",
+    "ground_truth": "The outcome equation contains an explicit Meta \u00d7 Email interaction.",
+    "likely_explanation": "Observed-credit rules do not identify a causal interaction merely from path co-occurrence.",
+    "magnitude": {
+      "mean_synthetic_causal_recovery_l1": 1.3699743991440907
+    },
+    "measurement_quality": "perfect",
+    "model": "markov_removal",
+    "observed_behavior": "Descriptive channel credit differs materially from the intervention-derived synthetic truth.",
+    "repeatability": {
+      "affected_replications": 5,
+      "rate": 1.0,
+      "replications": 5
+    },
+    "sample_size_dependence": {},
+    "scenario": "channel_interaction"
+  },
+  {
+    "classification": "empirical simulation result",
+    "conditions": "effect(Meta + Email) differs from the sum of isolated effects",
+    "ground_truth": "The outcome equation contains an explicit Meta \u00d7 Email interaction.",
+    "likely_explanation": "Observed-credit rules do not identify a causal interaction merely from path co-occurrence.",
+    "magnitude": {
+      "mean_synthetic_causal_recovery_l1": 1.0925329952212448
+    },
+    "measurement_quality": "perfect",
+    "model": "shapley",
+    "observed_behavior": "Descriptive channel credit differs materially from the intervention-derived synthetic truth.",
+    "repeatability": {
+      "affected_replications": 5,
+      "rate": 1.0,
+      "replications": 5
+    },
+    "sample_size_dependence": {},
+    "scenario": "channel_interaction"
+  }
+]

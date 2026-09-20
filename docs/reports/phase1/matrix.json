@@ -1,0 +1,65 @@
+{
+  "model_evaluations": 36000,
+  "models": [
+    "first_touch",
+    "last_touch",
+    "last_paid_touch",
+    "linear",
+    "time_decay",
+    "position_based",
+    "markov_removal",
+    "shapley"
+  ],
+  "observation_qualities": [
+    "channel_specific_missing",
+    "consent_exclusions",
+    "cookie_loss",
+    "delayed_events",
+    "duplicated_events",
+    "fragmented_identity",
+    "missing_10",
+    "missing_25",
+    "missing_50",
+    "missing_click_ids",
+    "observation_censoring",
+    "perfect",
+    "session_splitting",
+    "utm_corruption",
+    "utm_removal"
+  ],
+  "sample_sizes": [
+    80,
+    250,
+    800
+  ],
+  "scenarios": [
+    "assisted_conversion",
+    "balanced_common_channels",
+    "balanced_long_journeys",
+    "balanced_multi_touch",
+    "balanced_rare_channels",
+    "balanced_short_journeys",
+    "channel_interaction",
+    "demand_capture",
+    "harmful_channel",
+    "null_channel_high_intent",
+    "null_channel_high_prevalence",
+    "null_channel_last_touch",
+    "null_channel_retargeting",
+    "null_paid_channel",
+    "organic_direct_return",
+    "pure_acquisition",
+    "retargeting_selection",
+    "simple_single_touch",
+    "strong_final_touch",
+    "strong_first_touch"
+  ],
+  "seeds": [
+    7,
+    17,
+    29,
+    41,
+    73
+  ],
+  "synthetic_experiments": 4500
+}
