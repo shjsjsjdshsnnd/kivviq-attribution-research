@@ -12,8 +12,8 @@ CANDIDATE_ID = "phase2-candidate1-ipw"
 CANDIDATE_VERSION = "1.0.0"
 
 # DEVELOPMENT may substitute only these two preregistered values.
-PROPENSITY_L2 = 0.10
-PROPENSITY_CLIP = 0.05
+PROPENSITY_L2 = 0.50
+PROPENSITY_CLIP = 0.10
 
 GRADIENT_STEPS = 300
 LEARNING_RATE = 0.05
