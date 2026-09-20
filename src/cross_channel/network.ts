@@ -103,7 +103,13 @@ function inferExecutableKind(
 
   if (
     sourceVariables.includes("promotion.discount_active") ||
-    sourceVariables.includes("inventory.available")
+    sourceVariables.includes("inventory.available") ||
+    sourceVariables.some((variable) =>
+      variable.startsWith("external.month.")
+    ) ||
+    sourceVariables.some((variable) =>
+      variable.startsWith("customer.lifecycle.")
+    )
   ) {
     return "state_dependent";
   }
@@ -211,7 +217,13 @@ function compileRule(
 
   const hasNonChannelStateParent =
     sourceVariableIds.includes("promotion.discount_active") ||
-    sourceVariableIds.includes("inventory.available");
+    sourceVariableIds.includes("inventory.available") ||
+    sourceVariableIds.some((variable) =>
+      variable.startsWith("external.month.")
+    ) ||
+    sourceVariableIds.some((variable) =>
+      variable.startsWith("customer.lifecycle.")
+    );
 
   const driverChannels =
     mechanism.kind === "synergy" && !hasNonChannelStateParent
@@ -235,6 +247,29 @@ function compileRule(
     targetVariableIds,
   );
 
+  const explicitMonths = sourceVariableIds
+    .filter((variable) =>
+      variable.startsWith("external.month.")
+    )
+    .map((variable) =>
+      Number(variable.slice("external.month.".length))
+    )
+    .filter(
+      (month) =>
+        Number.isInteger(month) &&
+        month >= 1 &&
+        month <= 12,
+    );
+
+  const lifecycleStates = sourceVariableIds
+    .filter((variable) =>
+      variable.startsWith("customer.lifecycle.")
+    )
+    .map((variable) =>
+      variable.slice("customer.lifecycle.".length)
+    )
+    .filter((value) => value.length > 0);
+
   const condition =
     executableKind === "state_dependent"
       ? {
@@ -243,6 +278,12 @@ function compileRule(
             : {}),
           ...(sourceVariableIds.includes("inventory.available")
             ? { inventoryAvailabilityAtLeast: 0.2 }
+            : {}),
+          ...(explicitMonths.length > 0
+            ? { months: explicitMonths }
+            : {}),
+          ...(lifecycleStates.length > 0
+            ? { lifecycleStates }
             : {}),
         }
       : undefined;
