@@ -345,7 +345,7 @@ function withUniformPriceElasticity(
   elasticity: number,
 ): GeneratedMerchantWorld {
   const world = structuredClone(source) as GeneratedMerchantWorld;
-  for (const mechanism of world.manifest.priceElasticities as Array<{
+  for (const mechanism of world.manifest.priceElasticities as unknown as Array<{
     kind: "own_price" | "cross_price";
     form: "constant" | "piecewise";
     elasticity?: number;
