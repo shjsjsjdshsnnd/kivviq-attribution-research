@@ -40,7 +40,7 @@ describe("Step 8 product-economic traps", () => {
               operation: "set",
               value: {
                 kind: "number",
-                value: fixture.campaignSpendMinor,
+                value: fixture.channelSpendMinor,
                 unit: "money_minor",
               },
             },
