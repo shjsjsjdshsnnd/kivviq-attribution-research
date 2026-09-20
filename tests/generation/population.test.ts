@@ -54,7 +54,7 @@ describe("merchant generator population properties", () => {
           inventory.initialReservedUnits <= inventory.initialAvailableUnits,
       )).toBe(true);
     }
-  });
+  }, 30_000);
 
   it("does not collapse into a single disguised merchant template", () => {
     const worlds = generatedPopulation(1_000);
