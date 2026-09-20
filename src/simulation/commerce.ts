@@ -314,6 +314,7 @@ export function checkoutPurchaseProbability(
   device: "mobile" | "desktop" | "tablet",
   intervention: SimulationInterventionState,
   randomness: SharedRandomness,
+  interactionLift = 0,
 ): number {
   refreshLatentCustomerState(customer, timestampMs);
   const memory = totalMemoryLift(customer);
@@ -366,7 +367,8 @@ export function checkoutPurchaseProbability(
         0.18 *
           customer.source.promotionSensitivityMultiplier
       : 1) +
-    memory.purchaseProbability;
+    memory.purchaseProbability +
+    interactionLift;
 
   return clamp(probability, 0.005, 0.98);
 }
