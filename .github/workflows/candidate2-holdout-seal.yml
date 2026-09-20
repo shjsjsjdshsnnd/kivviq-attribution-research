@@ -1,0 +1,56 @@
+name: Candidate 2 Holdout Seal
+
+on:
+  push:
+    branches: ["phase2/candidate2-holdout-v1-evaluator"]
+    paths:
+      - ".github/workflows/candidate2-holdout-seal.yml"
+      - "phase2/evaluator/candidate2_holdout_seal.py"
+
+permissions:
+  contents: write
+
+jobs:
+  seal:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+      - run: python -m pip install --upgrade pip
+      - run: python -m pip install -e ".[dev]"
+      - run: python scripts/check_repo_safety.py
+      - run: python scripts/check_phase1_frozen.py
+      - name: Assert Candidate 2 does not exist yet
+        shell: bash
+        run: |
+          set -euo pipefail
+          test ! -e phase2/candidates/candidate2
+          test ! -e src/phase2_candidates/candidate2
+          test ! -e research/candidate2
+      - name: Create sealed Candidate 2 holdout
+        run: |
+          python phase2/evaluator/candidate2_holdout_seal.py \
+            --seal-dir /tmp/candidate2-seal \
+            --metadata-out phase2/evaluator/candidate2-holdout-v1.public.json
+      - name: Save evaluator-only private seal
+        uses: actions/cache/save@v4
+        with:
+          path: /tmp/candidate2-seal/candidate2-holdout-v1.seal.json
+          key: candidate2-holdout-v1-${{ hashFiles('src/attribution_lab/phase2_evaluator/seals.py', 'src/attribution_lab/phase2_evaluator/holdout_dgp.py') }}
+      - name: Persist public holdout metadata only
+        shell: bash
+        run: |
+          set -euo pipefail
+          python scripts/check_repo_safety.py
+          git add phase2/evaluator/candidate2-holdout-v1.public.json
+          git diff --cached --check
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git commit -m "Record Candidate 2 sealed holdout metadata"
+          git push origin "HEAD:${GITHUB_REF_NAME}"
