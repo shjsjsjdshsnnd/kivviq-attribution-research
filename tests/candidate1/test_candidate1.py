@@ -1,18 +1,17 @@
-from __future__ import annotations
-
-import math
-from pathlib import Path
-
-
-SOURCE_PATH = Path("phase2/candidates/candidate1/candidate.py")
+SOURCE_PATH = "phase2/candidates/candidate1/candidate.py"
 
 
 def _source() -> str:
-    return SOURCE_PATH.read_text(encoding="utf-8")
+    with open(SOURCE_PATH, encoding="utf-8") as handle:
+        return handle.read()
 
 
 def _load(module_name: str):
     return __import__(module_name, fromlist=["*"])
+
+
+def _finite(value: float) -> bool:
+    return value == value and value not in {float("inf"), float("-inf")}
 
 
 def test_candidate_source_respects_evaluator_import_boundary() -> None:
@@ -52,7 +51,7 @@ def test_candidate_returns_finite_effects_and_intervals() -> None:
     upper = dict(response.uncertainty.upper)
     assert set(estimates) == set(lower) == set(upper)
     for channel, value in estimates.items():
-        assert math.isfinite(value)
-        assert math.isfinite(lower[channel])
-        assert math.isfinite(upper[channel])
+        assert _finite(value)
+        assert _finite(lower[channel])
+        assert _finite(upper[channel])
         assert lower[channel] <= value <= upper[channel]
