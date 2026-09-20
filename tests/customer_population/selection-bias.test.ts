@@ -66,7 +66,9 @@ describe("latent selection bias", () => {
     expect(correlation(intent, susceptibility)).toBeLessThan(0.05);
 
     for (let index = 0; index < population.customers.length; index += 1) {
-      expect(google!.effect.value * susceptibility[index]!).toBe(0);
+      expect(
+        Math.abs(google!.effect.value * susceptibility[index]!),
+      ).toBe(0);
     }
   });
 
