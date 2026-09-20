@@ -58,7 +58,7 @@ export function replayCounterfactual(
     simulationSeed: request.simulationSeed,
     startTime: request.startTime,
     endTime: request.endTime,
-    config: request.config,
+    ...(request.config === undefined ? {} : { config: request.config }),
     interventions: [],
   });
 
@@ -68,7 +68,7 @@ export function replayCounterfactual(
     simulationSeed: request.simulationSeed,
     startTime: request.startTime,
     endTime: request.endTime,
-    config: request.config,
+    ...(request.config === undefined ? {} : { config: request.config }),
     interventions: request.interventions,
   });
 
