@@ -30,6 +30,7 @@ from attribution_lab.phase2_evaluator.seals import HoldoutSealStore
 from phase2_candidate_sdk import (
     CandidateDeclaration,
     DeclaredContext,
+    CandidateResponse,
     ObservableDataset,
     fingerprint_payload,
 )
@@ -43,18 +44,37 @@ def _instance_seed(version: str, family: str, index: int) -> int:
 
 
 def _score(
-    estimates: dict[str, float],
+    response: CandidateResponse,
     truth: dict[str, float],
 ) -> tuple[tuple[str, float], ...]:
+    estimates = dict(response.estimates)
     common = sorted(set(estimates) & set(truth))
     if not common:
         return (("mean_absolute_error", float("inf")),)
     errors = [abs(estimates[key] - truth[key]) for key in common]
-    return (
+    metrics: list[tuple[str, float]] = [
         ("mean_absolute_error", sum(errors) / len(errors)),
         ("max_absolute_error", max(errors)),
         ("coverage_fraction", len(common) / len(truth)),
-    )
+    ]
+    if response.uncertainty is not None:
+        lower = dict(response.uncertainty.lower)
+        upper = dict(response.uncertainty.upper)
+        covered = [
+            lower[key] <= truth[key] <= upper[key]
+            for key in common
+        ]
+        widths = [upper[key] - lower[key] for key in common]
+        metrics.extend(
+            [
+                (
+                    "interval_coverage_fraction",
+                    sum(int(value) for value in covered) / len(covered),
+                ),
+                ("mean_interval_width", sum(widths) / len(widths)),
+            ]
+        )
+    return tuple(metrics)
 
 
 def _result_digest(results: tuple[ScenarioResult, ...]) -> str:
@@ -136,7 +156,7 @@ class HoldoutEvaluator:
                     family=family,
                     status=ScenarioStatus.EVALUATED,
                     metrics=_score(
-                        dict(response.estimates),
+                        response,
                         dict(generated.oracle_truth.channel_effects),
                     ),
                     uncertainty_present=response.uncertainty is not None,
@@ -250,6 +270,6 @@ def evaluate_known_case(
         stage=stage,
         family=family,
         status=ScenarioStatus.EVALUATED,
-        metrics=_score(dict(response.estimates), dict(synthetic_truth)),
+        metrics=_score(response, dict(synthetic_truth)),
         uncertainty_present=response.uncertainty is not None,
     )

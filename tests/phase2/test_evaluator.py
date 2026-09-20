@@ -42,6 +42,10 @@ def test_standardized_holdout_evaluation_runs_without_truth_leakage(
     assert len(results) == 8
     assert all(result.status == ScenarioStatus.EVALUATED for result in results)
     assert all(dict(result.metrics)["coverage_fraction"] == 1.0 for result in results)
+    assert all(
+        dict(result.metrics)["interval_coverage_fraction"] == 1.0
+        for result in results
+    )
 
 
 def test_missing_uncertainty_is_preserved_as_missing(
