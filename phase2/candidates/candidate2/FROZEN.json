@@ -1,0 +1,36 @@
+{
+  "candidate1_holdout_metrics_used_for_tuning": false,
+  "candidate1_status": "REJECT_FROZEN_HISTORICAL_COMPARATOR",
+  "candidate_id": "candidate2-aipw-dr-observable",
+  "candidate_version": "1.0.0",
+  "code_fingerprint": "4596568d2aa6cd26ea25b30712092640a78a95d4827cf0769b89fde4702628ec",
+  "declaration_fingerprint": "7841d104987caeb7df5312ac0917a28a14cfc2ce2b9c7d98069889453b4e8fe5",
+  "development_record_fingerprint": "5778bfd88414056f1385a24555d44a884d8e541ebfbbec4b8ddd5ca806176a47",
+  "estimand": {
+    "aggregation_target": "population-average signed conversion-probability difference by channel",
+    "comparison": "set the same focal channel exposure absent",
+    "horizon_hours": 504.0,
+    "intervention": "set focal channel exposure present while retaining the declared observable non-focal exposure/history covariates as the controlled background regime",
+    "kind": "incremental_conversion_probability",
+    "outcome": "qualifying conversion within the 21-day observation horizon",
+    "population": "synthetic subjects in the declared 21-day observation population with an observable treatment/outcome record under the declared measurement condition",
+    "temporal_ordering": "only information observable before the qualifying outcome or end of horizon may enter treatment, outcome or adjustment features",
+    "treatment_or_exposure": "binary presence versus absence of one focal synthetic channel exposure",
+    "treatment_regime": "one-channel-at-a-time static binary intervention",
+    "unit_of_analysis": "synthetic subject"
+  },
+  "holdout_configuration_fingerprint": "138f7864be008b618443a49aacfbae674479869066cd75a24a7887009a317c74",
+  "holdout_creation_timestamp": "2026-09-20T22:16:14.215287+00:00",
+  "holdout_generator_fingerprint": "acdc2014358b7171a57118d2dc32ea2dfbf41a431a720421180b38e6c5a2e4d7",
+  "holdout_sealed_before_implementation": true,
+  "holdout_version": "candidate2-holdout-v1",
+  "lineage_fingerprint": "6e00eaa4155f1effa90bc747d17271ac73c8c09e3a198d8e3174e0ac199a878a",
+  "selected_hyperparameters": {
+    "convergence_tolerance": "1e-8",
+    "max_iterations": "60",
+    "outcome_l2": "5.0",
+    "propensity_clip": "0.025:0.975",
+    "propensity_l2": "5.0"
+  },
+  "status": "FROZEN_BEFORE_PHASE1_EVALUATION"
+}
