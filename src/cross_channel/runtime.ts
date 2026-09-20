@@ -374,12 +374,16 @@ export function opportunityModifiers(
           );
         }
 
-        for (const target of rule.targetChannels) {
-          targetChannelMultiplier(
-            channelMultipliers,
-            target,
-            -suppression,
-          );
+        if (
+          rule.targetSemantic === "channel_opportunity"
+        ) {
+          for (const target of rule.targetChannels) {
+            targetChannelMultiplier(
+              channelMultipliers,
+              target,
+              -suppression,
+            );
+          }
         }
       } else if (rule.kind === "substitution") {
         // When the paid route disappears, preserve the possibility of
@@ -571,8 +575,14 @@ export function checkoutInteractionLift(
     );
     if (stateMultiplier === 0) continue;
 
+    const requiredChannels = [
+      ...new Set([
+        ...rule.driverChannels,
+        ...rule.conditionedOnChannels,
+      ]),
+    ];
     const allChannelsActive =
-      rule.participantChannels.every((channel) => {
+      requiredChannels.every((channel) => {
         const memory =
           customer.channelMemory.get(channel);
         return (
@@ -582,7 +592,7 @@ export function checkoutInteractionLift(
       });
 
     if (
-      rule.participantChannels.length > 0 &&
+      requiredChannels.length > 0 &&
       !allChannelsActive
     ) {
       continue;
