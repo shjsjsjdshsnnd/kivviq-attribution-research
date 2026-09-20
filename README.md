@@ -4,64 +4,84 @@
 
 This public repository is a synthetic-only research environment.
 
-### Frozen Step 1 foundation
+### Frozen foundations
 
-Step 1 remains frozen at:
+**Step 1 — GroundTruth**
 
-- Branch: `step1/growth-operator-ground-truth`
-- PR: #2
 - Accepted head: `cdea7f6c3d313578d2b40870bebadc2690f75495`
+- PR #2
 
-Step 1 defines the authoritative GroundTruth schema, causal contracts, intervention semantics, unit rules, information boundaries, leakage protections, invariants and runtime validation.
+**Step 2 — merchant/world generation**
 
-### Step 2 — merchant/world generation
+- Accepted head: `74edb930affca78c8b8ea262821943bba223d770`
+- Branch: `step2/merchant-world-generation`
+- PR #5
 
-Branch: `step2/merchant-world-generation`
+Neither frozen branch is modified by Step 3.
 
-Draft PR: #5
+### Step 3 — latent customer population
 
-Step 2 generates deterministic, economically coherent synthetic ecommerce merchant worlds from the frozen Step 1 GroundTruth mechanisms.
+Branch: `step3/latent-customer-population`
+
+Draft PR: #8
+
+Step 3 generates deterministic heterogeneous latent consumers inside frozen Step 2 merchant worlds.
 
 Implemented:
 
-- 11 merchant archetype families;
-- orthogonal AOV, lifecycle, marketing, promotion, catalog, inventory and seasonality profiles;
-- micro through large scale regimes;
-- correlated economic generation rather than independent random fields;
-- synthetic catalogs from tiny curated assortments through 1,500-SKU long-tail catalogs;
-- Zipf-style product concentration;
-- merchant-specific channel portfolios;
-- true channel incrementality, saturation, CAC and response curves;
-- zero/negative incrementality and negative marginal returns;
-- baseline/organic demand;
-- promotion, lifecycle, device, funnel, inventory and elasticity mechanisms;
-- merchant-specific causal graphs;
-- controlled outliers;
-- simple, normal, complex and adversarial difficulty levels;
-- typed research overrides;
-- deterministic generation provenance;
-- Step 1 validation as the mandatory output gate;
-- 1,000-world property testing;
-- 10,000-world diversity benchmarking.
+- stable synthetic customer IDs only;
+- weighted-agent population semantics;
+- correlated latent behavioral/economic factors;
+- continuous purchase intent and current purchase need;
+- distinct price and promotion sensitivity;
+- brand affinity;
+- sparse merchant-aligned category/product preferences;
+- channel causal susceptibility;
+- separate natural channel-use propensity;
+- natural selection mechanisms for search, email, promotions and future retargeting;
+- probabilistic device preference;
+- repeat propensity and purchase-frequency hazard;
+- abstract lifecycle state without fabricated events;
+- customer expected CLV derived from underlying retention/economic mechanisms;
+- overlapping derived customer labels;
+- deterministic micro↔macro calibration;
+- strict runtime/reference validation;
+- simple/normal/complex/adversarial customer heterogeneity;
+- weighted-agent scalability benchmarking.
 
-Every returned `GroundTruthManifest` is validated by the frozen Step 1 parser before leaving the generator.
+Every population is rejected unless it reconciles to the frozen merchant world within explicit calibration tolerances.
 
-### Research isolation
+### Step 3 does NOT generate
 
-The Step 2 branch does not use:
+- sessions;
+- impressions;
+- clicks;
+- ad exposures;
+- searches;
+- page views;
+- carts;
+- checkouts;
+- orders;
+- attribution records;
+- realized customer journeys;
+- recommendations;
+- optimization;
+- Growth Operator;
+- LLM reasoning.
 
-- private Kivviq code;
-- Maison Olive data;
-- real merchant or customer data;
-- production databases or APIs;
-- credentials or secrets;
-- private Kivviq implementation details.
-
-It does not generate individual customers, orders, sessions, journeys or attribution observations, and does not implement Growth Operator, recommendations, optimization or an LLM layer.
+No real names, emails, phone numbers, addresses or demographic records are used.
 
 ### Information boundary
 
-Merchant generation is God-mode research infrastructure. The dependency graph prevents Operator-facing modules and the Operator-safe root API from importing generation, GroundTruth, evaluator/oracle or future simulation internals.
+Latent customer populations are God-mode information.
+
+The architecture gate prevents Operator-facing modules and `src/index.ts` from importing:
+
+- GroundTruth;
+- merchant generation;
+- latent customer population;
+- evaluation/oracle;
+- future simulation/God-mode internals.
 
 ### Documentation
 
@@ -70,7 +90,5 @@ Merchant generation is God-mode research infrastructure. The dependency graph pr
 - `docs/causal-semantics.md`
 - `docs/merchant-world-generation.md`
 - `docs/step2-diversity-report.md`
-
-### Frozen-schema note
-
-Step 2 does not alter or bypass the accepted Step 1 schema. Merchant diagnostics for which Step 1 v1 has no dedicated typed GroundTruth field remain generator-side research diagnostics/provenance rather than being hidden in arbitrary metadata.
+- `docs/latent-customer-population.md`
+- `docs/step3-customer-population-report.md`

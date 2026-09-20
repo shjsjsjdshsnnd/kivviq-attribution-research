@@ -3,13 +3,13 @@ module.exports = {
     {
       name: "operator-facing-code-cannot-import-god-mode",
       comment:
-        "Operator-facing modules must never depend on GroundTruth, generation, evaluator/oracle, simulation, or other God-mode internals.",
+        "Operator-facing modules must never depend on GroundTruth, generation, latent customers, evaluator/oracle, simulation, or other God-mode internals.",
       severity: "error",
       from: {
         path: "^(src/(observation|operator|operator_safe)(/|$)|src/index\\.ts$)",
       },
       to: {
-        path: "^src/(ground_truth|generation|evaluation|oracle|simulation|god_mode)(/|$)",
+        path: "^src/(ground_truth|generation|customer_population|evaluation|oracle|simulation|god_mode)(/|$)",
       },
     },
   ],
