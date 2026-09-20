@@ -166,7 +166,17 @@ describe("Step 6 interaction mechanism semantics", () => {
     const reference =
       metaBaseline?.kind === "hill"
         ? Number(metaBaseline.halfSaturationSpend)
-        : 100_000;
+        : metaBaseline?.kind === "threshold"
+          ? Number(metaBaseline.thresholdSpend)
+          : metaBaseline?.kind === "linear"
+            ? Number(metaBaseline.maxSpend ?? 100_000)
+            : metaBaseline?.kind === "piecewise"
+              ? Number(
+                  metaBaseline.points.find(
+                    (point) => Number(point.spend) > 0,
+                  )?.spend ?? 100_000,
+                )
+              : 100_000;
 
     const highState =
       buildSimulationInterventionState(
