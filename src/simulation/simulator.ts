@@ -1008,6 +1008,7 @@ export function simulateWorld(
         interventionState,
         randomness,
         maxSessionSteps,
+        request.commercePolicy,
       );
       observableEvents.push(...step.observableEvents);
 
@@ -1038,6 +1039,7 @@ export function simulateWorld(
               customer,
               interactionContext,
             ),
+            request.commercePolicy,
           );
 
         const ordinal =
