@@ -55,6 +55,22 @@ describe("merchant generation determinism", () => {
     );
     expect(meta).toBeDefined();
     expect(meta!.effect.value).toBe(0);
+
+    const zeroCurve = world.manifest.responseCurves.find(
+      (curve) => curve.id === meta!.responseCurveId,
+    );
+    expect(zeroCurve?.kind).toBe("linear");
+    expect(
+      zeroCurve?.kind === "linear"
+        ? zeroCurve.slopePerMoneyMinor
+        : Number.NaN,
+    ).toBe(0);
+    expect(
+      world.manifest.cacMechanisms.some(
+        (mechanism) => mechanism.channelId === "meta",
+      ),
+    ).toBe(false);
+
     expect(world.provenance.appliedOverrides).toContainEqual({
       field: "forceZeroIncrementalityChannels",
       value: ["meta"],
