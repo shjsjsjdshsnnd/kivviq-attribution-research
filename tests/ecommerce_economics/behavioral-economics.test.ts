@@ -2,6 +2,10 @@ import { describe, expect, it } from "vitest";
 import { generateMerchantWorldRecord } from "../../src/generation/generator.js";
 import { generateCustomerPopulation } from "../../src/customer_population/generator.js";
 import {
+  durationSeconds,
+  utcTimestamp,
+} from "../../src/core/units.js";
+import {
   evaluateEconomicCounterfactual,
   evaluatePolicyCounterfactual,
 } from "../../src/ecommerce_economics/counterfactual.js";
@@ -229,8 +233,8 @@ describe("Step 7 behavioral ecommerce economics", () => {
               variable: "promotion.discount_active",
               operation: "set",
               value: { kind: "boolean", value: true },
-              effectiveAt: promotionStart,
-              durationSeconds: 21 * 86_400,
+              effectiveAt: utcTimestamp(promotionStart),
+              durationSeconds: durationSeconds(21 * 86_400),
             },
           ],
           simulationConfig: { maxEvents: 220_000 },
@@ -247,8 +251,8 @@ describe("Step 7 behavioral ecommerce economics", () => {
               variable: "promotion.discount_active",
               operation: "set",
               value: { kind: "boolean", value: false },
-              effectiveAt: promotionStart,
-              durationSeconds: 21 * 86_400,
+              effectiveAt: utcTimestamp(promotionStart),
+              durationSeconds: durationSeconds(21 * 86_400),
             },
           ],
           simulationConfig: { maxEvents: 220_000 },
