@@ -484,6 +484,12 @@ export function conditionalResponseMultiplier(
   for (const rule of network.rules) {
     if (rule.kind === "zero") continue;
     if (
+      rule.targetSemantic !== "channel_response" &&
+      rule.targetSemantic !== "conversion_probability"
+    ) {
+      continue;
+    }
+    if (
       !rule.participantChannels.includes(
         targetChannel,
       )
