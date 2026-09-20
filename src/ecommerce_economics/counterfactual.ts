@@ -231,3 +231,46 @@ export function evaluateInventoryOpportunityCost(
     accountingAdjustmentMinor: 0,
   };
 }
+
+
+export function evaluatePolicyCounterfactual(
+  request: EcommerceEvaluationRequest,
+  counterfactualPolicy: NonNullable<EcommerceEvaluationRequest["policy"]>,
+): EconomicCounterfactualResult {
+  const factual = evaluateEcommerceEconomics(request);
+  const counterfactual = evaluateEcommerceEconomics({
+    ...request,
+    policy: {
+      ...(request.policy ?? {}),
+      ...counterfactualPolicy,
+    },
+  });
+
+  return {
+    factual,
+    counterfactual,
+    delta: {
+      grossRevenueMinor:
+        factual.waterfall.grossMerchandiseRevenueMinor -
+        counterfactual.waterfall.grossMerchandiseRevenueMinor,
+      netRevenueMinor:
+        factual.waterfall.netRevenueMinor -
+        counterfactual.waterfall.netRevenueMinor,
+      grossProfitMinor:
+        factual.waterfall.grossProfitMinor -
+        counterfactual.waterfall.grossProfitMinor,
+      contributionProfitMinor:
+        factual.waterfall.contributionProfitMinor -
+        counterfactual.waterfall.contributionProfitMinor,
+      newCustomerContributionMinor:
+        factual.newCustomer.firstOrderContributionProfitBeforeAdvertisingMinor -
+        counterfactual.newCustomer.firstOrderContributionProfitBeforeAdvertisingMinor,
+      repeatContributionMinor:
+        factual.repeatCustomer.repeatContributionProfitBeforeAdvertisingMinor -
+        counterfactual.repeatCustomer.repeatContributionProfitBeforeAdvertisingMinor,
+      expectedFutureValueMinor:
+        expectedFutureValueMinor(factual) -
+        expectedFutureValueMinor(counterfactual),
+    },
+  };
+}
