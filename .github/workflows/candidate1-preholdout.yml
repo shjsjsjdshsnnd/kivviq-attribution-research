@@ -1,0 +1,51 @@
+name: Candidate 1 pre-holdout research
+
+on:
+  push:
+    branches: ["phase2/candidate1-observable-outcome-regression"]
+    paths:
+      - "research/candidate1/candidate.py"
+      - "research/candidate1/development_worlds.py"
+      - "research/candidate1/evaluate_preholdout.py"
+      - "research/candidate1/preregistration.py"
+      - "tests/candidate1/**"
+      - ".github/workflows/candidate1-preholdout.yml"
+
+permissions:
+  contents: write
+
+jobs:
+  preholdout:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+      - run: python -m pip install --upgrade pip
+      - run: python -m pip install -e ".[dev]"
+      - run: python scripts/check_repo_safety.py
+      - run: python scripts/check_phase1_frozen.py
+      - run: ruff check .
+      - run: mypy
+      - run: pytest
+      - name: Candidate 1 development and frozen Phase 1 evaluation
+        run: python -m research.candidate1.evaluate_preholdout --output research/candidate1/results/preholdout.json
+      - run: python scripts/check_repo_safety.py
+      - name: Persist deterministic pre-holdout evidence
+        shell: bash
+        run: |
+          set -euo pipefail
+          git status --short
+          git diff --check
+          if ! git diff --quiet -- research/candidate1/results/preholdout.json; then
+            git config user.name "github-actions[bot]"
+            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+            git add research/candidate1/results/preholdout.json
+            git commit -m "Record Candidate 1 pre-holdout evidence"
+            git push origin "HEAD:${GITHUB_REF_NAME}"
+          fi
