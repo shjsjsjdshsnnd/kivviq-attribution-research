@@ -13,7 +13,8 @@
     "benchmark:diversity": "vitest run tests/generation/diversity-benchmark.test.ts --reporter=verbose",
     "benchmark:customers": "vitest run tests/customer_population/benchmark.test.ts --reporter=verbose",
     "test:step4": "vitest run tests/simulation --reporter=verbose",
-    "test:step5": "vitest run tests/advertising_economics --reporter=verbose"
+    "test:step5": "vitest run tests/advertising_economics --reporter=verbose",
+    "test:step6": "vitest run tests/cross_channel --reporter=verbose"
   },
   "exports": {
     ".": "./dist/index.js",
@@ -22,7 +23,8 @@
     "./generation": "./dist/generation/index.js",
     "./customer-population": "./dist/customer_population/index.js",
     "./simulation": "./dist/simulation/index.js",
-    "./advertising-economics": "./dist/advertising_economics/index.js"
+    "./advertising-economics": "./dist/advertising_economics/index.js",
+    "./cross-channel": "./dist/cross_channel/index.js"
   },
   "devDependencies": {
     "typescript": "^5.9.2",
