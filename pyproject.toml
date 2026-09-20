@@ -9,7 +9,7 @@ description = "Synthetic-only laboratory for studying marketing attribution algo
 readme = "README.md"
 requires-python = ">=3.11"
 license = {text = "MIT"}
-dependencies = []
+dependencies = ["numpy>=2.0,<3"]
 
 [project.optional-dependencies]
 dev = [
