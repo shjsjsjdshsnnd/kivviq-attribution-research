@@ -15,7 +15,7 @@ This public repository is a synthetic-only causal ecommerce research environment
 - PR #5
 
 **Step 3 — latent customer population**
-- Frozen head: `da2d6e90198b24b39c9b92358c887c9f316e5419a42`
+- Frozen head: `da2d6e90198b24b39c9c1e42552f825eb3a7436e`
 - PR #8
 
 **Step 4 — customer journey / behavioral simulation**
