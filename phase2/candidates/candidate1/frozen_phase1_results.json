@@ -1,0 +1,302 @@
+{
+  "candidate_id": "candidate1-outcome-regression-gcomp",
+  "candidate_version": "1.0.0",
+  "cases_evaluated": 235,
+  "criteria": {
+    "balanced_missing_25_l1_from_perfect": {
+      "pass": true,
+      "threshold": 0.1,
+      "value": 0.07651885538761503
+    },
+    "balanced_missing_50_l1_from_perfect": {
+      "pass": true,
+      "threshold": 0.18,
+      "value": 0.1509927919208192
+    },
+    "complete_channel_coverage": {
+      "pass": true
+    },
+    "harmful_channel_negative_sign": {
+      "pass": true,
+      "values": [
+        -0.04829736635103365,
+        -0.04368316129355979,
+        -0.030199391043126477,
+        -0.038989429205276156,
+        -0.03855149519930304
+      ]
+    },
+    "known_zero_effects": {
+      "details": {
+        "demand_capture": {
+          "channel": "google_brand",
+          "max_absolute_estimate": 0.10460939671879797,
+          "mean_absolute_estimate": 0.08094958665694453,
+          "pass": false
+        },
+        "null_channel_high_intent": {
+          "channel": "pinterest",
+          "max_absolute_estimate": 0.07701612222252019,
+          "mean_absolute_estimate": 0.06180087542742139,
+          "pass": false
+        },
+        "null_channel_high_prevalence": {
+          "channel": "pinterest",
+          "max_absolute_estimate": 0.023655306075321646,
+          "mean_absolute_estimate": 0.009160840033114428,
+          "pass": true
+        },
+        "null_channel_last_touch": {
+          "channel": "pinterest",
+          "max_absolute_estimate": 0.030899058505882995,
+          "mean_absolute_estimate": 0.01154528838847704,
+          "pass": true
+        },
+        "null_channel_retargeting": {
+          "channel": "pinterest",
+          "max_absolute_estimate": 0.07395355330124982,
+          "mean_absolute_estimate": 0.06027504267981989,
+          "pass": false
+        },
+        "null_paid_channel": {
+          "channel": "pinterest",
+          "max_absolute_estimate": 0.030899058505882995,
+          "mean_absolute_estimate": 0.01154528838847704,
+          "pass": true
+        },
+        "retargeting_selection": {
+          "channel": "meta",
+          "max_absolute_estimate": 0.08505790850096749,
+          "mean_absolute_estimate": 0.056908140612850155,
+          "pass": false
+        }
+      },
+      "pass": false
+    },
+    "mean_interval_coverage_fraction": {
+      "pass": true,
+      "threshold": 0.75,
+      "value": 0.89875
+    },
+    "perfect_observation_mean_effect_mae": {
+      "pass": true,
+      "threshold": 0.08,
+      "value": 0.018610776074434347
+    },
+    "small_sample_finite_outputs": {
+      "pass": true
+    }
+  },
+  "focus_zero_effect_estimates": {
+    "demand_capture": [
+      {
+        "estimate": 0.10460939671879797,
+        "seed": 7,
+        "truth": 0
+      },
+      {
+        "estimate": 0.10456907261791962,
+        "seed": 17,
+        "truth": 0
+      },
+      {
+        "estimate": 0.05242778462844232,
+        "seed": 29,
+        "truth": 0
+      },
+      {
+        "estimate": 0.0614815337851867,
+        "seed": 41,
+        "truth": 0
+      },
+      {
+        "estimate": 0.08166014553437603,
+        "seed": 73,
+        "truth": 0
+      }
+    ],
+    "null_channel_high_intent": [
+      {
+        "estimate": 0.06610123967814935,
+        "seed": 7,
+        "truth": 0
+      },
+      {
+        "estimate": 0.07701612222252019,
+        "seed": 17,
+        "truth": 0
+      },
+      {
+        "estimate": 0.06384361675165265,
+        "seed": 29,
+        "truth": 0
+      },
+      {
+        "estimate": 0.03460891070170029,
+        "seed": 41,
+        "truth": 0
+      },
+      {
+        "estimate": 0.06743448778308445,
+        "seed": 73,
+        "truth": 0
+      }
+    ],
+    "null_channel_high_prevalence": [
+      {
+        "estimate": -0.007128185666834026,
+        "seed": 7,
+        "truth": 0
+      },
+      {
+        "estimate": 0.023655306075321646,
+        "seed": 17,
+        "truth": 0
+      },
+      {
+        "estimate": -0.004314317496921039,
+        "seed": 29,
+        "truth": 0
+      },
+      {
+        "estimate": 0.0019518165532630475,
+        "seed": 41,
+        "truth": 0
+      },
+      {
+        "estimate": -0.008754574373232375,
+        "seed": 73,
+        "truth": 0
+      }
+    ],
+    "null_channel_last_touch": [
+      {
+        "estimate": -0.0041593465569125295,
+        "seed": 7,
+        "truth": 0
+      },
+      {
+        "estimate": 0.009565327549004165,
+        "seed": 17,
+        "truth": 0
+      },
+      {
+        "estimate": -0.010718974627943934,
+        "seed": 29,
+        "truth": 0
+      },
+      {
+        "estimate": 0.0023837347026415784,
+        "seed": 41,
+        "truth": 0
+      },
+      {
+        "estimate": -0.030899058505882995,
+        "seed": 73,
+        "truth": 0
+      }
+    ],
+    "null_channel_retargeting": [
+      {
+        "estimate": 0.06030547052940047,
+        "seed": 7,
+        "truth": 0
+      },
+      {
+        "estimate": 0.07395355330124982,
+        "seed": 17,
+        "truth": 0
+      },
+      {
+        "estimate": 0.07031957439016337,
+        "seed": 29,
+        "truth": 0
+      },
+      {
+        "estimate": 0.03251002922835733,
+        "seed": 41,
+        "truth": 0
+      },
+      {
+        "estimate": 0.06428658594992845,
+        "seed": 73,
+        "truth": 0
+      }
+    ],
+    "null_paid_channel": [
+      {
+        "estimate": -0.0041593465569125295,
+        "seed": 7,
+        "truth": 0
+      },
+      {
+        "estimate": 0.009565327549004165,
+        "seed": 17,
+        "truth": 0
+      },
+      {
+        "estimate": -0.010718974627943934,
+        "seed": 29,
+        "truth": 0
+      },
+      {
+        "estimate": 0.0023837347026415784,
+        "seed": 41,
+        "truth": 0
+      },
+      {
+        "estimate": -0.030899058505882995,
+        "seed": 73,
+        "truth": 0
+      }
+    ],
+    "retargeting_selection": [
+      {
+        "estimate": 0.05298876109446649,
+        "seed": 7,
+        "truth": 0
+      },
+      {
+        "estimate": 0.024696831377140138,
+        "seed": 17,
+        "truth": 0
+      },
+      {
+        "estimate": 0.051083489539872344,
+        "seed": 29,
+        "truth": 0
+      },
+      {
+        "estimate": 0.07071371255180434,
+        "seed": 41,
+        "truth": 0
+      },
+      {
+        "estimate": 0.08505790850096749,
+        "seed": 73,
+        "truth": 0
+      }
+    ]
+  },
+  "overall_preregistered_phase1_pass": false,
+  "perfect_cases": 100,
+  "phase1_reference": "1d92f4d2d5fd89de261127b8ed4bdcced6f18fdf",
+  "robustness_cases": 35,
+  "robustness_summary": {
+    "mean_l1_divergence_from_perfect": {
+      "missing_25": 0.07651885538761503,
+      "missing_50": 0.1509927919208192
+    },
+    "qualities": [
+      "perfect",
+      "missing_25",
+      "missing_50",
+      "fragmented_identity",
+      "channel_specific_missing",
+      "cookie_loss",
+      "observation_censoring"
+    ]
+  },
+  "sparse_cases": 100,
+  "stage": "FROZEN_PHASE1"
+}
