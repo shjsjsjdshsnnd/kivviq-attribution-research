@@ -182,7 +182,12 @@ export interface MerchantResearchSummary {
   readonly expectedAnnualOrders: number;
   readonly annualRevenuePotentialMinor: number;
   readonly skuCount: number;
+  readonly categoryCount: number;
+  readonly catalogMinPriceMinor: number;
+  readonly catalogMedianPriceMinor: number;
+  readonly catalogMaxPriceMinor: number;
   readonly grossMarginRate: number;
+  readonly expectedCogsRate: number;
   readonly repeatProbability: number;
   readonly expectedPurchaseIntervalDays: number;
   readonly mobileTrafficShare: number;
@@ -199,7 +204,12 @@ export interface MerchantResearchSummary {
   readonly expectedDiscountRate: number;
   readonly expectedReturnRate: number;
   readonly expectedUnitsPerOrder: number;
+  readonly paymentFeeRate: number;
+  readonly shippingSubsidyRate: number;
+  readonly fulfillmentRate: number;
+  readonly marketingSpendRate: number;
   readonly expectedContributionMarginRate: number;
+  readonly expectedContributionProfitMinor: number;
 }
 
 export interface GeneratedMerchantWorld {
