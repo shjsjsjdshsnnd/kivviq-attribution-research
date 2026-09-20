@@ -1,9 +1,8 @@
 from __future__ import annotations
 
+import importlib
 import math
 from pathlib import Path
-
-import phase2_candidate_sdk
 
 from attribution_lab.phase2.observable import to_observable_dataset
 from attribution_lab.phase2_evaluator import isolation
@@ -35,7 +34,7 @@ def test_candidate_returns_finite_effects_and_intervals() -> None:
     response = isolation.CandidateRunner().execute(
         _source(),
         to_observable_dataset(world.dataset),
-        phase2_candidate_sdk.DeclaredContext(
+        importlib.import_module("phase2_candidate_sdk").DeclaredContext(
             stage="DEVELOPMENT",
             scenario_family="candidate1-test",
             estimand_fingerprint="candidate1-test-estimand",
