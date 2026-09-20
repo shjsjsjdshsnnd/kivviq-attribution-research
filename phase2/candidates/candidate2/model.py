@@ -8,8 +8,8 @@ import numpy as np
 
 from phase2_candidate_sdk import CandidateResponse
 
-OUTCOME_L2 = 1.0
-PROPENSITY_L2 = 1.0
+OUTCOME_L2 = 5.0
+PROPENSITY_L2 = 5.0
 PROPENSITY_CLIP_LOWER = 0.025
 PROPENSITY_CLIP_UPPER = 0.975
 MAX_ITERATIONS = 60
