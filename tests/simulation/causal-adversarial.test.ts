@@ -197,24 +197,32 @@ describe("Step 4 causal adversarial acceptance", () => {
       let demonstration:
         | {
             readonly path: string;
-            readonly results: Record<string, SimulationResult>;
+            readonly results: {
+              readonly metaOnly: SimulationResult;
+              readonly googleOnly: SimulationResult;
+              readonly both: SimulationResult;
+              readonly neither: SimulationResult;
+            };
           }
         | undefined;
 
       for (let seed = 40; seed < 52; seed += 1) {
-        const results = Object.fromEntries(
-          Object.entries(worlds).map(([key, world]) => [
-            key,
-            simulateWorld({
-              merchantWorld: world,
-              latentPopulation: population,
-              simulationSeed: seed,
-              startTime: START,
-              endTime: END,
-              config: { maxEvents: 340_000 },
-            }),
-          ]),
-        ) as Record<string, SimulationResult>;
+        const run = (world: (typeof worlds)[keyof typeof worlds]) =>
+          simulateWorld({
+            merchantWorld: world,
+            latentPopulation: population,
+            simulationSeed: seed,
+            startTime: START,
+            endTime: END,
+            config: { maxEvents: 340_000 },
+          });
+
+        const results = {
+          metaOnly: run(worlds.metaOnly),
+          googleOnly: run(worlds.googleOnly),
+          both: run(worlds.both),
+          neither: run(worlds.neither),
+        };
 
         const paths = new Set(
           results.neither.godMode.purchaseTruth
