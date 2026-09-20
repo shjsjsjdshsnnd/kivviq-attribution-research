@@ -487,6 +487,7 @@ export function buildAdvertisingPerformanceReport(
     request.simulationSeed,
     allocation,
     request.simulationConfig,
+    request.contextInterventions ?? [],
   );
 
   const rows: AdvertisingPerformanceRow[] = [];
