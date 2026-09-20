@@ -17,6 +17,7 @@ export interface ContradictionInput {
   id: string
   claimIds: readonly [string, string]
   likelyExplanation?: string
+  explanationEvidenceIds?: readonly string[]
   resolved?: boolean
 }
 
@@ -25,6 +26,10 @@ export function buildContradiction(
   input: ContradictionInput,
   policy: ContradictionPolicy = DEFAULT_CONTRADICTION_POLICY,
 ): Contradiction {
+  if (input.likelyExplanation && (input.explanationEvidenceIds?.length ?? 0) === 0) {
+    throw new Error('likely explanation requires supporting evidence IDs')
+  }
+
   const left = claimById(ledger, input.claimIds[0])
   const right = claimById(ledger, input.claimIds[1])
   if (!left || !right) throw new Error('contradiction references missing claim')
@@ -55,8 +60,26 @@ export function buildContradiction(
     relativeDisagreement,
     material,
     likelyExplanation: input.likelyExplanation,
+    explanationEvidenceIds: Object.freeze([...(input.explanationEvidenceIds ?? [])]),
     status,
     confidencePenalty: material && status === 'UNRESOLVED' ? policy.confidencePenalty : 0,
     blocksDecision: material && status === 'UNRESOLVED',
   })
+}
+
+export function applyContradictionsToLedger(
+  ledger: ClaimLedger,
+  contradictions: readonly Contradiction[],
+): ClaimLedger {
+  const claims = ledger.claims.map((claim) => {
+    const related = contradictions.filter((item) => item.claimIds.includes(claim.id))
+    const contradictionStatus =
+      related.some((item) => item.status === 'UNRESOLVED')
+        ? 'UNRESOLVED' as const
+        : related.some((item) => item.status === 'RESOLVED')
+          ? 'RESOLVED' as const
+          : 'NONE' as const
+    return Object.freeze({ ...claim, contradictionStatus })
+  })
+  return Object.freeze({ claims: Object.freeze(claims) })
 }

@@ -147,6 +147,7 @@ export interface Contradiction {
   relativeDisagreement?: number
   material: boolean
   likelyExplanation?: string
+  explanationEvidenceIds: readonly string[]
   status: Exclude<ContradictionStatus, 'NONE'>
   confidencePenalty: number
   blocksDecision: boolean
@@ -267,6 +268,10 @@ export type ViolationCode =
   | 'LOW_CONFIDENCE_HIDDEN'
   | 'REQUIRED_UNKNOWN_OMITTED'
   | 'FALSE_PREMISE_NOT_CORRECTED'
+  | 'INVALID_DRAFT_SCHEMA'
+  | 'MISSING_AS_ZERO'
+  | 'ATTRIBUTION_AS_INCREMENTALITY'
+  | 'GENERIC_CONSULTANT_LANGUAGE'
 
 export interface VerificationViolation {
   code: ViolationCode

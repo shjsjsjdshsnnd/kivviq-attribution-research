@@ -1,5 +1,5 @@
 import { buildClaimLedger } from './claim-ledger.js'
-import { buildContradiction, type ContradictionInput } from './contradictions.js'
+import { applyContradictionsToLedger, buildContradiction, type ContradictionInput } from './contradictions.js'
 import { governDecision } from './decision.js'
 import { buildMerchantEconomics } from './economics.js'
 import { buildAnswerSpec } from './governor.js'
@@ -336,8 +336,9 @@ export const ADVERSARIAL_FIXTURES: readonly AdversarialFixture[] = Object.freeze
 ])
 
 export function materializeFixture(fixture: AdversarialFixture): AnswerSpec {
-  const ledger = buildClaimLedger(fixture.claims)
-  const contradictions = (fixture.contradictionInputs ?? []).map((item) => buildContradiction(ledger, item))
+  const initialLedger = buildClaimLedger(fixture.claims)
+  const contradictions = (fixture.contradictionInputs ?? []).map((item) => buildContradiction(initialLedger, item))
+  const ledger = applyContradictionsToLedger(initialLedger, contradictions)
   const materiality = evaluateMateriality(fixture.materialityInput)
   const economics = buildMerchantEconomics(fixture.economics ?? {})
   const decision = governDecision(ledger, contradictions, fixture.candidate)
