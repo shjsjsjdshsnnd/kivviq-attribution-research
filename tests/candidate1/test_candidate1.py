@@ -4,11 +4,6 @@ import importlib
 import math
 from pathlib import Path
 
-from attribution_lab.phase2.observable import to_observable_dataset
-from attribution_lab.phase2_evaluator import isolation
-from attribution_lab.simulation.config import scenario_config
-from attribution_lab.simulation.generator import generate_world
-
 
 SOURCE_PATH = Path("phase2/candidates/candidate1/candidate.py")
 
@@ -18,6 +13,7 @@ def _source() -> str:
 
 
 def test_candidate_source_respects_evaluator_import_boundary() -> None:
+    isolation = importlib.import_module("attribution_lab.phase2_evaluator.isolation")
     source = _source()
     isolation.validate_candidate_source(source)
     assert "attribution_lab" not in source
@@ -28,13 +24,19 @@ def test_candidate_source_respects_evaluator_import_boundary() -> None:
 
 
 def test_candidate_returns_finite_effects_and_intervals() -> None:
-    world = generate_world(
-        scenario_config("balanced_multi_touch", seed=2201, n_subjects=160)
+    observable = importlib.import_module("attribution_lab.phase2.observable")
+    isolation = importlib.import_module("attribution_lab.phase2_evaluator.isolation")
+    config = importlib.import_module("attribution_lab.simulation.config")
+    generator = importlib.import_module("attribution_lab.simulation.generator")
+    sdk = importlib.import_module("phase2_candidate_sdk")
+
+    world = generator.generate_world(
+        config.scenario_config("balanced_multi_touch", seed=2201, n_subjects=160)
     )
     response = isolation.CandidateRunner().execute(
         _source(),
-        to_observable_dataset(world.dataset),
-        importlib.import_module("phase2_candidate_sdk").DeclaredContext(
+        observable.to_observable_dataset(world.dataset),
+        sdk.DeclaredContext(
             stage="DEVELOPMENT",
             scenario_family="candidate1-test",
             estimand_fingerprint="candidate1-test-estimand",
