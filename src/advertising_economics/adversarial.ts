@@ -135,7 +135,7 @@ export function createVanityRoasTrapFixture(): AdvertisingAdversarialFixture {
     hillCoefficient: 1.1,
   });
 
-  const population = buildPopulation(world, 95001, 130);
+  const population = buildPopulation(world, 95101, 130);
 
   return {
     id: "vanity_roas_trap",
