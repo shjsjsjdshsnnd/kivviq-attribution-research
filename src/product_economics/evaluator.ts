@@ -1,8 +1,8 @@
 import type { LatentCustomerPopulation } from "../customer_population/types.js";
 import type {
   GeneratedMerchantWorld,
-  MarketingChannel,
 } from "../generation/config.js";
+import type { PaidMarketingChannel } from "../advertising_economics/types.js";
 import {
   buildPlatformChannelReport,
 } from "../advertising_economics/platform.js";
@@ -187,7 +187,7 @@ export function productCampaignPerformance(
   report: EcommerceEconomicReport,
   population: LatentCustomerPopulation,
   productId: string,
-  channel: MarketingChannel,
+  channel: PaidMarketingChannel,
   campaignSpendMinor: number,
 ): ProductCampaignPerformance {
   if (
@@ -202,7 +202,7 @@ export function productCampaignPerformance(
   const platform = buildPlatformChannelReport(
     report.simulation,
     population,
-    channel as never,
+    channel,
     campaignSpendMinor,
   );
   const orderById = new Map(
