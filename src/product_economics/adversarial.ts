@@ -15,6 +15,7 @@ export interface LowInventoryProductRoasFixture {
   readonly latentPopulation: LatentCustomerPopulation;
   readonly productId: string;
   readonly channel: PaidMarketingChannel;
+  readonly channelSpendMinor: number;
   readonly campaignSpendMinor: number;
   readonly proposedAdditionalSpendMinor: number;
 }
@@ -96,6 +97,8 @@ export function createLowInventoryProductRoasTrapFixture(): LowInventoryProductR
     ),
     productId: product.productId,
     channel: "meta",
+    channelSpendMinor:
+      step5.evaluation.spendMinorByChannel?.meta ?? 55_000,
     campaignSpendMinor: 1_000,
     proposedAdditionalSpendMinor: 100_000,
   };
