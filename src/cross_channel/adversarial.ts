@@ -189,6 +189,23 @@ function replaceInteractionNetwork(
   return clone as GeneratedMerchantWorld;
 }
 
+function setDirectEffects(
+  world: GeneratedMerchantWorld,
+  effects: Readonly<
+    Partial<Record<MarketingChannel, number>>
+  >,
+): GeneratedMerchantWorld {
+  const clone = structuredClone(world) as any;
+  for (const mechanism of clone.manifest.channelIncrementality) {
+    const value = effects[mechanism.channelId as MarketingChannel];
+    if (value !== undefined) {
+      mechanism.effect.value = value;
+    }
+  }
+  validateGroundTruthManifest(clone.manifest);
+  return clone as GeneratedMerchantWorld;
+}
+
 function zeroDirectEffects(
   world: GeneratedMerchantWorld,
   channels: readonly MarketingChannel[],
@@ -279,7 +296,7 @@ export function createPositiveSynergyFixture(): CrossChannelFixture {
     ["meta", "google_search", "email"],
     { marketingDependence: "balanced" },
   );
-  const world = replaceInteractionNetwork(base, [
+  const interacted = replaceInteractionNetwork(base, [
     {
       id: "step6_meta_google_synergy",
       channelIds: ["meta", "google_search"],
@@ -310,6 +327,14 @@ export function createPositiveSynergyFixture(): CrossChannelFixture {
       targets: ["funnel.purchase_probability"],
     },
   ]);
+  const world = setDirectEffects(
+    interacted,
+    {
+      meta: base.summary.expectedAnnualOrders / 12 * 0.32,
+      google_search: base.summary.expectedAnnualOrders / 12 * 0.42,
+      email: base.summary.expectedAnnualOrders / 12 * 0.12,
+    },
+  );
   return fixture(
     "positive_synergy",
     world,
@@ -323,7 +348,7 @@ export function createCannibalizationFixture(): CrossChannelFixture {
     91040,
     ["google_search", "meta"],
   );
-  const world = replaceInteractionNetwork(base, [
+  const interacted = replaceInteractionNetwork(base, [
     {
       id: "step6_search_direct_substitution",
       channelIds: ["google_search"],
@@ -337,6 +362,13 @@ export function createCannibalizationFixture(): CrossChannelFixture {
       ],
     },
   ]);
+  const world = setDirectEffects(
+    interacted,
+    {
+      google_search: base.summary.expectedAnnualOrders / 12 * 0.12,
+      meta: base.summary.expectedAnnualOrders / 12 * 0.08,
+    },
+  );
   return fixture(
     "cannibalization",
     world,
@@ -354,7 +386,7 @@ export function createMediationFixture(): CrossChannelFixture {
       marketingDependence: "balanced",
     },
   );
-  const world = replaceInteractionNetwork(base, [
+  const interacted = replaceInteractionNetwork(base, [
     {
       id: "step6_meta_branded_search",
       channelIds: ["meta", "google_search"],
@@ -383,6 +415,14 @@ export function createMediationFixture(): CrossChannelFixture {
       mediatorVariable: "customer.brand_awareness",
     },
   ]);
+  const world = setDirectEffects(
+    interacted,
+    {
+      meta: base.summary.expectedAnnualOrders / 12 * 0.18,
+      google_search: base.summary.expectedAnnualOrders / 12 * 0.28,
+      pinterest: base.summary.expectedAnnualOrders / 12 * 0.14,
+    },
+  );
   return fixture(
     "mediation",
     world,
@@ -396,7 +436,7 @@ export function createInteractionReversalFixture(): CrossChannelFixture {
     91080,
     ["meta", "google_search"],
   );
-  const world = replaceInteractionNetwork(base, [
+  const interacted = replaceInteractionNetwork(base, [
     {
       id: "step6_meta_google_conditional_synergy",
       channelIds: ["meta", "google_search"],
@@ -410,6 +450,13 @@ export function createInteractionReversalFixture(): CrossChannelFixture {
       targets: ["funnel.purchase_probability"],
     },
   ]);
+  const world = setDirectEffects(
+    interacted,
+    {
+      meta: base.summary.expectedAnnualOrders / 12 * 0.25,
+      google_search: base.summary.expectedAnnualOrders / 12 * 0.35,
+    },
+  );
   return fixture(
     "interaction_reversal",
     world,
@@ -427,7 +474,7 @@ export function createPortfolioReallocationTrapFixture(): CrossChannelFixture {
       marketingDependence: "balanced",
     },
   );
-  const world = replaceInteractionNetwork(base, [
+  const interacted = replaceInteractionNetwork(base, [
     {
       id: "step6_trap_meta_google_mediation",
       channelIds: ["meta", "google_search"],
@@ -477,6 +524,14 @@ export function createPortfolioReallocationTrapFixture(): CrossChannelFixture {
       targets: ["funnel.purchase_probability"],
     },
   ]);
+  const world = setDirectEffects(
+    interacted,
+    {
+      meta: base.summary.expectedAnnualOrders / 12 * 0.12,
+      google_search: base.summary.expectedAnnualOrders / 12 * 0.52,
+      email: base.summary.expectedAnnualOrders / 12 * 0.16,
+    },
+  );
   return fixture(
     "portfolio_reallocation_trap",
     world,
@@ -494,7 +549,7 @@ export function createProspectingCutTrapFixture(): CrossChannelFixture {
       marketingDependence: "retention_heavy",
     },
   );
-  const world = replaceInteractionNetwork(base, [
+  const interacted = replaceInteractionNetwork(base, [
     {
       id: "step6_prospecting_branded_search",
       channelIds: ["meta", "google_search"],
@@ -531,6 +586,14 @@ export function createProspectingCutTrapFixture(): CrossChannelFixture {
       mediatorVariable: "customer.brand_awareness",
     },
   ]);
+  const world = setDirectEffects(
+    interacted,
+    {
+      meta: base.summary.expectedAnnualOrders / 12 * 0.06,
+      google_search: base.summary.expectedAnnualOrders / 12 * 0.34,
+      email: base.summary.expectedAnnualOrders / 12 * 0.18,
+    },
+  );
   return fixture(
     "prospecting_cut_trap",
     world,
