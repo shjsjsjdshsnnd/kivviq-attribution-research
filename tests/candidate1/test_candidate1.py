@@ -11,8 +11,12 @@ def _source() -> str:
     return SOURCE_PATH.read_text(encoding="utf-8")
 
 
+def _load(module_name: str):
+    return __import__(module_name, fromlist=["*"])
+
+
 def test_candidate_source_respects_evaluator_import_boundary() -> None:
-    isolation = __import__("attribution_lab.phase2_evaluator.isolation", fromlist=["*"])
+    isolation = _load("attribution_lab.phase2_evaluator.isolation")
     source = _source()
     isolation.validate_candidate_source(source)
     assert "attribution_lab" not in source
@@ -23,11 +27,11 @@ def test_candidate_source_respects_evaluator_import_boundary() -> None:
 
 
 def test_candidate_returns_finite_effects_and_intervals() -> None:
-    observable = __import__("attribution_lab.phase2.observable", fromlist=["*"])
-    isolation = importlib.import_module("attribution_lab.phase2_evaluator.isolation")
-    config = __import__("attribution_lab.simulation.config", fromlist=["*"])
-    generator = __import__("attribution_lab.simulation.generator", fromlist=["*"])
-    sdk = __import__("phase2_candidate_sdk", fromlist=["*"])
+    observable = _load("attribution_lab.phase2.observable")
+    isolation = _load("attribution_lab.phase2_evaluator.isolation")
+    config = _load("attribution_lab.simulation.config")
+    generator = _load("attribution_lab.simulation.generator")
+    sdk = _load("phase2_candidate_sdk")
 
     world = generator.generate_world(
         config.scenario_config("balanced_multi_touch", seed=2201, n_subjects=160)
