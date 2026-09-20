@@ -15,7 +15,8 @@
     "test:step4": "vitest run tests/simulation --reporter=verbose",
     "test:step5": "vitest run tests/advertising_economics --reporter=verbose",
     "test:step6": "vitest run tests/cross_channel --reporter=verbose",
-    "test:step7": "vitest run tests/ecommerce_economics --reporter=verbose"
+    "test:step7": "vitest run tests/ecommerce_economics --reporter=verbose",
+    "test:step8": "vitest run tests/product_economics --reporter=verbose"
   },
   "exports": {
     ".": "./dist/index.js",
@@ -26,7 +27,8 @@
     "./simulation": "./dist/simulation/index.js",
     "./advertising-economics": "./dist/advertising_economics/index.js",
     "./cross-channel": "./dist/cross_channel/index.js",
-    "./ecommerce-economics": "./dist/ecommerce_economics/index.js"
+    "./ecommerce-economics": "./dist/ecommerce_economics/index.js",
+    "./product-economics": "./dist/product_economics/index.js"
   },
   "devDependencies": {
     "typescript": "^5.9.2",
