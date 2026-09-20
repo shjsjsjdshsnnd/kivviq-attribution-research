@@ -13,7 +13,6 @@ from attribution_lab.phase2_evaluator.isolation import CandidateRunner
 from attribution_lab.phase2_evaluator.results import EvaluationStage
 from attribution_lab.runner import quick_benchmark_specs
 from phase2_candidate_sdk import DeclaredContext, fingerprint_payload
-
 from research.candidate1.development_worlds import development_worlds
 from research.candidate1.preregistration import DECLARATION, DEVELOPMENT_RECORD
 
@@ -83,7 +82,6 @@ def run() -> dict[str, Any]:
         "null_paid_channel": ("pinterest", 0.03),
     }
     checks: dict[str, Any] = {}
-    runner = CandidateRunner()
     for scenario, (channel, tolerance) in required.items():
         case = cases[(scenario, "perfect")]
         response = _response(source, case, family=f"{scenario}:perfect")

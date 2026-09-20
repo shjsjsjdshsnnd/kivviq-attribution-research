@@ -54,10 +54,15 @@ def _world(
             probability = _sigmoid(base_logit + strength * intent)
             exposures[channel] = rng.random() < probability
 
-        def probability(force_channel: str | None = None, force_value: bool = False) -> float:
-            linear = -2.45 + latent_intent_weight * intent
+        def probability(
+            current_exposures: dict[str, bool],
+            current_intent: float,
+            force_channel: str | None = None,
+            force_value: bool = False,
+        ) -> float:
+            linear = -2.45 + latent_intent_weight * current_intent
             for channel in CHANNELS:
-                present = exposures[channel]
+                present = current_exposures[channel]
                 if channel == force_channel:
                     present = force_value
                 if present:
@@ -65,7 +70,17 @@ def _world(
             return _sigmoid(linear)
 
         for channel in CHANNELS:
-            effect_sums[channel] += probability(channel, True) - probability(channel, False)
+            effect_sums[channel] += probability(
+                exposures,
+                intent,
+                channel,
+                True,
+            ) - probability(
+                exposures,
+                intent,
+                channel,
+                False,
+            )
 
         start = origin + timedelta(minutes=index * 7)
         end = start + timedelta(days=21)
@@ -96,7 +111,7 @@ def _world(
             )
             touch_index += 1
 
-        converted = rng.random() < probability()
+        converted = rng.random() < probability(exposures, intent)
         conversion = (
             ObservableConversion(
                 conversion_id=f"dev-o-{index:05d}",

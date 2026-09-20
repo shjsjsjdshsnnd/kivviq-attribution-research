@@ -5,7 +5,6 @@ from pathlib import Path
 
 from attribution_lab.phase2_evaluator.isolation import CandidateRunner, validate_candidate_source
 from phase2_candidate_sdk import DeclaredContext, fingerprint_payload
-
 from research.candidate1.development_worlds import development_worlds
 from research.candidate1.preregistration import DECLARATION
 
