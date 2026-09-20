@@ -5,6 +5,11 @@ import type {
   PopulationSelector,
   WorldId,
 } from "./ontology.js";
+import {
+  counterfactualRequestRuntimeSchema,
+  formatRuntimeSchemaIssues,
+  interventionRuntimeSchema,
+} from "./runtime-schema.js";
 
 export type InterventionValue =
   | {
@@ -42,6 +47,13 @@ export function validateIntervention(
   graph: CausalGraph,
   intervention: Intervention,
 ): void {
+  const runtime = interventionRuntimeSchema.safeParse(intervention);
+  if (!runtime.success) {
+    throw new InterventionError(
+      `invalid intervention: ${formatRuntimeSchemaIssues(runtime.error)}`,
+    );
+  }
+
   const node = graph.nodes.find(
     (candidate) => candidate.id === intervention.variable,
   );
@@ -65,13 +77,26 @@ export function validateIntervention(
   }
 
   if (intervention.value.kind === "number") {
-    if (!Number.isFinite(intervention.value.value)) {
-      throw new InterventionError("numeric intervention values must be finite");
-    }
     if (intervention.value.unit !== node.unit) {
       throw new InterventionError(
         `intervention unit ${intervention.value.unit} does not match node unit ${node.unit}`,
       );
     }
+  }
+}
+
+export function validateCounterfactualRequest(
+  graph: CausalGraph,
+  request: CounterfactualRequest,
+): void {
+  const runtime = counterfactualRequestRuntimeSchema.safeParse(request);
+  if (!runtime.success) {
+    throw new InterventionError(
+      `invalid counterfactual request: ${formatRuntimeSchemaIssues(runtime.error)}`,
+    );
+  }
+
+  for (const intervention of request.interventions) {
+    validateIntervention(graph, intervention);
   }
 }
