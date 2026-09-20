@@ -1,0 +1,43 @@
+name: Candidate 1 Development
+
+on:
+  push:
+    branches: ["phase2/candidate1-ipw"]
+    paths:
+      - "phase2_candidates/candidate1/candidate.py"
+      - "phase2_candidates/candidate1/protocol.py"
+      - "phase2_candidates/candidate1/development.py"
+      - "tests/candidate1/**"
+      - ".github/workflows/candidate1-development.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  development:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+      - run: python -m pip install --upgrade pip
+      - run: python -m pip install -e ".[dev]"
+      - run: python scripts/check_repo_safety.py
+      - run: python scripts/check_phase1_frozen.py
+      - run: ruff check .
+      - run: mypy
+      - run: pytest tests/phase2 tests/candidate1
+      - name: Run DEVELOPMENT-only Candidate 1 grid
+        run: python -m phase2_candidates.candidate1.development --output candidate1-development.json
+      - uses: actions/upload-artifact@v4
+        with:
+          name: candidate1-development
+          path: candidate1-development.json
+          if-no-files-found: error
+          retention-days: 30
