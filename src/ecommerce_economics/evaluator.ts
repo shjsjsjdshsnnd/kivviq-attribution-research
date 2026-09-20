@@ -385,8 +385,23 @@ function customerEconomicSummaries(
           order.contributionProfitBeforeAdvertisingMinor,
         0,
       );
+
+      const baselineFuturePurchases = Math.max(
+        0,
+        customer.expectedFuturePurchases,
+      );
+      const remainingFuturePurchases = Math.max(
+        0,
+        baselineFuturePurchases - customerOrders.length,
+      );
+      const remainingFutureFraction =
+        baselineFuturePurchases > 0
+          ? remainingFuturePurchases /
+            baselineFuturePurchases
+          : 0;
       const expectedFutureContribution = Math.round(
-        customer.expectedLifetimeValueMinor,
+        customer.expectedLifetimeValueMinor *
+          remainingFutureFraction,
       );
       const clvMechanism =
         request.merchantWorld.manifest.clvMechanisms[0];
@@ -512,7 +527,13 @@ export function evaluateEcommerceEconomics(
       .filter((order) => !order.repeatPurchase)
       .map((order) => order.customerId),
   );
-  const expectedFutureNew = request.latentPopulation.customers
+  const populationWeightByCustomer = new Map(
+    request.latentPopulation.customers.map(
+      (customer) =>
+        [customer.customerId, customer.populationWeight] as const,
+    ),
+  );
+  const expectedFutureNew = customers
     .filter((customer) =>
       newCustomerIds.has(customer.customerId),
     )
@@ -520,8 +541,8 @@ export function evaluateEcommerceEconomics(
       (sum, customer) =>
         sum +
         Math.round(
-          customer.expectedLifetimeValueMinor *
-            customer.populationWeight,
+          customer.expectedFutureContributionMinor *
+            (populationWeightByCustomer.get(customer.customerId) ?? 1),
         ),
       0,
     );
