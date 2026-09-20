@@ -1,0 +1,52 @@
+name: Candidate 1 frozen Phase 1 evaluation
+
+on:
+  push:
+    branches: ["phase2/candidate1-observable-outcome-regression"]
+    paths:
+      - "research/candidate1/FROZEN.json"
+      - "research/candidate1/evaluate_frozen.py"
+      - "scripts/check_candidate1_frozen.py"
+      - ".github/workflows/candidate1-frozen-evaluation.yml"
+
+permissions:
+  contents: write
+
+jobs:
+  frozen-evaluation:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+      - run: python -m pip install --upgrade pip
+      - run: python -m pip install -e ".[dev]"
+      - run: python scripts/check_repo_safety.py
+      - run: python scripts/check_phase1_frozen.py
+      - run: python scripts/check_candidate1_frozen.py
+      - run: ruff check .
+      - run: mypy
+      - run: pytest
+      - name: Run formal frozen Phase 1 and robustness evaluation
+        run: python -m research.candidate1.evaluate_frozen --output-dir research/candidate1/results
+      - run: python scripts/check_repo_safety.py
+      - name: Persist frozen evaluation evidence
+        shell: bash
+        run: |
+          set -euo pipefail
+          git add -N research/candidate1/results/frozen_phase1.json research/candidate1/results/frozen_phase1.md
+          git status --short
+          git diff --check
+          git diff -- research/candidate1/results/frozen_phase1.json research/candidate1/results/frozen_phase1.md
+          if ! git diff --quiet -- research/candidate1/results/frozen_phase1.json research/candidate1/results/frozen_phase1.md; then
+            git config user.name "github-actions[bot]"
+            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+            git add research/candidate1/results/frozen_phase1.json research/candidate1/results/frozen_phase1.md
+            git commit -m "Record frozen Candidate 1 Phase 1 evaluation"
+            git push origin "HEAD:${GITHUB_REF_NAME}"
+          fi

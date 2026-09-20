@@ -24,6 +24,9 @@ jobs:
       - run: python -m pip install -e ".[dev]"
       - run: python scripts/check_repo_safety.py
       - run: python scripts/check_phase1_frozen.py
+      - name: Verify frozen Candidate 1
+        if: hashFiles('research/candidate1/FROZEN.json') != ''
+        run: python scripts/check_candidate1_frozen.py
       - run: ruff check .
       - run: mypy
       - run: pytest
