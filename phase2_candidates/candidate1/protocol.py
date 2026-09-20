@@ -9,8 +9,8 @@ from phase2_candidate_sdk import (
     CandidateDeclaration,
     EstimandDefinition,
     EstimandKind,
-    FamilyCriterion,
     FalsificationCriteria,
+    FamilyCriterion,
 )
 
 ROOT = Path(__file__).resolve().parent
