@@ -1,0 +1,16 @@
+{
+  "candidate_id": "candidate1-outcome-regression-gcomp",
+  "candidate_version": "1.0.0",
+  "frozen_before_phase1_evaluation": true,
+  "freeze_source_commit": "506e275be093ab6a828cc5430c2caf53c580fb13",
+  "code_fingerprint": "cc458a527b9565d33a75a8a5b93bbb6676b849502e09a789ca6552c2e7f32902",
+  "declaration_fingerprint": "5f465f464c8e319a6e848ecbf28f35fe7580e0f26af7105250b7432f84119c7d",
+  "development_record_fingerprint": "249cd9965f2d6435f69251bdfd9a7d2b6dc6356e65c53587719b7690ab653ab1",
+  "lineage_fingerprint": "717f184a9b18df826e9fcb23633c741fa404d26ffc07397c569f93dbdccdbf71",
+  "selected_hyperparameters": {
+    "ridge_lambda": "1.0"
+  },
+  "phase1_evaluation_started": false,
+  "sealed_holdout_exposure_consumed": false,
+  "status": "FROZEN"
+}
