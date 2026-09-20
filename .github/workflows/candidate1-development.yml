@@ -1,0 +1,47 @@
+name: Candidate 1 development
+
+on:
+  push:
+    branches: ["phase2/candidate1-stratified-lpm"]
+    paths:
+      - "phase2/candidates/candidate1/**"
+      - "scripts/run_candidate1_development.py"
+      - "tests/candidate1/**"
+      - ".github/workflows/candidate1-development.yml"
+  pull_request:
+    branches: ["phase2/research-harness"]
+    paths:
+      - "phase2/candidates/candidate1/**"
+      - "scripts/run_candidate1_development.py"
+      - "tests/candidate1/**"
+      - ".github/workflows/candidate1-development.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  development:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+      - run: python -m pip install --upgrade pip
+      - run: python -m pip install -e ".[dev]"
+      - run: python scripts/check_repo_safety.py
+      - run: python scripts/check_phase1_frozen.py
+      - run: ruff check .
+      - run: mypy
+      - run: pytest
+      - name: Candidate 1 development worlds
+        run: python scripts/run_candidate1_development.py --output /tmp/candidate1-development.json
+      - uses: actions/upload-artifact@v4
+        with:
+          name: candidate1-development-results
+          path: /tmp/candidate1-development.json
+          retention-days: 30
