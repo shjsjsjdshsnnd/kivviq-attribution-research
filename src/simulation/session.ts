@@ -374,6 +374,7 @@ export function advanceSession(
         intervention,
         randomness,
         `${stepKey}:product`,
+        commercePolicy,
       );
       if (offer) {
         session.currentProductId = offer.productId;
@@ -406,6 +407,7 @@ export function advanceSession(
         intervention,
         randomness,
         `${stepKey}:pdp-offer`,
+        commercePolicy,
       );
       if (offer && offer.productId !== session.currentProductId) {
         // Browsing can move to another preferred product.
@@ -419,6 +421,7 @@ export function advanceSession(
         intervention,
         randomness,
         `${stepKey}:pdp-product`,
+        commercePolicy,
       );
       if (offer) session.currentProductId = offer.productId;
     }
@@ -431,8 +434,17 @@ export function advanceSession(
         offer.priceUtilityMultiplier *
         offer.promotionUtilityMultiplier;
 
+      const inventoryMechanism =
+        runtime.merchantWorld.manifest.inventoryMechanisms.find(
+          (item) => item.productId === offer.productId,
+        );
+      const backorderEligible =
+        commercePolicy?.executeInventoryLifecycle === true &&
+        inventoryMechanism?.allowBackorders === true &&
+        inventoryMechanism.stockoutBehavior === "backorder";
+
       if (
-        offer.availableUnits > 0 &&
+        (offer.availableUnits > 0 || backorderEligible) &&
         randomness.bool(
           `${stepKey}:atc`,
           clamp(atcProbability, 0.005, 0.82),
@@ -446,7 +458,8 @@ export function advanceSession(
           0.45,
         );
         if (
-          offer.availableUnits > 1 &&
+          commercePolicy?.enableEnhancedBasketEconomics === true &&
+          (offer.availableUnits > 1 || backorderEligible) &&
           randomness.bool(
             `${stepKey}:extra-unit`,
             extraUnitProbability,
