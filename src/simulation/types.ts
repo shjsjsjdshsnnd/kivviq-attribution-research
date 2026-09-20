@@ -123,6 +123,14 @@ export interface CustomerFinalStateSummary {
   readonly finalIntent: number;
   readonly finalAwareness: number;
   readonly finalConsideration: number;
+  readonly finalRetargetingEligibility: number;
+  readonly finalEmailEligibility: number;
+  readonly finalBrandedSearchReadiness: number;
+  readonly finalRecentSiteVisitScore: number;
+  readonly interactionMemory: readonly {
+    readonly mechanismId: string;
+    readonly value: number;
+  }[];
   readonly churned: boolean;
 }
 
