@@ -13,8 +13,11 @@ from phase2_candidate_sdk import (
     FamilyCriterion,
 )
 
+REPOSITORY_ROOT = Path(__file__).resolve().parents[3]
 ROOT = Path(__file__).resolve().parent
-PREREGISTRATION_PATH = ROOT / "preregistration.json"
+PREREGISTRATION_PATH = (
+    REPOSITORY_ROOT / "phase2_candidates" / "candidate1" / "preregistration.json"
+)
 
 
 def preregistration_payload() -> dict[str, object]:

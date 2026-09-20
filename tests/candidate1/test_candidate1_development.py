@@ -7,7 +7,7 @@ from phase2_candidates.candidate1.protocol import declaration
 
 def test_candidate1_source_respects_candidate_import_boundary() -> None:
     validate_candidate_source(
-        Path("phase2_candidates/candidate1/candidate.py").read_text(encoding="utf-8")
+        Path("src/phase2_candidates/candidate1/candidate.py").read_text(encoding="utf-8")
     )
 
 

@@ -4,9 +4,9 @@ on:
   push:
     branches: ["phase2/candidate1-ipw"]
     paths:
-      - "phase2_candidates/candidate1/candidate.py"
-      - "phase2_candidates/candidate1/protocol.py"
-      - "phase2_candidates/candidate1/development.py"
+      - "src/phase2_candidates/candidate1/candidate.py"
+      - "src/phase2_candidates/candidate1/protocol.py"
+      - "src/phase2_candidates/candidate1/development.py"
       - "tests/candidate1/**"
       - ".github/workflows/candidate1-development.yml"
   workflow_dispatch:
