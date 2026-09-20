@@ -1,0 +1,26 @@
+{
+  "candidate_id":"phase2-candidate1-aipw",
+  "candidate_version":"1.0.0",
+  "frozen_before_holdout":true,
+  "phase1_criteria":{
+    "selection_world_max_mae":{"scenarios":["demand_capture","retargeting_selection"],"observation_quality":"perfect","threshold":0.10},
+    "null_world_max_mae":{"scenario_prefixes":["null_paid_channel","null_channel_"],"observation_quality":"perfect","threshold":0.10},
+    "harmful_world_max_mae":{"scenario":"harmful_channel","observation_quality":"perfect","threshold":0.12},
+    "missing_50_max_mae":{"scenario":"balanced_multi_touch","observation_quality":"missing_50","threshold":0.15},
+    "fragmented_identity_max_mae":{"scenario":"balanced_multi_touch","observation_quality":"fragmented_identity","threshold":0.15},
+    "minimum_output_coverage":1.0,
+    "minimum_mean_interval_coverage_on_perfect_cases":0.50
+  },
+  "robustness_criteria":{
+    "all_runs_numerically_valid":true,
+    "n80_max_mae":0.15,
+    "missing_50_max_mae":0.15,
+    "fragmented_identity_max_mae":0.15,
+    "selection_shift_max_mae":0.12,
+    "temporal_shift_max_mae":0.15,
+    "minimum_mean_interval_coverage":0.50,
+    "max_mean_mae_difference_n80_vs_n800":0.08
+  },
+  "holdout_criteria_source":"phase2/candidate1/spec.py::FALSIFICATION",
+  "final_outcome_rule":"REJECT if any required Phase 1 criterion, robustness criterion, or sealed-holdout family rule fails. INCONCLUSIVE if a required evaluation is missing. SURVIVE only if every preregistered required gate passes."
+}

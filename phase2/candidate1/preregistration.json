@@ -1,0 +1,83 @@
+{
+  "candidate_id": "phase2-candidate1-aipw",
+  "version": "1.0.0",
+  "status": "PREREGISTERED_BEFORE_IMPLEMENTATION",
+  "estimand": {
+    "kind": "incremental_conversion_probability",
+    "population": "synthetic subjects with completed 21-day observation windows and observable channel-exposure histories",
+    "unit_of_analysis": "synthetic subject",
+    "treatment_or_exposure": "presence versus absence of one channel in the subject's pre-outcome channel-exposure vector",
+    "outcome": "qualifying conversion within the 21-day observation horizon",
+    "horizon_hours": 504.0,
+    "intervention": "set the focal channel exposure component to present while holding the other observed channel-exposure components fixed",
+    "comparison": "set the focal channel exposure component to absent while holding the other observed channel-exposure components fixed",
+    "temporal_ordering": "all exposure components used by the candidate occur before the qualifying outcome; post-outcome touches are excluded",
+    "treatment_regime": "component-wise intervention on a static pre-outcome multi-channel exposure vector",
+    "aggregation_target": "population-average change in conversion probability for each channel"
+  },
+  "hypothesis": {
+    "statement": "An interpretable treatment-effect estimator that adjusts for the observed co-exposure vector can reduce synthetic causal-recovery error caused by observable selection structure relative to descriptive Phase 1 attribution rules, but it may fail when selection is driven primarily by hidden latent intent, when positivity is weak, or when the outcome model requires unmodeled interactions or time-varying structure.",
+    "why_it_might_address_selection": "Conditioning treatment assignment and outcome estimation on the other observed channel-exposure components can remove association explained by observable co-exposure patterns instead of assigning credit from path position alone.",
+    "required_assumptions": [
+      "consistency of the declared component-wise intervention",
+      "conditional exchangeability after adjustment for the declared observable co-exposure vector",
+      "sufficient positivity for treated and untreated subjects within observed covariate patterns",
+      "no interference between synthetic subjects",
+      "the static 21-day exposure-vector representation is adequate for the target estimand"
+    ],
+    "expected_failure_conditions": [
+      "unobserved latent intent remains a material common cause of exposure and conversion after observable adjustment",
+      "important treatment interactions are not represented by the selected estimator",
+      "treatment effects vary over time in a way the static exposure-vector estimand cannot capture",
+      "extreme propensity scores or sparse support create unstable weighting",
+      "identity fragmentation or measurement loss materially corrupts the observable exposure vector"
+    ],
+    "rejection_interpretation": "Failure means this Candidate 1 hypothesis is rejected for version 1.0.0; it must not be tuned and resubmitted under the same version after sealed-holdout exposure."
+  },
+  "observability": {
+    "required_observable_inputs": [
+      "ordered pre-outcome synthetic touchpoints",
+      "channel identity for each observed touchpoint",
+      "completed/censored observation status",
+      "binary qualifying-conversion outcome",
+      "observation-window timestamps"
+    ],
+    "available_adjustment_covariates": [
+      "binary presence indicators for the other observed channels in the same pre-outcome exposure vector"
+    ],
+    "intentionally_hidden_oracle_variables": [
+      "latent purchase intent",
+      "true treatment effects",
+      "counterfactual outcomes",
+      "selection coefficients",
+      "interaction coefficients",
+      "holdout seeds",
+      "holdout parameters",
+      "holdout corruption settings"
+    ]
+  },
+  "representability": {
+    "negative_effects": true,
+    "heterogeneous_effects": "only the population-average marginal effect is targeted; heterogeneous effect structure is not estimated",
+    "interactions": false
+  },
+  "uncertainty_target": {
+    "target": "95% interval for each channel's population-average incremental conversion-probability estimate",
+    "requirement": "finite interval covering every returned channel estimate"
+  },
+  "development_policy": {
+    "allowed": [
+      "candidate-visible synthetic development worlds",
+      "implementation debugging",
+      "numerical-stability checks",
+      "hyperparameter selection",
+      "uncertainty implementation"
+    ],
+    "forbidden": [
+      "sealed holdout parameters",
+      "sealed holdout results",
+      "oracle features unavailable in ObservableDataset"
+    ]
+  },
+  "holdout_limitation_disclosure": "The holdout-family architecture is public because this is a public research repository. Instantiated holdout seeds, parameter values, treatment effects, latent-intent strengths, interactions, selection mechanisms, and corruption settings remain sealed from candidate development. This provides strong research-process separation but is not equivalent to a completely secret external benchmark."
+}

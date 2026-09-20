@@ -1,0 +1,12 @@
+{
+  "label": "DEVELOPMENT",
+  "candidate_id": "phase2-candidate1-aipw",
+  "candidate_version": "1.0.0",
+  "source_head": "ef042ee5bb1f56a44f4a918b56c79dc3cef9dd69",
+  "worlds": [
+    {"world":"candidate1-dev-balanced-v1","mean_absolute_error":0.02430492465705975,"max_absolute_error":0.05823591956129086,"coverage_fraction":1.0,"interval_coverage_fraction":0.875,"mean_interval_width":0.10064912622552058},
+    {"world":"candidate1-dev-selection-v1","mean_absolute_error":0.029673279053257035,"max_absolute_error":0.09636254374070233,"coverage_fraction":1.0,"interval_coverage_fraction":0.875,"mean_interval_width":0.09280597393988607},
+    {"world":"candidate1-dev-negative-v1","mean_absolute_error":0.021564057766559105,"max_absolute_error":0.031763629498022444,"coverage_fraction":1.0,"interval_coverage_fraction":1.0,"mean_interval_width":0.13234634013466118}
+  ],
+  "note": "Development results only. They are not holdout results and are not blended into the final gate."
+}
