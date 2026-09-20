@@ -1,0 +1,3 @@
+FROZEN_PHASE1_COMMIT = "1d92f4d2d5fd89de261127b8ed4bdcced6f18fdf"
+EVALUATION_PROTOCOL_VERSION = "phase2-evaluation-v1"
+HOLDOUT_GENERATOR_VERSION = "phase2-holdout-generator-v1"

@@ -16,6 +16,7 @@ SKIP_DIRS = {
 }
 FORBIDDEN_NAMES = {".env", ".env.local", "id_rsa", "id_ed25519"}
 FORBIDDEN_SUFFIXES = {".sqlite", ".sqlite3", ".db", ".pem", ".p12", ".pfx"}
+FORBIDDEN_PATH_PARTS = {".phase2_seals", "holdout_seals", "private_holdouts"}
 MAX_RAW_DATASET_BYTES = 5 * 1024 * 1024
 
 PATTERNS = {
@@ -42,6 +43,12 @@ def main() -> int:
     failures: list[str] = []
     for path in iter_files():
         relative = path.relative_to(ROOT)
+        if any(part in FORBIDDEN_PATH_PARTS for part in relative.parts):
+            failures.append(f"forbidden evaluator-private artifact path: {relative}")
+            continue
+        if path.name.endswith(".seal.json"):
+            failures.append(f"holdout seal must never be committed: {relative}")
+            continue
         if path.name in FORBIDDEN_NAMES or path.suffix.lower() in FORBIDDEN_SUFFIXES:
             failures.append(f"forbidden sensitive artifact: {relative}")
             continue
