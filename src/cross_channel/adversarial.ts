@@ -189,6 +189,46 @@ function replaceInteractionNetwork(
   return clone as GeneratedMerchantWorld;
 }
 
+function setReferenceIntensity(
+  world: GeneratedMerchantWorld,
+  channel: MarketingChannel,
+  referenceMinor: number,
+): GeneratedMerchantWorld {
+  const clone = structuredClone(world) as any;
+  const mechanism = clone.manifest.channelIncrementality.find(
+    (candidate: any) => candidate.channelId === channel,
+  );
+  const curve = mechanism?.responseCurveId
+    ? clone.manifest.responseCurves.find(
+        (candidate: any) =>
+          candidate.id === mechanism.responseCurveId,
+      )
+    : undefined;
+
+  if (!curve) {
+    throw new RangeError(
+      `missing response curve for ${channel}`,
+    );
+  }
+
+  const reference = Math.max(1, Math.round(referenceMinor));
+  if (curve.kind === "linear") {
+    curve.maxSpend = reference;
+  } else if (curve.kind === "hill") {
+    curve.halfSaturationSpend = reference;
+  } else if (curve.kind === "threshold") {
+    curve.thresholdSpend = reference;
+  } else if (curve.kind === "piecewise") {
+    const positive = curve.points.find(
+      (point: any) => Number(point.spend) > 0,
+    );
+    if (positive) positive.spend = reference;
+  }
+
+  validateGroundTruthManifest(clone.manifest);
+  return clone as GeneratedMerchantWorld;
+}
+
 function setDirectEffects(
   world: GeneratedMerchantWorld,
   effects: Readonly<
@@ -484,7 +524,7 @@ export function createPortfolioReallocationTrapFixture(): CrossChannelFixture {
       channelIds: ["meta", "google_search"],
       kind: "mediation",
       functionalForm: "multiplicative",
-      effect: 1.05,
+      effect: 3.2,
       sources: ["marketing.meta.exposure"],
       targets: [
         "marketing.google_search.branded_probability",
@@ -497,7 +537,7 @@ export function createPortfolioReallocationTrapFixture(): CrossChannelFixture {
       channelIds: ["meta", "google_search"],
       kind: "mediation",
       functionalForm: "multiplicative",
-      effect: 0.8,
+      effect: 2.4,
       sources: ["marketing.meta.exposure"],
       targets: ["marketing.retargeting_eligibility"],
       delaySeconds: 86_400,
@@ -508,7 +548,7 @@ export function createPortfolioReallocationTrapFixture(): CrossChannelFixture {
       channelIds: ["google_search", "meta"],
       kind: "cannibalization",
       functionalForm: "nonlinear",
-      effect: -0.55,
+      effect: -1.35,
       sources: ["marketing.google_search.exposure"],
       targets: [
         "demand.direct_probability",
@@ -520,7 +560,7 @@ export function createPortfolioReallocationTrapFixture(): CrossChannelFixture {
       channelIds: ["email", "meta"],
       kind: "synergy",
       functionalForm: "multiplicative",
-      effect: 0.45,
+      effect: 0.8,
       sources: [
         "marketing.email.exposure",
         "promotion.discount_active",
@@ -560,12 +600,12 @@ export function createProspectingCutTrapFixture(): CrossChannelFixture {
       channelIds: ["meta", "google_search"],
       kind: "mediation",
       functionalForm: "multiplicative",
-      effect: 3.2,
+      effect: 4.5,
       sources: ["marketing.meta.exposure"],
       targets: [
         "marketing.google_search.branded_probability",
       ],
-      delaySeconds: 7 * 86_400,
+      delaySeconds: 10 * 86_400,
       mediatorVariable: "customer.brand_awareness",
     },
     {
@@ -573,10 +613,10 @@ export function createProspectingCutTrapFixture(): CrossChannelFixture {
       channelIds: ["meta", "google_search"],
       kind: "mediation",
       functionalForm: "multiplicative",
-      effect: 2.6,
+      effect: 4.0,
       sources: ["marketing.meta.exposure"],
       targets: ["marketing.retargeting_eligibility"],
-      delaySeconds: 5 * 86_400,
+      delaySeconds: 21 * 86_400,
       mediatorVariable: "customer.brand_awareness",
     },
     {
@@ -584,7 +624,7 @@ export function createProspectingCutTrapFixture(): CrossChannelFixture {
       channelIds: ["meta", "email"],
       kind: "delayed",
       functionalForm: "multiplicative",
-      effect: 2.1,
+      effect: 3.5,
       sources: ["marketing.meta.exposure"],
       targets: ["marketing.email.eligibility"],
       delaySeconds: 14 * 86_400,
@@ -599,9 +639,14 @@ export function createProspectingCutTrapFixture(): CrossChannelFixture {
       email: base.summary.expectedAnnualOrders / 12 * 0.18,
     },
   );
+  const calibratedWorld = setReferenceIntensity(
+    world,
+    "meta",
+    20_000,
+  );
   return fixture(
     "prospecting_cut_trap",
-    world,
+    calibratedWorld,
     92120,
     93120,
     220,
