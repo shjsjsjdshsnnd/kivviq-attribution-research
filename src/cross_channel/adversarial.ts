@@ -223,12 +223,13 @@ function zeroDirectEffects(
 function populationFor(
   world: GeneratedMerchantWorld,
   populationSeed: number,
+  maxExplicitAgents = 150,
 ): LatentCustomerPopulation {
   return generateCustomerPopulation({
     merchantWorld: world,
     populationSeed,
     populationConfig: {
-      maxExplicitAgents: 150,
+      maxExplicitAgents,
       complexity: "adversarial",
       maxCategoryPreferences: 4,
       maxProductPreferences: 6,
@@ -241,6 +242,7 @@ function fixture(
   world: GeneratedMerchantWorld,
   populationSeed: number,
   simulationSeed: number,
+  maxExplicitAgents = 150,
 ): CrossChannelFixture {
   return {
     id,
@@ -248,6 +250,7 @@ function fixture(
     latentPopulation: populationFor(
       world,
       populationSeed,
+      maxExplicitAgents,
     ),
     simulationSeed,
   };
@@ -462,6 +465,7 @@ export function createInteractionReversalFixture(): CrossChannelFixture {
     world,
     92080,
     93080,
+    320,
   );
 }
 
@@ -537,6 +541,7 @@ export function createPortfolioReallocationTrapFixture(): CrossChannelFixture {
     world,
     92100,
     93100,
+    220,
   );
 }
 
@@ -599,5 +604,6 @@ export function createProspectingCutTrapFixture(): CrossChannelFixture {
     world,
     92120,
     93120,
+    220,
   );
 }
