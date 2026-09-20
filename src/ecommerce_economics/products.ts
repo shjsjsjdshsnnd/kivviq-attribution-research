@@ -210,3 +210,60 @@ export function productEconomicProfileMap(
     ),
   );
 }
+
+
+export function applyProductEconomicOverrides(
+  profiles: readonly ProductEconomicProfile[],
+  overrides: Readonly<
+    Record<string, Partial<ProductEconomicProfile>>
+  > = {},
+): readonly ProductEconomicProfile[] {
+  return profiles.map((profile) => {
+    const override = overrides[profile.productId];
+    if (!override) return profile;
+
+    const listPriceMinor = Math.max(
+      1,
+      Math.round(
+        override.listPriceMinor ?? profile.listPriceMinor,
+      ),
+    );
+
+    let cogsPerUnitMinor: number;
+    if (override.cogsPerUnitMinor !== undefined) {
+      cogsPerUnitMinor = Math.max(
+        0,
+        Math.round(override.cogsPerUnitMinor),
+      );
+    } else {
+      const margin =
+        override.grossMarginRate ??
+        profile.grossMarginRate;
+      cogsPerUnitMinor = Math.max(
+        0,
+        Math.round(
+          listPriceMinor * (1 - clamp(margin, 0, 0.98)),
+        ),
+      );
+    }
+
+    const grossMarginRate =
+      listPriceMinor > 0
+        ? clamp(
+            1 - cogsPerUnitMinor / listPriceMinor,
+            -2,
+            1,
+          )
+        : 0;
+
+    return {
+      ...profile,
+      ...override,
+      productId: profile.productId,
+      categoryId: profile.categoryId,
+      listPriceMinor,
+      cogsPerUnitMinor,
+      grossMarginRate,
+    };
+  });
+}
