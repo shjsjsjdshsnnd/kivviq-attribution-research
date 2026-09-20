@@ -29,8 +29,8 @@ from attribution_lab.phase2_evaluator.results import (
 from attribution_lab.phase2_evaluator.seals import HoldoutSealStore
 from phase2_candidate_sdk import (
     CandidateDeclaration,
-    DeclaredContext,
     CandidateResponse,
+    DeclaredContext,
     ObservableDataset,
     fingerprint_payload,
 )
