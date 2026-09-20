@@ -115,5 +115,9 @@ describe("Operator information boundary", () => {
     expect(operatorSafeApi).not.toHaveProperty("generateMerchantWorldRecord");
     expect(operatorSafeApi).not.toHaveProperty("generateCustomerPopulation");
     expect(operatorSafeApi).not.toHaveProperty("validateLatentCustomerPopulation");
+    expect(operatorSafeApi).not.toHaveProperty("simulateWorld");
+    expect(operatorSafeApi).not.toHaveProperty("replayCounterfactual");
+    expect(operatorSafeApi).not.toHaveProperty("replayPaidMediaOff");
+    expect(operatorSafeApi).not.toHaveProperty("evaluateZeroPaidEffectAcceptance");
   });
 });
