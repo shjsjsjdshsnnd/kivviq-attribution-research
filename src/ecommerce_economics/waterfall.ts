@@ -271,10 +271,20 @@ export function aggregatePeriodWaterfall(
   world: GeneratedMerchantWorld,
   orders: readonly OrderEconomics[],
   advertisingCostMinor: number,
+  customerWeights: ReadonlyMap<string, number> = new Map(),
 ): PeriodEconomicWaterfall {
   const sum = (
     selector: (order: OrderEconomics) => number,
-  ): number => orders.reduce((total, order) => total + selector(order), 0);
+  ): number =>
+    Math.round(
+      orders.reduce(
+        (total, order) =>
+          total +
+          selector(order) *
+            (customerWeights.get(order.customerId) ?? 1),
+        0,
+      ),
+    );
 
   const grossMerchandiseRevenueMinor = sum(
     (order) => order.grossMerchandiseRevenueMinor,
