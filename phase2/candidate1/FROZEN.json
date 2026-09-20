@@ -1,0 +1,11 @@
+{
+  "candidate_id":"phase2-candidate1-aipw",
+  "candidate_version":"1.0.0",
+  "amended_harness_commit":"3616d00c0855a0d3d9dcb8dbf578a3e68c26f9fa",
+  "preregistration_commit":"41c1f61047db100c9e3bb4edb66cfe6aa2ec1c46",
+  "development_final_head":"ef042ee5bb1f56a44f4a918b56c79dc3cef9dd69",
+  "candidate_source_git_blob":"8d1f114b7b309b732fb61acc7bbc506715f2be4a",
+  "candidate_spec_git_blob":"b15d7743570d2a93599ca4f0f3c2308d6077bd82",
+  "holdout_version":"holdout-v1",
+  "feedback_bearing_holdout_exposure":"NOT_YET_CONSUMED"
+}
