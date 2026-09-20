@@ -182,8 +182,8 @@ function add(
 ): void {
   const row = map.get(key) ?? emptyRow();
   for (const [field, value] of Object.entries(delta)) {
-    (row as unknown as Record<string, number>)[field] +=
-      value ?? 0;
+    const record = row as unknown as Record<string, number>;
+    record[field] = (record[field] ?? 0) + (value ?? 0);
   }
   map.set(key, row);
 }
