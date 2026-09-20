@@ -19,6 +19,35 @@ describe("merchant economic coherence", () => {
       );
       expect(world.summary.expectedContributionMarginRate).toBeGreaterThan(-0.6);
       expect(world.summary.expectedContributionMarginRate).toBeLessThan(0.85);
+      expect(
+        world.summary.grossMarginRate + world.summary.expectedCogsRate,
+      ).toBeCloseTo(1, 12);
+
+      const reconciledContributionRate =
+        world.summary.grossMarginRate -
+        world.summary.expectedDiscountRate -
+        world.summary.expectedReturnRate * world.summary.grossMarginRate -
+        world.summary.paymentFeeRate -
+        world.summary.shippingSubsidyRate -
+        world.summary.fulfillmentRate -
+        world.summary.marketingSpendRate;
+
+      expect(world.summary.expectedContributionMarginRate).toBeCloseTo(
+        reconciledContributionRate,
+        12,
+      );
+      expect(world.summary.expectedContributionProfitMinor).toBe(
+        Math.round(
+          world.summary.annualRevenuePotentialMinor *
+            world.summary.expectedContributionMarginRate,
+        ),
+      );
+      expect(world.summary.catalogMinPriceMinor).toBeLessThanOrEqual(
+        world.summary.catalogMedianPriceMinor,
+      );
+      expect(world.summary.catalogMedianPriceMinor).toBeLessThanOrEqual(
+        world.summary.catalogMaxPriceMinor,
+      );
     }
   });
 
