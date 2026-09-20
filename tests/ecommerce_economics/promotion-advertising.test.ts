@@ -12,9 +12,11 @@ describe("Step 7 promotion × advertising economics", () => {
     "promotion can improve revenue iROAS while worsening incremental contribution economics",
     () => {
       const fixture = createDiscountTrapFixture();
-      const channel = fixture.merchantWorld.summary.activeChannels.find(
-        isPaidMarketingChannel,
-      )!;
+      const channel = "meta" as const;
+      expect(
+        fixture.merchantWorld.summary.activeChannels,
+      ).toContain(channel);
+      expect(isPaidMarketingChannel(channel)).toBe(true);
       const spend = referenceSpendMinor(
         fixture.merchantWorld,
         channel,
