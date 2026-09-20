@@ -61,7 +61,11 @@ def test_runner_executes_all_eight_baselines_and_writes_analysis(tmp_path) -> No
     matrix = json.loads((tmp_path / "matrix.json").read_text())
     assert matrix["synthetic_experiments"] == 2
     assert matrix["model_evaluations"] == 16
-    assert (tmp_path / "phase1_research_report.md").exists()
+    report_path = tmp_path / "phase1_research_report.md"
+    assert report_path.exists()
+    report_text = report_path.read_text()
+    assert report_text.endswith("\n")
+    assert not report_text.endswith("\n\n")
     assert (tmp_path / "failure_modes.json").exists()
     assert (tmp_path / "uncertainty.json").exists()
     assert (tmp_path / "simulator_bias_audit.json").exists()
