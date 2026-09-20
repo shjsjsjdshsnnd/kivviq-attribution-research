@@ -1,0 +1,102 @@
+{
+  "benchmark": {
+    "breakdown_accuracy": 1.0,
+    "cases": 545,
+    "categories": {
+      "ambiguity": 30,
+      "analytics": 27,
+      "breakdown": 35,
+      "causality": 24,
+      "channel_scope": 42,
+      "comparison": 20,
+      "custom_period": 20,
+      "evidence_precedence": 30,
+      "freshness": 30,
+      "journey": 24,
+      "lifecycle": 21,
+      "missing_cost_inputs": 20,
+      "partial_provider_failure": 45,
+      "profitability": 24,
+      "provider_attribution": 45,
+      "provider_spend": 63,
+      "store_revenue": 45
+    },
+    "causal_language_compliance": 1.0,
+    "failed": 0,
+    "failure_taxonomy": {},
+    "false_claim_rate": 0.0,
+    "false_refusal_rate": 0.0,
+    "freshness_compliance": 1.0,
+    "governor_accuracy": 1.0,
+    "intent_resolution_accuracy": 1.0,
+    "journey_evidence_compliance": 1.0,
+    "metric_resolution_accuracy": 1.0,
+    "partial_failure_isolation_accuracy": 1.0,
+    "passed": 545,
+    "period_accuracy": 1.0,
+    "profit_safety_accuracy": 1.0,
+    "scope_accuracy": 1.0,
+    "semantic_accuracy": 1.0,
+    "source_authority_accuracy": 1.0,
+    "supported_answer_precision": 1.0,
+    "unsupported_answer_refusal_accuracy": 1.0
+  },
+  "mutations": {
+    "detected": 10,
+    "results": [
+      {
+        "detected": true,
+        "failure": "SEMANTIC_FALSE_AMBIGUITY",
+        "name": "false_ambiguity"
+      },
+      {
+        "detected": true,
+        "failure": "NULL_AS_ZERO",
+        "name": "null_as_zero"
+      },
+      {
+        "detected": true,
+        "failure": "NULL_AS_ZERO",
+        "name": "unavailable_as_zero"
+      },
+      {
+        "detected": true,
+        "failure": "WRONG_PERIOD",
+        "name": "date_shift"
+      },
+      {
+        "detected": true,
+        "failure": "GROSS_NET_TOTAL_CONFUSION",
+        "name": "gross_net_total_swap"
+      },
+      {
+        "detected": true,
+        "failure": "ATTRIBUTED_AS_STORE_REVENUE",
+        "name": "attributed_as_store_revenue"
+      },
+      {
+        "detected": true,
+        "failure": "PROVIDER_FAILURE_CONTAMINATION",
+        "name": "provider_dropped"
+      },
+      {
+        "detected": true,
+        "failure": "STALE_EVIDENCE",
+        "name": "freshness_removed"
+      },
+      {
+        "detected": true,
+        "failure": "FABRICATED_JOURNEY",
+        "name": "fabricated_journey"
+      },
+      {
+        "detected": true,
+        "failure": "UNSUPPORTED_PROFIT",
+        "name": "missing_profit_inputs"
+      }
+    ],
+    "total": 10
+  },
+  "reference_clock": "2026-09-20T12:00:00-04:00",
+  "synthetic_only": true
+}
