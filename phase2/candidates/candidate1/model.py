@@ -5,7 +5,7 @@ from datetime import datetime
 
 from phase2_candidate_sdk import CandidateResponse
 
-RIDGE_LAMBDA = 0.2
+RIDGE_LAMBDA = 1.0
 MAX_ITERATIONS = 60
 CONVERGENCE_TOLERANCE = 1e-8
 WALD_Z_90 = 1.6448536269514722
