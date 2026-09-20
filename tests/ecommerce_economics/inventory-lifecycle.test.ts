@@ -63,6 +63,7 @@ describe("Step 7 inventory lifecycle", () => {
       "backorder-order",
       buildSimulationInterventionState(world, []),
       new SharedRandomness(1, "backorder-test"),
+      { executeInventoryLifecycle: true },
     );
 
     expect(purchase).toBeDefined();
@@ -107,6 +108,7 @@ describe("Step 7 inventory lifecycle", () => {
         simulationSeed: 125002,
         startTime: "2026-01-01T00:00:00.000Z",
         endTime: "2026-01-01T12:00:00.000Z",
+        commercePolicy: { executeInventoryLifecycle: true },
         config: { maxEvents: 80_000 },
       });
 
@@ -116,6 +118,7 @@ describe("Step 7 inventory lifecycle", () => {
         simulationSeed: 125002,
         startTime: "2026-01-01T00:00:00.000Z",
         endTime: "2026-03-01T00:00:00.000Z",
+        commercePolicy: { executeInventoryLifecycle: true },
         config: { maxEvents: 180_000 },
       });
 
@@ -167,6 +170,7 @@ describe("Step 7 inventory lifecycle", () => {
             unit: "units",
           },
         }],
+        commercePolicy: { executeInventoryLifecycle: true },
         config: { maxEvents: 180_000 },
       });
 
