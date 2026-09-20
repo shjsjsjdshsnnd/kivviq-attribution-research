@@ -4,6 +4,7 @@ from collections import Counter
 from dataclasses import dataclass, replace
 from datetime import datetime
 from itertools import product
+from typing import Any
 from zoneinfo import ZoneInfo
 
 from .contracts import contract_for_request
@@ -76,7 +77,7 @@ def generate_cases() -> tuple[BenchmarkCase, ...]:
     cases: list[BenchmarkCase] = []
     counter = 0
 
-    def add(category: str, q: str, expected: RequestSemantics, **kwargs: object) -> None:
+    def add(category: str, q: str, expected: RequestSemantics, **kwargs: Any) -> None:
         nonlocal counter
         counter += 1
         cases.append(_case(f"B{counter:04d}", category, q, expected, registry, **kwargs))
@@ -145,7 +146,7 @@ def generate_cases() -> tuple[BenchmarkCase, ...]:
     for template in causal_questions:
         for p in periods[:6]:
             q = template.format(p=p)
-            source = "ads.paid_social" if "meta" in q.lower() else None
+            source: str | None = "ads.paid_social" if "meta" in q.lower() else None
             add("causality", q, _req(q, metric=None, source=source, scope="all_channels", intent="causal_question", attribution="causal"), outcome=ExpectedOutcome.UNSUPPORTED_CAUSAL_CLAIM)
 
     ambiguous = ["How is it doing?", "How much did that make?", "What about that?", "What is the number?", "How are things?"]
@@ -291,7 +292,7 @@ def run_benchmark(cases: tuple[BenchmarkCase, ...] | None = None) -> dict[str, o
     resolver = SemanticResolver()
     actual_semantics = [resolver.resolve(c.question, REFERENCE) for c in cases]
     def field_accuracy(name: str) -> float:
-        return sum(getattr(a, name) == getattr(c.expected, name) for a, c in zip(actual_semantics, cases, strict=True)) / len(cases)
+        return sum(1 for a, c in zip(actual_semantics, cases, strict=True) if getattr(a, name) == getattr(c.expected, name)) / len(cases)
     supported_actual = [r for r in results if r.actual_outcome in {ExpectedOutcome.SUPPORTED_EXACT, ExpectedOutcome.SUPPORTED_PARTIAL, ExpectedOutcome.SUPPORTED_ESTIMATE}]
     supported_precision = (
         sum(r.expected_outcome in {ExpectedOutcome.SUPPORTED_EXACT, ExpectedOutcome.SUPPORTED_PARTIAL, ExpectedOutcome.SUPPORTED_ESTIMATE} for r in supported_actual) / len(supported_actual)

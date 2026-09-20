@@ -3,7 +3,7 @@ from __future__ import annotations
 from dataclasses import replace
 from datetime import datetime, timezone
 from hashlib import sha256
-from typing import Iterable
+from typing import Any, Iterable
 
 from .model import EvidenceFact, FreshnessState, MeasurementStatus, Period
 from .registry import MetricRegistry
@@ -160,7 +160,7 @@ class SyntheticWorld:
         return tuple(self.fact(metric_id, provider, "provider", period, currency="CAD" if metric_id in {"ad_spend", "platform_attributed_revenue"} else None, attribution_basis="provider_reported" if metric_id == "platform_attributed_revenue" else None) for provider in AD_PROVIDERS)
 
     @staticmethod
-    def replace_fact(fact: EvidenceFact, **changes: object) -> EvidenceFact:
+    def replace_fact(fact: EvidenceFact, **changes: Any) -> EvidenceFact:
         return replace(fact, **changes)
 
 

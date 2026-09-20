@@ -85,7 +85,7 @@ def run_mutation_suite() -> dict[str, object]:
     contract = contract_for_request(req, registry)
     all_facts = world.advertising_bundle("ad_spend", p)
     kept = all_facts[1:]
-    answer = ProposedAnswer("ad_spend", "multi_provider", "all_ad_providers", p, sum(float(f.value) for f in kept if f.value is not None), kept, breakdown_dimension="provider", calculation="sum")
+    answer = ProposedAnswer("ad_spend", "multi_provider", "all_ad_providers", p, sum(float(f.value) for f in kept if isinstance(f.value, (int, float))), kept, breakdown_dimension="provider", calculation="sum")
     result = governor.validate(answer, contract)
     rows.append({"name": "provider_dropped", "detected": result.outcome is ExpectedOutcome.SOURCE_DEGRADED, "failure": FailureClass.PROVIDER_FAILURE_CONTAMINATION.value})
 
