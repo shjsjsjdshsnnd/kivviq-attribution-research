@@ -209,6 +209,7 @@ export interface EcommerceEconomicReport {
   readonly byProduct: readonly EconomicDecompositionRow[];
   readonly byCategory: readonly EconomicDecompositionRow[];
   readonly byCustomerType: readonly EconomicDecompositionRow[];
+  readonly byPromotion: readonly EconomicDecompositionRow[];
   readonly simulation: SimulationResult;
 }
 
