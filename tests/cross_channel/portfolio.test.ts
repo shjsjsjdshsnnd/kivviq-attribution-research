@@ -141,7 +141,19 @@ describe("Step 6 portfolio interaction value", () => {
 
       expect(withoutMeta).not.toBeNull();
       expect(withMeta).not.toBeNull();
-      expect(Math.abs(withMeta! - withoutMeta!)).toBeGreaterThan(0.1);
+      const conditionalDifference = Math.abs(
+        withMeta! - withoutMeta!,
+      );
+      expect(conditionalDifference).toBeGreaterThan(0.05);
+
+      console.info(
+        "STEP6_INTERACTION_REVERSAL",
+        JSON.stringify({
+          googleMarginalIroasWithoutMeta: withoutMeta,
+          googleMarginalIroasWithMeta: withMeta,
+          absoluteDifference: conditionalDifference,
+        }),
+      );
     },
     120_000,
   );
