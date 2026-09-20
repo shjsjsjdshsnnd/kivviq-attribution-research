@@ -196,11 +196,13 @@ function decompositionRows(
   readonly byProduct: readonly EconomicDecompositionRow[];
   readonly byCategory: readonly EconomicDecompositionRow[];
   readonly byCustomerType: readonly EconomicDecompositionRow[];
+  readonly byPromotion: readonly EconomicDecompositionRow[];
 } {
   const weights = customerWeights(request);
   const byProduct = new Map<string, MutableRow>();
   const byCategory = new Map<string, MutableRow>();
   const byCustomerType = new Map<string, MutableRow>();
+  const byPromotion = new Map<string, MutableRow>();
 
   const returnByProduct = new Map<string, number>();
   for (const returned of returns) {
@@ -276,6 +278,11 @@ function decompositionRows(
         order.repeatPurchase ? "repeat" : "new",
         delta,
       );
+      add(
+        byPromotion,
+        order.discountsMinor > 0 ? "promoted" : "full_price",
+        delta,
+      );
     }
   }
 
@@ -303,6 +310,7 @@ function decompositionRows(
     byProduct: finalize(byProduct),
     byCategory: finalize(byCategory),
     byCustomerType: finalize(byCustomerType),
+    byPromotion: finalize(byPromotion),
   };
 }
 
