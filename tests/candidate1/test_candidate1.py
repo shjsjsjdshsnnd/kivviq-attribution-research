@@ -1,12 +1,26 @@
 from __future__ import annotations
 
 import ast
+import importlib.util
 from pathlib import Path
+from types import ModuleType
 
 from attribution_lab.phase2_evaluator.isolation import validate_candidate_source
-from phase2.candidate1.spec import DECLARATION
 
 ROOT = Path(__file__).resolve().parents[2]
+
+
+def _load_spec() -> ModuleType:
+    path = ROOT / "phase2" / "candidate1" / "spec.py"
+    module_spec = importlib.util.spec_from_file_location("candidate1_spec", path)
+    if module_spec is None or module_spec.loader is None:
+        raise RuntimeError("unable to load Candidate 1 spec")
+    module = importlib.util.module_from_spec(module_spec)
+    module_spec.loader.exec_module(module)
+    return module
+
+
+DECLARATION = _load_spec()
 SOURCE_PATH = ROOT / "phase2" / "candidate1" / "candidate.py"
 
 
