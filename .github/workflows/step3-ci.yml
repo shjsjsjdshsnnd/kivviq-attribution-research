@@ -1,0 +1,40 @@
+name: Step 3 Latent Customer CI
+
+on:
+  push:
+    branches:
+      - step3/latent-customer-population
+  pull_request:
+    branches:
+      - step2/merchant-world-generation
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - name: Install
+        run: npm install --no-audit --no-fund
+
+      - name: Architecture boundary
+        run: npm run architecture
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Test
+        run: npm test
+
+      - name: Build
+        run: npm run build
