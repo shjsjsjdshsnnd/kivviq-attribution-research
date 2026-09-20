@@ -354,6 +354,84 @@ function traitFor(
   );
 }
 
+function selectorMultiplier(
+  rule: CompiledInteractionRule,
+  customer: LatentCustomer,
+): number {
+  const selector = rule.selector;
+  if (!selector) return 1;
+
+  let multiplier = 1;
+
+  if (
+    selector.categoryIds !== undefined &&
+    selector.categoryIds.length > 0
+  ) {
+    const affinity = Math.max(
+      0,
+      ...customer.categoryPreferences
+        .filter((preference) =>
+          selector.categoryIds!.includes(
+            preference.categoryId,
+          ),
+        )
+        .map((preference) => preference.affinity),
+    );
+    multiplier *= affinity > 0 ? 0.55 + affinity * 0.75 : 0.35;
+  }
+
+  if (
+    selector.productIds !== undefined &&
+    selector.productIds.length > 0
+  ) {
+    const affinity = Math.max(
+      0,
+      ...customer.productPreferences
+        .filter((preference) =>
+          selector.productIds!.includes(
+            preference.productId,
+          ),
+        )
+        .map((preference) => preference.affinity),
+    );
+    multiplier *= affinity > 0 ? 0.5 + affinity * 0.8 : 0.3;
+  }
+
+  if (
+    selector.customerTypes !== undefined &&
+    selector.customerTypes.length > 0
+  ) {
+    const type =
+      customer.lifecycle.preSimulationHistory === "none"
+        ? "new"
+        : "existing";
+    multiplier *= selector.customerTypes.includes(type)
+      ? 1.15
+      : 0.5;
+  }
+
+  if (
+    selector.segmentIds !== undefined &&
+    selector.segmentIds.length > 0
+  ) {
+    const matched = selector.segmentIds.some((segment) => {
+      if (segment === "high_intent") {
+        return customer.purchaseIntent >= 0.65;
+      }
+      if (segment === "returning") {
+        return (
+          customer.lifecycle.preSimulationHistory !== "none" ||
+          customer.repeatPropensity >= 0.55
+        );
+      }
+      return customer.derivedSegments.includes(segment as never);
+    });
+    multiplier *= matched ? 1.18 : 0.62;
+  }
+
+  return clamp(multiplier, 0.15, 2);
+}
+
 export function customerInteractionMultiplier(
   rule: CompiledInteractionRule,
   customer: LatentCustomer,
@@ -392,14 +470,18 @@ export function customerInteractionMultiplier(
         ? 1.12
         : 1.05;
 
-  return clamp(
-    0.72 +
-      susceptibility * 0.22 +
-      categoryAffinity * 0.08 +
-      customer.purchaseIntent * 0.08,
-    -1.5,
-    2.5,
-  ) * lifecycleMultiplier;
+  return (
+    clamp(
+      0.72 +
+        susceptibility * 0.22 +
+        categoryAffinity * 0.08 +
+        customer.purchaseIntent * 0.08,
+      -1.5,
+      2.5,
+    ) *
+    lifecycleMultiplier *
+    selectorMultiplier(rule, customer)
+  );
 }
 
 export function audienceOverlapMatrix(
