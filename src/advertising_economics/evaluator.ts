@@ -176,6 +176,7 @@ function simulateAllocation(
   simulationSeed: number,
   allocation: AdvertisingAllocation,
   config?: SimulationConfig,
+  contextInterventions: readonly Intervention[] = [],
 ): SimulationResult {
   return simulateWorld({
     merchantWorld: world,
@@ -183,7 +184,10 @@ function simulateAllocation(
     simulationSeed,
     startTime: allocation.periodStart,
     endTime: allocation.periodEnd,
-    interventions: spendInterventions(allocation),
+    interventions: [
+      ...spendInterventions(allocation),
+      ...contextInterventions,
+    ],
     ...(config === undefined ? {} : { config }),
   });
 }
@@ -213,7 +217,9 @@ function populationWeights(
 interface EconomicTotals {
   readonly representedOrders: number;
   readonly representedNewCustomers: number;
+  readonly representedGrossRevenueMinor: number;
   readonly representedRevenueMinor: number;
+  readonly representedGrossProfitMinor: number;
   readonly preMarketingContributionMinor: number;
   readonly afterAdvertisingContributionMinor: number;
 }
@@ -226,7 +232,9 @@ function economicTotals(
   const weights = populationWeights(population);
   let orders = 0;
   let newCustomers = 0;
+  let grossRevenue = 0;
   let revenue = 0;
+  let grossProfit = 0;
   let preMarketingContribution = 0;
 
   for (const purchase of result.purchases) {
@@ -236,7 +244,12 @@ function economicTotals(
     if (!purchase.repeatPurchase) {
       newCustomers += weight;
     }
+    grossRevenue += purchase.grossRevenueMinor * weight;
     revenue += purchase.netRevenueMinor * weight;
+    grossProfit +=
+      (purchase.netRevenueMinor -
+        purchase.estimatedCogsMinor) *
+      weight;
 
     const beforeMarketing =
       purchase.netRevenueMinor -
@@ -252,7 +265,9 @@ function economicTotals(
   return {
     representedOrders: orders,
     representedNewCustomers: newCustomers,
+    representedGrossRevenueMinor: grossRevenue,
     representedRevenueMinor: revenue,
+    representedGrossProfitMinor: grossProfit,
     preMarketingContributionMinor:
       preMarketingContribution,
     afterAdvertisingContributionMinor:
@@ -316,6 +331,7 @@ export function evaluateSpendPair(
       request.simulationSeed,
       highAllocation,
       request.simulationConfig,
+      request.contextInterventions ?? [],
     );
 
   const low = simulateAllocation(
@@ -324,6 +340,7 @@ export function evaluateSpendPair(
     request.simulationSeed,
     lowAllocation,
     request.simulationConfig,
+    request.contextInterventions ?? [],
   );
 
   const highEconomics = economicTotals(
@@ -339,9 +356,15 @@ export function evaluateSpendPair(
 
   const incrementalSpend =
     highSpendMinor - lowSpendMinor;
+  const incrementalGrossRevenue =
+    highEconomics.representedGrossRevenueMinor -
+    lowEconomics.representedGrossRevenueMinor;
   const incrementalRevenue =
     highEconomics.representedRevenueMinor -
     lowEconomics.representedRevenueMinor;
+  const incrementalGrossProfit =
+    highEconomics.representedGrossProfitMinor -
+    lowEconomics.representedGrossProfitMinor;
   const incrementalOrders =
     highEconomics.representedOrders -
     lowEconomics.representedOrders;
@@ -358,7 +381,9 @@ export function evaluateSpendPair(
     lowSpendMinor,
     incrementalSpendMinor: incrementalSpend,
     incrementalOrders,
+    incrementalGrossRevenueMinor: incrementalGrossRevenue,
     incrementalRevenueMinor: incrementalRevenue,
+    incrementalGrossProfitMinor: incrementalGrossProfit,
     incrementalContributionProfitMinor:
       incrementalContribution,
     trueIncrementalRoas:
@@ -532,8 +557,12 @@ export function buildAdvertisingPerformanceReport(
         observed.touchAssociatedRevenueMinor,
       observedRoas: observed.observedRoas,
       observedCacMinor: observed.observedCacMinor,
+      trueIncrementalGrossRevenueMinor:
+        average.incrementalGrossRevenueMinor,
       trueIncrementalRevenueMinor:
         average.incrementalRevenueMinor,
+      trueIncrementalGrossProfitMinor:
+        average.incrementalGrossProfitMinor,
       trueIncrementalRoas:
         average.trueIncrementalRoas,
       marginalIncrementalRoas:
