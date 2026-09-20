@@ -120,6 +120,43 @@ export function createDiscountTrapFixture(): EcommerceAdversarialFixture {
     halfSaturationSpend: moneyMinor(90_000),
     hillCoefficient: positive(1.05),
   };
+  const promotionVariable = "promotion.discount_active";
+  if (
+    !world.manifest.causalGraph.nodes.some(
+      (node) => node.id === promotionVariable,
+    )
+  ) {
+    (world.manifest.causalGraph.nodes as unknown as Array<Record<string, unknown>>).push({
+      id: promotionVariable,
+      domain: "marketing",
+      temporalScope: "time_indexed",
+      valueType: "boolean",
+      unit: "boolean",
+      intervenable: false,
+      visibility: "latent",
+    });
+  }
+
+  const promotionMetaInteractionId =
+    "step7_meta_promotion_channel_response";
+  (world.manifest.channelInteractions as unknown as Array<Record<string, unknown>>).push({
+    id: promotionMetaInteractionId,
+    channelIds: ["meta"],
+    kind: "synergy",
+    functionalForm: "multiplicative",
+    effect: {
+      scale: "relative",
+      value: 8,
+      unit: "dimensionless",
+    },
+  });
+  (world.manifest.causalGraph.edges as unknown as Array<Record<string, unknown>>).push({
+    parent: promotionVariable,
+    child: "customer.brand_awareness",
+    relationship: "interaction",
+    mechanismId: promotionMetaInteractionId,
+  });
+
   validateGroundTruthManifest(world.manifest);
   (world.summary as { expectedDiscountRate: number }).expectedDiscountRate =
     0.17;
