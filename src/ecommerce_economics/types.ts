@@ -221,6 +221,9 @@ export interface EcommerceEvaluationRequest {
   readonly interventions?: readonly Intervention[];
   readonly simulationConfig?: SimulationConfig;
   readonly policy?: Partial<EcommercePolicy>;
+  readonly productEconomicsOverrides?: Readonly<
+    Record<string, Partial<ProductEconomicProfile>>
+  >;
   readonly advertisingSpendMinor?: number;
 }
 
