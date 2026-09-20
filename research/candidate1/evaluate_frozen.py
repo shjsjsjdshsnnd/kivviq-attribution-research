@@ -14,7 +14,7 @@ from research.candidate1.evaluate_preholdout import run as run_preholdout
 def run() -> dict[str, Any]:
     root = Path(__file__).resolve().parents[2]
     freeze = json.loads(
-        (root / "candidate1" / "FROZEN.json").read_text(encoding="utf-8")
+        (root / "research" / "candidate1" / "FROZEN.json").read_text(encoding="utf-8")
     )
     preholdout = run_preholdout()
     outcome = "READY_FOR_HOLDOUT" if preholdout["preholdout_gate_pass"] else "REJECT"
