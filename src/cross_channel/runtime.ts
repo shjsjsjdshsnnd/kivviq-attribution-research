@@ -660,17 +660,17 @@ export function paidExposureOpportunityMultiplier(
     channel === "google_shopping"
   ) {
     multiplier *=
-      0.65 +
+      0.4 +
       customer.futureAudience
         .retargetingEligibility *
-        0.7;
+        2.0;
   }
 
   if (channel === "email") {
     multiplier *=
-      0.55 +
+      0.35 +
       customer.futureAudience.emailEligibility *
-        0.8;
+        2.5;
   }
 
   return clamp(multiplier, 0.05, 4);
