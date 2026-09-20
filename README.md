@@ -7,107 +7,102 @@ This public repository is a synthetic-only causal ecommerce research environment
 ### Frozen research references
 
 **Step 1 — GroundTruth**
-
 - Frozen head: `cdea7f6c3d313578d2b40870bebadc2690f75495`
 - PR #2
 
 **Step 2 — merchant/world generation**
-
-- Frozen head: `74edb930affca78c8ea262821943bba223d770`
+- Frozen head: `74edb930affca78c8b8ea262821943bba223d770`
 - PR #5
 
 **Step 3 — latent customer population**
-
-- Frozen head: `da2d6e90198b24b39c9c1e42552f825eb3a7436e`
+- Frozen head: `da2d6e90198b24b39c9b92358c887c9f316e5419a42`
 - PR #8
 
 **Step 4 — customer journey / behavioral simulation**
-
 - Frozen head: `0c30df8973c27f6ad6b96f4a4b426de74fd0cf3b`
 - PR #11
 
 **Step 5 — advertising economics**
-
 - Frozen head: `23d8372a6fec2b3271ff70ecf9c065d625c9a7c3`
 - PR #14
 
-Steps 1–5 are frozen and unchanged by Step 6.
+**Step 6 — cross-channel interactions**
+- Frozen head: `04e92f05364578c9b92358c887c9f316e5419a42`
+- PR #15
 
-### Step 6 — cross-channel interactions
+Steps 1–6 are frozen and unchanged by Step 7.
 
-Branch: `step6/cross-channel-interactions`
+### Step 7 — ecommerce economics
 
-Draft PR: #15
+Branch: `step7/ecommerce-economics`
 
-Step 6 makes channel value conditional on the rest of the marketing system.
+Draft PR: #18
+
+Step 7 makes **contribution profit and customer economic value** first-class research outcomes instead of treating revenue/orders/conversion/ROAS as the final objective.
 
 Implemented:
 
-- typed interaction rules compiled from frozen Step 1 GroundTruth mechanisms and causal-graph edges;
-- mediation;
-- synergy/complementarity;
-- cannibalization;
-- substitution;
-- audience creation;
-- audience depletion/saturation;
-- delayed interactions;
-- state-dependent interactions;
-- explicit zero interaction;
-- sparse higher-order interactions;
-- directional/asymmetric interactions;
-- customer-level interaction heterogeneity;
-- product/category selectors;
-- calendar/promotion/inventory/lifecycle state gating;
-- Step 4 memory/decay reuse;
-- Step 5 spend/saturation integration;
-- audience-overlap diagnostics;
-- Meta → branded Search mediation;
-- Pinterest → Organic/Direct delayed mediation;
-- Email × promotion non-additivity;
-- Meta × Google synergy;
-- future retargeting/email/search audience creation;
-- Paid Search → Direct/Organic cannibalization/substitution;
-- conditional channel response;
-- portfolio response surfaces;
-- joint interventions;
-- pairwise interaction value;
-- interaction decomposition where structurally meaningful;
-- channel-removal spillovers;
-- controlled budget reallocation;
-- multi-horizon evaluation;
-- zero-interaction control worlds;
-- positive-synergy worlds;
-- cannibalization worlds;
-- mediation worlds;
-- interaction-reversal worlds;
-- hard portfolio-reallocation trap;
-- hard 7-day vs 90-day prospecting-cut trap.
+- canonical contribution-profit waterfall;
+- integer minor-unit accounting and exact reconciliation;
+- order-level economics;
+- product-level economics;
+- product margin/COGS heterogeneity;
+- discounts and separate promotional costs;
+- shipping revenue/cost/subsidy;
+- free-shipping threshold behavior;
+- percentage + fixed payment fees;
+- fulfillment and variable operating cost;
+- delayed returns/refunds;
+- partial line returns;
+- explicit return costs;
+- authoritative period-level advertising cost;
+- channel incremental contribution economics;
+- new-customer economics;
+- repeat-customer economics;
+- expected future contribution;
+- realized vs expected value separation;
+- CLV-linked future value;
+- multi-item / multi-quantity baskets;
+- product complementarity and substitution;
+- inventory/backorder/replenishment lifecycle;
+- inventory opportunity-cost analysis;
+- price elasticity economics;
+- low/high-elasticity price-increase cases;
+- discount economics and pull-forward;
+- promotion × customer behavior;
+- promotion × advertising economics;
+- contribution decomposition by product/category/customer type/promotion;
+- shared-randomness economic counterfactuals;
+- low-inventory advertising trap;
+- discount trap;
+- best-seller trap;
+- high-AOV trap;
+- CAC-vs-future-value trap;
+- short-term-vs-long-term customer-value reversal.
 
-### Hard Step 6 acceptance
+### Hard Step 7 examples
 
-**Portfolio reallocation trap**
+**Discount trap**
 
-Google shows much stronger independent dashboard signals than Meta, but reallocating 65% of Meta spend to Google reduces true contribution profit by ~257,645 minor units and true revenue by ~497,952 minor units.
+Promotion drives represented orders from ~559 to ~1,930 and net revenue from ~6.27M to ~22.85M minor units, while contribution profit deteriorates from ~-75K to ~-6.28M.
 
-**Prospecting-cut trap**
+**Promotion × advertising trap**
 
-A 50% Meta prospecting cut improves 7-day contribution profit slightly, but over 90 days:
+Meta revenue iROAS rises from ~18.22× without promotion to ~53.46× with promotion, while incremental contribution changes from ~+284K to ~-1.47M minor units.
 
-- contribution profit falls ~214,418 minor units;
-- revenue falls ~424,341 minor units;
-- branded-search readiness falls;
-- retargeting audience falls;
-- email audience falls.
+**Best-seller trap**
 
-**Interaction reversal**
+The revenue-leading product has ~2.44M revenue opportunity but ~-1.00M contribution opportunity, while a lower-revenue product has ~+572K contribution opportunity.
 
-Google marginal iROAS changes materially depending on whether Meta is active.
+**Low-inventory ad trap**
+
+A channel shows ~54.97× platform ROAS while marginal contribution-profit effect is -25K minor units.
 
 ### Information boundary
 
-Cross-channel network compilation, portfolio counterfactuals, interaction decomposition and adversarial fixtures are God-mode evaluator infrastructure.
+Ecommerce economics, opportunity diagnostics, economic counterfactuals and adversarial fixtures are God-mode/evaluator infrastructure.
 
-The Operator-safe root package cannot import/export them.
+The Operator-safe root API cannot import/export them.
 
 ### Research isolation
 
@@ -128,3 +123,5 @@ No private Kivviq, Maison Olive data, real merchant/customer data, production sy
 - `docs/step5-advertising-economics-acceptance.md`
 - `docs/step6-cross-channel-interactions.md`
 - `docs/step6-cross-channel-acceptance.md`
+- `docs/step7-ecommerce-economics.md`
+- `docs/step7-ecommerce-economics-acceptance.md`
