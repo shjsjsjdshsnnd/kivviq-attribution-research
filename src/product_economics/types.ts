@@ -1,4 +1,5 @@
-import type { GeneratedMerchantWorld, MarketingChannel } from "../generation/config.js";
+import type { GeneratedMerchantWorld } from "../generation/config.js";
+import type { PaidMarketingChannel } from "../advertising_economics/types.js";
 import type { LatentCustomerPopulation } from "../customer_population/types.js";
 import type { EcommerceEconomicReport, ProductEconomicProfile } from "../ecommerce_economics/types.js";
 
@@ -68,7 +69,7 @@ export interface ObservedProductPerformance {
 
 export interface ProductCampaignPerformance {
   readonly productId: string;
-  readonly channel: MarketingChannel;
+  readonly channel: PaidMarketingChannel;
   readonly campaignSpendMinor: number;
   readonly platformClaimedProductRevenueMinor: number;
   readonly platformProductRoas: number | null;
@@ -77,7 +78,7 @@ export interface ProductCampaignPerformance {
 
 export interface InventoryScaleRisk {
   readonly productId: string;
-  readonly channel: MarketingChannel;
+  readonly channel: PaidMarketingChannel;
   readonly remainingUnits: number;
   readonly stockCoverageDays: number | null;
   readonly platformProductRoas: number | null;
