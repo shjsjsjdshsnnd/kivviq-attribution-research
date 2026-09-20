@@ -256,8 +256,16 @@ export function chooseProduct(
         randomness,
       );
 
+      const inventoryMechanism =
+        runtime.merchantWorld.manifest.inventoryMechanisms.find(
+          (item) => item.productId === productId,
+        );
       const inventoryMultiplier =
-        offer.availableUnits > 0 ? 1 : 0.04;
+        offer.availableUnits > 0
+          ? 1
+          : inventoryMechanism?.allowBackorders
+            ? 0.35
+            : 0.04;
       const cartProductIds = new Set(
         customer.cart?.lines.map((line) => line.productId) ?? [],
       );
@@ -463,7 +471,15 @@ export function completePurchase(
 
   for (const cartLine of customer.cart.lines) {
     const available = runtime.inventory.get(cartLine.productId) ?? 0;
-    if (available < cartLine.quantity) continue;
+    const inventoryMechanism =
+      runtime.merchantWorld.manifest.inventoryMechanisms.find(
+        (item) => item.productId === cartLine.productId,
+      );
+    const allowBackorders =
+      inventoryMechanism?.allowBackorders === true &&
+      inventoryMechanism.stockoutBehavior === "backorder";
+
+    if (available < cartLine.quantity && !allowBackorders) continue;
 
     const offer = offerForProduct(
       runtime,
@@ -474,7 +490,9 @@ export function completePurchase(
       randomness,
     );
 
-    const quantity = Math.min(cartLine.quantity, available);
+    const quantity = allowBackorders
+      ? cartLine.quantity
+      : Math.min(cartLine.quantity, available);
     if (quantity <= 0) continue;
 
     const gross = offer.unitPriceMinor * quantity;
@@ -540,12 +558,19 @@ export function completePurchase(
     allocatedMarketing;
 
   for (const line of lines) {
+    const mechanism =
+      runtime.merchantWorld.manifest.inventoryMechanisms.find(
+        (item) => item.productId === line.productId,
+      );
+    const next =
+      (runtime.inventory.get(line.productId) ?? 0) -
+      line.quantity;
     runtime.inventory.set(
       line.productId,
-      Math.max(
-        0,
-        (runtime.inventory.get(line.productId) ?? 0) - line.quantity,
-      ),
+      mechanism?.allowBackorders === true &&
+        mechanism.stockoutBehavior === "backorder"
+        ? next
+        : Math.max(0, next),
     );
   }
 
