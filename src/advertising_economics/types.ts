@@ -134,7 +134,9 @@ export interface TrueIncrementalPerformance {
   readonly lowSpendMinor: number;
   readonly incrementalSpendMinor: number;
   readonly incrementalOrders: number;
+  readonly incrementalGrossRevenueMinor: number;
   readonly incrementalRevenueMinor: number;
+  readonly incrementalGrossProfitMinor: number;
   readonly incrementalContributionProfitMinor: number;
   readonly trueIncrementalRoas: number | null;
   readonly incrementalCacMinor: number | null;
@@ -157,7 +159,9 @@ export interface AdvertisingPerformanceRow {
   readonly observedTouchRevenueMinor: number;
   readonly observedRoas: number | null;
   readonly observedCacMinor: number | null;
+  readonly trueIncrementalGrossRevenueMinor: number;
   readonly trueIncrementalRevenueMinor: number;
+  readonly trueIncrementalGrossProfitMinor: number;
   readonly trueIncrementalRoas: number | null;
   readonly marginalIncrementalRoas: number | null;
   readonly averageIncrementalCacMinor: number | null;
@@ -186,6 +190,7 @@ export interface AdvertisingEvaluationRequest {
   >;
   readonly marginalBlockMinor?: number;
   readonly simulationConfig?: import("../simulation/types.js").SimulationConfig;
+  readonly contextInterventions?: readonly import("../ground_truth/interventions.js").Intervention[];
 }
 
 export interface ChannelSpendEvaluationRequest
