@@ -165,7 +165,32 @@ describe("Step 4 causal adversarial acceptance", () => {
 
         const truth = result.godMode.purchaseTruth.find((candidate) => {
           const path = candidate.observablePath.join(" -> ");
-          return path.includes("meta") && path.includes("google_search");
+          if (!path.includes("meta") || !path.includes("google_search")) {
+            return false;
+          }
+
+          const purchase = result.purchases.find(
+            (item) => item.orderId === candidate.orderId,
+          );
+          if (!purchase) return false;
+
+          const purchaseMs = Date.parse(purchase.occurredAt);
+          const relevantExposureChannels = new Set(
+            result.godMode.exposureEffects
+              .filter(
+                (exposure) =>
+                  exposure.customerId === candidate.customerId &&
+                  Date.parse(exposure.occurredAt) <= purchaseMs &&
+                  Date.parse(exposure.occurredAt) >=
+                    purchaseMs - 30 * 86_400_000,
+              )
+              .map((exposure) => exposure.channelId),
+          );
+
+          return (
+            relevantExposureChannels.has("meta") &&
+            relevantExposureChannels.has("google_search")
+          );
         });
 
         if (!truth) continue;
