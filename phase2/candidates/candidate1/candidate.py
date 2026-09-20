@@ -3,7 +3,12 @@ from __future__ import annotations
 import math
 from datetime import datetime
 
-from phase2_candidate_sdk import CandidateResponse, DeclaredContext, ObservableDataset
+from phase2_candidate_sdk import (
+    CandidateResponse,
+    DeclaredContext,
+    ObservableDataset,
+    ObservableJourney,
+)
 
 RIDGE_LAMBDA = 1e-4
 Z_95 = 1.959963984540054
@@ -22,8 +27,8 @@ def _channels(dataset: ObservableDataset) -> tuple[str, ...]:
     )
 
 
-def _presence(journey: object) -> set[str]:
-    sessions = getattr(journey, "sessions")
+def _presence(journey: ObservableJourney) -> set[str]:
+    sessions = journey.sessions
     return {
         touch.channel
         for session in sessions
@@ -31,9 +36,9 @@ def _presence(journey: object) -> set[str]:
     }
 
 
-def _window_fraction(journey: object) -> float:
-    start = datetime.fromisoformat(getattr(journey, "observation_start"))
-    end = datetime.fromisoformat(getattr(journey, "observation_end"))
+def _window_fraction(journey: ObservableJourney) -> float:
+    start = datetime.fromisoformat(journey.observation_start)
+    end = datetime.fromisoformat(journey.observation_end)
     hours = max((end - start).total_seconds() / 3600.0, 0.0)
     return min(hours / (24.0 * 21.0), 1.5)
 

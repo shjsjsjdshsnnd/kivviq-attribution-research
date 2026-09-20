@@ -4,7 +4,10 @@ import math
 from pathlib import Path
 
 from attribution_lab.phase2.observable import to_observable_dataset
-from attribution_lab.phase2_evaluator.isolation import CandidateRunner, validate_candidate_source
+from attribution_lab.phase2_evaluator.isolation import (
+    CandidateRunner,
+    validate_candidate_source,
+)
 from attribution_lab.simulation.config import scenario_config
 from attribution_lab.simulation.generator import generate_world
 from phase2_candidate_sdk import DeclaredContext

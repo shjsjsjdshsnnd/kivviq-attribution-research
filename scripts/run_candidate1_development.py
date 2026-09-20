@@ -16,8 +16,8 @@ from phase2_candidate_sdk import (
     CandidateDeclaration,
     EstimandDefinition,
     EstimandKind,
-    FamilyCriterion,
     FalsificationCriteria,
+    FamilyCriterion,
 )
 
 CANDIDATE_ID = "candidate1-stratified-lpm"
