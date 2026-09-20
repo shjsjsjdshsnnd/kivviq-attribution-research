@@ -435,7 +435,7 @@ export function createMediationFixture(): CrossChannelFixture {
       channelIds: ["meta", "google_search"],
       kind: "mediation",
       functionalForm: "multiplicative",
-      effect: 0.9,
+      effect: 2.4,
       sources: ["marketing.meta.exposure"],
       targets: [
         "marketing.google_search.branded_probability",
@@ -461,7 +461,7 @@ export function createMediationFixture(): CrossChannelFixture {
   const world = setDirectEffects(
     interacted,
     {
-      meta: base.summary.expectedAnnualOrders / 12 * 0.18,
+      meta: 0,
       google_search: base.summary.expectedAnnualOrders / 12 * 0.28,
       pinterest: base.summary.expectedAnnualOrders / 12 * 0.14,
     },
@@ -485,7 +485,7 @@ export function createInteractionReversalFixture(): CrossChannelFixture {
       channelIds: ["meta", "google_search"],
       kind: "synergy",
       functionalForm: "multiplicative",
-      effect: 2.8,
+      effect: 4.5,
       sources: [
         "marketing.meta.exposure",
         "marketing.google_search.exposure",
