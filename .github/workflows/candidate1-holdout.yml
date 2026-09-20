@@ -1,0 +1,52 @@
+name: Candidate 1 One Sealed Holdout
+
+on:
+  push:
+    branches: ["phase2/candidate1-outcome-regression"]
+    paths:
+      - "phase2/candidates/candidate1/frozen_phase1_results.json"
+
+permissions:
+  contents: write
+
+jobs:
+  sealed_holdout:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+      - run: python -m pip install --upgrade pip
+      - run: python -m pip install -e ".[dev]"
+      - run: python scripts/check_repo_safety.py
+      - run: python scripts/check_phase1_frozen.py
+      - run: pytest tests/candidate1/test_candidate1_freeze.py
+      - name: Consume Candidate 1 holdout exposure before feedback
+        run: python phase2/candidates/candidate1/consume_holdout.py
+      - name: Persist consumed exposure
+        shell: bash
+        run: |
+          set -euo pipefail
+          python scripts/check_repo_safety.py
+          git add phase2/candidates/candidate1/research_state/research-ledger.jsonl
+          git diff --cached --check
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git commit -m "Consume Candidate 1 sealed holdout exposure"
+          git push origin "HEAD:${GITHUB_REF_NAME}"
+      - name: Run the single feedback-bearing sealed evaluation
+        run: python phase2/candidates/candidate1/run_sealed_holdout.py
+      - name: Persist frozen sealed results
+        shell: bash
+        run: |
+          set -euo pipefail
+          python scripts/check_repo_safety.py
+          git add             phase2/candidates/candidate1/research_state/research-ledger.jsonl             phase2/candidates/candidate1/sealed_holdout_results.json             phase2/candidates/candidate1/candidate1_report.md
+          git diff --cached --check
+          git commit -m "Record Candidate 1 sealed holdout result"
+          git push origin "HEAD:${GITHUB_REF_NAME}"

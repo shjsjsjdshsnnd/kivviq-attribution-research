@@ -1,0 +1,131 @@
+{
+  "candidate_id": "candidate1-outcome-regression-gcomp",
+  "version": "1.0.0",
+  "research_status": "PREREGISTERED_BEFORE_IMPLEMENTATION",
+  "estimand": {
+    "kind": "incremental_conversion_probability",
+    "population": "Synthetic subjects in the declared 21-day observation population.",
+    "unit_of_analysis": "Synthetic subject.",
+    "treatment_or_exposure": "Binary presence versus absence of one focal synthetic channel exposure before the qualifying outcome/horizon.",
+    "outcome": "Qualifying conversion within the 21-day observation horizon.",
+    "horizon_hours": 504.0,
+    "intervention": "Set the focal channel exposure indicator to present while holding the subject's other observed channel indicators and declared measurement covariates fixed.",
+    "comparison": "Set the same focal channel exposure indicator to absent under the same observed covariate pattern.",
+    "temporal_ordering": "Only exposures observable before the qualifying outcome/horizon enter the treatment indicators.",
+    "treatment_regime": "One-channel-at-a-time static binary intervention.",
+    "aggregation_target": "Population-average predicted conversion-probability difference for each synthetic channel."
+  },
+  "hypothesis": {
+    "statement": "An interpretable regularized logistic outcome-regression estimator followed by g-computation may recover average synthetic channel effects more directly than descriptive credit rules when observed co-exposure patterns carry useful information about selection. The hypothesis is explicitly falsifiable under hidden-intent selection.",
+    "why_it_might_address_selection": "The estimator conditions each focal channel coefficient/effect on the complete observed synthetic channel co-exposure pattern rather than assigning credit from path position or proximity to purchase.",
+    "required_assumptions": [
+      "Conditional exchangeability given the declared observable features.",
+      "Sufficient overlap/positivity for focal channel exposure.",
+      "The additive logistic outcome model is an adequate approximation for the population-average estimand.",
+      "No interference between synthetic subjects.",
+      "Observed channel indicators are measured according to the declared observation condition."
+    ],
+    "expected_failure_conditions": [
+      "Selection driven by latent purchase intent that is not captured by observable covariates.",
+      "Strong unmodelled treatment interactions.",
+      "Strong time-varying or delayed effects not represented by binary ever-exposed indicators.",
+      "Severe measurement loss, identity fragmentation, or sparse exposure support.",
+      "Positivity violations or near-separation."
+    ],
+    "rejection_statement": "Reject the Candidate 1 hypothesis if preregistered frozen-Phase1, sealed-holdout, robustness, numerical-validity, or uncertainty criteria fail. Do not tune or resubmit Candidate 1 version 1.0.0 after sealed-holdout feedback."
+  },
+  "method_selection": {
+    "selected_family": "ridge_logistic_outcome_regression_with_g_computation",
+    "selection_rationale": "This is the simplest interpretable estimator that directly targets the preregistered probability-difference estimand, can return signed effects, is implementable with the standardized observable dataset, and does not require a second propensity model or black-box learner.",
+    "not_selected": [
+      "heuristic multi-touch attribution",
+      "neural or representation-learning models",
+      "large ensembles",
+      "multiple competing candidate families"
+    ],
+    "development_hyperparameter_grid": {
+      "ridge_lambda": [0.05, 0.2, 1.0]
+    },
+    "hyperparameter_selection_rule": "Choose one ridge value using DEVELOPMENT worlds only by lowest mean synthetic-effect MAE, breaking ties in favor of stronger regularization. No frozen Phase 1 or sealed holdout result may affect selection."
+  },
+  "observable_inputs": [
+    "Synthetic subject observation window.",
+    "Ordered observable sessions and touchpoints.",
+    "Synthetic channel identity of observable touchpoints.",
+    "Qualifying conversion indicator.",
+    "Identity-confidence measurement field.",
+    "Consent-state measurement field.",
+    "Censoring indicator."
+  ],
+  "observable_adjustment_features": [
+    "Binary indicator for each observed synthetic channel exposure.",
+    "Identity confidence.",
+    "Observation-window completeness/censoring indicator.",
+    "Consent-observability indicator."
+  ],
+  "intentionally_hidden_oracle_variables": [
+    "Latent purchase intent.",
+    "True treatment effects.",
+    "Counterfactual outcomes.",
+    "Selection coefficients.",
+    "Interaction coefficients.",
+    "Holdout seeds and instantiated parameters.",
+    "Oracle causal truth."
+  ],
+  "representability": {
+    "negative_average_effects": true,
+    "heterogeneous_individual_effects": false,
+    "explicit_treatment_interactions": false,
+    "time_varying_effects": false
+  },
+  "uncertainty": {
+    "target": "Approximate 90% model-based Wald interval for each population-average g-computed channel effect.",
+    "method": "Penalized-logistic observed-information covariance plus delta method for the average marginal contrast.",
+    "known_limitations": "Intervals condition on the outcome-model specification and do not repair hidden confounding."
+  },
+  "development_world_protocol": {
+    "allowed_uses": [
+      "implementation debugging",
+      "ridge hyperparameter selection",
+      "numerical stability",
+      "uncertainty implementation"
+    ],
+    "prohibited_uses": [
+      "sealed holdout access",
+      "frozen Phase 1 results for hyperparameter selection"
+    ],
+    "planned_worlds": [
+      "candidate1-dev-balanced-v1",
+      "candidate1-dev-null-negative-v1",
+      "candidate1-dev-observed-selection-stress-v1",
+      "candidate1-dev-sparse-v1"
+    ]
+  },
+  "falsification_criteria": {
+    "frozen_phase1": {
+      "perfect_observation_mean_effect_mae_lte": 0.08,
+      "known_zero_effect_absolute_estimate_lte": 0.05,
+      "harmful_channel_required_sign": "negative",
+      "balanced_missing_25_l1_from_perfect_lte": 0.10,
+      "balanced_missing_50_l1_from_perfect_lte": 0.18,
+      "small_sample_requires_finite_outputs": true,
+      "mean_interval_coverage_fraction_gte": 0.75
+    },
+    "sealed_holdout": {
+      "all_required_families": true,
+      "selection_shift_mean_absolute_error_lte": 0.08,
+      "other_family_mean_absolute_error_lte": 0.10,
+      "negative_heterogeneous_mean_absolute_error_lte": 0.12,
+      "all_family_coverage_fraction_gte": 1.0,
+      "all_family_interval_coverage_fraction_gte": 0.75,
+      "missing_or_invalid_required_family": "REJECT"
+    },
+    "numerical_validity": {
+      "finite_estimates": true,
+      "finite_uncertainty_bounds": true,
+      "interval_contains_point_estimate": true
+    },
+    "threshold_justification": "Probability-error limits are declared ex ante as tolerable absolute error on a conversion-probability estimand, not selected from holdout results. The 0.75 interval-coverage floor requires at least six of eight channel effects inside the approximate 90% intervals in each required holdout family."
+  },
+  "public_holdout_limitation_disclosure": "The holdout-family architecture is public because this is a public research repository. Instantiated holdout seeds, parameter values, treatment effects, latent-intent strengths, interactions, selection mechanisms, and corruption settings remain sealed from candidate development. This provides strong research-process separation but is not equivalent to a completely secret external benchmark."
+}

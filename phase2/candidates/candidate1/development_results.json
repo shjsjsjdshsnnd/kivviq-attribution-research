@@ -1,0 +1,48 @@
+{
+  "stage": "DEVELOPMENT",
+  "candidate_id": "candidate1-outcome-regression-gcomp",
+  "candidate_version": "1.0.0",
+  "selection_rule": "lowest mean synthetic-effect MAE across preregistered development worlds; ties favor stronger regularization",
+  "ridge_grid": [0.05, 0.2, 1.0],
+  "results": [
+    {
+      "ridge_lambda": 0.05,
+      "mean_absolute_error": 0.0494686165817118,
+      "world_mae": {
+        "candidate1-dev-balanced-v1": 0.02216050577174187,
+        "candidate1-dev-null-negative-v1": 0.028827423740505946,
+        "candidate1-dev-observed-selection-stress-v1": 0.016615609167550713,
+        "candidate1-dev-sparse-v1": 0.13027092764704867
+      }
+    },
+    {
+      "ridge_lambda": 0.2,
+      "mean_absolute_error": 0.04279327527806105,
+      "world_mae": {
+        "candidate1-dev-balanced-v1": 0.021678711742008,
+        "candidate1-dev-null-negative-v1": 0.02790538960261468,
+        "candidate1-dev-observed-selection-stress-v1": 0.016243141071742854,
+        "candidate1-dev-sparse-v1": 0.10534585869587866
+      }
+    },
+    {
+      "ridge_lambda": 1.0,
+      "mean_absolute_error": 0.02720161198417116,
+      "world_mae": {
+        "candidate1-dev-balanced-v1": 0.019560989699350995,
+        "candidate1-dev-null-negative-v1": 0.02511271899861303,
+        "candidate1-dev-observed-selection-stress-v1": 0.01425548828779423,
+        "candidate1-dev-sparse-v1": 0.04987725095092638
+      },
+      "interval_coverage": {
+        "candidate1-dev-balanced-v1": 0.875,
+        "candidate1-dev-null-negative-v1": 0.625,
+        "candidate1-dev-observed-selection-stress-v1": 0.875,
+        "candidate1-dev-sparse-v1": 1.0
+      }
+    }
+  ],
+  "selected_ridge_lambda": 1.0,
+  "selection_used_frozen_phase1": false,
+  "selection_used_sealed_holdout": false
+}

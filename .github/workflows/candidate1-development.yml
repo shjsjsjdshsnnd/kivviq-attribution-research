@@ -1,0 +1,28 @@
+name: Candidate 1 Development
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  development:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+      - run: python -m pip install --upgrade pip
+      - run: python -m pip install -e ".[dev]"
+      - run: python scripts/check_repo_safety.py
+      - run: python scripts/check_phase1_frozen.py
+      - run: ruff check phase2/candidates/candidate1 tests/candidate1
+      - run: pytest tests/candidate1
+      - name: DEVELOPMENT ridge selection
+        run: python phase2/candidates/candidate1/run_development.py

@@ -1,0 +1,128 @@
+{
+  "candidate_id": "candidate1-outcome-regression-gcomp",
+  "candidate_version": "1.0.0",
+  "evaluation_protocol_version": "phase2-evaluation-v1",
+  "exposure_state": "CONSUMED",
+  "feedback_bearing_exposure_count": 1,
+  "final_candidate_outcome": "REJECT",
+  "final_rejection_reasons": [
+    "FROZEN_PHASE1 preregistered criteria failed: known-zero/selection behavior.",
+    "latent_intent_shift: interval_coverage_fraction failed preregistered gte 0.75"
+  ],
+  "frozen_phase1_gate_pass": false,
+  "holdout_configuration_fingerprint": "38cedb8708c3cb4d5a63ddc9322e44429496e211d5ed26472bc7f3915cca1ab2",
+  "holdout_gate_outcome": "REJECT",
+  "holdout_gate_reasons": [
+    "latent_intent_shift: interval_coverage_fraction failed preregistered gte 0.75"
+  ],
+  "holdout_generator_fingerprint": "acdc2014358b7171a57118d2dc32ea2dfbf41a431a720421180b38e6c5a2e4d7",
+  "holdout_limitation_disclosure": "The holdout-family architecture is public because this is a public research repository. Instantiated holdout seeds, parameter values, treatment effects, latent-intent strengths, interactions, selection mechanisms, and corruption settings remain sealed from candidate development. This provides strong research-process separation but is not equivalent to a completely secret external benchmark.",
+  "holdout_version": "candidate1-holdout-v1",
+  "results_by_family": [
+    {
+      "family": "selection_shift",
+      "metrics": {
+        "coverage_fraction": 1.0,
+        "interval_coverage_fraction": 0.875,
+        "max_absolute_error": 0.15584458457161085,
+        "mean_absolute_error": 0.04535077741140793,
+        "mean_interval_width": 0.16948722137947572
+      },
+      "reason": null,
+      "status": "evaluated",
+      "uncertainty_present": true
+    },
+    {
+      "family": "latent_intent_shift",
+      "metrics": {
+        "coverage_fraction": 1.0,
+        "interval_coverage_fraction": 0.625,
+        "max_absolute_error": 0.18072341278196222,
+        "mean_absolute_error": 0.08234583805377903,
+        "mean_interval_width": 0.22127566260854842
+      },
+      "reason": null,
+      "status": "evaluated",
+      "uncertainty_present": true
+    },
+    {
+      "family": "prevalence_ordering_shift",
+      "metrics": {
+        "coverage_fraction": 1.0,
+        "interval_coverage_fraction": 0.875,
+        "max_absolute_error": 0.14149845630787652,
+        "mean_absolute_error": 0.050458231901518186,
+        "mean_interval_width": 0.22309854074647748
+      },
+      "reason": null,
+      "status": "evaluated",
+      "uncertainty_present": true
+    },
+    {
+      "family": "time_varying_delayed",
+      "metrics": {
+        "coverage_fraction": 1.0,
+        "interval_coverage_fraction": 0.875,
+        "max_absolute_error": 0.07675864943591623,
+        "mean_absolute_error": 0.05717015271099529,
+        "mean_interval_width": 0.17543828797721586
+      },
+      "reason": null,
+      "status": "evaluated",
+      "uncertainty_present": true
+    },
+    {
+      "family": "unseen_interaction",
+      "metrics": {
+        "coverage_fraction": 1.0,
+        "interval_coverage_fraction": 0.75,
+        "max_absolute_error": 0.08111785500764963,
+        "mean_absolute_error": 0.0384981576218751,
+        "mean_interval_width": 0.16154065297652903
+      },
+      "reason": null,
+      "status": "evaluated",
+      "uncertainty_present": true
+    },
+    {
+      "family": "negative_heterogeneous",
+      "metrics": {
+        "coverage_fraction": 1.0,
+        "interval_coverage_fraction": 0.875,
+        "max_absolute_error": 0.07121290604444251,
+        "mean_absolute_error": 0.03117182134386163,
+        "mean_interval_width": 0.12420019572497171
+      },
+      "reason": null,
+      "status": "evaluated",
+      "uncertainty_present": true
+    },
+    {
+      "family": "sparse_identity_loss",
+      "metrics": {
+        "coverage_fraction": 1.0,
+        "interval_coverage_fraction": 1.0,
+        "max_absolute_error": 0.13342486661819458,
+        "mean_absolute_error": 0.04094616466853841,
+        "mean_interval_width": 0.17414916427322447
+      },
+      "reason": null,
+      "status": "evaluated",
+      "uncertainty_present": true
+    },
+    {
+      "family": "compounded_measurement",
+      "metrics": {
+        "coverage_fraction": 1.0,
+        "interval_coverage_fraction": 0.875,
+        "max_absolute_error": 0.11472673510592307,
+        "mean_absolute_error": 0.05074722038433755,
+        "mean_interval_width": 0.14732510455865547
+      },
+      "reason": null,
+      "status": "evaluated",
+      "uncertainty_present": true
+    }
+  ],
+  "stage": "SEALED_HOLDOUT"
+}
