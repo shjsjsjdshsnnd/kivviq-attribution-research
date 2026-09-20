@@ -122,6 +122,38 @@ function spendInterventions(
   );
 }
 
+function explicitPortfolioSpendMinor(
+  spend: Readonly<Record<MarketingChannel, number>>,
+): number {
+  return Object.values(spend).reduce(
+    (sum, value) => sum + value,
+    0,
+  );
+}
+
+function representedPreMarketingContributionMinor(
+  result: SimulationResult,
+  request: PortfolioEvaluationRequest,
+): number {
+  const weights = new Map(
+    request.latentPopulation.customers.map(
+      (customer) =>
+        [customer.customerId, customer.populationWeight] as const,
+    ),
+  );
+
+  return result.purchases.reduce((sum, purchase) => {
+    const weight = weights.get(purchase.customerId) ?? 1;
+    const beforeMarketing =
+      purchase.netRevenueMinor -
+      purchase.estimatedCogsMinor -
+      purchase.paymentFeeMinor -
+      purchase.shippingSubsidyMinor -
+      purchase.fulfillmentMinor;
+    return sum + beforeMarketing * weight;
+  }, 0);
+}
+
 function weightedNewCustomers(
   result: SimulationResult,
   request: PortfolioEvaluationRequest,
@@ -234,7 +266,11 @@ export function evaluatePortfolio(
     representedRevenueMinor:
       simulation.totals.representedRevenueMinor,
     representedContributionProfitMinor:
-      simulation.totals.representedContributionProfitMinor,
+      representedPreMarketingContributionMinor(
+        simulation,
+        request,
+      ) -
+      explicitPortfolioSpendMinor(spend),
     representedNewCustomers:
       weightedNewCustomers(simulation, request),
     platformAttributedRevenueMinor:
@@ -453,17 +489,43 @@ export function evaluateReallocationAcrossHorizons(
   >,
   horizonsDays: readonly number[],
 ): readonly HorizonEvaluation[] {
-  return horizonsDays.map((horizonDays) => ({
-    horizonDays,
-    evaluation: evaluateReallocation(
-      requestWithSpend(
-        request,
-        request.spendMinorByChannel,
-        endAfterDays(request.periodStart, horizonDays),
+  const originalDurationDays = Math.max(
+    1,
+    (Date.parse(request.periodEnd) -
+      Date.parse(request.periodStart)) /
+      86_400_000,
+  );
+  const baseline = normalizedPortfolioSpend(request);
+
+  return horizonsDays.map((horizonDays) => {
+    const scale = horizonDays / originalDurationDays;
+    const scaledBaseline = Object.fromEntries(
+      Object.entries(baseline).map(([channel, spend]) => [
+        channel,
+        spend * scale,
+      ]),
+    ) as Partial<Record<MarketingChannel, number>>;
+    const scaledDelta = Object.fromEntries(
+      Object.entries(spendDeltaByChannel).map(
+        ([channel, delta]) => [
+          channel,
+          (delta ?? 0) * scale,
+        ],
       ),
-      spendDeltaByChannel,
-    ),
-  }));
+    ) as Partial<Record<MarketingChannel, number>>;
+
+    return {
+      horizonDays,
+      evaluation: evaluateReallocation(
+        requestWithSpend(
+          request,
+          scaledBaseline,
+          endAfterDays(request.periodStart, horizonDays),
+        ),
+        scaledDelta,
+      ),
+    };
+  });
 }
 
 export function evaluatePairwiseInteraction(
