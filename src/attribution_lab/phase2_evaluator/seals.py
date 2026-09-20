@@ -48,6 +48,20 @@ def _fingerprint(payload: Any) -> str:
     return hashlib.sha256(canonical.encode("utf-8")).hexdigest()
 
 
+def _generator_source_fingerprint(selected: tuple[HoldoutFamily, ...]) -> str:
+    evaluator_root = Path(__file__).resolve().parent
+    return _fingerprint(
+        {
+            "generator_version": HOLDOUT_GENERATOR_VERSION,
+            "families": [family.value for family in selected],
+            "seals_source": Path(__file__).read_text(encoding="utf-8"),
+            "holdout_dgp_source": (evaluator_root / "holdout_dgp.py").read_text(
+                encoding="utf-8"
+            ),
+        }
+    )
+
+
 def _random_channel(rng: random.Random) -> str:
     return rng.choice(
         [
@@ -175,12 +189,7 @@ class HoldoutSealStore:
         selected = families or tuple(HoldoutFamily)
         instances = [_instantiate_family(rng, family) for family in selected]
         configuration_fingerprint = _fingerprint(instances)
-        generator_fingerprint = _fingerprint(
-            {
-                "generator_version": HOLDOUT_GENERATOR_VERSION,
-                "families": [family.value for family in selected],
-            }
-        )
+        generator_fingerprint = _generator_source_fingerprint(selected)
         timestamp = created_at or datetime.now(UTC).isoformat()
         payload = {
             "metadata": {

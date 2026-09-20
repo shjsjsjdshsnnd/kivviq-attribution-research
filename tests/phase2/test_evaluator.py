@@ -1,9 +1,13 @@
 from __future__ import annotations
 
 from attribution_lab.phase2.development import DevelopmentWorldRecord
+from attribution_lab.phase2.phase1_adapter import FrozenPhase1Adapter
 from attribution_lab.phase2.registration import CandidateRegistry
-from attribution_lab.phase2_evaluator.evaluator import HoldoutEvaluator
-from attribution_lab.phase2_evaluator.results import ScenarioStatus
+from attribution_lab.phase2_evaluator.evaluator import (
+    HoldoutEvaluator,
+    evaluate_known_case,
+)
+from attribution_lab.phase2_evaluator.results import EvaluationStage, ScenarioStatus
 from attribution_lab.phase2_evaluator.seals import HoldoutSealStore
 
 
@@ -48,7 +52,7 @@ def test_missing_uncertainty_is_preserved_as_missing(
 from phase2_candidate_sdk import CandidateResponse
 
 def estimate(dataset, context):
-    return CandidateResponse.from_mappings({"meta": 0.0})
+    return CandidateResponse.from_mappings({"channel_a": 0.0})
 """
     registry = CandidateRegistry(tmp_path / "registrations")
     development = DevelopmentWorldRecord(
@@ -75,3 +79,26 @@ def estimate(dataset, context):
     )
     assert results
     assert all(not result.uncertainty_present for result in results)
+
+
+def test_frozen_phase1_uses_same_standardized_candidate_contract(
+    declaration,
+    valid_candidate_source,
+) -> None:
+    case = FrozenPhase1Adapter.build_case(
+        "balanced_multi_touch",
+        seed=7,
+        sample_size=40,
+        observation_quality="perfect",
+    )
+    result = evaluate_known_case(
+        declaration,
+        valid_candidate_source,
+        dataset=case.observable_dataset,
+        synthetic_truth=case.synthetic_truth,
+        stage=EvaluationStage.FROZEN_PHASE1,
+        family=case.scenario,
+        phase1_reference=case.phase1_reference,
+    )
+    assert result.stage == EvaluationStage.FROZEN_PHASE1
+    assert result.status == ScenarioStatus.EVALUATED

@@ -59,7 +59,7 @@ The evaluator supports these public family names without exposing instantiated p
 - sparse identity loss
 - compounded measurement failure
 
-`HoldoutSealStore` creates immutable versioned seal files outside the repository. Public metadata contains only version, generator/configuration fingerprints, creation timestamp, family manifest, and protocol version. Exact seeds and instantiated parameters remain in the evaluator-owned seal.
+`HoldoutSealStore` creates immutable versioned seal files outside the repository. Public metadata contains only version, generator/configuration fingerprints, creation timestamp, family manifest, and protocol version. The generator fingerprint hashes the actual evaluator seal/generator source plus the declared generator version and family set. Exact seeds and instantiated parameters remain in the evaluator-owned seal.
 
 Changing a holdout creates a new version. Existing versions cannot be overwritten.
 

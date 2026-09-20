@@ -69,3 +69,21 @@ def estimate(dataset, context):
         )
     assert str(exc.value) == "candidate execution failed"
     assert "internal detail" not in str(exc.value)
+
+
+def test_runtime_import_guard_blocks_eval_bypass() -> None:
+    source = """
+def estimate(dataset, context):
+    eval("__import__('attribution_lab.phase2_evaluator')")
+"""
+    with pytest.raises(CandidateExecutionError):
+        CandidateRunner().execute(
+            source,
+            ObservableDataset(journeys=()),
+            DeclaredContext(
+                stage="SEALED_HOLDOUT",
+                scenario_family="selection_shift",
+                estimand_fingerprint="x",
+                holdout_version="holdout-v1",
+            ),
+        )

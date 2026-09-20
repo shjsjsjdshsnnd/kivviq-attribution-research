@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from dataclasses import replace
+
 import pytest
 
 from attribution_lab.phase2.development import DevelopmentWorldRecord
@@ -70,3 +72,72 @@ def test_exact_reproducibility_rerun_is_recorded(
     )
     payload = registry.read(declaration.candidate_id, declaration.version)
     assert len(payload["holdout_exposures"]) == 2
+
+
+def test_post_exposure_code_mutation_is_blocked(
+    tmp_path,
+    declaration,
+    valid_candidate_source,
+) -> None:
+    registry = CandidateRegistry(tmp_path)
+    development = _development(declaration.candidate_id, declaration.version)
+    registry.register(declaration, valid_candidate_source, development)
+    registry.mark_holdout_exposure(declaration, valid_candidate_source, "holdout-v1")
+
+    with pytest.raises(CandidateVersionConflict):
+        registry.mark_holdout_exposure(
+            declaration,
+            valid_candidate_source + "\n# changed architecture\n",
+            "holdout-v1",
+            reproducibility_rerun=True,
+        )
+
+
+def test_post_exposure_estimand_mutation_is_blocked(
+    tmp_path,
+    declaration,
+    valid_candidate_source,
+) -> None:
+    registry = CandidateRegistry(tmp_path)
+    development = _development(declaration.candidate_id, declaration.version)
+    registry.register(declaration, valid_candidate_source, development)
+    registry.mark_holdout_exposure(declaration, valid_candidate_source, "holdout-v1")
+
+    changed_estimand = replace(
+        declaration.estimand,
+        horizon_hours=declaration.estimand.horizon_hours + 24.0,
+    )
+    changed = replace(declaration, estimand=changed_estimand)
+    with pytest.raises(CandidateVersionConflict):
+        registry.mark_holdout_exposure(
+            changed,
+            valid_candidate_source,
+            "holdout-v1",
+            reproducibility_rerun=True,
+        )
+
+
+def test_post_exposure_success_criteria_mutation_is_blocked(
+    tmp_path,
+    declaration,
+    valid_candidate_source,
+) -> None:
+    registry = CandidateRegistry(tmp_path)
+    development = _development(declaration.candidate_id, declaration.version)
+    registry.register(declaration, valid_candidate_source, development)
+    registry.mark_holdout_exposure(declaration, valid_candidate_source, "holdout-v1")
+
+    first_rule = declaration.falsification_criteria.family_rules[0]
+    changed_rule = replace(first_rule, threshold=first_rule.threshold + 0.1)
+    changed_criteria = replace(
+        declaration.falsification_criteria,
+        family_rules=(changed_rule, *declaration.falsification_criteria.family_rules[1:]),
+    )
+    changed = replace(declaration, falsification_criteria=changed_criteria)
+    with pytest.raises(CandidateVersionConflict):
+        registry.mark_holdout_exposure(
+            changed,
+            valid_candidate_source,
+            "holdout-v1",
+            reproducibility_rerun=True,
+        )

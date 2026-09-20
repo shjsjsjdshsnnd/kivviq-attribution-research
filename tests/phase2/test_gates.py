@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from attribution_lab.phase2.holdout_families import HoldoutFamily
 from attribution_lab.phase2_evaluator.gates import apply_preregistered_gate
 from attribution_lab.phase2_evaluator.results import (
     EvaluationStage,
@@ -96,3 +97,38 @@ def test_missing_required_uncertainty_rejects(declaration) -> None:
         ),
     )
     assert apply_preregistered_gate(report, declaration).outcome == GateOutcome.REJECT
+
+
+def test_frozen_phase1_success_cannot_rescue_holdout_failure(declaration) -> None:
+    phase1 = ScenarioResult(
+        stage=EvaluationStage.FROZEN_PHASE1,
+        family="known-phase1-case",
+        status=ScenarioStatus.EVALUATED,
+        metrics=(("mean_absolute_error", 0.0),),
+        uncertainty_present=True,
+    )
+    report = SeparatedEvaluationReport(
+        development_results=(),
+        frozen_phase1_results=(phase1,),
+        sealed_holdout_results=(
+            _result("unseen_interaction", 1.0),
+        ),
+    )
+    assert apply_preregistered_gate(report, declaration).outcome == GateOutcome.REJECT
+
+
+def test_changed_holdout_family_set_cannot_silently_pass(declaration) -> None:
+    required = tuple(
+        _result(family.value, 0.0)
+        for family in HoldoutFamily
+    )
+    unexpected = _result("new_unregistered_holdout_family", 0.0)
+    report = SeparatedEvaluationReport(
+        development_results=(),
+        frozen_phase1_results=(),
+        sealed_holdout_results=(*required, unexpected),
+    )
+    assert (
+        apply_preregistered_gate(report, declaration).outcome
+        == GateOutcome.INCONCLUSIVE
+    )
