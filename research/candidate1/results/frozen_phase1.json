@@ -1,0 +1,1121 @@
+{
+  "candidate_id": "candidate1-observable-gcomp",
+  "candidate_version": "1.0.0",
+  "declaration_fingerprint": "9d5a4419498399f8332d1bf0ac9b063aed4c3c7103fbc0e4f3dd4fb0146ecbf0",
+  "development_record_fingerprint": "8c690d9dffa89ca939875f8a0be0d22411c38e67aa600da111d78bf6475e9161",
+  "development_results": [
+    {
+      "family": "candidate1-dev-randomized-v1",
+      "metrics": [
+        [
+          "mean_absolute_error",
+          0.014173740524431502
+        ],
+        [
+          "max_absolute_error",
+          0.019508577237797475
+        ],
+        [
+          "coverage_fraction",
+          1.0
+        ],
+        [
+          "interval_coverage_fraction",
+          1.0
+        ],
+        [
+          "mean_interval_width",
+          0.0976500240937029
+        ]
+      ],
+      "reason": null,
+      "stage": "DEVELOPMENT",
+      "status": "evaluated",
+      "uncertainty_present": true
+    },
+    {
+      "family": "candidate1-dev-observed-selection-v1",
+      "metrics": [
+        [
+          "mean_absolute_error",
+          0.03952546729416008
+        ],
+        [
+          "max_absolute_error",
+          0.08148608421116421
+        ],
+        [
+          "coverage_fraction",
+          1.0
+        ],
+        [
+          "interval_coverage_fraction",
+          0.5
+        ],
+        [
+          "mean_interval_width",
+          0.08410212786075902
+        ]
+      ],
+      "reason": null,
+      "stage": "DEVELOPMENT",
+      "status": "evaluated",
+      "uncertainty_present": true
+    },
+    {
+      "family": "candidate1-dev-null-effect-v1",
+      "metrics": [
+        [
+          "mean_absolute_error",
+          0.04228562359848154
+        ],
+        [
+          "max_absolute_error",
+          0.0525598958493916
+        ],
+        [
+          "coverage_fraction",
+          1.0
+        ],
+        [
+          "interval_coverage_fraction",
+          0.5
+        ],
+        [
+          "mean_interval_width",
+          0.08637103451795512
+        ]
+      ],
+      "reason": null,
+      "stage": "DEVELOPMENT",
+      "status": "evaluated",
+      "uncertainty_present": true
+    }
+  ],
+  "formal_preholdout_outcome": "REJECT",
+  "frozen_phase1_results": [
+    {
+      "family": "simple_single_touch:perfect",
+      "metrics": [
+        [
+          "mean_absolute_error",
+          0.020913033777199583
+        ],
+        [
+          "max_absolute_error",
+          0.041072913124318114
+        ],
+        [
+          "coverage_fraction",
+          1.0
+        ],
+        [
+          "interval_coverage_fraction",
+          0.5
+        ],
+        [
+          "mean_interval_width",
+          0.07581797382317972
+        ]
+      ],
+      "reason": null,
+      "stage": "FROZEN_PHASE1",
+      "status": "evaluated",
+      "uncertainty_present": true
+    },
+    {
+      "family": "balanced_multi_touch:perfect",
+      "metrics": [
+        [
+          "mean_absolute_error",
+          0.019968211659200985
+        ],
+        [
+          "max_absolute_error",
+          0.04877616597156469
+        ],
+        [
+          "coverage_fraction",
+          1.0
+        ],
+        [
+          "interval_coverage_fraction",
+          0.5
+        ],
+        [
+          "mean_interval_width",
+          0.07110056432560055
+        ]
+      ],
+      "reason": null,
+      "stage": "FROZEN_PHASE1",
+      "status": "evaluated",
+      "uncertainty_present": true
+    },
+    {
+      "family": "strong_first_touch:perfect",
+      "metrics": [
+        [
+          "mean_absolute_error",
+          0.02083960732378801
+        ],
+        [
+          "max_absolute_error",
+          0.04727035653354861
+        ],
+        [
+          "coverage_fraction",
+          1.0
+        ],
+        [
+          "interval_coverage_fraction",
+          0.625
+        ],
+        [
+          "mean_interval_width",
+          0.08818059635171303
+        ]
+      ],
+      "reason": null,
+      "stage": "FROZEN_PHASE1",
+      "status": "evaluated",
+      "uncertainty_present": true
+    },
+    {
+      "family": "strong_final_touch:perfect",
+      "metrics": [
+        [
+          "mean_absolute_error",
+          0.021761403965835927
+        ],
+        [
+          "max_absolute_error",
+          0.05729407075901856
+        ],
+        [
+          "coverage_fraction",
+          1.0
+        ],
+        [
+          "interval_coverage_fraction",
+          0.625
+        ],
+        [
+          "mean_interval_width",
+          0.08285316766746607
+        ]
+      ],
+      "reason": null,
+      "stage": "FROZEN_PHASE1",
+      "status": "evaluated",
+      "uncertainty_present": true
+    },
+    {
+      "family": "pure_acquisition:perfect",
+      "metrics": [
+        [
+          "mean_absolute_error",
+          0.02783451240349202
+        ],
+        [
+          "max_absolute_error",
+          0.061102638525220763
+        ],
+        [
+          "coverage_fraction",
+          1.0
+        ],
+        [
+          "interval_coverage_fraction",
+          0.75
+        ],
+        [
+          "mean_interval_width",
+          0.11090001085408276
+        ]
+      ],
+      "reason": null,
+      "stage": "FROZEN_PHASE1",
+      "status": "evaluated",
+      "uncertainty_present": true
+    },
+    {
+      "family": "demand_capture:perfect",
+      "metrics": [
+        [
+          "mean_absolute_error",
+          0.04326932925008881
+        ],
+        [
+          "max_absolute_error",
+          0.10449096108514
+        ],
+        [
+          "coverage_fraction",
+          1.0
+        ],
+        [
+          "interval_coverage_fraction",
+          0.75
+        ],
+        [
+          "mean_interval_width",
+          0.1041147279322004
+        ]
+      ],
+      "reason": null,
+      "stage": "FROZEN_PHASE1",
+      "status": "evaluated",
+      "uncertainty_present": true
+    },
+    {
+      "family": "retargeting_selection:perfect",
+      "metrics": [
+        [
+          "mean_absolute_error",
+          0.022877173240448464
+        ],
+        [
+          "max_absolute_error",
+          0.045686022407739134
+        ],
+        [
+          "coverage_fraction",
+          1.0
+        ],
+        [
+          "interval_coverage_fraction",
+          0.75
+        ],
+        [
+          "mean_interval_width",
+          0.12318137657399778
+        ]
+      ],
+      "reason": null,
+      "stage": "FROZEN_PHASE1",
+      "status": "evaluated",
+      "uncertainty_present": true
+    },
+    {
+      "family": "assisted_conversion:perfect",
+      "metrics": [
+        [
+          "mean_absolute_error",
+          0.029448794301812957
+        ],
+        [
+          "max_absolute_error",
+          0.08201206725515384
+        ],
+        [
+          "coverage_fraction",
+          1.0
+        ],
+        [
+          "interval_coverage_fraction",
+          0.5
+        ],
+        [
+          "mean_interval_width",
+          0.051496492094467355
+        ]
+      ],
+      "reason": null,
+      "stage": "FROZEN_PHASE1",
+      "status": "evaluated",
+      "uncertainty_present": true
+    },
+    {
+      "family": "channel_interaction:perfect",
+      "metrics": [
+        [
+          "mean_absolute_error",
+          0.01844769392352377
+        ],
+        [
+          "max_absolute_error",
+          0.04877616597156469
+        ],
+        [
+          "coverage_fraction",
+          1.0
+        ],
+        [
+          "interval_coverage_fraction",
+          0.5
+        ],
+        [
+          "mean_interval_width",
+          0.06689784868267684
+        ]
+      ],
+      "reason": null,
+      "stage": "FROZEN_PHASE1",
+      "status": "evaluated",
+      "uncertainty_present": true
+    },
+    {
+      "family": "organic_direct_return:perfect",
+      "metrics": [
+        [
+          "mean_absolute_error",
+          0.021771642639524167
+        ],
+        [
+          "max_absolute_error",
+          0.04877616597156469
+        ],
+        [
+          "coverage_fraction",
+          1.0
+        ],
+        [
+          "interval_coverage_fraction",
+          0.5
+        ],
+        [
+          "mean_interval_width",
+          0.06514164020221755
+        ]
+      ],
+      "reason": null,
+      "stage": "FROZEN_PHASE1",
+      "status": "evaluated",
+      "uncertainty_present": true
+    },
+    {
+      "family": "null_paid_channel:perfect",
+      "metrics": [
+        [
+          "mean_absolute_error",
+          0.026410512589943525
+        ],
+        [
+          "max_absolute_error",
+          0.06284455469106082
+        ],
+        [
+          "coverage_fraction",
+          1.0
+        ],
+        [
+          "interval_coverage_fraction",
+          0.875
+        ],
+        [
+          "mean_interval_width",
+          0.09289806257294142
+        ]
+      ],
+      "reason": null,
+      "stage": "FROZEN_PHASE1",
+      "status": "evaluated",
+      "uncertainty_present": true
+    },
+    {
+      "family": "harmful_channel:perfect",
+      "metrics": [
+        [
+          "mean_absolute_error",
+          0.02017220454084653
+        ],
+        [
+          "max_absolute_error",
+          0.038623172124103815
+        ],
+        [
+          "coverage_fraction",
+          1.0
+        ],
+        [
+          "interval_coverage_fraction",
+          0.875
+        ],
+        [
+          "mean_interval_width",
+          0.06455140832723803
+        ]
+      ],
+      "reason": null,
+      "stage": "FROZEN_PHASE1",
+      "status": "evaluated",
+      "uncertainty_present": true
+    },
+    {
+      "family": "null_channel_high_prevalence:perfect",
+      "metrics": [
+        [
+          "mean_absolute_error",
+          0.007980330035225601
+        ],
+        [
+          "max_absolute_error",
+          0.02666986479760893
+        ],
+        [
+          "coverage_fraction",
+          1.0
+        ],
+        [
+          "interval_coverage_fraction",
+          0.875
+        ],
+        [
+          "mean_interval_width",
+          0.11916079094116562
+        ]
+      ],
+      "reason": null,
+      "stage": "FROZEN_PHASE1",
+      "status": "evaluated",
+      "uncertainty_present": true
+    },
+    {
+      "family": "null_channel_last_touch:perfect",
+      "metrics": [
+        [
+          "mean_absolute_error",
+          0.026410512589943525
+        ],
+        [
+          "max_absolute_error",
+          0.06284455469106082
+        ],
+        [
+          "coverage_fraction",
+          1.0
+        ],
+        [
+          "interval_coverage_fraction",
+          0.875
+        ],
+        [
+          "mean_interval_width",
+          0.09249830277726143
+        ]
+      ],
+      "reason": null,
+      "stage": "FROZEN_PHASE1",
+      "status": "evaluated",
+      "uncertainty_present": true
+    },
+    {
+      "family": "null_channel_high_intent:perfect",
+      "metrics": [
+        [
+          "mean_absolute_error",
+          0.022568050386613206
+        ],
+        [
+          "max_absolute_error",
+          0.06485399352961535
+        ],
+        [
+          "coverage_fraction",
+          1.0
+        ],
+        [
+          "interval_coverage_fraction",
+          0.75
+        ],
+        [
+          "mean_interval_width",
+          0.08267487291954317
+        ]
+      ],
+      "reason": null,
+      "stage": "FROZEN_PHASE1",
+      "status": "evaluated",
+      "uncertainty_present": true
+    },
+    {
+      "family": "null_channel_retargeting:perfect",
+      "metrics": [
+        [
+          "mean_absolute_error",
+          0.032688004702874855
+        ],
+        [
+          "max_absolute_error",
+          0.0750751001146585
+        ],
+        [
+          "coverage_fraction",
+          1.0
+        ],
+        [
+          "interval_coverage_fraction",
+          0.625
+        ],
+        [
+          "mean_interval_width",
+          0.10520783888668225
+        ]
+      ],
+      "reason": null,
+      "stage": "FROZEN_PHASE1",
+      "status": "evaluated",
+      "uncertainty_present": true
+    },
+    {
+      "family": "balanced_short_journeys:perfect",
+      "metrics": [
+        [
+          "mean_absolute_error",
+          0.017551622538396205
+        ],
+        [
+          "max_absolute_error",
+          0.03767494255980399
+        ],
+        [
+          "coverage_fraction",
+          1.0
+        ],
+        [
+          "interval_coverage_fraction",
+          0.875
+        ],
+        [
+          "mean_interval_width",
+          0.09219794645190847
+        ]
+      ],
+      "reason": null,
+      "stage": "FROZEN_PHASE1",
+      "status": "evaluated",
+      "uncertainty_present": true
+    },
+    {
+      "family": "balanced_long_journeys:perfect",
+      "metrics": [
+        [
+          "mean_absolute_error",
+          0.024895220379723124
+        ],
+        [
+          "max_absolute_error",
+          0.06017323487443343
+        ],
+        [
+          "coverage_fraction",
+          1.0
+        ],
+        [
+          "interval_coverage_fraction",
+          0.875
+        ],
+        [
+          "mean_interval_width",
+          0.1052417413409855
+        ]
+      ],
+      "reason": null,
+      "stage": "FROZEN_PHASE1",
+      "status": "evaluated",
+      "uncertainty_present": true
+    },
+    {
+      "family": "balanced_rare_channels:perfect",
+      "metrics": [
+        [
+          "mean_absolute_error",
+          0.03858087435500104
+        ],
+        [
+          "max_absolute_error",
+          0.08189345180534321
+        ],
+        [
+          "coverage_fraction",
+          1.0
+        ],
+        [
+          "interval_coverage_fraction",
+          0.125
+        ],
+        [
+          "mean_interval_width",
+          0.06782822892610539
+        ]
+      ],
+      "reason": null,
+      "stage": "FROZEN_PHASE1",
+      "status": "evaluated",
+      "uncertainty_present": true
+    },
+    {
+      "family": "balanced_common_channels:perfect",
+      "metrics": [
+        [
+          "mean_absolute_error",
+          0.02231070257585195
+        ],
+        [
+          "max_absolute_error",
+          0.04449718946662547
+        ],
+        [
+          "coverage_fraction",
+          1.0
+        ],
+        [
+          "interval_coverage_fraction",
+          0.875
+        ],
+        [
+          "mean_interval_width",
+          0.09671293260687681
+        ]
+      ],
+      "reason": null,
+      "stage": "FROZEN_PHASE1",
+      "status": "evaluated",
+      "uncertainty_present": true
+    },
+    {
+      "family": "balanced_multi_touch:missing_10",
+      "metrics": [
+        [
+          "mean_absolute_error",
+          0.0213975427101699
+        ],
+        [
+          "max_absolute_error",
+          0.049033905809296875
+        ],
+        [
+          "coverage_fraction",
+          1.0
+        ],
+        [
+          "interval_coverage_fraction",
+          0.375
+        ],
+        [
+          "mean_interval_width",
+          0.05272779668023485
+        ]
+      ],
+      "reason": null,
+      "stage": "FROZEN_PHASE1",
+      "status": "evaluated",
+      "uncertainty_present": true
+    },
+    {
+      "family": "balanced_multi_touch:missing_25",
+      "metrics": [
+        [
+          "mean_absolute_error",
+          0.01602403369443074
+        ],
+        [
+          "max_absolute_error",
+          0.04100021860023356
+        ],
+        [
+          "coverage_fraction",
+          1.0
+        ],
+        [
+          "interval_coverage_fraction",
+          0.5
+        ],
+        [
+          "mean_interval_width",
+          0.06379156823846835
+        ]
+      ],
+      "reason": null,
+      "stage": "FROZEN_PHASE1",
+      "status": "evaluated",
+      "uncertainty_present": true
+    },
+    {
+      "family": "balanced_multi_touch:missing_50",
+      "metrics": [
+        [
+          "mean_absolute_error",
+          0.01996383032977053
+        ],
+        [
+          "max_absolute_error",
+          0.035010140352054075
+        ],
+        [
+          "coverage_fraction",
+          1.0
+        ],
+        [
+          "interval_coverage_fraction",
+          0.25
+        ],
+        [
+          "mean_interval_width",
+          0.0502887286457551
+        ]
+      ],
+      "reason": null,
+      "stage": "FROZEN_PHASE1",
+      "status": "evaluated",
+      "uncertainty_present": true
+    },
+    {
+      "family": "balanced_multi_touch:channel_specific_missing",
+      "metrics": [
+        [
+          "mean_absolute_error",
+          0.019013834695723476
+        ],
+        [
+          "max_absolute_error",
+          0.04943231706049529
+        ],
+        [
+          "coverage_fraction",
+          1.0
+        ],
+        [
+          "interval_coverage_fraction",
+          0.625
+        ],
+        [
+          "mean_interval_width",
+          0.06281358042096954
+        ]
+      ],
+      "reason": null,
+      "stage": "FROZEN_PHASE1",
+      "status": "evaluated",
+      "uncertainty_present": true
+    },
+    {
+      "family": "balanced_multi_touch:fragmented_identity",
+      "metrics": [
+        [
+          "mean_absolute_error",
+          0.022755299436563042
+        ],
+        [
+          "max_absolute_error",
+          0.055587864664716984
+        ],
+        [
+          "coverage_fraction",
+          1.0
+        ],
+        [
+          "interval_coverage_fraction",
+          0.375
+        ],
+        [
+          "mean_interval_width",
+          0.05565127138700896
+        ]
+      ],
+      "reason": null,
+      "stage": "FROZEN_PHASE1",
+      "status": "evaluated",
+      "uncertainty_present": true
+    },
+    {
+      "family": "balanced_multi_touch:missing_click_ids",
+      "metrics": [
+        [
+          "mean_absolute_error",
+          0.019968211659200985
+        ],
+        [
+          "max_absolute_error",
+          0.04877616597156469
+        ],
+        [
+          "coverage_fraction",
+          1.0
+        ],
+        [
+          "interval_coverage_fraction",
+          0.5
+        ],
+        [
+          "mean_interval_width",
+          0.06927469146931826
+        ]
+      ],
+      "reason": null,
+      "stage": "FROZEN_PHASE1",
+      "status": "evaluated",
+      "uncertainty_present": true
+    },
+    {
+      "family": "balanced_multi_touch:utm_corruption",
+      "metrics": [
+        [
+          "mean_absolute_error",
+          0.019968211659200985
+        ],
+        [
+          "max_absolute_error",
+          0.04877616597156469
+        ],
+        [
+          "coverage_fraction",
+          1.0
+        ],
+        [
+          "interval_coverage_fraction",
+          0.625
+        ],
+        [
+          "mean_interval_width",
+          0.060546179121040954
+        ]
+      ],
+      "reason": null,
+      "stage": "FROZEN_PHASE1",
+      "status": "evaluated",
+      "uncertainty_present": true
+    },
+    {
+      "family": "balanced_multi_touch:utm_removal",
+      "metrics": [
+        [
+          "mean_absolute_error",
+          0.019968211659200985
+        ],
+        [
+          "max_absolute_error",
+          0.04877616597156469
+        ],
+        [
+          "coverage_fraction",
+          1.0
+        ],
+        [
+          "interval_coverage_fraction",
+          0.5
+        ],
+        [
+          "mean_interval_width",
+          0.05769238840730349
+        ]
+      ],
+      "reason": null,
+      "stage": "FROZEN_PHASE1",
+      "status": "evaluated",
+      "uncertainty_present": true
+    },
+    {
+      "family": "balanced_multi_touch:cookie_loss",
+      "metrics": [
+        [
+          "mean_absolute_error",
+          0.02127124192706659
+        ],
+        [
+          "max_absolute_error",
+          0.050863637173946145
+        ],
+        [
+          "coverage_fraction",
+          1.0
+        ],
+        [
+          "interval_coverage_fraction",
+          0.375
+        ],
+        [
+          "mean_interval_width",
+          0.056647594197257324
+        ]
+      ],
+      "reason": null,
+      "stage": "FROZEN_PHASE1",
+      "status": "evaluated",
+      "uncertainty_present": true
+    },
+    {
+      "family": "balanced_multi_touch:session_splitting",
+      "metrics": [
+        [
+          "mean_absolute_error",
+          0.019968211659200985
+        ],
+        [
+          "max_absolute_error",
+          0.04877616597156469
+        ],
+        [
+          "coverage_fraction",
+          1.0
+        ],
+        [
+          "interval_coverage_fraction",
+          0.5
+        ],
+        [
+          "mean_interval_width",
+          0.07164834021334389
+        ]
+      ],
+      "reason": null,
+      "stage": "FROZEN_PHASE1",
+      "status": "evaluated",
+      "uncertainty_present": true
+    },
+    {
+      "family": "balanced_multi_touch:delayed_events",
+      "metrics": [
+        [
+          "mean_absolute_error",
+          0.019968211659200985
+        ],
+        [
+          "max_absolute_error",
+          0.04877616597156469
+        ],
+        [
+          "coverage_fraction",
+          1.0
+        ],
+        [
+          "interval_coverage_fraction",
+          0.5
+        ],
+        [
+          "mean_interval_width",
+          0.07189866409708154
+        ]
+      ],
+      "reason": null,
+      "stage": "FROZEN_PHASE1",
+      "status": "evaluated",
+      "uncertainty_present": true
+    },
+    {
+      "family": "balanced_multi_touch:duplicated_events",
+      "metrics": [
+        [
+          "mean_absolute_error",
+          0.019968211659200985
+        ],
+        [
+          "max_absolute_error",
+          0.04877616597156469
+        ],
+        [
+          "coverage_fraction",
+          1.0
+        ],
+        [
+          "interval_coverage_fraction",
+          0.5
+        ],
+        [
+          "mean_interval_width",
+          0.0750716825447085
+        ]
+      ],
+      "reason": null,
+      "stage": "FROZEN_PHASE1",
+      "status": "evaluated",
+      "uncertainty_present": true
+    },
+    {
+      "family": "balanced_multi_touch:consent_exclusions",
+      "metrics": [
+        [
+          "mean_absolute_error",
+          0.01894509785658025
+        ],
+        [
+          "max_absolute_error",
+          0.0483574463120826
+        ],
+        [
+          "coverage_fraction",
+          1.0
+        ],
+        [
+          "interval_coverage_fraction",
+          0.5
+        ],
+        [
+          "mean_interval_width",
+          0.06882115369596226
+        ]
+      ],
+      "reason": null,
+      "stage": "FROZEN_PHASE1",
+      "status": "evaluated",
+      "uncertainty_present": true
+    },
+    {
+      "family": "balanced_multi_touch:observation_censoring",
+      "metrics": [
+        [
+          "mean_absolute_error",
+          0.009521318492217542
+        ],
+        [
+          "max_absolute_error",
+          0.01796865322202961
+        ],
+        [
+          "coverage_fraction",
+          1.0
+        ],
+        [
+          "interval_coverage_fraction",
+          0.375
+        ],
+        [
+          "mean_interval_width",
+          0.026667570000264137
+        ]
+      ],
+      "reason": null,
+      "stage": "FROZEN_PHASE1",
+      "status": "evaluated",
+      "uncertainty_present": true
+    }
+  ],
+  "frozen_source_commit": "ad5f49097b1572087c10dffd7558e69287299099",
+  "harness_reference": "3616d00c0855a0d3d9dcb8dbf578a3e68c26f9fa",
+  "holdout_exposure_consumed": false,
+  "holdout_limitation_disclosure": "The holdout-family architecture is public because this is a public research repository. Instantiated holdout seeds, parameter values, treatment effects, latent-intent strengths, interactions, selection mechanisms, and corruption settings remain sealed from candidate development. This provides strong research-process separation but is not equivalent to a completely secret external benchmark.",
+  "phase1_reference": "1d92f4d2d5fd89de261127b8ed4bdcced6f18fdf",
+  "preholdout_gate_pass": false,
+  "preregistered_phase1_checks": {
+    "demand_capture:google_brand:null_tolerance": {
+      "estimate": 0.05694973243525049,
+      "pass": false,
+      "threshold": 0.03
+    },
+    "harmful_channel:pinterest:negative": {
+      "estimate": -0.010778582315510033,
+      "pass": true
+    },
+    "measurement_loss:missing_50": {
+      "mean_absolute_channel_change": 0.016960821983677696,
+      "pass": true,
+      "threshold": 0.2
+    },
+    "null_paid_channel:pinterest:null_tolerance": {
+      "estimate": 0.003619128811525146,
+      "pass": true,
+      "threshold": 0.03
+    },
+    "retargeting_selection:meta:null_tolerance": {
+      "estimate": 0.005710959148864953,
+      "pass": true,
+      "threshold": 0.03
+    },
+    "small_sample_80:numerical_validity": {
+      "pass": true
+    }
+  },
+  "sealed_holdout_status": "NOT_RUN_CANDIDATE_REJECTED_BEFORE_HOLDOUT",
+  "source_fingerprint": "a7c8d8ada941e1c9fc7d96b6456826af5c8bf593c051e5e39f7e3c75a7623ef2"
+}
