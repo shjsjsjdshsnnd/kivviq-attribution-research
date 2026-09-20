@@ -1257,6 +1257,6 @@ def write_analysis_artifacts(records: list[Record], output: str | Path) -> None:
         encoding="utf-8",
     )
     (directory / "phase1_research_report.md").write_text(
-        report + "\n",
+        report.rstrip() + "\n",
         encoding="utf-8",
     )
