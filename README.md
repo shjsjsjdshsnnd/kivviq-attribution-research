@@ -21,85 +21,79 @@ This public repository is a synthetic-only causal ecommerce research environment
 - Frozen head: `da2d6e90198b24b39c9c1e42552f825eb3a7436e`
 - PR #8
 
-Steps 1–3 are frozen and unchanged by Step 4.
+**Step 4 — customer journey / behavioral simulation**
 
-### Step 4 — customer journey / behavioral simulation
+- Frozen head: `0c30df8973c27f6ad6b96f4a4b426de74fd0cf3b`
+- PR #11
 
-Branch: `step4/customer-journey-simulation`
+Steps 1–4 are frozen and unchanged by Step 5.
 
-Draft PR: #11
+### Step 5 — advertising economics
 
-Bootstrap-only reference:
+Branch: `step5/advertising-economics`
 
-`aa313e0981e846424c3a56bce73fda60977489f7`
+Draft PR: #14
 
-Step 4 turns the frozen merchant worlds and latent customer populations into deterministic-under-seed, time-evolving stochastic ecommerce economies.
+Step 5 makes advertising performance explicitly multi-layered:
+
+```
+platform reported
+observed
+true incremental
+marginal incremental
+```
 
 Implemented:
 
-- timestamp-ordered discrete-event kernel;
-- first-class simulation clock;
-- semantic keyed shared randomness;
-- latent need/intent/awareness/consideration state;
-- carryover and decay;
-- lifecycle/lapse/churn state transitions;
-- natural channel selection;
-- separate marketing exposure generation;
-- separate exposure causal treatment effects;
-- delayed effects;
-- cross-channel mediation/synergy/cannibalization;
-- natural search/direct/email/SMS/Pinterest/affiliate behavior;
-- stochastic source/device/landing selection;
-- multi-session browsing;
-- collection/search/PDP loops;
-- persistent carts;
-- checkout abandonment and later return;
-- product choice using sparse customer preferences;
-- inventory constraints and substitution pressure;
-- price/promotion response;
-- purchase/contribution economics;
-- purchase without marketing;
-- repeat need and repeat purchase;
-- merchant/product seasonality;
-- external shocks;
-- frozen Step 1 spend/price/promotion/inventory interventions;
-- shared-randomness factual/counterfactual replay;
-- observational platform-style channel metrics;
-- separate God-mode causal truth ledger;
-- individual factual/counterfactual purchase comparisons.
+- deterministic evaluation of frozen response curves;
+- total / average / marginal response;
+- diminishing returns and saturation;
+- negative marginal-return regions;
+- spend→delivery machinery;
+- CPM/CPC-like synthetic delivery;
+- reach/frequency saturation;
+- reachable audiences;
+- audience-quality decay;
+- Step 3 susceptibility-driven heterogeneous response;
+- average/marginal true CAC;
+- causal-blind synthetic platform attribution;
+- click/view windows;
+- view-through attribution;
+- retargeting-style claim expansion;
+- overlapping platform claims;
+- branded vs non-brand Search reporting;
+- platform ROAS/CAC;
+- observed touch-associated ROAS/CAC;
+- shared-randomness true incremental ROAS;
+- local marginal ROAS;
+- gross/net/gross-profit/contribution economics;
+- break-even economics;
+- evaluator-only optimal-spend diagnostics;
+- finite-budget candidate evaluation;
+- promotion/inventory/time-varying response;
+- spend delta/multiplier helpers resolved to frozen `set` interventions;
+- platform-vs-true performance reports;
+- deterministic vanity-ROAS and retargeting traps.
 
-### Step 4 causal acceptance
+### Adversarial Step 5 acceptance
 
-The validation harness demonstrates:
+**Vanity ROAS trap**
 
-- paid channels can receive attributed revenue while true paid incrementality is exactly zero;
-- natural channel selection remains active when all paid causal effects are zero;
-- direct/organic commerce survives with paid media off;
-- zero-effect channel cohorts can look observationally stronger than untouched cohorts;
-- promotion purchasers can be compositionally more promotion-sensitive;
-- one identical Meta → Google → purchase path can correspond to:
-  - Meta only causal;
-  - Google only causal;
-  - both causal;
-  - neither causal;
-- re-enabling nonzero paid effects produces positive shared-randomness counterfactual revenue differences.
+The deterministic fixture produces Meta as the platform ROAS leader (~196.9×) while true and marginal incremental ROAS are 0× and another channel has ~4.36× marginal iROAS.
 
-Observed paths therefore do not encode causal truth.
+**Retargeting trap**
+
+The deterministic fixture produces ~31.17× platform ROAS for Meta while true incremental ROAS is 0×.
+
+These are fixture outputs, not universal assumptions about real platforms.
 
 ### Information boundary
 
-Simulation and latent truth are God-mode research infrastructure.
+Advertising economics, platform-vs-truth comparison and optimal-spend diagnostics are God-mode/evaluator infrastructure.
 
-Operator-facing modules and the safe root API are prohibited from importing/exporting:
+The Operator-safe root package cannot import or export them.
 
-- GroundTruth;
-- merchant generation;
-- latent customer populations;
-- simulation;
-- counterfactual replay;
-- causal evaluators.
-
-Observable event streams never contain latent intent, causal-effect ledgers or counterfactual truth.
+Synthetic platform attribution is type-level causal blind: it accepts observable events and purchases, not the God-mode causal ledger.
 
 ### Research isolation
 
@@ -116,3 +110,5 @@ No private Kivviq, Maison Olive data, real merchant/customer data, production sy
 - `docs/step3-customer-population-report.md`
 - `docs/step4-customer-journey-simulation.md`
 - `docs/step4-simulation-acceptance.md`
+- `docs/step5-advertising-economics.md`
+- `docs/step5-advertising-economics-acceptance.md`

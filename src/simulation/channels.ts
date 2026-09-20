@@ -1,6 +1,7 @@
 import type { LatentCustomer } from "../customer_population/types.js";
 import type { GeneratedMerchantWorld, MarketingChannel } from "../generation/config.js";
 import { clamp } from "../customer_population/calibration.js";
+import { evaluateFrozenResponseCurve } from "../ground_truth/response-functions.js";
 import { days, hours, type SharedRandomness } from "./kernel.js";
 import type { SimulationInterventionState } from "./interventions.js";
 import type { RuntimeCustomerState } from "./state.js";
@@ -144,6 +145,75 @@ function halfLifeForChannel(channel: MarketingChannel): number {
   return days(3);
 }
 
+function referenceSpendForResponseCurve(
+  world: GeneratedMerchantWorld,
+  channel: MarketingChannel,
+): number {
+  const mechanism = world.manifest.channelIncrementality.find(
+    (candidate) => candidate.channelId === channel,
+  );
+  const curve = mechanism?.responseCurveId
+    ? world.manifest.responseCurves.find(
+        (candidate) => candidate.id === mechanism.responseCurveId,
+      )
+    : undefined;
+
+  if (!curve) return 1;
+
+  if (curve.kind === "hill") {
+    return Math.max(1, Number(curve.halfSaturationSpend));
+  }
+  if (curve.kind === "threshold") {
+    return Math.max(1, Number(curve.thresholdSpend));
+  }
+  if (curve.kind === "linear") {
+    return Math.max(1, Number(curve.maxSpend ?? 100_000));
+  }
+  const positive = curve.points.find(
+    (point) => Number(point.spend) > 0,
+  );
+  return Math.max(1, Number(positive?.spend ?? 100_000));
+}
+
+function causalPerExposureScale(
+  world: GeneratedMerchantWorld,
+  channel: MarketingChannel,
+  spendScale: number,
+): number {
+  const mechanism = world.manifest.channelIncrementality.find(
+    (candidate) => candidate.channelId === channel,
+  );
+  const curve = mechanism?.responseCurveId
+    ? world.manifest.responseCurves.find(
+        (candidate) => candidate.id === mechanism.responseCurveId,
+      )
+    : undefined;
+
+  if (!curve || spendScale <= 0) return 0;
+
+  const baselineSpend = referenceSpendForResponseCurve(world, channel);
+  const baselineOutcome = evaluateFrozenResponseCurve(
+    curve,
+    baselineSpend,
+  );
+  const currentOutcome = evaluateFrozenResponseCurve(
+    curve,
+    baselineSpend * spendScale,
+  );
+
+  if (Math.abs(baselineOutcome) < 1e-12) {
+    // A zero causal-response curve must still allow delivery/exposure.
+    // The frozen merchant effect controls whether the exposure has effect.
+    return 1;
+  }
+
+  const totalResponseScale = currentOutcome / baselineOutcome;
+  const deliveryScale = Math.sqrt(spendScale);
+  if (deliveryScale <= 0) return 0;
+
+  return clamp(totalResponseScale / deliveryScale, -3, 3);
+}
+
 function normalizedMerchantEffect(
   world: GeneratedMerchantWorld,
   channel: MarketingChannel,
@@ -228,7 +298,13 @@ export function recordMarketingExposure(
   // Spend changes how often treatment is delivered. For an exposure that
   // actually occurred, customer-level causal response comes from the frozen
   // merchant effect × frozen Step 3 susceptibility.
-  const merchantEffect = baseEffect * Math.min(1.5, Math.sqrt(spendScale));
+  const merchantEffect =
+    baseEffect *
+    causalPerExposureScale(
+      world,
+      channel,
+      spendScale,
+    );
   const appliedEffect = merchantEffect * trait.causalEffectMultiplier;
   const delayMs = delayMsForChannel(world, channel);
   const halfLifeMs = halfLifeForChannel(channel);

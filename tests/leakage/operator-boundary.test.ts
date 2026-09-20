@@ -119,5 +119,11 @@ describe("Operator information boundary", () => {
     expect(operatorSafeApi).not.toHaveProperty("replayCounterfactual");
     expect(operatorSafeApi).not.toHaveProperty("replayPaidMediaOff");
     expect(operatorSafeApi).not.toHaveProperty("evaluateZeroPaidEffectAcceptance");
+    expect(operatorSafeApi).not.toHaveProperty("buildAdvertisingPerformanceReport");
+    expect(operatorSafeApi).not.toHaveProperty("evaluateAverageTruePerformance");
+    expect(operatorSafeApi).not.toHaveProperty("evaluateMarginalTruePerformance");
+    expect(operatorSafeApi).not.toHaveProperty("buildPlatformChannelReport");
+    expect(operatorSafeApi).not.toHaveProperty("createVanityRoasTrapFixture");
+    expect(operatorSafeApi).not.toHaveProperty("createRetargetingTrapFixture");
   });
 });
