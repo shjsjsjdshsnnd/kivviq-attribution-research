@@ -1,5 +1,4 @@
 import {
-  reproducibilityKey,
   serializeGroundTruthManifest,
 } from "../ground_truth/manifest.js";
 import type {
@@ -9,7 +8,6 @@ import type {
 import {
   configSeed,
   SeededRandom,
-  stableStringify,
 } from "../generation/rng.js";
 import {
   calibrateBoundedMean,
@@ -42,6 +40,7 @@ import {
   type NaturalSelectionPropensities,
   type PopulationCalibrationReport,
 } from "./types.js";
+import { validateLatentCustomerPopulation } from "./validation.js";
 
 interface CandidateCustomer {
   readonly customerId: string;
@@ -1340,11 +1339,14 @@ export function generateCustomerPopulation(
     );
   }
 
-  const representedWeight = weightedMean(
-    customers.map(() => representedCustomerCount),
-    weights,
+  const representedWeight = customers.reduce(
+    (sum, customer) => sum + customer.populationWeight,
+    0,
   );
-  if (Math.abs(representedWeight - representedCustomerCount) > 1e-9) {
+  if (
+    Math.abs(representedWeight - representedCustomerCount) >
+    Math.max(1e-8, representedCustomerCount * 1e-10)
+  ) {
     throw new PopulationCalibrationError(
       "weighted population representation failed",
     );
@@ -1379,8 +1381,7 @@ export function generateCustomerPopulation(
     },
   };
 
-  void reproducibilityKey(world.manifest);
-  void stableStringify(request.populationConfig ?? {});
+  validateLatentCustomerPopulation(population, world);
 
   return Object.freeze(population);
 }
