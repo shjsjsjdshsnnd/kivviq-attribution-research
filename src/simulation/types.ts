@@ -123,11 +123,46 @@ export interface CustomerFinalStateSummary {
   readonly finalIntent: number;
   readonly finalAwareness: number;
   readonly finalConsideration: number;
+  readonly finalRetargetingEligibility: number;
+  readonly finalEmailEligibility: number;
+  readonly finalBrandedSearchReadiness: number;
+  readonly finalRecentSiteVisitScore: number;
+  readonly interactionMemory: readonly {
+    readonly mechanismId: string;
+    readonly value: number;
+  }[];
   readonly churned: boolean;
+}
+
+export interface InteractionCausalTruthRecord {
+  readonly mechanismId: string;
+  readonly customerId: string;
+  readonly occurredAt: string;
+  readonly kind:
+    | "mediation"
+    | "synergy"
+    | "cannibalization"
+    | "substitution"
+    | "audience_creation"
+    | "audience_depletion"
+    | "delayed"
+    | "state_dependent"
+    | "zero";
+  readonly participantChannels: readonly MarketingChannel[];
+  readonly sourceVariableIds: readonly string[];
+  readonly targetVariableIds: readonly string[];
+  readonly targetSemantic: string;
+  readonly baseEffect: number;
+  readonly customerMultiplier: number;
+  readonly stateMultiplier: number;
+  readonly decayMultiplier: number;
+  readonly appliedEffect: number;
+  readonly lagMs: number;
 }
 
 export interface GodModeSimulationTruth {
   readonly exposureEffects: readonly ExposureCausalTruth[];
+  readonly interactionEffects: readonly InteractionCausalTruthRecord[];
   readonly purchaseTruth: readonly PurchaseCausalTruth[];
   readonly customerFinalStates: readonly CustomerFinalStateSummary[];
 }

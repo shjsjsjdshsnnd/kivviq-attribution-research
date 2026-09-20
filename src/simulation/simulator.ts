@@ -1,9 +1,20 @@
 import { validateLatentCustomerPopulation } from "../customer_population/validation.js";
 import type { MarketingChannel } from "../generation/config.js";
+import { compileCrossChannelNetwork } from "../cross_channel/network.js";
+import {
+  applyPreparedInteraction,
+  checkoutInteractionLift,
+  conditionalResponseMultiplier,
+  opportunityModifiers,
+  paidExposureOpportunityMultiplier,
+  prepareExposureInteractions,
+} from "../cross_channel/runtime.js";
+import type { InteractionCausalTruth } from "../cross_channel/types.js";
 import type { Intervention } from "../ground_truth/interventions.js";
 import {
   checkoutPurchaseProbability,
   completePurchase,
+  promotionState,
 } from "./commerce.js";
 import {
   applyExposureLatentEffect,
@@ -28,6 +39,7 @@ import {
   markNeedFormation,
   refreshLatentCustomerState,
   transitionLifecycleForInactivity,
+  recordSiteVisitForFutureAudience,
   type RuntimeCustomerState,
 } from "./state.js";
 import {
@@ -71,6 +83,10 @@ interface LatentEffectPayload {
     readonly productPreferenceLift: number;
     readonly halfLifeMs: number;
   };
+}
+
+interface InteractionEffectPayload {
+  readonly truth: InteractionCausalTruth;
 }
 
 interface VisitPayload {
@@ -245,11 +261,14 @@ function searchIntent(
   customer: RuntimeCustomerState,
   randomness: SharedRandomness,
   key: string,
+  brandedSearchMultiplier = 1,
 ): "branded" | "category" | "product" {
   return randomness.weightedPick(key, [
     {
       value: "branded" as const,
-      weight: 0.2 + customer.brandAffinity * 0.8,
+      weight:
+        (0.2 + customer.brandAffinity * 0.8) *
+        Math.max(0.1, brandedSearchMultiplier),
     },
     {
       value: "category" as const,
@@ -260,37 +279,6 @@ function searchIntent(
       weight: 0.3 + customer.intent * 0.6,
     },
   ]);
-}
-
-function interactionLift(
-  request: SimulateWorldRequest,
-  customer: RuntimeCustomerState,
-  currentChannel: MarketingChannel,
-): number {
-  let lift = 0;
-  for (const interaction of request.merchantWorld.manifest.channelInteractions) {
-    if (!interaction.channelIds.includes(currentChannel)) continue;
-    const otherChannels = interaction.channelIds.filter(
-      (channel) => channel !== currentChannel,
-    );
-
-    const activeOther = otherChannels.some((channel) => {
-      const memory = customer.channelMemory.get(
-        channel as MarketingChannel,
-      );
-      return memory !== undefined && memory.exposures > 0;
-    });
-    if (!activeOther) continue;
-
-    const effect = interaction.effect.value;
-    if (interaction.kind === "zero") continue;
-    if (interaction.kind === "cannibalization") {
-      lift -= Math.abs(effect) * 0.08;
-    } else {
-      lift += effect * 0.08;
-    }
-  }
-  return clamp(lift, -0.12, 0.12);
 }
 
 function observablePathForPurchase(
@@ -465,6 +453,18 @@ function buildPlatformMetrics(
     });
 }
 
+function inventoryAvailabilityRatio(
+  runtime: ReturnType<typeof createRuntimeWorldState>,
+): number {
+  let current = 0;
+  let initial = 0;
+  for (const [productId, starting] of runtime.initialInventory.entries()) {
+    initial += Math.max(0, starting);
+    current += Math.max(0, runtime.inventory.get(productId) ?? 0);
+  }
+  return initial > 0 ? clamp(current / initial, 0, 1) : 1;
+}
+
 function applyInventoryOverride(
   request: SimulateWorldRequest,
   timestampMs: number,
@@ -506,11 +506,15 @@ export function simulateWorld(
     request.latentPopulation,
     clock.startMs,
   );
+  const interactionNetwork = compileCrossChannelNetwork(
+    request.merchantWorld,
+  );
 
   applyInventoryOverride(request, clock.startMs, runtime);
 
   const observableEvents: PerfectObservableJourneyEvent[] = [];
   const exposureTruth: ExposureCausalTruth[] = [];
+  const interactionTruth: InteractionCausalTruth[] = [];
   const purchases: RealizedPurchase[] = [];
   const sessions = new Map<string, RuntimeSession>();
   const sessionCount = new Map<string, number>();
@@ -652,11 +656,39 @@ export function simulateWorld(
         event.timestampMs,
       );
 
+      const interventionState =
+        buildSimulationInterventionState(
+          request.merchantWorld,
+          request.interventions ?? [],
+          event.timestampMs,
+        );
+      const promotion = promotionState(
+        request.merchantWorld,
+        interventionState,
+        event.timestampMs,
+        randomness,
+      );
+      const interactionContext = {
+        timestampMs: event.timestampMs,
+        promotionActive: promotion.active,
+        inventoryAvailabilityRatio:
+          inventoryAvailabilityRatio(runtime),
+        interventionState,
+      };
+      const crossModifiers = opportunityModifiers(
+        interactionNetwork,
+        customer,
+        interactionContext,
+      );
+
       const ordinal =
         opportunityCount.get(customer.customerId) ?? 0;
       opportunityCount.set(customer.customerId, ordinal + 1);
 
-      const natural = naturalVisitOpportunities(customer);
+      const natural = naturalVisitOpportunities(
+        customer,
+        crossModifiers,
+      );
       for (const opportunity of natural) {
         const key = `${customer.customerId}:natural:${payload.cycle}:${payload.ordinal}:${opportunity.source}`;
         if (
@@ -683,6 +715,7 @@ export function simulateWorld(
               customer,
               randomness,
               `${key}:intent`,
+              crossModifiers.brandedSearchMultiplier,
             ),
           });
         } else if (
@@ -721,13 +754,6 @@ export function simulateWorld(
         });
       }
 
-      const interventionState =
-        buildSimulationInterventionState(
-          request.merchantWorld,
-          request.interventions ?? [],
-          event.timestampMs,
-        );
-
       for (const channel of request.merchantWorld.summary.activeChannels) {
         const exposureProbability =
           paidExposureProbability(
@@ -735,6 +761,12 @@ export function simulateWorld(
             customer,
             channel,
             interventionState,
+            paidExposureOpportunityMultiplier(
+              interactionNetwork,
+              customer,
+              channel,
+              interactionContext,
+            ),
           );
 
         const exposureKey = `${customer.customerId}:exposure:${payload.cycle}:${payload.ordinal}:${channel}`;
@@ -787,6 +819,27 @@ export function simulateWorld(
           event.timestampMs,
         );
 
+      const promotion = promotionState(
+        request.merchantWorld,
+        interventionState,
+        event.timestampMs,
+        randomness,
+      );
+      const interactionContext = {
+        timestampMs: event.timestampMs,
+        promotionActive: promotion.active,
+        inventoryAvailabilityRatio:
+          inventoryAvailabilityRatio(runtime),
+        interventionState,
+      };
+      const responseMultiplier =
+        conditionalResponseMultiplier(
+          interactionNetwork,
+          customer,
+          payload.channel,
+          interactionContext,
+        );
+
       const recorded = recordMarketingExposure(
         request.merchantWorld,
         customer,
@@ -795,10 +848,29 @@ export function simulateWorld(
         event.id,
         randomness,
         interventionState,
+        responseMultiplier,
       );
 
       observableEvents.push(recorded.observableEvent);
       exposureTruth.push(recorded.truth);
+
+      const preparedInteractions =
+        prepareExposureInteractions(
+          interactionNetwork,
+          customer,
+          payload.channel,
+          interactionContext,
+        );
+      for (const prepared of preparedInteractions) {
+        schedule<InteractionEffectPayload>({
+          id: `interaction-effect:${prepared.truth.mechanismId}:${event.id}`,
+          kind: "interaction_effect",
+          timestampMs: prepared.applyAtMs,
+          priority: 31,
+          customerId: customer.customerId,
+          payload: { truth: prepared.truth },
+        });
+      }
 
       schedule<LatentEffectPayload>({
         id: `latent-effect:${event.id}`,
@@ -851,25 +923,28 @@ export function simulateWorld(
 
     if (event.kind === "latent_effect") {
       const payload = event.payload as LatentEffectPayload;
-      const interaction = interactionLift(
-        request,
-        customer,
-        payload.channel,
-      );
       applyExposureLatentEffect(
         customer,
         payload.channel,
         event.timestampMs,
-        {
-          ...payload.effect,
-          considerationLift:
-            payload.effect.considerationLift +
-            interaction * 0.4,
-          purchaseProbabilityLift:
-            payload.effect.purchaseProbabilityLift +
-            interaction * 0.6,
-        },
+        payload.effect,
       );
+      continue;
+    }
+
+    if (event.kind === "interaction_effect") {
+      const payload =
+        event.payload as InteractionEffectPayload;
+      applyPreparedInteraction(
+        interactionNetwork,
+        customer,
+        payload.truth,
+        event.timestampMs,
+      );
+      interactionTruth.push({
+        ...payload.truth,
+        occurredAt: new Date(event.timestampMs).toISOString(),
+      });
       continue;
     }
 
@@ -883,6 +958,11 @@ export function simulateWorld(
 
       refreshLatentCustomerState(
         customer,
+        event.timestampMs,
+      );
+      recordSiteVisitForFutureAudience(
+        customer,
+        payload.source,
         event.timestampMs,
       );
 
@@ -932,6 +1012,19 @@ export function simulateWorld(
       observableEvents.push(...step.observableEvents);
 
       if (step.checkoutReady) {
+        const promotion = promotionState(
+          request.merchantWorld,
+          interventionState,
+          event.timestampMs,
+          randomness,
+        );
+        const interactionContext = {
+          timestampMs: event.timestampMs,
+          promotionActive: promotion.active,
+          inventoryAvailabilityRatio:
+            inventoryAvailabilityRatio(runtime),
+          interventionState,
+        };
         const purchaseProbability =
           checkoutPurchaseProbability(
             runtime,
@@ -940,6 +1033,11 @@ export function simulateWorld(
             session.device,
             interventionState,
             randomness,
+            checkoutInteractionLift(
+              interactionNetwork,
+              customer,
+              interactionContext,
+            ),
           );
 
         const ordinal =
@@ -1181,6 +1279,7 @@ export function simulateWorld(
     },
     godMode: {
       exposureEffects: exposureTruth,
+      interactionEffects: interactionTruth,
       purchaseTruth,
       customerFinalStates: [...runtime.customers.values()].map(
         (customer) => ({
@@ -1191,6 +1290,20 @@ export function simulateWorld(
           finalIntent: customer.intent,
           finalAwareness: customer.awareness,
           finalConsideration: customer.consideration,
+          finalRetargetingEligibility:
+            customer.futureAudience.retargetingEligibility,
+          finalEmailEligibility:
+            customer.futureAudience.emailEligibility,
+          finalBrandedSearchReadiness:
+            customer.futureAudience.brandedSearchReadiness,
+          finalRecentSiteVisitScore:
+            customer.futureAudience.recentSiteVisitScore,
+          interactionMemory: [
+            ...customer.interactionMemory.values(),
+          ].map((memory) => ({
+            mechanismId: memory.mechanismId,
+            value: memory.value,
+          })),
           churned: customer.churned,
         }),
       ),

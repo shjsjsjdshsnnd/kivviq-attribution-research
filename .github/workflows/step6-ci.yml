@@ -1,0 +1,40 @@
+name: Step 6 Cross-Channel CI
+
+on:
+  push:
+    branches:
+      - step6/cross-channel-interactions
+  pull_request:
+    branches:
+      - step5/advertising-economics
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - name: Install
+        run: npm install --no-audit --no-fund
+
+      - name: Architecture boundary
+        run: npm run architecture
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Test
+        run: npm test
+
+      - name: Build
+        run: npm run build

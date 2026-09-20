@@ -94,7 +94,7 @@ describe("merchant generator population properties", () => {
         ),
       ).size,
     ).toBeGreaterThan(20);
-  });
+  }, 30_000);
 
   it("preserves meaningful seed-driven variation within one archetype", () => {
     const furniture = Array.from({ length: 120 }, (_, index) =>

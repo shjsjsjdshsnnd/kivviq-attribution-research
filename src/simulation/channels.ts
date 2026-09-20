@@ -47,6 +47,11 @@ function channelNaturalUse(
 
 export function naturalVisitOpportunities(
   customer: RuntimeCustomerState,
+  modifiers: {
+    readonly directMultiplier?: number;
+    readonly organicMultiplier?: number;
+    readonly channelMultipliers?: ReadonlyMap<MarketingChannel, number>;
+  } = {},
 ): readonly ChannelOpportunity[] {
   const source = customer.source;
   return [
@@ -55,7 +60,8 @@ export function naturalVisitOpportunities(
       isPaidExposure: false,
       probability: clamp(
         source.naturalSelection.brandedDirectProbability *
-          (0.35 + customer.need * 0.65),
+          (0.35 + customer.need * 0.65) *
+          (modifiers.directMultiplier ?? 1),
         0,
         0.95,
       ),
@@ -65,7 +71,8 @@ export function naturalVisitOpportunities(
       isPaidExposure: false,
       probability: clamp(
         source.naturalSelection.organicDiscoveryProbability *
-          (0.3 + customer.intent * 0.7),
+          (0.3 + customer.intent * 0.7) *
+          (modifiers.organicMultiplier ?? 1),
         0,
         0.95,
       ),
@@ -86,7 +93,10 @@ export function naturalVisitOpportunities(
         isPaidExposure: false,
         probability: clamp(
           trait.naturalUseProbability *
-            (0.25 + customer.intent * 0.75),
+            (0.25 + customer.intent * 0.75) *
+            (modifiers.channelMultipliers?.get(
+              trait.channelId,
+            ) ?? 1),
           0,
           0.96,
         ),
@@ -99,6 +109,7 @@ export function paidExposureProbability(
   customer: RuntimeCustomerState,
   channel: MarketingChannel,
   interventionState: SimulationInterventionState,
+  opportunityMultiplier = 1,
 ): number {
   const scale = interventionState.channelSpendScale.get(channel) ?? 1;
   if (scale <= 0) return 0;
@@ -112,7 +123,13 @@ export function paidExposureProbability(
     0.06 * customer.intent;
 
   // Spend affects opportunity/exposure frequency, not the causal effect itself.
-  return clamp(base * Math.sqrt(scale), 0, 0.55);
+  return clamp(
+    base *
+      Math.sqrt(scale) *
+      Math.max(0, opportunityMultiplier),
+    0,
+    0.85,
+  );
 }
 
 function delayMsForChannel(
@@ -278,6 +295,7 @@ export function recordMarketingExposure(
   eventId: string,
   randomness: SharedRandomness,
   interventionState: SimulationInterventionState,
+  causalResponseMultiplier = 1,
 ): {
   readonly observableEvent: PerfectObservableJourneyEvent;
   readonly truth: ExposureCausalTruth;
@@ -304,7 +322,8 @@ export function recordMarketingExposure(
       world,
       channel,
       spendScale,
-    );
+    ) *
+    causalResponseMultiplier;
   const appliedEffect = merchantEffect * trait.causalEffectMultiplier;
   const delayMs = delayMsForChannel(world, channel);
   const halfLifeMs = halfLifeForChannel(channel);

@@ -125,5 +125,12 @@ describe("Operator information boundary", () => {
     expect(operatorSafeApi).not.toHaveProperty("buildPlatformChannelReport");
     expect(operatorSafeApi).not.toHaveProperty("createVanityRoasTrapFixture");
     expect(operatorSafeApi).not.toHaveProperty("createRetargetingTrapFixture");
+    expect(operatorSafeApi).not.toHaveProperty("compileCrossChannelNetwork");
+    expect(operatorSafeApi).not.toHaveProperty("evaluatePortfolio");
+    expect(operatorSafeApi).not.toHaveProperty("evaluatePairwiseInteraction");
+    expect(operatorSafeApi).not.toHaveProperty("evaluateChannelRemoval");
+    expect(operatorSafeApi).not.toHaveProperty("evaluateReallocation");
+    expect(operatorSafeApi).not.toHaveProperty("createPortfolioReallocationTrapFixture");
+    expect(operatorSafeApi).not.toHaveProperty("createProspectingCutTrapFixture");
   });
 });
