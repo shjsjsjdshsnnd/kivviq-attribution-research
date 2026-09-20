@@ -30,7 +30,7 @@ from phase2_candidate_sdk import (
 
 def _instance_seed(version: str, family: str, index: int) -> int:
     digest = hashlib.sha256(
-        f"{version}|{family}|{index}|{EVALUATION_PROTOCOL_VERSION}".encode("utf-8")
+        f"{version}|{family}|{index}|{EVALUATION_PROTOCOL_VERSION}".encode()
     ).digest()
     return int.from_bytes(digest[:8], "big")
 

@@ -10,15 +10,15 @@ from phase2_candidate_sdk.contracts import (
     DeclaredContext,
     EstimandDefinition,
     EstimandKind,
-    FamilyCriterion,
     FalsificationCriteria,
+    FamilyCriterion,
+    fingerprint_payload,
     ObservableConversion,
     ObservableDataset,
     ObservableJourney,
     ObservableSession,
     ObservableTouchpoint,
     UncertaintyOutput,
-    fingerprint_payload,
     validate_candidate_response,
 )
 
