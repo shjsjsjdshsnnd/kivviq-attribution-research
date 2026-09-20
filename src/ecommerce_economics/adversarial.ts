@@ -1,6 +1,7 @@
 import { generateCustomerPopulation } from "../customer_population/generator.js";
 import type { GeneratedMerchantWorld } from "../generation/config.js";
 import { generateMerchantWorldRecord } from "../generation/generator.js";
+import { validateGroundTruthManifest } from "../ground_truth/manifest.js";
 import { baselineProductPriceMinor } from "../simulation/commerce.js";
 import {
   createVanityRoasTrapFixture,
@@ -21,7 +22,9 @@ export interface EcommerceAdversarialFixture {
     | "high_aov_trap"
     | "low_inventory_advertising_trap"
     | "cac_vs_customer_value"
-    | "short_vs_long_value";
+    | "short_vs_long_value"
+    | "price_increase_profit"
+    | "price_increase_collapse";
   readonly merchantWorld: GeneratedMerchantWorld;
   readonly evaluation: EcommerceEvaluationRequest;
 }
@@ -333,5 +336,67 @@ export function createShortVsLongValueFixture(): EcommerceAdversarialFixture {
   return {
     ...fixture,
     id: "short_vs_long_value",
+  };
+}
+
+
+function withUniformPriceElasticity(
+  source: GeneratedMerchantWorld,
+  elasticity: number,
+): GeneratedMerchantWorld {
+  const world = structuredClone(source) as GeneratedMerchantWorld;
+  for (const mechanism of world.manifest.priceElasticities as Array<{
+    kind: "own_price" | "cross_price";
+    form: "constant" | "piecewise";
+    elasticity?: number;
+  }>) {
+    if (mechanism.kind === "own_price") {
+      mechanism.form = "constant";
+      mechanism.elasticity = elasticity;
+    }
+  }
+  validateGroundTruthManifest(world.manifest);
+  return world;
+}
+
+export function createPriceIncreaseProfitFixture(): EcommerceAdversarialFixture {
+  const base = generateMerchantWorldRecord({
+    seed: 120005,
+    archetype: "luxury",
+    scale: "growth",
+    complexity: "normal",
+    catalogProfile: "tiny_curated",
+  });
+  const world = withUniformPriceElasticity(base, -0.22);
+
+  return {
+    id: "price_increase_profit",
+    merchantWorld: world,
+    evaluation: baseRequest(
+      world,
+      130005,
+      140005,
+    ),
+  };
+}
+
+export function createPriceIncreaseCollapseFixture(): EcommerceAdversarialFixture {
+  const base = generateMerchantWorldRecord({
+    seed: 120006,
+    archetype: "commodity_value_retail",
+    scale: "growth",
+    complexity: "normal",
+    catalogProfile: "tiny_curated",
+  });
+  const world = withUniformPriceElasticity(base, -3.2);
+
+  return {
+    id: "price_increase_collapse",
+    merchantWorld: world,
+    evaluation: baseRequest(
+      world,
+      130006,
+      140006,
+    ),
   };
 }
