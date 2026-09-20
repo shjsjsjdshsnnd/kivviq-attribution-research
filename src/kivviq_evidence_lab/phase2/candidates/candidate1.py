@@ -123,7 +123,7 @@ def _development_examples() -> list[dict[str, object]]:
 
 
 def _system_prompt() -> str:
-    schema = {
+    schema: dict[str, object] = {
         "requests": [
             {
                 "intent": "allowed intent",
