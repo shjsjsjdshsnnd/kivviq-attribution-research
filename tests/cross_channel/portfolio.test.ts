@@ -115,20 +115,28 @@ describe("Step 6 portfolio interaction value", () => {
         fixture.merchantWorld,
         "meta",
       );
+      const googleReference = referenceSpendMinor(
+        fixture.merchantWorld,
+        "google_search",
+      );
+      const marginalBlock = Math.max(
+        120_000,
+        googleReference * 0.5,
+      );
 
       const withoutMeta = conditionalMarginalIroas(
         baseRequest,
         "google_search",
         "meta",
         0,
-        80_000,
+        marginalBlock,
       );
       const withMeta = conditionalMarginalIroas(
         baseRequest,
         "google_search",
         "meta",
         activeMeta,
-        80_000,
+        marginalBlock,
       );
 
       expect(withoutMeta).not.toBeNull();
