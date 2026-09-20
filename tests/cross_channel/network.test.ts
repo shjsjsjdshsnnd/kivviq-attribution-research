@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   createMediationFixture,
+  createPortfolioReallocationTrapFixture,
   createPositiveSynergyFixture,
   createZeroInteractionControlFixture,
 } from "../../src/cross_channel/adversarial.js";
@@ -112,6 +113,60 @@ describe("Step 6 interaction network", () => {
     expect(
       new Set(values.map((value) => value.toFixed(4))).size,
     ).toBeGreaterThan(20);
+  });
+
+
+
+  it("compiles promotion state as an explicit state-dependent interaction", () => {
+    const fixture = createPortfolioReallocationTrapFixture();
+    const network = compileCrossChannelNetwork(
+      fixture.merchantWorld,
+    );
+    const rule = network.rules.find(
+      (candidate) =>
+        candidate.mechanismId === "step6_trap_email_promotion",
+    );
+
+    expect(rule).toBeDefined();
+    expect(rule!.kind).toBe("state_dependent");
+    expect(rule!.condition?.promotionActive).toBe(true);
+    expect(rule!.sourceVariableIds).toContain(
+      "promotion.discount_active",
+    );
+  });
+
+  it("supports explicit calendar-month interaction gating through the causal graph", () => {
+    const fixture = createPositiveSynergyFixture();
+    const clone = structuredClone(
+      fixture.merchantWorld,
+    ) as any;
+    const mechanismId =
+      clone.manifest.channelInteractions[0].id;
+
+    clone.manifest.causalGraph.nodes.push({
+      id: "external.month.11",
+      domain: "external",
+      temporalScope: "time_indexed",
+      valueType: "number",
+      unit: "probability",
+      intervenable: false,
+      visibility: "latent",
+    });
+    clone.manifest.causalGraph.edges.push({
+      parent: "external.month.11",
+      child: "funnel.purchase_probability",
+      relationship: "interaction",
+      mechanismId,
+    });
+
+    const network = compileCrossChannelNetwork(clone);
+    const rule = network.rules.find(
+      (candidate) =>
+        candidate.mechanismId === mechanismId,
+    )!;
+
+    expect(rule.kind).toBe("state_dependent");
+    expect(rule.condition?.months).toEqual([11]);
   });
 
   it("merchant fixtures have structurally different interaction networks", () => {
