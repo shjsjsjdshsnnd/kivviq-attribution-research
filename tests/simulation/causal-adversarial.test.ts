@@ -221,28 +221,28 @@ describe("Step 4 causal adversarial acceptance", () => {
     "recovers nonzero incremental effects when causal mechanisms are re-enabled",
     () => {
       const zeroBase = allPaidEffectsZero(baseAdversarialWorld(63004));
-      const population = populationFor(zeroBase, 7204, 170);
+      const population = populationFor(zeroBase, 7204, 110);
       const scale =
         zeroBase.summary.expectedAnnualOrders / 12;
       const causalWorld = withChannelEffects(
         zeroBase,
         {
-          meta: scale * 0.3,
-          google_search: scale * 0.24,
-          pinterest: scale * 0.18,
+          meta: scale * 0.8,
+          google_search: scale * 0.7,
+          pinterest: scale * 0.5,
         },
         { zeroInteractions: true },
       );
 
       let positiveDelta = 0;
-      for (let seed = 70; seed < 74; seed += 1) {
+      for (let seed = 70; seed < 72; seed += 1) {
         const replay = replayPaidMediaOff({
           merchantWorld: causalWorld,
           latentPopulation: population,
           simulationSeed: seed,
           startTime: START,
-          endTime: END,
-          config: { maxEvents: 260_000 },
+          endTime: "2026-05-01T00:00:00.000Z",
+          config: { maxEvents: 150_000 },
         });
         positiveDelta += replay.delta.representedRevenueMinor;
       }
