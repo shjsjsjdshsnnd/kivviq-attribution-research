@@ -4,6 +4,7 @@ import hashlib
 import math
 import random
 from datetime import datetime
+from typing import Any
 
 from phase2_candidate_sdk import CandidateResponse
 
@@ -19,8 +20,10 @@ LEARNING_RATE = 0.05
 BOOTSTRAP_REPS = 200
 MIN_GROUP_SIZE = 8
 
+Row = tuple[list[float], int, int]
 
-def _eligible_journeys(dataset):
+
+def _eligible_journeys(dataset: Any) -> tuple[Any, ...]:
     return tuple(
         journey
         for journey in dataset.journeys
@@ -28,7 +31,7 @@ def _eligible_journeys(dataset):
     )
 
 
-def _touches_before_outcome(journey):
+def _touches_before_outcome(journey: Any) -> tuple[Any, ...]:
     boundary = (
         datetime.fromisoformat(journey.conversion.timestamp)
         if journey.conversion is not None
@@ -43,7 +46,7 @@ def _touches_before_outcome(journey):
     return tuple(touches)
 
 
-def _channel_universe(journeys):
+def _channel_universe(journeys: tuple[Any, ...]) -> tuple[str, ...]:
     return tuple(
         sorted(
             {
@@ -55,7 +58,7 @@ def _channel_universe(journeys):
     )
 
 
-def _normalized_time(journey, timestamp):
+def _normalized_time(journey: Any, timestamp: str) -> float:
     start = datetime.fromisoformat(journey.observation_start)
     end = datetime.fromisoformat(journey.observation_end)
     moment = datetime.fromisoformat(timestamp)
@@ -63,7 +66,7 @@ def _normalized_time(journey, timestamp):
     return min(max((moment - start).total_seconds() / denominator, 0.0), 1.0)
 
 
-def _features(journey, target, universe):
+def _features(journey: Any, target: str, universe: tuple[str, ...]) -> list[float]:
     touches = _touches_before_outcome(journey)
     other = [touch for touch in touches if touch.channel != target]
     other_channels = {touch.channel for touch in other}
@@ -85,7 +88,7 @@ def _features(journey, target, universe):
     return features
 
 
-def _sigmoid(value):
+def _sigmoid(value: float) -> float:
     if value >= 0:
         exponent = math.exp(-value)
         return 1.0 / (1.0 + exponent)
@@ -93,11 +96,11 @@ def _sigmoid(value):
     return exponent / (1.0 + exponent)
 
 
-def _dot(left, right):
+def _dot(left: list[float], right: list[float]) -> float:
     return sum(a * b for a, b in zip(left, right, strict=True))
 
 
-def _fit_propensity(rows, l2):
+def _fit_propensity(rows: list[Row], l2: float) -> list[float]:
     feature_count = len(rows[0][0])
     coefficients = [0.0] * feature_count
     denominator = float(len(rows))
@@ -115,7 +118,11 @@ def _fit_propensity(rows, l2):
     return coefficients
 
 
-def _weighted_effect(rows, propensities, clip):
+def _weighted_effect(
+    rows: list[Row],
+    propensities: tuple[float, ...],
+    clip: float,
+) -> tuple[float, tuple[float, ...]]:
     treated_fraction = sum(row[1] for row in rows) / len(rows)
     numerator_treated = 0.0
     denominator_treated = 0.0
@@ -144,7 +151,12 @@ def _weighted_effect(rows, propensities, clip):
     return estimate, tuple(weights)
 
 
-def _bootstrap_interval(rows, weights, target, replications):
+def _bootstrap_interval(
+    rows: list[Row],
+    weights: tuple[float, ...],
+    target: str,
+    replications: int,
+) -> tuple[float, float, int]:
     seed_material = f"{CANDIDATE_ID}|{CANDIDATE_VERSION}|{target}".encode()
     seed = int.from_bytes(hashlib.sha256(seed_material).digest()[:8], "big")
     rng = random.Random(seed)
@@ -179,13 +191,13 @@ def _bootstrap_interval(rows, weights, target, replications):
     return effects[lower_index], effects[upper_index], len(effects)
 
 
-def _effective_sample_size(weights):
+def _effective_sample_size(weights: tuple[float, ...]) -> float:
     total = sum(weights)
     squared = sum(weight * weight for weight in weights)
     return 0.0 if squared <= 0 else total * total / squared
 
 
-def estimate(dataset, context):
+def estimate(dataset: Any, context: Any) -> CandidateResponse:
     journeys = _eligible_journeys(dataset)
     if len(journeys) < 2 * MIN_GROUP_SIZE:
         raise ValueError("insufficient eligible subjects")
@@ -200,7 +212,7 @@ def estimate(dataset, context):
     diagnostics = {}
 
     for target in universe:
-        rows = []
+        rows: list[Row] = []
         for journey in journeys:
             touches = _touches_before_outcome(journey)
             treatment = int(any(touch.channel == target for touch in touches))
