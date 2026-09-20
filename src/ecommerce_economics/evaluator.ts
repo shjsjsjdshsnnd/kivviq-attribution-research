@@ -393,6 +393,12 @@ export function evaluateEcommerceEconomics(
     startTime: request.periodStart,
     endTime: request.periodEnd,
     interventions: request.interventions ?? [],
+    commercePolicy: {
+      freeShippingThresholdMinor:
+        policy.freeShippingThresholdMinor,
+      customerShippingChargeMinor:
+        policy.customerShippingChargeMinor,
+    },
     ...(request.simulationConfig === undefined
       ? {}
       : { config: request.simulationConfig }),
