@@ -237,12 +237,16 @@ export function acquisitionEconomicsBySource(
         );
       }
 
+      const paidAcquisition =
+        isPaidMarketingChannel(source as MarketingChannel);
+
       return {
         source,
         representedNewCustomers:
           row.representedNewCustomers,
         acquisitionSpendMinor,
         cacMinor:
+          paidAcquisition &&
           row.representedNewCustomers > 0
             ? acquisitionSpendMinor /
               row.representedNewCustomers
