@@ -119,15 +119,20 @@ function targetChannelMultiplier(
   );
 }
 
-export function recordExposureInteractions(
+export interface PreparedInteractionApplication {
+  readonly truth: InteractionCausalTruth;
+  readonly applyAtMs: number;
+}
+
+export function prepareExposureInteractions(
   network: CrossChannelInteractionNetwork,
   customer: RuntimeCustomerState,
   sourceChannel: MarketingChannel,
   context: InteractionRuntimeContext,
-): readonly InteractionCausalTruth[] {
+): readonly PreparedInteractionApplication[] {
   decayAllCustomerMemory(customer, context.timestampMs);
 
-  const truth: InteractionCausalTruth[] = [];
+  const prepared: PreparedInteractionApplication[] = [];
 
   for (const rule of network.rules) {
     if (!rule.driverChannels.includes(sourceChannel)) continue;
@@ -162,90 +167,120 @@ export function recordExposureInteractions(
 
     const baseEffect =
       rule.effectValue * saturationAdjustment;
-    const applied =
+    const appliedEffect =
       baseEffect *
       customerMultiplier *
       stateMultiplier;
 
-    const current =
-      customer.interactionMemory.get(rule.mechanismId) ?? {
+    prepared.push({
+      applyAtMs: context.timestampMs + rule.lagMs,
+      truth: {
         mechanismId: rule.mechanismId,
+        customerId: customer.customerId,
+        occurredAt: new Date(context.timestampMs).toISOString(),
+        kind: rule.kind,
         participantChannels: rule.participantChannels,
-        value: 0,
-        lastUpdatedMs: context.timestampMs,
-        halfLifeMs: rule.halfLifeMs,
-      };
-
-    current.value += applied;
-    current.lastUpdatedMs = context.timestampMs;
-    current.halfLifeMs = rule.halfLifeMs;
-    customer.interactionMemory.set(
-      rule.mechanismId,
-      current,
-    );
-
-    if (
-      rule.targetSemantic ===
-      "branded_search_probability"
-    ) {
-      recordBrandedSearchReadiness(
-        customer,
-        applied * 0.35,
-        sourceChannel,
-        context.timestampMs,
-      );
-    }
-
-    if (
-      rule.targetSemantic ===
-      "retargeting_eligibility"
-    ) {
-      customer.futureAudience.retargetingEligibility =
-        clamp(
-          customer.futureAudience.retargetingEligibility +
-            applied * 0.45,
-          0,
-          1,
-        );
-      customer.futureAudience.createdByChannels.add(
-        sourceChannel,
-      );
-    }
-
-    if (
-      rule.targetSemantic === "email_eligibility"
-    ) {
-      customer.futureAudience.emailEligibility = clamp(
-        customer.futureAudience.emailEligibility +
-          applied * 0.35,
-        0,
-        1,
-      );
-      customer.futureAudience.createdByChannels.add(
-        sourceChannel,
-      );
-    }
-
-    truth.push({
-      mechanismId: rule.mechanismId,
-      customerId: customer.customerId,
-      occurredAt: new Date(context.timestampMs).toISOString(),
-      kind: rule.kind,
-      participantChannels: rule.participantChannels,
-      sourceVariableIds: rule.sourceVariableIds,
-      targetVariableIds: rule.targetVariableIds,
-      targetSemantic: rule.targetSemantic,
-      baseEffect,
-      customerMultiplier,
-      stateMultiplier,
-      decayMultiplier: 1,
-      appliedEffect: applied,
-      lagMs: rule.lagMs,
+        sourceVariableIds: rule.sourceVariableIds,
+        targetVariableIds: rule.targetVariableIds,
+        targetSemantic: rule.targetSemantic,
+        baseEffect,
+        customerMultiplier,
+        stateMultiplier,
+        decayMultiplier: 1,
+        appliedEffect,
+        lagMs: rule.lagMs,
+      },
     });
   }
 
-  return truth;
+  return prepared;
 }
+
+export function applyPreparedInteraction(
+  network: CrossChannelInteractionNetwork,
+  customer: RuntimeCustomerState,
+  truth: InteractionCausalTruth,
+  timestampMs: number,
+): void {
+  const rule = network.rules.find(
+    (candidate) =>
+      candidate.mechanismId === truth.mechanismId,
+  );
+  if (!rule) {
+    throw new RangeError(
+      `unknown interaction mechanism ${truth.mechanismId}`,
+    );
+  }
+
+  decayAllCustomerMemory(customer, timestampMs);
+
+  const current =
+    customer.interactionMemory.get(rule.mechanismId) ?? {
+      mechanismId: rule.mechanismId,
+      participantChannels: rule.participantChannels,
+      value: 0,
+      lastUpdatedMs: timestampMs,
+      halfLifeMs: rule.halfLifeMs,
+    };
+
+  current.value += truth.appliedEffect;
+  current.lastUpdatedMs = timestampMs;
+  current.halfLifeMs = rule.halfLifeMs;
+  customer.interactionMemory.set(
+    rule.mechanismId,
+    current,
+  );
+
+  const sourceChannel =
+    rule.driverChannels[0] ??
+    rule.participantChannels[0];
+
+  if (
+    sourceChannel !== undefined &&
+    rule.targetSemantic ===
+      "branded_search_probability"
+  ) {
+    recordBrandedSearchReadiness(
+      customer,
+      truth.appliedEffect * 0.35,
+      sourceChannel,
+      timestampMs,
+    );
+  }
+
+  if (
+    sourceChannel !== undefined &&
+    rule.targetSemantic ===
+      "retargeting_eligibility"
+  ) {
+    customer.futureAudience.retargetingEligibility =
+      clamp(
+        customer.futureAudience.retargetingEligibility +
+          truth.appliedEffect * 0.45,
+        0,
+        1,
+      );
+    customer.futureAudience.createdByChannels.add(
+      sourceChannel,
+    );
+  }
+
+  if (
+    sourceChannel !== undefined &&
+    rule.targetSemantic === "email_eligibility"
+  ) {
+    customer.futureAudience.emailEligibility = clamp(
+      customer.futureAudience.emailEligibility +
+        truth.appliedEffect * 0.35,
+      0,
+      1,
+    );
+    customer.futureAudience.createdByChannels.add(
+      sourceChannel,
+    );
+  }
+}
+
 
 export function opportunityModifiers(
   network: CrossChannelInteractionNetwork,
