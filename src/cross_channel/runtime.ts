@@ -386,16 +386,26 @@ export function opportunityModifiers(
           }
         }
       } else if (rule.kind === "substitution") {
-        // When the paid route disappears, preserve the possibility of
-        // reaching the merchant through another route.
-        directMultiplier *= 1 + Math.abs(effect) * 0.8;
-        organicMultiplier *= 1 + Math.abs(effect) * 0.65;
-        for (const target of rule.targetChannels) {
-          targetChannelMultiplier(
-            channelMultipliers,
-            target,
-            Math.abs(effect) * 0.55,
-          );
+        // When the paid route disappears, the same latent demand can surface
+        // through alternative navigation/search routes. Use the structural
+        // rule magnitude, not only prior interaction memory (there can be no
+        // driver memory when the channel has been removed).
+        const substitutionStrength = Math.max(
+          Math.abs(effect),
+          Math.abs(rule.effectValue),
+        );
+        directMultiplier *=
+          1 + substitutionStrength * 2.6;
+        organicMultiplier *=
+          1 + substitutionStrength * 2.2;
+        if (rule.targetSemantic === "channel_opportunity") {
+          for (const target of rule.targetChannels) {
+            targetChannelMultiplier(
+              channelMultipliers,
+              target,
+              substitutionStrength * 1.4,
+            );
+          }
         }
       }
       continue;
