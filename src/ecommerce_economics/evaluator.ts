@@ -456,6 +456,9 @@ export function evaluateEcommerceEconomics(
         policy.freeShippingThresholdMinor,
       customerShippingChargeMinor:
         policy.customerShippingChargeMinor,
+      enableProductRelationships: true,
+      enableEnhancedBasketEconomics: true,
+      executeInventoryLifecycle: true,
     },
     ...(request.simulationConfig === undefined
       ? {}
