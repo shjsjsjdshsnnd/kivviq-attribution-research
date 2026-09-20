@@ -555,7 +555,7 @@ export function createProspectingCutTrapFixture(): CrossChannelFixture {
       channelIds: ["meta", "google_search"],
       kind: "mediation",
       functionalForm: "multiplicative",
-      effect: 1.15,
+      effect: 3.2,
       sources: ["marketing.meta.exposure"],
       targets: [
         "marketing.google_search.branded_probability",
@@ -568,7 +568,7 @@ export function createProspectingCutTrapFixture(): CrossChannelFixture {
       channelIds: ["meta", "google_search"],
       kind: "mediation",
       functionalForm: "multiplicative",
-      effect: 1,
+      effect: 2.6,
       sources: ["marketing.meta.exposure"],
       targets: ["marketing.retargeting_eligibility"],
       delaySeconds: 5 * 86_400,
@@ -579,7 +579,7 @@ export function createProspectingCutTrapFixture(): CrossChannelFixture {
       channelIds: ["meta", "email"],
       kind: "delayed",
       functionalForm: "multiplicative",
-      effect: 0.72,
+      effect: 2.1,
       sources: ["marketing.meta.exposure"],
       targets: ["marketing.email.eligibility"],
       delaySeconds: 14 * 86_400,
@@ -589,7 +589,7 @@ export function createProspectingCutTrapFixture(): CrossChannelFixture {
   const world = setDirectEffects(
     interacted,
     {
-      meta: base.summary.expectedAnnualOrders / 12 * 0.06,
+      meta: 0,
       google_search: base.summary.expectedAnnualOrders / 12 * 0.34,
       email: base.summary.expectedAnnualOrders / 12 * 0.18,
     },
