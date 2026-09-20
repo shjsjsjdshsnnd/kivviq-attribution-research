@@ -80,6 +80,18 @@ function orderResponseCurve(
   config: MerchantGenerationConfig,
   rng: SeededRandom,
 ): Record<string, unknown> {
+  if (maxIncrementalOrders <= 0) {
+    return {
+      id,
+      kind: "linear",
+      inputUnit: "money_minor",
+      outputUnit: "orders",
+      slopePerMoneyMinor:
+        maxIncrementalOrders / Math.max(1, halfSaturationSpend),
+      maxSpend: Math.max(1, Math.round(halfSaturationSpend * 4)),
+    };
+  }
+
   if (
     config.complexity === "adversarial" &&
     rng.bool(0.35)
@@ -198,12 +210,10 @@ export function generateChannelMechanisms(
       (profile.expectedAnnualOrders * profile.paidDependence) /
       12 /
       channelCount;
-    const maxIncrementalOrders = Math.max(
-      0.001,
-      Math.abs(factor) *
-        channelOrderOpportunity *
-        rng.uniform(0.7, 1.7),
-    );
+    const maxIncrementalOrders =
+      factor *
+      channelOrderOpportunity *
+      rng.uniform(0.7, 1.7);
 
     responseCurves.push(
       orderResponseCurve(
@@ -215,22 +225,25 @@ export function generateChannelMechanisms(
       ),
     );
 
-    const newCustomerShare = clamp(
-      1 - profile.repeatProbability * rng.uniform(0.35, 0.75),
-      0.12,
-      0.95,
-    );
-    const maxCustomers =
-      maxIncrementalOrders * newCustomerShare * rng.uniform(0.75, 1.05);
+    let maxCustomers = 0;
+    if (factor > 0) {
+      const newCustomerShare = clamp(
+        1 - profile.repeatProbability * rng.uniform(0.35, 0.75),
+        0.12,
+        0.95,
+      );
+      maxCustomers =
+        maxIncrementalOrders * newCustomerShare * rng.uniform(0.75, 1.05);
 
-    responseCurves.push(
-      acquisitionCurve(
-        acquisitionCurveId,
-        halfSaturationSpend,
-        maxCustomers,
-        rng,
-      ),
-    );
+      responseCurves.push(
+        acquisitionCurve(
+          acquisitionCurveId,
+          halfSaturationSpend,
+          maxCustomers,
+          rng,
+        ),
+      );
+    }
 
     const effectOrders =
       factor === 0
@@ -283,20 +296,22 @@ export function generateChannelMechanisms(
       finiteOptimalSpendPossible: true,
     });
 
-    const expectedNewCustomers = Math.max(
-      1,
-      Math.abs(maxCustomers) * rng.uniform(0.35, 0.75),
-    );
-    cacMechanisms.push({
-      id: cacId,
-      channelId: channel,
-      averageIncrementalCAC: Math.max(
+    if (factor > 0) {
+      const expectedNewCustomers = Math.max(
         1,
-        Math.round(budget / expectedNewCustomers),
-      ),
-      marginalCACCurveId: acquisitionCurveId,
-      definition: "incremental_new_customers_only",
-    });
+        maxCustomers * rng.uniform(0.35, 0.75),
+      );
+      cacMechanisms.push({
+        id: cacId,
+        channelId: channel,
+        averageIncrementalCAC: Math.max(
+          1,
+          Math.round(budget / expectedNewCustomers),
+        ),
+        marginalCACCurveId: acquisitionCurveId,
+        definition: "incremental_new_customers_only",
+      });
+    }
 
     channelMechanismIds[channel] = incrementalityId;
   }
