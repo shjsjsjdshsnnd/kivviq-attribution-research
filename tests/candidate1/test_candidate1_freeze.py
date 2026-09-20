@@ -4,7 +4,7 @@ from pathlib import Path
 
 from attribution_lab.phase2.registration import CandidateRegistry
 
-from candidate_definition import build_declaration, build_development_record
+from phase2.candidates.candidate1.candidate_definition import (\n    build_declaration,\n    build_development_record,\n)
 
 
 ROOT = Path("phase2/candidates/candidate1")
