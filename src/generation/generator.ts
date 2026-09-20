@@ -1062,6 +1062,12 @@ function summary(
   profile: LatentBusinessProfile,
   catalog: GeneratedCatalog,
 ): MerchantResearchSummary {
+  const sortedPrices = catalog.products
+    .map((product) => product.priceMinor)
+    .sort((left, right) => left - right);
+  const medianPrice =
+    sortedPrices[Math.floor(sortedPrices.length / 2)]!;
+
   return {
     merchantId: profile.merchantId,
     archetype: config.archetype,
@@ -1073,7 +1079,12 @@ function summary(
     expectedAnnualOrders: profile.expectedAnnualOrders,
     annualRevenuePotentialMinor: profile.annualRevenuePotentialMinor,
     skuCount: catalog.products.length,
+    categoryCount: catalog.categoryIds.length,
+    catalogMinPriceMinor: sortedPrices[0]!,
+    catalogMedianPriceMinor: medianPrice,
+    catalogMaxPriceMinor: sortedPrices[sortedPrices.length - 1]!,
     grossMarginRate: profile.grossMarginRate,
+    expectedCogsRate: 1 - profile.grossMarginRate,
     repeatProbability: profile.repeatProbability,
     expectedPurchaseIntervalDays: profile.expectedPurchaseIntervalDays,
     mobileTrafficShare: profile.mobileTrafficShare,
@@ -1090,8 +1101,16 @@ function summary(
     expectedDiscountRate: profile.expectedDiscountRate,
     expectedReturnRate: profile.expectedReturnRate,
     expectedUnitsPerOrder: profile.expectedUnitsPerOrder,
+    paymentFeeRate: profile.paymentFeeRate,
+    shippingSubsidyRate: profile.shippingSubsidyRate,
+    fulfillmentRate: profile.fulfillmentRate,
+    marketingSpendRate: profile.marketingSpendRate,
     expectedContributionMarginRate:
       profile.expectedContributionMarginRate,
+    expectedContributionProfitMinor: Math.round(
+      profile.annualRevenuePotentialMinor *
+        profile.expectedContributionMarginRate,
+    ),
   };
 }
 
