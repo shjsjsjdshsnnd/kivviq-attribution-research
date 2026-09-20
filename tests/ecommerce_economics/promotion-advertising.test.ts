@@ -27,8 +27,9 @@ describe("Step 7 promotion × advertising economics", () => {
         periodStart: fixture.evaluation.periodStart,
         periodEnd: fixture.evaluation.periodEnd,
         spendMinorByChannel: { [channel]: spend },
-        simulationConfig:
-          fixture.evaluation.simulationConfig,
+        ...(fixture.evaluation.simulationConfig === undefined
+          ? {}
+          : { simulationConfig: fixture.evaluation.simulationConfig }),
       };
 
       const promotionOnRevenue = evaluateAverageTruePerformance(
