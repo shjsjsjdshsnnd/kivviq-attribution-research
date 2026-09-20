@@ -16,6 +16,7 @@ import type {
   SimulationResult,
 } from "../simulation/types.js";
 import type {
+  ChannelContextInteractionValue,
   ChannelRemovalEvaluation,
   HorizonEvaluation,
   InteractionDecomposition,
@@ -698,4 +699,75 @@ export function conditionalMarginalIroas(
     targetChannel,
     blockMinor,
   ).trueIncrementalRoas;
+}
+
+
+export function evaluateChannelContextInteraction(
+  request: PortfolioEvaluationRequest,
+  channel: MarketingChannel,
+  contextOn: Intervention,
+  contextOff: Intervention,
+): ChannelContextInteractionValue {
+  if (contextOn.variable !== contextOff.variable) {
+    throw new CrossChannelEvaluationError(
+      "context on/off interventions must target the same variable",
+    );
+  }
+
+  const baseline = normalizedPortfolioSpend(request);
+  const channelSpend = baseline[channel] ?? 0;
+
+  const scenario = (
+    spend: number,
+    context: Intervention,
+  ): PortfolioOutcome =>
+    evaluatePortfolio({
+      ...request,
+      spendMinorByChannel: {
+        ...baseline,
+        [channel]: spend,
+      },
+      contextInterventions: [
+        ...(request.contextInterventions ?? []).filter(
+          (intervention) =>
+            intervention.variable !== context.variable,
+        ),
+        context,
+      ],
+    }).outcome;
+
+  const neither = scenario(0, contextOff);
+  const channelOnly = scenario(
+    channelSpend,
+    contextOff,
+  );
+  const contextOnly = scenario(0, contextOn);
+  const both = scenario(
+    channelSpend,
+    contextOn,
+  );
+
+  return {
+    channel,
+    contextVariable: contextOn.variable,
+    neither,
+    channelOnly,
+    contextOnly,
+    both,
+    interactionRevenueMinor:
+      both.representedRevenueMinor -
+      channelOnly.representedRevenueMinor -
+      contextOnly.representedRevenueMinor +
+      neither.representedRevenueMinor,
+    interactionOrders:
+      both.representedOrders -
+      channelOnly.representedOrders -
+      contextOnly.representedOrders +
+      neither.representedOrders,
+    interactionContributionProfitMinor:
+      both.representedContributionProfitMinor -
+      channelOnly.representedContributionProfitMinor -
+      contextOnly.representedContributionProfitMinor +
+      neither.representedContributionProfitMinor,
+  };
 }
