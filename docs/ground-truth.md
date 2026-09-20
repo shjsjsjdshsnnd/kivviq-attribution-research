@@ -121,3 +121,25 @@ RealizedState       -> one generated state of that reality
 ```
 
 This repository currently defines the first side only.
+
+## Runtime validation
+
+Every nested GroundTruth structure is validated at runtime with strict schemas.
+
+Validation rejects:
+
+- unknown fields at any nested level;
+- missing required nested fields;
+- invalid probabilities;
+- NaN and Infinity;
+- non-integer minor-currency values where integer money is required;
+- invalid timestamps and durations;
+- malformed response curves and probability distributions;
+- incompatible causal-effect scale/unit combinations;
+- invalid inventory and stockout semantics;
+- malformed causal nodes and edges;
+- invalid intervention and counterfactual-request structures.
+
+After shape validation, semantic validation checks cross-object relationships such as causal-variable references, response-curve output units, saturation references, mechanism IDs, intervention targets, external-shock targets, mediator variables, currencies, and organic-demand baseline references.
+
+Runtime validation complements, but does not replace, static TypeScript typing.
