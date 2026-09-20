@@ -840,6 +840,47 @@ export const interventionDefinitionSchema = z
   })
   .strict();
 
+const interventionValueSchema = z.discriminatedUnion("kind", [
+  z
+    .object({
+      kind: z.literal("number"),
+      value: finiteNumberSchema,
+      unit: causalUnitSchema,
+    })
+    .strict(),
+  z
+    .object({
+      kind: z.literal("boolean"),
+      value: z.boolean(),
+    })
+    .strict(),
+  z
+    .object({
+      kind: z.literal("category"),
+      value: z.string().min(1),
+    })
+    .strict(),
+]);
+
+export const interventionRuntimeSchema = z
+  .object({
+    variable: idSchema,
+    operation: z.literal("set"),
+    value: interventionValueSchema,
+    effectiveAt: utcTimestampSchema.optional(),
+    durationSeconds: durationSecondsSchema.optional(),
+    population: populationSelectorSchema.optional(),
+  })
+  .strict();
+
+export const counterfactualRequestRuntimeSchema = z
+  .object({
+    factualWorldId: idSchema,
+    interventions: z.array(interventionRuntimeSchema).min(1),
+    randomSeedPolicy: z.literal("shared"),
+  })
+  .strict();
+
 export const groundTruthManifestRuntimeSchema = z
   .object({
     schemaVersion: z.literal("1.0.0"),
