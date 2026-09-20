@@ -3,11 +3,12 @@ from __future__ import annotations
 import math
 from pathlib import Path
 
+import phase2_candidate_sdk
+
 from attribution_lab.phase2.observable import to_observable_dataset
 from attribution_lab.phase2_evaluator import isolation
 from attribution_lab.simulation.config import scenario_config
 from attribution_lab.simulation.generator import generate_world
-import phase2_candidate_sdk
 
 
 SOURCE_PATH = Path("phase2/candidates/candidate1/candidate.py")
