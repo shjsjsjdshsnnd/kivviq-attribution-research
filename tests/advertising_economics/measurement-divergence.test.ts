@@ -160,8 +160,9 @@ describe("measurement divergence", () => {
 
       const narrowRule = {
         ...SYNTHETIC_PLATFORM_RULES.pinterest,
-        clickWindowDays: 1,
-        viewWindowDays: 1,
+        clickWindowDays: 0,
+        viewWindowDays: 0,
+        allowViewThrough: false,
       };
       const platform = buildPlatformChannelReport(
         simulation,
