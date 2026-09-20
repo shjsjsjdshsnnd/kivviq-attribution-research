@@ -19,7 +19,7 @@ from .periods import resolve_period
 from .registry import MetricRegistry
 from .retrieval import EvidenceRetriever
 from .semantics import SemanticResolver
-from .world import AD_PROVIDERS, SyntheticWorld
+from .world import SyntheticWorld
 
 REFERENCE = datetime(2026, 9, 20, 12, 0, tzinfo=ZoneInfo("America/Toronto"))
 
@@ -154,27 +154,27 @@ def generate_cases() -> tuple[BenchmarkCase, ...]:
         add("ambiguity", q, _req(q, metric=None, source=None, scope="ambiguous", intent="unknown", ambiguous=("insufficient referent",)), outcome=ExpectedOutcome.AMBIGUOUS)
 
     # Partial provider failure: search ads unavailable must not contaminate paid-social or visual-social facts.
-    for i in range(15):
-        q = f"Meta spend last 7 days."
+    for _ in range(15):
+        q = "Meta spend last 7 days."
         add("partial_provider_failure", q, _req(q, metric="ad_spend", source="ads.paid_social", scope="provider"), mode="search_failed")
-        q2 = f"Google Ads spend last 7 days."
+        q2 = "Google Ads spend last 7 days."
         add("partial_provider_failure", q2, _req(q2, metric="ad_spend", source="ads.search", scope="provider"), mode="search_failed", outcome=ExpectedOutcome.UNAVAILABLE)
-        q3 = f"Show advertising spend by platforms last 7 days."
+        q3 = "Show advertising spend by platforms last 7 days."
         exp = _req(q3, metric="ad_spend", source=None, scope="all_ad_providers", breakdown="provider")
         add("partial_provider_failure", q3, exp, mode="search_failed", outcome=ExpectedOutcome.SUPPORTED_PARTIAL, full_coverage=False)
 
     # Freshness rejection: evidence exists but is stale.
     for source_phrase, source in provider_terms:
-        for i in range(10):
+        for _ in range(10):
             q = f"Show current {source_phrase} spend last 7 days."
             add("freshness", q, _req(q, metric="ad_spend", source=source, scope="provider"), mode="stale", outcome=ExpectedOutcome.STALE)
 
     # Specific comparison semantics.
-    for i in range(10):
+    for _ in range(10):
         q = "Compare online and POS revenue last 30 days."
         exp = _req(q, metric="total_sales", source="commerce", scope="all_channels", breakdown="sales_channel", intent="comparison")
         add("comparison", q, exp)
-    for i in range(10):
+    for _ in range(10):
         q = "Compare revenue last 30 days with previous 30 days."
         exp = RequestSemantics(
             "comparison", "total_sales", "commerce", "all_channels", None,
@@ -258,7 +258,6 @@ def _facts_and_answer(request: RequestSemantics, world: SyntheticWorld, mode: st
 
 def run_case(case: BenchmarkCase) -> CaseResult:
     resolver = SemanticResolver()
-    registry = MetricRegistry()
     governor = EvidenceGovernor()
     actual = resolver.resolve(case.question, REFERENCE)
     semantic_pass = _semantic_equal(actual, case.expected)
@@ -292,7 +291,7 @@ def run_benchmark(cases: tuple[BenchmarkCase, ...] | None = None) -> dict[str, o
     resolver = SemanticResolver()
     actual_semantics = [resolver.resolve(c.question, REFERENCE) for c in cases]
     def field_accuracy(name: str) -> float:
-        return sum(getattr(a, name) == getattr(c.expected, name) for a, c in zip(actual_semantics, cases)) / len(cases)
+        return sum(getattr(a, name) == getattr(c.expected, name) for a, c in zip(actual_semantics, cases, strict=True)) / len(cases)
     supported_actual = [r for r in results if r.actual_outcome in {ExpectedOutcome.SUPPORTED_EXACT, ExpectedOutcome.SUPPORTED_PARTIAL, ExpectedOutcome.SUPPORTED_ESTIMATE}]
     supported_precision = (
         sum(r.expected_outcome in {ExpectedOutcome.SUPPORTED_EXACT, ExpectedOutcome.SUPPORTED_PARTIAL, ExpectedOutcome.SUPPORTED_ESTIMATE} for r in supported_actual) / len(supported_actual)
