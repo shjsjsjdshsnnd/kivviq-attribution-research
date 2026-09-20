@@ -113,7 +113,7 @@ The deterministic harness reports:
 - false-positive rejection rate
 - overall mutation rejection rate
 
-The current test corpus includes valid-answer controls as well as deliberate mutations. Metrics from this synthetic corpus are prototype regression metrics, not claims about real-world model behavior.
+The current scored harness contains 12 deterministic red-team mutations across the six required detection categories plus 13 valid-answer controls. Reusable mutation operators alter claim IDs, numbers, causal strength, contradiction acknowledgement, recommendations, UNKNOWN handling, disclosures, tone, and merchant thresholds. Metrics from this synthetic corpus are prototype regression metrics, not claims about real-world model behavior.
 
 ## Deterministic vs probabilistic
 
