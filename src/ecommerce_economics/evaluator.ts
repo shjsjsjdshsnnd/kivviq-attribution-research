@@ -378,8 +378,19 @@ export function evaluateEcommerceEconomics(
     request.merchantWorld,
     request.policy,
   );
-  const productProfiles =
+  const baseProfiles =
     buildProductEconomicProfiles(request.merchantWorld);
+  const productProfiles = baseProfiles.map((profile) => {
+    const override =
+      request.productEconomicsOverrides?.[profile.productId];
+    if (!override) return profile;
+    return {
+      ...profile,
+      ...override,
+      productId: profile.productId,
+      categoryId: profile.categoryId,
+    };
+  });
   const profileMap = new Map(
     productProfiles.map(
       (profile) => [profile.productId, profile] as const,
