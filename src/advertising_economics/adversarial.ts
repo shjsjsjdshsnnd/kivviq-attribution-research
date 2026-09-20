@@ -1,4 +1,5 @@
 import { generateCustomerPopulation } from "../customer_population/generator.js";
+import { moneyMinor, positive } from "../core/units.js";
 import type { LatentCustomerPopulation } from "../customer_population/types.js";
 import type {
   GeneratedMerchantWorld,
@@ -58,17 +59,14 @@ function replaceOrderResponseCurve(
     kind: "hill",
     inputUnit: "money_minor",
     outputUnit: "orders",
-    maxIncrementalOutcome: Math.max(
-      0.001,
-      options.maxIncrementalOrders,
+    maxIncrementalOutcome: positive(
+      Math.max(0.001, options.maxIncrementalOrders),
     ),
-    halfSaturationSpend: Math.max(
-      1,
-      Math.round(options.halfSaturationSpendMinor),
+    halfSaturationSpend: moneyMinor(
+      Math.max(1, Math.round(options.halfSaturationSpendMinor)),
     ),
-    hillCoefficient: Math.max(
-      0.2,
-      options.hillCoefficient,
+    hillCoefficient: positive(
+      Math.max(0.2, options.hillCoefficient),
     ),
   };
 
