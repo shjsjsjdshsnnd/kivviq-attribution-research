@@ -1,11 +1,12 @@
 from __future__ import annotations
 
+# ruff: noqa: I001
+
 import json
+import sys
 from pathlib import Path
 
 from attribution_lab.phase2.registration import CandidateRegistry
-
-import sys
 
 ROOT = Path("phase2/candidates/candidate2")
 if str(ROOT) not in sys.path:
@@ -19,13 +20,17 @@ def test_candidate2_selected_hyperparameters_match_development_record() -> None:
     declaration = build_declaration()
     parameters = dict(declaration.hyperparameters)
     assert float(development["selected_outcome_l2"]) == float(parameters["outcome_l2"])
-    assert float(development["selected_propensity_l2"]) == float(parameters["propensity_l2"])
+    assert float(development["selected_propensity_l2"]) == float(
+        parameters["propensity_l2"]
+    )
     assert development["candidate1_holdout_metrics_used_for_tuning"] is False
     assert development["candidate2_holdout_used_for_tuning"] is False
     assert development["frozen_phase1_used_for_tuning"] is False
 
 
-def test_candidate2_frozen_fingerprints_match_source_when_manifest_exists(tmp_path) -> None:
+def test_candidate2_frozen_fingerprints_match_source_when_manifest_exists(
+    tmp_path,
+) -> None:
     manifest_path = ROOT / "FROZEN.json"
     if not manifest_path.exists():
         return

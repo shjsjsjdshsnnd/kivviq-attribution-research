@@ -1,0 +1,44 @@
+name: Candidate 2 Finalize Rejection
+
+on:
+  push:
+    branches: ["phase2/candidate2-aipw-dr"]
+    paths:
+      - "phase2/candidates/candidate2/finalize_candidate2.py"
+
+permissions:
+  contents: write
+
+jobs:
+  finalize:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+      - run: python -m pip install --upgrade pip
+      - run: python -m pip install -e ".[dev]"
+      - run: python scripts/check_repo_safety.py
+      - run: python scripts/check_phase1_frozen.py
+      - run: pytest tests/candidate2
+      - name: Finalize frozen Candidate 2 outcome
+        run: python phase2/candidates/candidate2/finalize_candidate2.py
+      - name: Persist final research record
+        shell: bash
+        run: |
+          set -euo pipefail
+          python scripts/check_repo_safety.py
+          git add \
+            phase2/candidates/candidate2/research_state/research-ledger.jsonl \
+            phase2/candidates/candidate2/candidate2_final.json \
+            phase2/candidates/candidate2/candidate2_report.md
+          git diff --cached --check
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git commit -m "Record final Candidate 2 rejection"
+          git push origin "HEAD:${GITHUB_REF_NAME}"
