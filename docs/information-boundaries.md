@@ -107,3 +107,19 @@ Future simulator and measurement implementations must continue this rule: future
 These boundaries are research information-flow controls, not a substitute for process isolation or a production authorization system.
 
 Future Step 2 code must preserve the same dependency direction and must not give Operator-facing code references to God-mode objects.
+
+## Module-graph enforcement
+
+The runtime leakage scanner is defense-in-depth only.
+
+The primary architectural control is a dependency-graph rule enforced by `dependency-cruiser` in CI. Operator-facing modules under `src/observation/`, future `src/operator/` or `src/operator_safe/` modules, and the root `src/index.ts` entrypoint are forbidden from importing:
+
+- `src/ground_truth/`;
+- `src/evaluation/`;
+- `src/oracle/`;
+- `src/simulation/`;
+- `src/god_mode/`.
+
+Any such import fails the `npm run architecture` CI gate before tests or build can pass.
+
+This makes the information boundary a module-graph invariant rather than a naming convention or runtime cleanup step.
