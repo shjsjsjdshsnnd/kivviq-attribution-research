@@ -57,7 +57,16 @@ export function deliveryProfileForChannel(
           0.002,
           0.04,
         )
-      : 1;
+      : clamp(
+          (channel === "google_search"
+            ? 0.065
+            : channel === "google_shopping"
+              ? 0.038
+              : 0.025) *
+            (0.7 + random.uniform("ctr") * 0.8),
+          0.008,
+          0.12,
+        );
 
   let reachablePopulationShare =
     channel === "meta"
