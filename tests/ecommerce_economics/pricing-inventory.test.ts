@@ -142,8 +142,9 @@ describe("Step 7 pricing and inventory economics", () => {
             },
           },
         ],
-        simulationConfig:
-          fixture.evaluation.simulationConfig,
+        ...(fixture.evaluation.simulationConfig === undefined
+          ? {}
+          : { simulationConfig: fixture.evaluation.simulationConfig }),
       });
 
       const meta = advertising.rows.find(
