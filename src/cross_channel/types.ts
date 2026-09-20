@@ -250,3 +250,16 @@ export interface CrossChannelFixture {
   readonly latentPopulation: LatentCustomerPopulation;
   readonly simulationSeed: number;
 }
+
+
+export interface ChannelContextInteractionValue {
+  readonly channel: MarketingChannel;
+  readonly contextVariable: string;
+  readonly neither: PortfolioOutcome;
+  readonly channelOnly: PortfolioOutcome;
+  readonly contextOnly: PortfolioOutcome;
+  readonly both: PortfolioOutcome;
+  readonly interactionRevenueMinor: number;
+  readonly interactionOrders: number;
+  readonly interactionContributionProfitMinor: number;
+}
