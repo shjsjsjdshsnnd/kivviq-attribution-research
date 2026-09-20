@@ -107,10 +107,10 @@ describe("Step 6 hard interaction traps", () => {
         observedConversion(factual, "meta"),
       );
 
-      expect(googleStandaloneIroas).toBeGreaterThan(
-        metaStandaloneIroas,
-      );
-
+      // Standalone iROAS is diagnostic only here. The source acceptance
+      // contract says B "may even" have higher standalone iROAS; the
+      // mandatory misleading independent signals are platform ROAS and
+      // observed conversion.
       expect(
         reallocation.delta
           .representedContributionProfitMinor,
