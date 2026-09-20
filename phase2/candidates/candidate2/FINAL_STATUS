@@ -1,0 +1,10 @@
+Candidate 2 final status: REJECT
+
+Candidate: candidate2-aipw-dr-observable v1.0.0
+Frozen code fingerprint: 4596568d2aa6cd26ea25b30712092640a78a95d4827cf0769b89fde4702628ec
+Final gate: FROZEN_PHASE1 pre-holdout rejection
+Candidate 2 holdout: candidate2-holdout-v1
+Feedback-bearing holdout exposures consumed: 0
+Candidate 1 remains frozen REJECT.
+Candidate 3 was not implemented.
+No merge or deployment.
