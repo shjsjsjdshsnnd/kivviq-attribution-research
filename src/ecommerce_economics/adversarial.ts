@@ -139,9 +139,18 @@ export function createDiscountTrapFixture(): EcommerceAdversarialFixture {
 
   const promotionMetaInteractionId =
     "step7_meta_promotion_channel_response";
+  const promotionPartner =
+    world.summary.activeChannels.find(
+      (channel) => channel !== "meta",
+    );
+  if (!promotionPartner) {
+    throw new RangeError(
+      "discount trap requires a second active channel for frozen interaction schema",
+    );
+  }
   (world.manifest.channelInteractions as unknown as Array<Record<string, unknown>>).push({
     id: promotionMetaInteractionId,
-    channelIds: ["meta"],
+    channelIds: ["meta", promotionPartner],
     kind: "synergy",
     functionalForm: "multiplicative",
     effect: {
