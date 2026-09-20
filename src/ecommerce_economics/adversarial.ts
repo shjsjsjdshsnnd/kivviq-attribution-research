@@ -161,39 +161,45 @@ function productTrapWorld(
     (profile) => profile.productId === ranked[0]!.productId,
   )!;
   const b = profiles.find(
-    (profile) => profile.productId === ranked[Math.min(4, ranked.length - 1)]!.productId,
+    (profile) => profile.productId === ranked[Math.min(1, ranked.length - 1)]!.productId,
   )!;
+
+  const aPrice = Math.max(
+    15_000,
+    baselineProductPriceMinor(world, a.productId),
+  );
+  const bPrice = Math.max(
+    6_000,
+    Math.round(
+      baselineProductPriceMinor(world, b.productId) * 0.8,
+    ),
+  );
 
   const overrides: Record<
     string,
     Partial<ProductEconomicProfile>
   > = {
     [a.productId]: overrideFor(a, {
-      listPriceMinor: Math.max(
-        8_000,
-        baselineProductPriceMinor(world, a.productId),
-      ),
-      cogsPerUnitMinor: Math.round(a.listPriceMinor * 0.82),
-      grossMarginRate: 0.18,
-      shippingCostPerUnitMinor: Math.round(a.listPriceMinor * 0.12),
-      fulfillmentCostPerUnitMinor: Math.round(a.listPriceMinor * 0.05),
-      returnProbability: 0.28,
-      returnShippingCostMinor: Math.round(a.listPriceMinor * 0.04),
-      returnHandlingCostMinor: Math.round(a.listPriceMinor * 0.02),
+      listPriceMinor: aPrice,
+      cogsPerUnitMinor: Math.round(aPrice * 0.96),
+      shippingCostPerUnitMinor: Math.round(aPrice * 0.2),
+      fulfillmentCostPerUnitMinor: Math.round(aPrice * 0.08),
+      returnProbability: 0.38,
+      returnShippingCostMinor: Math.round(aPrice * 0.08),
+      returnHandlingCostMinor: Math.round(aPrice * 0.035),
+      restockingCostMinor: Math.round(aPrice * 0.025),
+      nonRecoverableValueRate: 0.35,
     }),
     [b.productId]: overrideFor(b, {
-      listPriceMinor: Math.max(
-        4_000,
-        Math.round(baselineProductPriceMinor(world, b.productId) * 0.8),
-      ),
-      cogsPerUnitMinor: Math.round(b.listPriceMinor * 0.25),
-      grossMarginRate: 0.75,
-      shippingCostPerUnitMinor: Math.round(b.listPriceMinor * 0.018),
-      fulfillmentCostPerUnitMinor: Math.round(b.listPriceMinor * 0.02),
-      returnProbability: 0.025,
-      returnShippingCostMinor: 100,
-      returnHandlingCostMinor: 75,
-      restockingCostMinor: 40,
+      listPriceMinor: bPrice,
+      cogsPerUnitMinor: Math.round(bPrice * 0.1),
+      shippingCostPerUnitMinor: Math.round(bPrice * 0.005),
+      fulfillmentCostPerUnitMinor: Math.round(bPrice * 0.01),
+      returnProbability: 0.005,
+      returnShippingCostMinor: 50,
+      returnHandlingCostMinor: 30,
+      restockingCostMinor: 20,
+      nonRecoverableValueRate: 0.01,
     }),
   };
 
