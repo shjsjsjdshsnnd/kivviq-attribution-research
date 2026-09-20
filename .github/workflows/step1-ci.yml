@@ -27,6 +27,9 @@ jobs:
       - name: Install
         run: npm install --no-audit --no-fund
 
+      - name: Architecture boundary
+        run: npm run architecture
+
       - name: Typecheck
         run: npm run typecheck
 
