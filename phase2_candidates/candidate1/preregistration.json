@@ -1,0 +1,137 @@
+{
+  "candidate_id": "phase2-candidate1-ipw",
+  "version": "1.0.0",
+  "research_stage": "PREREGISTERED_BEFORE_IMPLEMENTATION",
+  "estimand": {
+    "kind": "incremental_conversion_probability",
+    "population": "Synthetic subjects with a complete 21-day observation horizon and observable journey records under the Phase 2 candidate contract.",
+    "unit_of_analysis": "synthetic subject",
+    "treatment_or_exposure": "For each channel separately, binary indicator that the subject is exposed to that channel at least once during the observation horizon.",
+    "outcome": "qualifying conversion within the 21-day horizon",
+    "horizon_hours": 504.0,
+    "intervention": "force the target channel exposure to present while holding the realized assignment of all other channels fixed",
+    "comparison": "force the target channel exposure to absent while holding the realized assignment of all other channels fixed",
+    "temporal_ordering": "Only exposures before a qualifying conversion are used; the target is a static journey-level channel intervention over the declared horizon.",
+    "treatment_regime": "single-channel binary intervention with other-channel assignment held fixed",
+    "aggregation_target": "population-average difference in conversion probability by channel"
+  },
+  "hypothesis": {
+    "statement": "An interpretable propensity-adjusted inverse-probability-weighted estimator using only preregistered observable co-exposure and journey-history proxies can estimate the controlled incremental conversion-probability effect more faithfully under selection bias than descriptive path-credit rules, when those observables provide usable proxies for exposure selection.",
+    "why_it_might_address_selection": "The propensity model explicitly estimates differential probability of target-channel exposure from observable non-target channel assignment and observable pre-outcome journey structure, then reweights treated and untreated subjects toward a common observable distribution.",
+    "rejection_logic": "Reject the hypothesis if the frozen candidate violates any preregistered required-family holdout rule, if required uncertainty is missing, if the selection/null Phase 1 checks fail, or if numerical/positivity diagnostics make the estimand unsupported."
+  },
+  "selected_method": {
+    "family": "stabilized inverse-probability weighting",
+    "model": "per-channel logistic propensity model plus stabilized IPW difference in weighted conversion means",
+    "rationale": "It is the simplest interpretable treatment-effect estimator that directly targets exposure selection with the available observable journey data and can return signed effects without introducing an outcome-model black box.",
+    "not_implemented_in_this_commit": true
+  },
+  "required_observable_inputs": [
+    "ordered touchpoint channel identities and timestamps",
+    "session boundaries and device labels",
+    "conversion indicator and conversion timestamp",
+    "observation start/end",
+    "identity confidence",
+    "consent state",
+    "censoring flag",
+    "acquisition-evidence category"
+  ],
+  "observable_confounder_proxies": [
+    "binary assignment of every non-target channel",
+    "count of distinct non-target channels",
+    "count of non-target touchpoints",
+    "count of observed sessions",
+    "normalized earliest non-target touch time",
+    "normalized latest non-target touch time",
+    "identity confidence"
+  ],
+  "intentionally_hidden_oracle_variables": [
+    "latent purchase intent",
+    "true channel treatment effects",
+    "counterfactual outcomes",
+    "selection coefficients",
+    "interaction coefficients",
+    "heterogeneity variables",
+    "holdout parameters and seeds",
+    "oracle causal truth"
+  ],
+  "assumptions": [
+    "Conditional exchangeability is approximated by the declared observable co-exposure/history proxies; residual hidden intent may violate this assumption.",
+    "Positivity holds after propensity clipping for the target channel.",
+    "The observed non-target assignment is treated as a fixed background treatment regime for this controlled single-channel estimand.",
+    "No interference between synthetic subjects.",
+    "Measurement corruption is correctly represented by the observable dataset supplied to the candidate.",
+    "The binary conversion outcome and 21-day horizon are appropriate for the declared estimand."
+  ],
+  "representability": {
+    "negative_effects": true,
+    "heterogeneous_effects": false,
+    "interactions": false,
+    "notes": "The estimator returns signed average effects. It does not identify heterogeneous effects or causal interactions as separate estimands in Candidate 1."
+  },
+  "uncertainty_target": {
+    "method": "deterministic nonparametric subject bootstrap",
+    "confidence_level": 0.90,
+    "development_replications": 100,
+    "frozen_replications": 200,
+    "target": "per-channel sampling uncertainty for the IPW controlled average effect"
+  },
+  "development_worlds_planned": [
+    "candidate1-dev-selection-mild",
+    "candidate1-dev-selection-strong",
+    "candidate1-dev-positive-effect",
+    "candidate1-dev-null-prevalence",
+    "candidate1-dev-positivity-stress"
+  ],
+  "hyperparameter_selection_plan": {
+    "candidate_values": {
+      "propensity_l2": [0.01, 0.1, 0.5],
+      "propensity_clip": [0.03, 0.05, 0.1],
+      "gradient_steps": [300],
+      "learning_rate": [0.05]
+    },
+    "selection_rule": "Use DEVELOPMENT worlds only. Choose the smallest mean synthetic effect MAE across development worlds, with ties resolved toward stronger regularization and wider clipping. No Phase 1 or holdout result may influence selection."
+  },
+  "expected_failure_conditions": [
+    "strong latent-intent confounding not proxied by observable co-exposure/history",
+    "severe positivity violations",
+    "treatment interactions when a single marginal channel effect is insufficient",
+    "time-varying treatment effects that violate the static treatment representation",
+    "heterogeneous effects requiring conditional estimands",
+    "substantial identity fragmentation or channel-dependent missingness",
+    "very sparse treated or untreated groups"
+  ],
+  "falsification_criteria": {
+    "primary_holdout_rules": {
+      "selection_shift": {"mean_absolute_error_lte": 0.06, "coverage_fraction_gte": 1.0, "interval_coverage_fraction_gte": 0.75, "mean_interval_width_lte": 0.30},
+      "latent_intent_shift": {"mean_absolute_error_lte": 0.08, "coverage_fraction_gte": 1.0, "interval_coverage_fraction_gte": 0.75, "mean_interval_width_lte": 0.30},
+      "prevalence_ordering_shift": {"mean_absolute_error_lte": 0.08, "coverage_fraction_gte": 1.0, "interval_coverage_fraction_gte": 0.75, "mean_interval_width_lte": 0.30},
+      "time_varying_delayed": {"mean_absolute_error_lte": 0.10, "coverage_fraction_gte": 1.0, "interval_coverage_fraction_gte": 0.75, "mean_interval_width_lte": 0.35},
+      "unseen_interaction": {"mean_absolute_error_lte": 0.10, "coverage_fraction_gte": 1.0, "interval_coverage_fraction_gte": 0.75, "mean_interval_width_lte": 0.35},
+      "negative_heterogeneous": {"mean_absolute_error_lte": 0.10, "coverage_fraction_gte": 1.0, "interval_coverage_fraction_gte": 0.75, "mean_interval_width_lte": 0.35},
+      "sparse_identity_loss": {"mean_absolute_error_lte": 0.12, "coverage_fraction_gte": 1.0, "interval_coverage_fraction_gte": 0.625, "mean_interval_width_lte": 0.40},
+      "compounded_measurement": {"mean_absolute_error_lte": 0.15, "coverage_fraction_gte": 1.0, "interval_coverage_fraction_gte": 0.625, "mean_interval_width_lte": 0.45}
+    },
+    "phase1_selection_null_checks": [
+      "retargeting_selection: absolute estimated effect for the known zero-effect selected channel <= 0.05",
+      "demand_capture: absolute estimated effect for the known zero-effect demand-capture channel <= 0.05",
+      "null_paid_channel: absolute estimated effect for the known null paid channel <= 0.05"
+    ],
+    "phase1_negative_check": "harmful_channel: estimated effect for the known harmful channel must be negative and absolute error <= 0.08",
+    "measurement_robustness": [
+      "balanced_multi_touch missing_50: L1 change in candidate effect vector versus perfect observation <= 0.20",
+      "balanced_multi_touch fragmented_identity: L1 change in candidate effect vector versus perfect observation <= 0.20"
+    ],
+    "sparsity": "At sample size 80, every evaluated channel must return finite estimate and finite uncertainty bounds; unsupported positivity must be reported rather than encoded as zero error.",
+    "numerical_validity": "Any NaN, infinity, invalid uncertainty interval, or missing required channel is a failure.",
+    "threshold_justification": "Thresholds are absolute conversion-probability error tolerances chosen before implementation/holdout exposure. Six-to-fifteen percentage-point MAE tolerances reflect progressively harder synthetic families; uncertainty width caps prevent trivial always-wide intervals. They are intentionally not tuned to Candidate 1 results."
+  },
+  "public_holdout_limitation_disclosure": "The holdout-family architecture is public because this is a public research repository. Instantiated holdout seeds, parameter values, treatment effects, latent-intent strengths, interactions, selection mechanisms, and corruption settings remain sealed from candidate development. This provides strong research-process separation but is not equivalent to a completely secret external benchmark.",
+  "prohibitions": [
+    "No sealed holdout access during development.",
+    "No oracle features in candidate inputs.",
+    "No tuning from frozen Phase 1 results.",
+    "Exactly one feedback-bearing sealed holdout evaluation for this candidate version.",
+    "Any substantive post-freeze change requires a new candidate version."
+  ]
+}

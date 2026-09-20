@@ -1,0 +1,43 @@
+{
+  "status": "FROZEN",
+  "candidate_id": "phase2-candidate1-ipw",
+  "version": "1.0.0",
+  "preregistration_commit": "6869e74bffa4d83f79b8da01d20310a7e273e316",
+  "development_selected_source_commit": "3f79cbcd13310724142063dbdb5d9c287a076949",
+  "candidate_source_blob_sha": "a7154ba418058598848ea44c56c0be676d3904f5",
+  "preregistration_blob_sha": "9880f7b7eace9ced5cd90046983f27bd6228c898",
+  "protocol_blob_sha": "2c810212557562789436ecc842e18b21c13e25c3",
+  "selected_hyperparameters": {
+    "propensity_l2": 0.5,
+    "propensity_clip": 0.1,
+    "gradient_steps": 300,
+    "learning_rate": 0.05,
+    "bootstrap_reps": 200
+  },
+  "development_selection": {
+    "stage": "DEVELOPMENT",
+    "workflow_run_id": 35533856072,
+    "artifact_id": 10611668323,
+    "artifact_digest": "sha256:c1cd5ff6d580382da24199037cb874c1791bdc2a6fae775d21e45e8855f6d76b",
+    "selected_mean_mae": 0.052409,
+    "selection_rule": "lowest mean development MAE; ties -> stronger regularization, wider clip",
+    "world_ids": [
+      "candidate1-dev-selection-mild",
+      "candidate1-dev-selection-strong",
+      "candidate1-dev-positive-effect",
+      "candidate1-dev-null-prevalence",
+      "candidate1-dev-positivity-stress"
+    ]
+  },
+  "freeze_rules": [
+    "No candidate source changes after this marker.",
+    "No estimand/hypothesis/assumption/hyperparameter/uncertainty/criteria changes after this marker.",
+    "Frozen Phase 1 evaluation may begin only after this marker.",
+    "Exactly one feedback-bearing sealed holdout evaluation is permitted for candidate 1 version 1.0.0.",
+    "Any substantive change requires a new candidate version and full restart."
+  ],
+  "feedback_exposure_before_freeze": {
+    "frozen_phase1": false,
+    "sealed_holdout": false
+  }
+}
