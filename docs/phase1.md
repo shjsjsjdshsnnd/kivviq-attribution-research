@@ -92,3 +92,19 @@ Future model families remain deferred until the Phase 1 validation gate is satis
 The initial corruption implementation flattened all retained touches into one reconstructed session even when session-splitting corruption was disabled. That behavior masked identity-fragmentation stress because multi-session journeys no longer had boundaries available to fragment.
 
 The corruption layer now preserves existing session boundaries by default and splits sessions only when the explicit session-splitting corruption is enabled. Regression tests verify both default session preservation and actual identity fragmentation. This was an implementation defect fix, not model tuning.
+
+## Phase 1 validation status
+
+The full repeated validation matrix completed successfully with 4,500 synthetic experiments and 36,000 frozen-baseline model evaluations. Repository safety, Ruff, mypy, pytest, leakage/corruption/invariant tests, simulator-bias audit, and the full research benchmark all passed.
+
+Durable validation outputs are stored under `docs/reports/phase1/`:
+
+- `research_report.md`
+- `failure_modes.json`
+- `failure_modes.md`
+- `matrix.json`
+- `simulator_bias_audit.json`
+
+Large raw/uncertainty outputs remain workflow artifacts rather than being committed to the public repository.
+
+This completes Phase 1 validation only. It does not authorize or implement Phase 2 models.
