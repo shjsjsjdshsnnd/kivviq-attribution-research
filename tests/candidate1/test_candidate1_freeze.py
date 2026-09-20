@@ -1,15 +1,15 @@
 import json
+import sys
 import tempfile
 from pathlib import Path
 
 from attribution_lab.phase2.registration import CandidateRegistry
-from phase2.candidates.candidate1.candidate_definition import (
-    build_declaration,
-    build_development_record,
-)
 
 
 ROOT = Path("phase2/candidates/candidate1")
+sys.path.insert(0, str(ROOT.resolve()))
+
+from candidate_definition import build_declaration, build_development_record  # noqa: E402
 
 
 def test_candidate1_frozen_fingerprints_match_manifest() -> None:
