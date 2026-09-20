@@ -1,0 +1,44 @@
+name: Candidate 2 Frozen Phase 1
+
+on:
+  push:
+    branches: ["phase2/candidate2-aipw-dr"]
+    paths:
+      - "phase2/candidates/candidate2/run_frozen_phase1.py"
+      - "phase2/candidates/candidate2/candidate1_frozen_phase1_comparator.json"
+
+permissions:
+  contents: write
+
+jobs:
+  frozen_phase1:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+      - run: python -m pip install --upgrade pip
+      - run: python -m pip install -e ".[dev]"
+      - run: python scripts/check_repo_safety.py
+      - run: python scripts/check_phase1_frozen.py
+      - run: pytest tests/candidate2
+      - name: Run frozen Candidate 2 against Phase 1
+        run: python phase2/candidates/candidate2/run_frozen_phase1.py
+      - name: Persist frozen Phase 1 result
+        shell: bash
+        run: |
+          set -euo pipefail
+          python scripts/check_repo_safety.py
+          git add \
+            phase2/candidates/candidate2/frozen_phase1_results.json \
+            phase2/candidates/candidate2/frozen_phase1_report.md
+          git diff --cached --check
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git commit -m "Record Candidate 2 frozen Phase 1 result"
+          git push origin "HEAD:${GITHUB_REF_NAME}"

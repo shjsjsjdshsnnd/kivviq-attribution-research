@@ -1,0 +1,26 @@
+{
+  "candidate_id": "candidate1-outcome-regression-gcomp",
+  "candidate_version": "1.0.0",
+  "source_pr": 10,
+  "source_file": "phase2/candidates/candidate1/frozen_phase1_results.json",
+  "phase1_reference": "1d92f4d2d5fd89de261127b8ed4bdcced6f18fdf",
+  "use_restriction": "Frozen Phase 1 historical comparator only. No Candidate 1 sealed-holdout metric or result is present in this file or permitted for Candidate 2 tuning.",
+  "selection_known_zero_scenario_mean_absolute_estimates": {
+    "demand_capture": {
+      "channel": "google_brand",
+      "value": 0.08094958665694453
+    },
+    "retargeting_selection": {
+      "channel": "meta",
+      "value": 0.056908140612850155
+    },
+    "null_channel_high_intent": {
+      "channel": "pinterest",
+      "value": 0.06180087542742139
+    },
+    "null_channel_retargeting": {
+      "channel": "pinterest",
+      "value": 0.06027504267981989
+    }
+  }
+}
