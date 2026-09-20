@@ -3,8 +3,10 @@ import tempfile
 from pathlib import Path
 
 from attribution_lab.phase2.registration import CandidateRegistry
-
-from phase2.candidates.candidate1.candidate_definition import (\n    build_declaration,\n    build_development_record,\n)
+from phase2.candidates.candidate1.candidate_definition import (
+    build_declaration,
+    build_development_record,
+)
 
 
 ROOT = Path("phase2/candidates/candidate1")

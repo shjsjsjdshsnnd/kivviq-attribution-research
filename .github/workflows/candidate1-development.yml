@@ -1,12 +1,6 @@
 name: Candidate 1 Development
 
 on:
-  push:
-    branches: ["phase2/candidate1-outcome-regression"]
-    paths:
-      - "phase2/candidates/candidate1/**"
-      - "tests/candidate1/**"
-      - ".github/workflows/candidate1-development.yml"
   workflow_dispatch:
 
 permissions:
