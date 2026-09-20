@@ -1,0 +1,22 @@
+{
+  "name": "@kivviq/growth-operator-research",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Synthetic-only research contracts for the future Kivviq Growth Operator.",
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "build": "tsc -p tsconfig.build.json",
+    "check": "npm run typecheck && npm test && npm run build"
+  },
+  "exports": {
+    ".": "./dist/index.js",
+    "./ground-truth": "./dist/ground_truth/index.js",
+    "./evaluation": "./dist/evaluation/index.js"
+  },
+  "devDependencies": {
+    "typescript": "^5.9.2",
+    "vitest": "^3.2.4"
+  }
+}
