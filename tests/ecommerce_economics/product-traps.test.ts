@@ -6,6 +6,7 @@ import {
   createShortVsLongValueFixture,
 } from "../../src/ecommerce_economics/adversarial.js";
 import {
+  applyProductEconomicOverrides,
   buildProductEconomicProfiles,
 } from "../../src/ecommerce_economics/products.js";
 import {
@@ -17,16 +18,12 @@ import { evaluateEcommerceEconomics } from "../../src/ecommerce_economics/evalua
 function overriddenProfiles(
   fixture: ReturnType<typeof createBestSellerTrapFixture>,
 ) {
-  const overrides =
-    fixture.evaluation.productEconomicsOverrides ?? {};
-  return buildProductEconomicProfiles(
-    fixture.merchantWorld,
-  ).map((profile) => ({
-    ...profile,
-    ...(overrides[profile.productId] ?? {}),
-    productId: profile.productId,
-    categoryId: profile.categoryId,
-  }));
+  return applyProductEconomicOverrides(
+    buildProductEconomicProfiles(
+      fixture.merchantWorld,
+    ),
+    fixture.evaluation.productEconomicsOverrides,
+  );
 }
 
 describe("Step 7 product and customer value traps", () => {
