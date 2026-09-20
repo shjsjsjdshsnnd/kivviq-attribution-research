@@ -78,7 +78,7 @@ function chooseLandingType(
   customer: RuntimeCustomerState,
   randomness: SharedRandomness,
   key: string,
-): PerfectObservableJourneyEvent["landingType"] {
+): NonNullable<PerfectObservableJourneyEvent["landingType"]> {
   if (source === "google_search" || source === "google_shopping") {
     return randomness.weightedPick(key, [
       { value: "pdp" as const, weight: 0.46 },
@@ -132,7 +132,7 @@ function chooseLandingType(
 }
 
 function initialPage(
-  landing: PerfectObservableJourneyEvent["landingType"],
+  landing: NonNullable<PerfectObservableJourneyEvent["landingType"]>,
 ): SessionPage {
   if (landing === "collection") return "collection";
   if (landing === "search_results") return "search_results";
