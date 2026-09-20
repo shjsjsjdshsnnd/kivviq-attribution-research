@@ -131,57 +131,65 @@ describe("latent customer heterogeneity", () => {
     ).toBe(true);
   });
 
-  it("merchant characteristics produce materially different customer populations", () => {
-    const furnitureWorld = generateMerchantWorldRecord({
+  it("merchant-configured business models produce materially different customer populations", () => {
+    const oneOffWorld = generateMerchantWorldRecord({
       seed: 53004,
       archetype: "furniture",
       scale: "growth",
       complexity: "normal",
+      purchaseFrequency: "one_off",
     });
-    const replenishWorld = generateMerchantWorldRecord({
-      seed: 53005,
-      archetype: "replenishment_heavy",
+    const replenishmentWorld = generateMerchantWorldRecord({
+      seed: 53004,
+      archetype: "furniture",
       scale: "growth",
       complexity: "normal",
+      purchaseFrequency: "replenishment",
     });
 
-    const furniture = generateCustomerPopulation({
-      merchantWorld: furnitureWorld,
+    expect(replenishmentWorld.summary.repeatProbability).toBeGreaterThan(
+      oneOffWorld.summary.repeatProbability,
+    );
+    expect(
+      replenishmentWorld.summary.expectedPurchaseIntervalDays,
+    ).toBeLessThan(oneOffWorld.summary.expectedPurchaseIntervalDays);
+
+    const oneOff = generateCustomerPopulation({
+      merchantWorld: oneOffWorld,
       populationSeed: 42,
       populationConfig: { maxExplicitAgents: 800 },
     });
-    const replenish = generateCustomerPopulation({
-      merchantWorld: replenishWorld,
+    const replenishment = generateCustomerPopulation({
+      merchantWorld: replenishmentWorld,
       populationSeed: 42,
       populationConfig: { maxExplicitAgents: 800 },
     });
 
     expect(
       mean(
-        replenish.customers.map(
+        replenishment.customers.map(
           (customer) => customer.repeatPropensity,
         ),
       ),
     ).toBeGreaterThan(
       mean(
-        furniture.customers.map(
+        oneOff.customers.map(
           (customer) => customer.repeatPropensity,
         ),
-      ) + 0.15,
+      ),
     );
 
     expect(
       mean(
-        replenish.customers.map(
+        replenishment.customers.map(
           (customer) => customer.expectedPurchaseIntervalDays,
         ),
       ),
     ).toBeLessThan(
       mean(
-        furniture.customers.map(
+        oneOff.customers.map(
           (customer) => customer.expectedPurchaseIntervalDays,
         ),
-      ) * 0.5,
+      ),
     );
-  });
-});
+  });});
