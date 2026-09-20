@@ -95,8 +95,16 @@ describe("synthetic platform reporting", () => {
       ),
     ).toBe(true);
 
+    const weights = new Map(
+      population.customers.map(
+        (customer) => [customer.customerId, customer.populationWeight] as const,
+      ),
+    );
     const merchantRevenue = result.purchases.reduce(
-      (sum, purchase) => sum + purchase.netRevenueMinor,
+      (sum, purchase) =>
+        sum +
+        purchase.netRevenueMinor *
+          (weights.get(purchase.customerId) ?? 1),
       0,
     );
     const claimedRevenue = reports.reduce(
