@@ -14,10 +14,6 @@ class CandidateVersionConflict(RuntimeError):
     pass
 
 
-class RepeatedHoldoutPeek(RuntimeError):
-    pass
-
-
 @dataclass(frozen=True, slots=True)
 class RegisteredCandidate:
     candidate_id: str
@@ -25,11 +21,43 @@ class RegisteredCandidate:
     declaration_fingerprint: str
     code_fingerprint: str
     development_record_fingerprint: str
+    lineage_fingerprint: str
     registered_at: str
 
 
 def fingerprint_source(source: str) -> str:
     return fingerprint_payload({"source": source.replace("\r\n", "\n")})
+
+
+def _substantive_declaration(declaration: CandidateDeclaration) -> dict[str, Any]:
+    payload = asdict(declaration)
+    payload.pop("candidate_id", None)
+    payload.pop("version", None)
+    return payload
+
+
+def _substantive_development(
+    development_record: DevelopmentWorldRecord,
+) -> dict[str, Any]:
+    payload = asdict(development_record)
+    payload.pop("candidate_id", None)
+    payload.pop("candidate_version", None)
+    return payload
+
+
+def fingerprint_candidate_lineage(
+    declaration: CandidateDeclaration,
+    source: str,
+    development_record: DevelopmentWorldRecord,
+) -> str:
+    """Fingerprint substantive candidate identity, excluding ID/version aliases."""
+    return fingerprint_payload(
+        {
+            "declaration": _substantive_declaration(declaration),
+            "source_fingerprint": fingerprint_source(source),
+            "development_record": _substantive_development(development_record),
+        }
+    )
 
 
 class CandidateRegistry:
@@ -50,6 +78,11 @@ class CandidateRegistry:
         registered_at: str | None = None,
     ) -> RegisteredCandidate:
         code_fingerprint = fingerprint_source(source)
+        lineage_fingerprint = fingerprint_candidate_lineage(
+            declaration,
+            source,
+            development_record,
+        )
         payload: dict[str, Any] = {
             "candidate_id": declaration.candidate_id,
             "version": declaration.version,
@@ -58,83 +91,57 @@ class CandidateRegistry:
             "code_fingerprint": code_fingerprint,
             "development_record": asdict(development_record),
             "development_record_fingerprint": development_record.fingerprint,
+            "lineage_fingerprint": lineage_fingerprint,
             "registered_at": registered_at or datetime.now(UTC).isoformat(),
-            "holdout_exposures": [],
         }
         path = self._path(declaration.candidate_id, declaration.version)
         if path.exists():
-            existing = json.loads(path.read_text(encoding="utf-8"))
+            existing = self.read(declaration.candidate_id, declaration.version)
             immutable_keys = (
                 "declaration_fingerprint",
                 "code_fingerprint",
                 "development_record_fingerprint",
+                "lineage_fingerprint",
             )
             if any(existing.get(key) != payload.get(key) for key in immutable_keys):
                 raise CandidateVersionConflict(
                     "candidate ID/version is immutable; submit a new candidate version"
                 )
-            return RegisteredCandidate(
-                candidate_id=existing["candidate_id"],
-                version=existing["version"],
-                declaration_fingerprint=existing["declaration_fingerprint"],
-                code_fingerprint=existing["code_fingerprint"],
-                development_record_fingerprint=existing["development_record_fingerprint"],
-                registered_at=str(existing["registered_at"]),
-            )
+            return self._registered(existing)
 
         path.write_text(
             json.dumps(payload, indent=2, sort_keys=True) + "\n",
             encoding="utf-8",
         )
-        return RegisteredCandidate(
-            candidate_id=declaration.candidate_id,
-            version=declaration.version,
-            declaration_fingerprint=declaration.fingerprint,
-            code_fingerprint=code_fingerprint,
-            development_record_fingerprint=development_record.fingerprint,
-            registered_at=str(payload["registered_at"]),
-        )
+        return self._registered(payload)
 
-    def mark_holdout_exposure(
+    def validate_frozen(
         self,
         declaration: CandidateDeclaration,
         source: str,
-        holdout_version: str,
-        *,
-        reproducibility_rerun: bool = False,
-        exposed_at: str | None = None,
-    ) -> None:
+    ) -> RegisteredCandidate:
         path = self._path(declaration.candidate_id, declaration.version)
         if not path.exists():
-            raise CandidateVersionConflict("candidate must be registered before holdout use")
-        payload = json.loads(path.read_text(encoding="utf-8"))
+            raise CandidateVersionConflict("candidate must be registered before evaluation")
+        payload = self.read(declaration.candidate_id, declaration.version)
         if payload["declaration_fingerprint"] != declaration.fingerprint:
             raise CandidateVersionConflict("declaration changed after registration")
         if payload["code_fingerprint"] != fingerprint_source(source):
             raise CandidateVersionConflict("candidate code changed after registration")
+        return self._registered(payload)
 
-        prior = [
-            item
-            for item in payload["holdout_exposures"]
-            if item["holdout_version"] == holdout_version
-        ]
-        if prior and not reproducibility_rerun:
-            raise RepeatedHoldoutPeek(
-                "repeated holdout exposure is blocked unless explicitly marked as "
-                "a reproducibility rerun"
-            )
-        payload["holdout_exposures"].append(
-            {
-                "holdout_version": holdout_version,
-                "exposed_at": exposed_at or datetime.now(UTC).isoformat(),
-                "reproducibility_rerun": reproducibility_rerun,
-                "code_fingerprint": payload["code_fingerprint"],
-                "declaration_fingerprint": payload["declaration_fingerprint"],
-            }
-        )
-        path.write_text(
-            json.dumps(payload, indent=2, sort_keys=True) + "\n",
-            encoding="utf-8",
+    @staticmethod
+    def _registered(payload: dict[str, Any]) -> RegisteredCandidate:
+        return RegisteredCandidate(
+            candidate_id=str(payload["candidate_id"]),
+            version=str(payload["version"]),
+            declaration_fingerprint=str(payload["declaration_fingerprint"]),
+            code_fingerprint=str(payload["code_fingerprint"]),
+            development_record_fingerprint=str(
+                payload["development_record_fingerprint"]
+            ),
+            lineage_fingerprint=str(payload["lineage_fingerprint"]),
+            registered_at=str(payload["registered_at"]),
         )
 
     def read(self, candidate_id: str, version: str) -> dict[str, Any]:

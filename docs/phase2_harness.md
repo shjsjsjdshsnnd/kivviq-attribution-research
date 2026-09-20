@@ -93,7 +93,9 @@ Thresholds are not supplied by the harness; they must be preregistered by the ca
 
 The registration store fingerprints the declaration, code, and development usage. Reusing an ID/version with changed estimand, hypothesis, assumptions, architecture/code, hyperparameters, criteria, or development record is rejected.
 
-The first holdout exposure is recorded. Repeated exposure to the same holdout version is blocked unless explicitly marked as an exact reproducibility rerun, and code/declaration fingerprints must still match.
+The first feedback-bearing holdout evaluation is consumed immediately in the append-only research ledger for candidate lineage + version + holdout version. A second feedback-bearing evaluation is blocked. Candidate ID/version renaming alone does not create a new lineage because substantive declaration, code, and development usage are fingerprinted independently of the label.
+
+Audit-only deterministic replay is a separate evaluator operation labelled `AUDIT_REPLAY`. It requires the identical frozen declaration/code, identical holdout version, and identical evaluation protocol. The replay returns only an integrity receipt; it does not return scenario metrics or additional tuning diagnostics and does not reset the consumed state.
 
 Holdout versions are append-only rather than replaceable.
 
@@ -116,6 +118,10 @@ Python code running under the same operating-system account can potentially use 
 For stronger adversarial isolation, execute candidates in a separate container/VM with a read-only candidate SDK/data mount and no evaluator filesystem access.
 
 Because the repository is public, evaluator implementation code is visible to researchers. What remains sealed is each instantiated holdout's exact synthetic parameters and seed, stored outside Git. This prevents routine tuning against instantiated holdouts; it cannot prevent a human from studying the public generator family design.
+
+## Public holdout limitation disclosure
+
+Every Phase 2 candidate report must include the exact required disclosure enforced by `SeparatedEvaluationReport`: the holdout-family architecture is public because this is a public research repository, while instantiated seeds, parameter values, treatment effects, latent-intent strengths, interactions, selection mechanisms, and corruption settings remain sealed from candidate development. This is strong research-process separation, not a completely secret external benchmark.
 
 ## Real-world boundary
 

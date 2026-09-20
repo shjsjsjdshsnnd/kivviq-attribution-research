@@ -3,6 +3,7 @@ from __future__ import annotations
 from attribution_lab.phase2.holdout_families import HoldoutFamily
 from attribution_lab.phase2_evaluator.gates import apply_preregistered_gate
 from attribution_lab.phase2_evaluator.results import (
+    REQUIRED_HOLDOUT_LIMITATION_DISCLOSURE,
     EvaluationStage,
     GateOutcome,
     ScenarioResult,
@@ -42,6 +43,7 @@ def test_development_success_cannot_rescue_holdout_failure(declaration) -> None:
             _result("selection_shift", 0.01),
             _result("unseen_interaction", 0.90),
         ),
+        holdout_limitation_disclosure=REQUIRED_HOLDOUT_LIMITATION_DISCLOSURE,
     )
     decision = apply_preregistered_gate(report, declaration)
     assert decision.outcome == GateOutcome.REJECT
@@ -55,6 +57,7 @@ def test_one_catastrophic_family_cannot_disappear_in_mean(declaration) -> None:
             _result("selection_shift", 0.0),
             _result("unseen_interaction", 1.0),
         ),
+        holdout_limitation_disclosure=REQUIRED_HOLDOUT_LIMITATION_DISCLOSURE,
     )
     assert apply_preregistered_gate(report, declaration).outcome == GateOutcome.REJECT
 
@@ -64,6 +67,7 @@ def test_missing_holdout_is_not_passing(declaration) -> None:
         development_results=(),
         frozen_phase1_results=(),
         sealed_holdout_results=(_result("selection_shift", 0.0),),
+        holdout_limitation_disclosure=REQUIRED_HOLDOUT_LIMITATION_DISCLOSURE,
     )
     assert (
         apply_preregistered_gate(report, declaration).outcome
@@ -83,6 +87,7 @@ def test_unsupported_required_family_is_rejected(declaration) -> None:
                 status=ScenarioStatus.UNSUPPORTED,
             ),
         ),
+        holdout_limitation_disclosure=REQUIRED_HOLDOUT_LIMITATION_DISCLOSURE,
     )
     assert apply_preregistered_gate(report, declaration).outcome == GateOutcome.REJECT
 
@@ -95,6 +100,7 @@ def test_missing_required_uncertainty_rejects(declaration) -> None:
             _result("selection_shift", 0.0),
             _result("unseen_interaction", 0.0, uncertainty=False),
         ),
+        holdout_limitation_disclosure=REQUIRED_HOLDOUT_LIMITATION_DISCLOSURE,
     )
     assert apply_preregistered_gate(report, declaration).outcome == GateOutcome.REJECT
 
@@ -113,6 +119,7 @@ def test_frozen_phase1_success_cannot_rescue_holdout_failure(declaration) -> Non
         sealed_holdout_results=(
             _result("unseen_interaction", 1.0),
         ),
+        holdout_limitation_disclosure=REQUIRED_HOLDOUT_LIMITATION_DISCLOSURE,
     )
     assert apply_preregistered_gate(report, declaration).outcome == GateOutcome.REJECT
 
@@ -127,6 +134,7 @@ def test_changed_holdout_family_set_cannot_silently_pass(declaration) -> None:
         development_results=(),
         frozen_phase1_results=(),
         sealed_holdout_results=(*required, unexpected),
+        holdout_limitation_disclosure=REQUIRED_HOLDOUT_LIMITATION_DISCLOSURE,
     )
     assert (
         apply_preregistered_gate(report, declaration).outcome

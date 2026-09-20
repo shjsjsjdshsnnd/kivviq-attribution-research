@@ -1,11 +1,25 @@
 import pytest
 
 from attribution_lab.phase2_evaluator.results import (
+    REQUIRED_HOLDOUT_LIMITATION_DISCLOSURE,
     EvaluationStage,
     ScenarioResult,
     ScenarioStatus,
     SeparatedEvaluationReport,
 )
+
+
+def _report(
+    development_results=(),
+    frozen_phase1_results=(),
+    sealed_holdout_results=(),
+) -> SeparatedEvaluationReport:
+    return SeparatedEvaluationReport(
+        development_results=development_results,
+        frozen_phase1_results=frozen_phase1_results,
+        sealed_holdout_results=sealed_holdout_results,
+        holdout_limitation_disclosure=REQUIRED_HOLDOUT_LIMITATION_DISCLOSURE,
+    )
 
 
 def test_results_cannot_be_put_in_wrong_section() -> None:
@@ -17,14 +31,20 @@ def test_results_cannot_be_put_in_wrong_section() -> None:
         uncertainty_present=True,
     )
     with pytest.raises(ValueError):
-        SeparatedEvaluationReport(
-            development_results=(holdout,),
-            frozen_phase1_results=(),
-            sealed_holdout_results=(),
-        )
+        _report(development_results=(holdout,))
 
 
 def test_report_has_no_blended_overall_score() -> None:
-    report = SeparatedEvaluationReport((), (), ())
+    report = _report()
     assert not hasattr(report, "overall_score")
     assert not hasattr(report, "weighted_score")
+
+
+def test_public_holdout_limitation_disclosure_is_required() -> None:
+    with pytest.raises(ValueError):
+        SeparatedEvaluationReport(
+            development_results=(),
+            frozen_phase1_results=(),
+            sealed_holdout_results=(),
+            holdout_limitation_disclosure="",
+        )

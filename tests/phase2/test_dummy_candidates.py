@@ -16,6 +16,7 @@ from attribution_lab.phase2_evaluator.isolation import (
     ForbiddenCandidateImport,
 )
 from attribution_lab.phase2_evaluator.results import (
+    REQUIRED_HOLDOUT_LIMITATION_DISCLOSURE,
     EvaluationStage,
     GateOutcome,
     SeparatedEvaluationReport,
@@ -153,5 +154,6 @@ def estimate(dataset, context):
         development_results=(development_result,),
         frozen_phase1_results=(),
         sealed_holdout_results=holdout_results,
+        holdout_limitation_disclosure=REQUIRED_HOLDOUT_LIMITATION_DISCLOSURE,
     )
     assert apply_preregistered_gate(report, declaration).outcome == GateOutcome.REJECT
