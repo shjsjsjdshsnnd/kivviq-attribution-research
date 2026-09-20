@@ -649,6 +649,6 @@ export function createProspectingCutTrapFixture(): CrossChannelFixture {
     calibratedWorld,
     92120,
     93120,
-    220,
+    420,
   );
 }
