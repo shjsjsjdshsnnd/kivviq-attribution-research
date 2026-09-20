@@ -52,7 +52,7 @@ class MarkovRemovalModel(AttributionModel):
             states.update(labels)
             destination = _CONVERSION if converted else _NULL
             chain = [_START, *labels, destination]
-            for source, target in zip(chain, chain[1:], strict=True):
+            for source, target in zip(chain, chain[1:]):
                 transition_counts[source][target] += 1.0
 
         transition_probabilities: dict[str, dict[str, float]] = {}
