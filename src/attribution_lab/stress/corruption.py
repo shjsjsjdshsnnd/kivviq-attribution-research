@@ -9,6 +9,7 @@ from attribution_lab.schemas.core import (
     AcquisitionEvidence,
     Channel,
     ConsentState,
+    Conversion,
     Dataset,
     Journey,
     Session,
