@@ -3,8 +3,6 @@ from __future__ import annotations
 from collections import defaultdict
 from collections.abc import Sequence
 
-import numpy as np
-
 from attribution_lab.models.base import (
     AttributionModel,
     AttributionResult,
@@ -47,6 +45,7 @@ class MarkovRemovalModel(AttributionModel):
     ) -> float:
         transition_counts: dict[str, dict[str, float]] = defaultdict(lambda: defaultdict(float))
         states = {_START}
+
         for path, converted in paths:
             transformed = [channel for channel in path if channel != removed]
             labels = [channel.value for channel in transformed]
@@ -56,30 +55,37 @@ class MarkovRemovalModel(AttributionModel):
             for source, target in zip(chain, chain[1:], strict=True):
                 transition_counts[source][target] += 1.0
 
-        transient = sorted(states)
-        index = {state: idx for idx, state in enumerate(transient)}
-        q = np.zeros((len(transient), len(transient)), dtype=float)
-        r = np.zeros(len(transient), dtype=float)
-
-        for source in transient:
+        transition_probabilities: dict[str, dict[str, float]] = {}
+        for source in states:
             outgoing = transition_counts.get(source, {})
             total = sum(outgoing.values())
-            if total <= 0:
-                continue
-            row = index[source]
-            for target, count in outgoing.items():
-                probability = count / total
-                if target == _CONVERSION:
-                    r[row] += probability
-                elif target in index:
-                    q[row, index[target]] += probability
+            transition_probabilities[source] = (
+                {target: count / total for target, count in outgoing.items()}
+                if total > 0
+                else {}
+            )
 
-        matrix = np.eye(len(transient)) - q
-        try:
-            absorption = np.linalg.solve(matrix, r)
-        except np.linalg.LinAlgError:
-            absorption = np.linalg.lstsq(matrix, r, rcond=None)[0]
-        return float(np.clip(absorption[index[_START]], 0.0, 1.0))
+        probabilities = {state: 0.0 for state in states}
+        for _ in range(10_000):
+            updated: dict[str, float] = {}
+            max_change = 0.0
+            for state in states:
+                probability = 0.0
+                for target, weight in transition_probabilities[state].items():
+                    if target == _CONVERSION:
+                        probability += weight
+                    elif target == _NULL:
+                        continue
+                    else:
+                        probability += weight * probabilities[target]
+                probability = min(max(probability, 0.0), 1.0)
+                updated[state] = probability
+                max_change = max(max_change, abs(probability - probabilities[state]))
+            probabilities = updated
+            if max_change < 1e-12:
+                break
+
+        return probabilities[_START]
 
     def attribute(self, journeys: Sequence[Journey]) -> AttributionResult:
         paths = self._paths(journeys)
