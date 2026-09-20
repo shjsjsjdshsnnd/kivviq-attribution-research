@@ -302,7 +302,7 @@ export function createPositiveSynergyFixture(): CrossChannelFixture {
       channelIds: ["meta", "google_search"],
       kind: "synergy",
       functionalForm: "multiplicative",
-      effect: 0.85,
+      effect: 2.5,
       sources: [
         "marketing.meta.exposure",
         "marketing.google_search.exposure",
@@ -318,7 +318,7 @@ export function createPositiveSynergyFixture(): CrossChannelFixture {
       ],
       kind: "synergy",
       functionalForm: "nonlinear",
-      effect: 0.35,
+      effect: 0.9,
       sources: [
         "marketing.meta.exposure",
         "marketing.email.exposure",
@@ -351,7 +351,7 @@ export function createCannibalizationFixture(): CrossChannelFixture {
   const interacted = replaceInteractionNetwork(base, [
     {
       id: "step6_search_direct_substitution",
-      channelIds: ["google_search"],
+      channelIds: ["google_search", "meta"],
       kind: "cannibalization",
       functionalForm: "nonlinear",
       effect: -0.78,
@@ -402,7 +402,7 @@ export function createMediationFixture(): CrossChannelFixture {
     },
     {
       id: "step6_pinterest_organic_direct",
-      channelIds: ["pinterest"],
+      channelIds: ["pinterest", "google_search"],
       kind: "delayed",
       functionalForm: "multiplicative",
       effect: 0.62,
@@ -442,7 +442,7 @@ export function createInteractionReversalFixture(): CrossChannelFixture {
       channelIds: ["meta", "google_search"],
       kind: "synergy",
       functionalForm: "multiplicative",
-      effect: 1.15,
+      effect: 2.8,
       sources: [
         "marketing.meta.exposure",
         "marketing.google_search.exposure",
@@ -490,7 +490,7 @@ export function createPortfolioReallocationTrapFixture(): CrossChannelFixture {
     },
     {
       id: "step6_trap_meta_retargeting_pool",
-      channelIds: ["meta"],
+      channelIds: ["meta", "google_search"],
       kind: "mediation",
       functionalForm: "multiplicative",
       effect: 0.8,
@@ -501,7 +501,7 @@ export function createPortfolioReallocationTrapFixture(): CrossChannelFixture {
     },
     {
       id: "step6_trap_google_direct_capture",
-      channelIds: ["google_search"],
+      channelIds: ["google_search", "meta"],
       kind: "cannibalization",
       functionalForm: "nonlinear",
       effect: -0.55,
@@ -513,7 +513,7 @@ export function createPortfolioReallocationTrapFixture(): CrossChannelFixture {
     },
     {
       id: "step6_trap_email_promotion",
-      channelIds: ["email"],
+      channelIds: ["email", "meta"],
       kind: "synergy",
       functionalForm: "multiplicative",
       effect: 0.45,
@@ -565,7 +565,7 @@ export function createProspectingCutTrapFixture(): CrossChannelFixture {
     },
     {
       id: "step6_prospecting_retargeting",
-      channelIds: ["meta"],
+      channelIds: ["meta", "google_search"],
       kind: "mediation",
       functionalForm: "multiplicative",
       effect: 1,
