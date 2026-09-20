@@ -1,0 +1,252 @@
+{
+  "candidate1_holdout_used_for_candidate2_evaluation": false,
+  "candidate1_holdout_used_for_tuning": false,
+  "candidate1_status": "REJECT_FROZEN_UNTOUCHED",
+  "candidate2_holdout": {
+    "configuration_fingerprint": "138f7864be008b618443a49aacfbae674479869066cd75a24a7887009a317c74",
+    "creation_timestamp": "2026-09-20T22:16:14.215287+00:00",
+    "feedback_bearing_exposure_consumed": false,
+    "generator_fingerprint": "acdc2014358b7171a57118d2dc32ea2dfbf41a431a720421180b38e6c5a2e4d7",
+    "results_by_family": [
+      {
+        "family": "selection_shift",
+        "feedback_exposure_consumed": false,
+        "status": "NOT_EVALUATED_PREHOLDOUT_REJECT"
+      },
+      {
+        "family": "latent_intent_shift",
+        "feedback_exposure_consumed": false,
+        "status": "NOT_EVALUATED_PREHOLDOUT_REJECT"
+      },
+      {
+        "family": "prevalence_ordering_shift",
+        "feedback_exposure_consumed": false,
+        "status": "NOT_EVALUATED_PREHOLDOUT_REJECT"
+      },
+      {
+        "family": "time_varying_delayed",
+        "feedback_exposure_consumed": false,
+        "status": "NOT_EVALUATED_PREHOLDOUT_REJECT"
+      },
+      {
+        "family": "unseen_interaction",
+        "feedback_exposure_consumed": false,
+        "status": "NOT_EVALUATED_PREHOLDOUT_REJECT"
+      },
+      {
+        "family": "negative_heterogeneous",
+        "feedback_exposure_consumed": false,
+        "status": "NOT_EVALUATED_PREHOLDOUT_REJECT"
+      },
+      {
+        "family": "sparse_identity_loss",
+        "feedback_exposure_consumed": false,
+        "status": "NOT_EVALUATED_PREHOLDOUT_REJECT"
+      },
+      {
+        "family": "compounded_measurement",
+        "feedback_exposure_consumed": false,
+        "status": "NOT_EVALUATED_PREHOLDOUT_REJECT"
+      }
+    ],
+    "sealed_before_candidate2_implementation": true,
+    "version": "candidate2-holdout-v1"
+  },
+  "candidate3_implemented": false,
+  "candidate_id": "candidate2-aipw-dr-observable",
+  "candidate_version": "1.0.0",
+  "development_mean_mae_selected": 0.028184778241012984,
+  "final_outcome": "REJECT",
+  "frozen_fingerprints": {
+    "code": "4596568d2aa6cd26ea25b30712092640a78a95d4827cf0769b89fde4702628ec",
+    "declaration": "7841d104987caeb7df5312ac0917a28a14cfc2ce2b9c7d98069889453b4e8fe5",
+    "development_record": "5778bfd88414056f1385a24555d44a884d8e541ebfbbec4b8ddd5ca806176a47",
+    "lineage": "6e00eaa4155f1effa90bc747d17271ac73c8c09e3a198d8e3174e0ac199a878a"
+  },
+  "frozen_phase1": {
+    "candidate1_comparator_reference": {
+      "candidate1_holdout_used": false,
+      "candidate_id": "candidate1-outcome-regression-gcomp",
+      "candidate_version": "1.0.0",
+      "source_file": "phase2/candidates/candidate1/frozen_phase1_results.json",
+      "source_pr": 10
+    },
+    "candidate1_holdout_metrics_used_for_tuning": false,
+    "candidate2_holdout_exposure_consumed": false,
+    "candidate_id": "candidate2-aipw-dr-observable",
+    "candidate_version": "1.0.0",
+    "cases_evaluated": 215,
+    "criteria": {
+      "fragmented_identity_mean_absolute_effect_vector_change": {
+        "pass": true,
+        "threshold": 0.15,
+        "value": 0.008062715122903814
+      },
+      "harmful_effect": {
+        "error_threshold": 0.07,
+        "mean_absolute_error": 0.008367124003682901,
+        "mean_estimate": -0.04355735974384124,
+        "pass": true
+      },
+      "known_zero_aggregate": {
+        "pass": true,
+        "scenario_means": {
+          "demand_capture": 0.08112614104685474,
+          "null_channel_high_intent": 0.06394065848364665,
+          "null_channel_high_prevalence": 0.009800644418311851,
+          "null_channel_last_touch": 0.008941512804439897,
+          "null_channel_retargeting": 0.05836099085564691,
+          "null_paid_channel": 0.012736751285103983,
+          "retargeting_selection": 0.06080570793551785
+        },
+        "threshold": 0.06,
+        "value": 0.04224462954707455
+      },
+      "mean_interval_coverage_fraction": {
+        "pass": true,
+        "threshold": 0.8,
+        "value": 0.85375
+      },
+      "missing_50_mean_absolute_effect_vector_change": {
+        "pass": true,
+        "threshold": 0.15,
+        "value": 0.0230803516494093
+      },
+      "numerical_validity": {
+        "pass": true
+      },
+      "observed_selection_comparison_vs_candidate1": {
+        "candidate1_aggregate": 0.06498341134425899,
+        "candidate1_scenario_mean_absolute_estimates": {
+          "demand_capture": 0.08094958665694453,
+          "null_channel_high_intent": 0.06180087542742139,
+          "null_channel_retargeting": 0.06027504267981989,
+          "retargeting_selection": 0.056908140612850155
+        },
+        "candidate2_aggregate": 0.06605837458041654,
+        "candidate2_scenario_mean_absolute_estimates": {
+          "demand_capture": 0.08112614104685474,
+          "null_channel_high_intent": 0.06394065848364665,
+          "null_channel_retargeting": 0.05836099085564691,
+          "retargeting_selection": 0.06080570793551785
+        },
+        "pass": false,
+        "required_improved_scenarios": 3,
+        "scenario_means_improved": 1
+      },
+      "overall_perfect_observation_mean_effect_mae": {
+        "pass": true,
+        "threshold": 0.05,
+        "value": 0.020361533095270796
+      },
+      "perfect_complete_channel_coverage": {
+        "pass": true
+      },
+      "small_sample_finite_outputs": {
+        "pass": true
+      }
+    },
+    "overall_preregistered_phase1_pass": false,
+    "overlap_summary": {
+      "maximum_extreme_propensity_fraction_across_perfect_cases": 0.68375,
+      "maximum_inverse_weight_across_perfect_cases": 40.0,
+      "minimum_arm_ess_across_perfect_cases": 20.62154716203216
+    },
+    "phase1_reference": "1d92f4d2d5fd89de261127b8ed4bdcced6f18fdf",
+    "preholdout_eligible": false,
+    "stage": "FROZEN_PHASE1"
+  },
+  "harness_reference": "3616d00c0855a0d3d9dcb8dbf578a3e68c26f9fa",
+  "hidden_confounding": {
+    "note": "The sealed hidden-confounding test remains genuinely unseen because Candidate 2 failed the preregistered Phase 1 pre-holdout gate.",
+    "sealed_family": "latent_intent_shift",
+    "status": "NOT_EVALUATED_PREHOLDOUT_REJECT"
+  },
+  "no_merge_or_deploy": true,
+  "no_private_or_production_data_accessed": true,
+  "observed_selection": {
+    "comparison": {
+      "candidate1_aggregate": 0.06498341134425899,
+      "candidate1_scenario_mean_absolute_estimates": {
+        "demand_capture": 0.08094958665694453,
+        "null_channel_high_intent": 0.06180087542742139,
+        "null_channel_retargeting": 0.06027504267981989,
+        "retargeting_selection": 0.056908140612850155
+      },
+      "candidate2_aggregate": 0.06605837458041654,
+      "candidate2_scenario_mean_absolute_estimates": {
+        "demand_capture": 0.08112614104685474,
+        "null_channel_high_intent": 0.06394065848364665,
+        "null_channel_retargeting": 0.05836099085564691,
+        "retargeting_selection": 0.06080570793551785
+      },
+      "pass": false,
+      "required_improved_scenarios": 3,
+      "scenario_means_improved": 1
+    },
+    "pass": false,
+    "stage": "FROZEN_PHASE1"
+  },
+  "overlap_diagnostics": {
+    "maximum_extreme_propensity_fraction_across_perfect_cases": 0.68375,
+    "maximum_inverse_weight_across_perfect_cases": 40.0,
+    "minimum_arm_ess_across_perfect_cases": 20.62154716203216
+  },
+  "phase1_reference": "1d92f4d2d5fd89de261127b8ed4bdcced6f18fdf",
+  "public_holdout_limitation_disclosure": "The holdout-family architecture is public because the repository is public. The instantiated holdout seeds, parameter values, treatment effects, latent-intent strengths, interactions, selection mechanisms and corruption settings remained sealed from Candidate 2 development. This is strong research-process separation, not a completely secret external benchmark.",
+  "rejection_reasons": [
+    "FROZEN_PHASE1 primary observed-selection comparison failed: Candidate 2 aggregate known-zero error 0.066058 was not lower than Candidate 1 0.064983, and only 1 of 4 required scenario means improved."
+  ],
+  "robustness": {
+    "fragmented_identity": {
+      "pass": true,
+      "threshold": 0.15,
+      "value": 0.008062715122903814
+    },
+    "harmful_effect": {
+      "error_threshold": 0.07,
+      "mean_absolute_error": 0.008367124003682901,
+      "mean_estimate": -0.04355735974384124,
+      "pass": true
+    },
+    "known_zero_aggregate": {
+      "pass": true,
+      "scenario_means": {
+        "demand_capture": 0.08112614104685474,
+        "null_channel_high_intent": 0.06394065848364665,
+        "null_channel_high_prevalence": 0.009800644418311851,
+        "null_channel_last_touch": 0.008941512804439897,
+        "null_channel_retargeting": 0.05836099085564691,
+        "null_paid_channel": 0.012736751285103983,
+        "retargeting_selection": 0.06080570793551785
+      },
+      "threshold": 0.06,
+      "value": 0.04224462954707455
+    },
+    "missing_50": {
+      "pass": true,
+      "threshold": 0.15,
+      "value": 0.0230803516494093
+    },
+    "small_sample_finite": {
+      "pass": true
+    }
+  },
+  "scientific_limit": "Doubly robust does not mean robust to unobserved confounding. Candidate 2 did not earn access to its sealed hidden-confounding test.",
+  "selected_hyperparameters": {
+    "convergence_tolerance": "1e-8",
+    "max_iterations": "60",
+    "outcome_l2": "5.0",
+    "propensity_clip": "0.025:0.975",
+    "propensity_l2": "5.0"
+  },
+  "uncertainty": {
+    "frozen_phase1_mean_interval_coverage": {
+      "pass": true,
+      "threshold": 0.8,
+      "value": 0.85375
+    },
+    "method": "90% empirical AIPW influence-function normal interval",
+    "sealed_holdout_coverage": "NOT_EVALUATED"
+  }
+}
