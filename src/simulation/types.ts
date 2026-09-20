@@ -208,6 +208,9 @@ export interface SimulationResult {
 export interface SimulationCommercePolicy {
   readonly freeShippingThresholdMinor?: number | null;
   readonly customerShippingChargeMinor?: number;
+  readonly enableProductRelationships?: boolean;
+  readonly enableEnhancedBasketEconomics?: boolean;
+  readonly executeInventoryLifecycle?: boolean;
 }
 
 export interface SimulateWorldRequest {
