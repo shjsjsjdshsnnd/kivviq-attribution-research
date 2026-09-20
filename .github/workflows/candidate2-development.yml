@@ -34,8 +34,8 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          if [ -f phase2/candidates/candidate2/FROZEN.json ]; then
-            echo "Candidate 2 is frozen; development rerun skipped."
+          if [ -f phase2/candidates/candidate2/FREEZE_REQUESTED ] || [ -f phase2/candidates/candidate2/FROZEN.json ]; then
+            echo "Candidate 2 development is locked; development rerun skipped."
             exit 0
           fi
           python phase2/candidates/candidate2/run_development.py
