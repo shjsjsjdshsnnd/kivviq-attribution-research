@@ -88,6 +88,23 @@ describe("Step 7 promotion × advertising economics", () => {
           channel,
         );
 
+      console.info(
+        "STEP7_PROMOTION_AD_DIAGNOSTIC",
+        JSON.stringify({
+          channel,
+          promotionRevenueIroas:
+            promotionOnRevenue.trueIncrementalRoas,
+          noPromotionRevenueIroas:
+            promotionOffRevenue.trueIncrementalRoas,
+          promotionIncrementalContributionMinor:
+            promotionOnContribution
+              .incrementalContributionProfitMinor,
+          noPromotionIncrementalContributionMinor:
+            promotionOffContribution
+              .incrementalContributionProfitMinor,
+        }),
+      );
+
       expect(
         promotionOnRevenue.trueIncrementalRoas,
       ).not.toBeNull();
