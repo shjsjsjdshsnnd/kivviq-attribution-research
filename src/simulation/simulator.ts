@@ -281,37 +281,6 @@ function searchIntent(
   ]);
 }
 
-function interactionLift(
-  request: SimulateWorldRequest,
-  customer: RuntimeCustomerState,
-  currentChannel: MarketingChannel,
-): number {
-  let lift = 0;
-  for (const interaction of request.merchantWorld.manifest.channelInteractions) {
-    if (!interaction.channelIds.includes(currentChannel)) continue;
-    const otherChannels = interaction.channelIds.filter(
-      (channel) => channel !== currentChannel,
-    );
-
-    const activeOther = otherChannels.some((channel) => {
-      const memory = customer.channelMemory.get(
-        channel as MarketingChannel,
-      );
-      return memory !== undefined && memory.exposures > 0;
-    });
-    if (!activeOther) continue;
-
-    const effect = interaction.effect.value;
-    if (interaction.kind === "zero") continue;
-    if (interaction.kind === "cannibalization") {
-      lift -= Math.abs(effect) * 0.08;
-    } else {
-      lift += effect * 0.08;
-    }
-  }
-  return clamp(lift, -0.12, 0.12);
-}
-
 function observablePathForPurchase(
   observableEvents: readonly PerfectObservableJourneyEvent[],
   purchase: RealizedPurchase,
@@ -954,24 +923,11 @@ export function simulateWorld(
 
     if (event.kind === "latent_effect") {
       const payload = event.payload as LatentEffectPayload;
-      const interaction = interactionLift(
-        request,
-        customer,
-        payload.channel,
-      );
       applyExposureLatentEffect(
         customer,
         payload.channel,
         event.timestampMs,
-        {
-          ...payload.effect,
-          considerationLift:
-            payload.effect.considerationLift +
-            interaction * 0.4,
-          purchaseProbabilityLift:
-            payload.effect.purchaseProbabilityLift +
-            interaction * 0.6,
-        },
+        payload.effect,
       );
       continue;
     }
