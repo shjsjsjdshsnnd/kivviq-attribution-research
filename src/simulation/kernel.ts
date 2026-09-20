@@ -5,6 +5,7 @@ export type SimulationEventKind =
   | "channel_opportunity"
   | "marketing_exposure"
   | "latent_effect"
+  | "interaction_effect"
   | "search"
   | "visit"
   | "session_step"
