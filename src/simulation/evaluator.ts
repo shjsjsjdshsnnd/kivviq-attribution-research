@@ -279,3 +279,38 @@ export function promotionSelectionSummary(
     fullPriceBuyerMeanPromotionSensitivity: mean(fullPrice),
   };
 }
+
+
+export function causalChannelsForSameObservablePurchase(
+  result: SimulationResult,
+  orderId: string,
+  hiddenMerchantEffects: Readonly<Record<string, number>>,
+): readonly string[] {
+  const purchase = result.purchases.find(
+    (candidate) => candidate.orderId === orderId,
+  );
+  if (!purchase) {
+    throw new RangeError(`unknown purchase orderId ${orderId}`);
+  }
+
+  const purchaseMs = Date.parse(purchase.occurredAt);
+  const lookbackMs = 30 * 86_400_000;
+  const channels = new Set<string>();
+
+  for (const exposure of result.godMode.exposureEffects) {
+    if (exposure.customerId !== purchase.customerId) continue;
+    const exposureMs = Date.parse(exposure.occurredAt);
+    if (
+      exposureMs > purchaseMs ||
+      exposureMs < purchaseMs - lookbackMs
+    ) {
+      continue;
+    }
+
+    const hiddenEffect =
+      hiddenMerchantEffects[exposure.channelId] ?? 0;
+    if (hiddenEffect !== 0) channels.add(exposure.channelId);
+  }
+
+  return [...channels].sort();
+}
