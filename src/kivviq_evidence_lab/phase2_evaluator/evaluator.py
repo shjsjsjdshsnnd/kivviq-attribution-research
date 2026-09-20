@@ -172,17 +172,17 @@ def evaluate_holdout(
     non_ambiguous_total = 0
     false_ambiguous = 0
 
-    for case in suite.semantic_cases:
-        actual = candidate.resolve(case.message, REFERENCE)
-        passed = actual == case.expected
+    for semantic_case in suite.semantic_cases:
+        actual = candidate.resolve(semantic_case.message, REFERENCE)
+        passed = actual == semantic_case.expected
         exact += int(passed)
-        categories[case.category] += 1
-        category_passes[case.category] += int(passed)
-        languages[case.language] += 1
-        language_passes[case.language] += int(passed)
-        _field_metrics(case.expected, actual, hits, totals)
+        categories[semantic_case.category] += 1
+        category_passes[semantic_case.category] += int(passed)
+        languages[semantic_case.language] += 1
+        language_passes[semantic_case.language] += int(passed)
+        _field_metrics(semantic_case.expected, actual, hits, totals)
 
-        expected_ambiguous = _message_is_ambiguous(case.expected)
+        expected_ambiguous = _message_is_ambiguous(semantic_case.expected)
         actual_ambiguous = _message_is_ambiguous(actual)
         if expected_ambiguous and actual_ambiguous:
             ambiguity_tp += 1
@@ -205,10 +205,10 @@ def evaluate_holdout(
             context.extend(actual.requests)
 
     metamorphic_passes = 0
-    for case in suite.metamorphic_cases:
-        left = candidate.resolve(case.left, REFERENCE)
-        right = candidate.resolve(case.right, REFERENCE)
-        if case.relation == "invariant":
+    for metamorphic_case in suite.metamorphic_cases:
+        left = candidate.resolve(metamorphic_case.left, REFERENCE)
+        right = candidate.resolve(metamorphic_case.right, REFERENCE)
+        if metamorphic_case.relation == "invariant":
             passed = left == right
         else:
             if not left.requests or not right.requests:
@@ -216,7 +216,7 @@ def evaluate_holdout(
             else:
                 passed = all(
                     getattr(left.requests[0], field) != getattr(right.requests[0], field)
-                    for field in case.changed_fields
+                    for field in metamorphic_case.changed_fields
                 )
         metamorphic_passes += int(passed)
 
@@ -225,10 +225,10 @@ def evaluate_holdout(
     unsupported_supported = 0
     supported_total = 0
     supported_refused = 0
-    for case in suite.governor_cases:
-        outcome = _governor_result(case.request)
-        governor_matches += int(outcome == case.expected_outcome)
-        expected_supported = case.expected_outcome.value.startswith("SUPPORTED")
+    for governor_case in suite.governor_cases:
+        outcome = _governor_result(governor_case.request)
+        governor_matches += int(outcome == governor_case.expected_outcome)
+        expected_supported = governor_case.expected_outcome.value.startswith("SUPPORTED")
         actual_supported = outcome.value.startswith("SUPPORTED")
         if expected_supported:
             supported_total += 1
@@ -238,8 +238,8 @@ def evaluate_holdout(
             unsupported_supported += int(actual_supported)
 
     contradiction_passes = sum(
-        int(_evaluate_contradiction(case.kind) == case.expected_safe)
-        for case in suite.contradiction_cases
+        int(_evaluate_contradiction(contradiction_case.kind) == contradiction_case.expected_safe)
+        for contradiction_case in suite.contradiction_cases
     )
 
     ambiguity_precision = ambiguity_tp / (ambiguity_tp + ambiguity_fp) if ambiguity_tp + ambiguity_fp else 1.0
