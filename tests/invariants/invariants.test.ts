@@ -35,7 +35,7 @@ describe("GroundTruth invariants", () => {
     } as GroundTruthManifest;
 
     expect(() => validateGroundTruthManifest(corrupted)).toThrow(
-      /NaN or Infinity/,
+      /slopePerMoneyMinor.*finite/i,
     );
   });
 
@@ -59,7 +59,7 @@ describe("GroundTruth invariants", () => {
     raw["causalGraph"].edges[0].lagSeconds = -1;
 
     expect(() => parseGroundTruthManifest(raw)).toThrow(
-      /lag must be finite and non-negative/,
+      /lagSeconds.*greater than or equal to 0/i,
     );
   });
 
