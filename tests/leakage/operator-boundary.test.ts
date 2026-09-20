@@ -140,5 +140,12 @@ describe("Operator information boundary", () => {
     expect(operatorSafeApi).not.toHaveProperty("createDiscountTrapFixture");
     expect(operatorSafeApi).not.toHaveProperty("createBestSellerTrapFixture");
     expect(operatorSafeApi).not.toHaveProperty("createHighAovTrapFixture");
+    expect(operatorSafeApi).not.toHaveProperty("buildSkuEconomicIntelligence");
+    expect(operatorSafeApi).not.toHaveProperty("buildProductEconomicsReport");
+    expect(operatorSafeApi).not.toHaveProperty("productCampaignPerformance");
+    expect(operatorSafeApi).not.toHaveProperty("evaluateInventoryScaleRisk");
+    expect(operatorSafeApi).not.toHaveProperty("evaluateSelloutSubstitution");
+    expect(operatorSafeApi).not.toHaveProperty("createLowInventoryProductRoasTrapFixture");
+    expect(operatorSafeApi).not.toHaveProperty("createSelloutSubstitutionTrapFixture");
   });
 });
