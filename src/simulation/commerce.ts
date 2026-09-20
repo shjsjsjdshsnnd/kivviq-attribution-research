@@ -486,6 +486,7 @@ export function completePurchase(
         (item) => item.productId === cartLine.productId,
       );
     const allowBackorders =
+      intervention.inventoryOverrideUnits === undefined &&
       commercePolicy?.executeInventoryLifecycle === true &&
       inventoryMechanism?.allowBackorders === true &&
       inventoryMechanism.stockoutBehavior === "backorder";
