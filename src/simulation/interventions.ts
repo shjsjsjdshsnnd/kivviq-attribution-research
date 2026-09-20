@@ -55,9 +55,25 @@ function parseSpendVariable(variable: string): MarketingChannel | undefined {
   return match[1] as MarketingChannel;
 }
 
+function activeAt(
+  intervention: Intervention,
+  timestampMs: number | undefined,
+): boolean {
+  if (timestampMs === undefined) return true;
+  if (intervention.effectiveAt === undefined) return true;
+
+  const start = Date.parse(intervention.effectiveAt);
+  if (!Number.isFinite(start) || timestampMs < start) return false;
+  if (intervention.durationSeconds === undefined) return true;
+
+  const end = start + Number(intervention.durationSeconds) * 1_000;
+  return timestampMs < end;
+}
+
 export function buildSimulationInterventionState(
   world: GeneratedMerchantWorld,
   interventions: readonly Intervention[],
+  timestampMs?: number,
 ): SimulationInterventionState {
   const channelSpendScale = new Map<MarketingChannel, number>();
 
@@ -71,6 +87,7 @@ export function buildSimulationInterventionState(
 
   for (const intervention of interventions) {
     validateIntervention(world.manifest.causalGraph, intervention);
+    if (!activeAt(intervention, timestampMs)) continue;
 
     const spendChannel = parseSpendVariable(intervention.variable);
     if (spendChannel) {
