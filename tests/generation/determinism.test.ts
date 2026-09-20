@@ -24,6 +24,18 @@ describe("merchant generation determinism", () => {
     expect(left.summary).toEqual(right.summary);
   });
 
+  it("reproduces exactly from recorded generation provenance", () => {
+    const world = generateMerchantWorldRecord(baseConfig);
+    const reproduced = generateMerchantWorldRecord(
+      world.provenance.generationConfig,
+    );
+
+    expect(
+      serializeGroundTruthManifest(reproduced.manifest),
+    ).toBe(serializeGroundTruthManifest(world.manifest));
+    expect(reproduced.summary).toEqual(world.summary);
+  });
+
   it("produces meaningfully different worlds for different seeds", () => {
     const worlds = Array.from({ length: 25 }, (_, index) =>
       generateMerchantWorldRecord({
