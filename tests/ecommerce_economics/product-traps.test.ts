@@ -125,6 +125,10 @@ describe("Step 7 product and customer value traps", () => {
       );
 
       expect(rows.length).toBeGreaterThanOrEqual(2);
+      console.info(
+        "STEP7_ACQUISITION_SOURCE_ROWS",
+        JSON.stringify(rows),
+      );
 
       const lowestCac = [...rows].sort(
         (left, right) =>
@@ -168,6 +172,10 @@ describe("Step 7 product and customer value traps", () => {
       ).filter((row) => row.representedNewCustomers > 0);
 
       expect(rows.length).toBeGreaterThanOrEqual(2);
+      console.info(
+        "STEP7_SHORT_LONG_SOURCE_ROWS",
+        JSON.stringify(rows),
+      );
 
       const shortTerm = [...rows].sort(
         (left, right) =>
