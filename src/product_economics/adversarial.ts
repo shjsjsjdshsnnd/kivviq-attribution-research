@@ -107,7 +107,7 @@ export function createSelloutSubstitutionTrapFixture(): SelloutSubstitutionTrapF
     archetype: "specialty_retail",
     scale: "growth",
     complexity: "adversarial",
-    catalogProfile: "small",
+    catalogProfile: "moderate",
   });
   const world = structuredClone(
     base,
