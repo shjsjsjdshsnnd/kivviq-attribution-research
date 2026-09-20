@@ -49,6 +49,7 @@ jobs:
           cp research_output/simulator_bias_audit.json "$report_dir/simulator_bias_audit.json"
 
           python scripts/check_repo_safety.py
+          git add -N "$report_dir"
           git status --short
           git diff --check
           git diff -- "$report_dir"
