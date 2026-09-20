@@ -44,6 +44,7 @@ class Phase2ArchitectureTests(unittest.TestCase):
         self.assertEqual(len(suite.contradiction_cases), 6)
         self.assertEqual(suite.evaluation_units, 214)
         self.assertEqual(len(suite.digest), 64)
+        self.assertEqual(suite.digest, "534a7ece84044d71e53b3765ef47c20a62a8fe352a2b612191ffe4b660fe11cd")
 
     def test_model_candidate_accepts_only_typed_bundle(self) -> None:
         candidate = ModelBasedResolverCandidate(_FakeModelBackend())
