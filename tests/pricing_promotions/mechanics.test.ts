@@ -315,6 +315,71 @@ describe("Step 10 promotion mechanics", () => {
     ).toBeUndefined();
   });
 
+  it("applies an explicit return-rate effect when a bundle discount is actually realized", () => {
+    const fixture =
+      createMarginDestructionTrapFixture();
+    const scenario = scenarioWith(fixture, [
+      {
+        promotionId: "bundle-return-effect",
+        mechanic: "bundle",
+        scope: {
+          kind: "sku_set",
+          productIds: [
+            fixture.productAId,
+            fixture.productBId,
+          ],
+        },
+        start: fixture.evaluation.periodStart,
+        end: fixture.evaluation.periodEnd,
+        bundle: {
+          requiredProductIds: [
+            fixture.productAId,
+            fixture.productBId,
+          ],
+          percentageOff: 0.15,
+        },
+        awarenessProbability: 1,
+        returnProbabilityMultiplier: 1.4,
+      },
+    ]);
+    const customer = context(fixture);
+    const timestamp = Date.parse(
+      fixture.evaluation.periodStart,
+    );
+    const price = (productId: string) =>
+      scenario.priceStates.find(
+        (state) => state.productId === productId,
+      )!.regularPriceMinor;
+
+    const lines = resolveCartLinePricing(
+      fixture.evaluation.merchantWorld,
+      scenario,
+      customer,
+      timestamp,
+      [
+        {
+          productId: fixture.productAId,
+          quantity: 1,
+          fallbackBasePriceMinor:
+            price(fixture.productAId),
+        },
+        {
+          productId: fixture.productBId,
+          quantity: 1,
+          fallbackBasePriceMinor:
+            price(fixture.productBId),
+        },
+      ],
+    );
+
+    expect(
+      lines.every(
+        (line) =>
+          line.returnProbabilityMultiplier === 1.4,
+      ),
+    ).toBe(true);
+  });
+
   it("loyalty eligibility uses prior observable purchase state rather than future value", () => {
     const fixture =
       createMarginDestructionTrapFixture();
