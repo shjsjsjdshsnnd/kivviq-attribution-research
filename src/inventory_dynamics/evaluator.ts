@@ -364,6 +364,8 @@ function rowFor(
     reservedUnits: position.reservedUnits,
     committedUnits: position.committedUnits,
     damagedUnits: position.damagedUnits,
+    quarantinedReturnUnits:
+      position.quarantinedReturnUnits,
     inboundUnits: position.inboundUnits,
     backorderedUnits: position.backorderedUnits,
     safetyStockUnits: position.safetyStockUnits,
