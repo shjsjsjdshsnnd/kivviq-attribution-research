@@ -1105,7 +1105,8 @@ function availableToSellUnitsForPosition(
     position.onHandUnits -
       position.reservedUnits -
       position.committedUnits -
-      position.damagedUnits,
+      position.damagedUnits -
+      position.quarantinedReturnUnits,
   );
 }
 
