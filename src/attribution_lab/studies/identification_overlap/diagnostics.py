@@ -138,15 +138,27 @@ def _log_loss(target: np.ndarray, probability: np.ndarray) -> float:
 
 
 def _auc(target: np.ndarray, score: np.ndarray) -> float:
-    positives = score[target == 1.0]
-    negatives = score[target == 0.0]
-    if positives.size == 0 or negatives.size == 0:
+    positive_count = int(np.sum(target == 1.0))
+    negative_count = int(np.sum(target == 0.0))
+    if positive_count == 0 or negative_count == 0:
         return 0.5
-    comparisons = positives[:, None] - negatives[None, :]
-    return float(
-        (np.sum(comparisons > 0.0) + 0.5 * np.sum(comparisons == 0.0))
-        / comparisons.size
-    )
+
+    order = np.argsort(score, kind="mergesort")
+    sorted_score = score[order]
+    ranks = np.empty(score.size, dtype=float)
+    index = 0
+    while index < score.size:
+        end = index + 1
+        while end < score.size and sorted_score[end] == sorted_score[index]:
+            end += 1
+        average_rank = ((index + 1) + end) / 2.0
+        ranks[order[index:end]] = average_rank
+        index = end
+
+    positive_rank_sum = float(np.sum(ranks[target == 1.0]))
+    return (
+        positive_rank_sum - positive_count * (positive_count + 1) / 2.0
+    ) / (positive_count * negative_count)
 
 
 def _ess(weights: np.ndarray) -> float:

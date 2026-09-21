@@ -211,12 +211,17 @@ def run_study(*, quick: bool = False) -> dict[str, Any]:
                 "truth": _mean(records, ("truth",)),
                 "observable_effect_error": observable_error,
                 "oracle_effect_error": oracle_error,
-                "observable_interval_coverage": _mean(
-                    records,
-                    ("observable", "interval_lower"),
-                )
-                <= _mean(records, ("truth",))
-                <= _mean(records, ("observable", "interval_upper")),
+                "observable_interval_coverage": (
+                    sum(
+                        int(
+                            float(record["observable"]["interval_lower"])
+                            <= float(record["truth"])
+                            <= float(record["observable"]["interval_upper"])
+                        )
+                        for record in records
+                    )
+                    / len(records)
+                ),
                 "observable_propensity_auc": _mean(
                     records,
                     ("observable", "propensity_auc"),
