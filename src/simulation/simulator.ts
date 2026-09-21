@@ -45,6 +45,10 @@ import {
   buildSimulationInterventionState,
 } from "./interventions.js";
 import {
+  majorEventDemandMultiplier,
+  marketingCompetitionMultiplier,
+} from "../pricing_promotions/runtime.js";
+import {
   days,
   hours,
   SharedRandomness,
@@ -259,6 +263,10 @@ function needStrength(
 ): number {
   const seasonal = seasonalityMultiplier(request, timestampMs);
   const shock = shockDemandMultiplier(request, timestampMs);
+  const majorEvent = majorEventDemandMultiplier(
+    request.commercePolicy?.pricingPromotionScenario,
+    timestampMs,
+  );
   const lifecycleMultiplier =
     customer.lifecycle === "dormant"
       ? 0.65
@@ -280,6 +288,7 @@ function needStrength(
       )) *
       seasonal *
       shock *
+      majorEvent *
       lifecycleMultiplier,
     0.02,
     1,
@@ -763,11 +772,13 @@ export function simulateWorld(
       1.55,
     );
     const promotionMultiplier =
-      line.discountMinor > 0
-        ? 1 +
-          customer.source.promotionSensitivityMultiplier *
-            0.08
-        : 1;
+      request.commercePolicy?.pricingPromotionScenario === undefined
+        ? line.discountMinor > 0
+          ? 1 +
+            customer.source.promotionSensitivityMultiplier *
+              0.08
+          : 1
+        : line.returnProbabilityMultiplier ?? 1;
     const returnProbability = clamp(
       profile.returnProbability *
         customerMultiplier *
@@ -1446,6 +1457,7 @@ export function simulateWorld(
         interventionState,
         event.timestampMs,
         randomness,
+        request.commercePolicy,
       );
       const interactionContext = {
         timestampMs: event.timestampMs,
@@ -1545,7 +1557,11 @@ export function simulateWorld(
               customer,
               channel,
               interactionContext,
-            ),
+            ) /
+              marketingCompetitionMultiplier(
+                request.commercePolicy?.pricingPromotionScenario,
+                event.timestampMs,
+              ),
           );
 
         const exposureKey = `${customer.customerId}:exposure:${payload.cycle}:${payload.ordinal}:${channel}`;
@@ -1603,6 +1619,7 @@ export function simulateWorld(
         interventionState,
         event.timestampMs,
         randomness,
+        request.commercePolicy,
       );
       const interactionContext = {
         timestampMs: event.timestampMs,
@@ -1851,6 +1868,7 @@ export function simulateWorld(
               interactionContext,
             ),
             request.commercePolicy,
+            session.source,
           );
 
         const ordinal =
