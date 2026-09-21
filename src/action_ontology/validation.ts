@@ -2400,7 +2400,10 @@ function validatePricingActionSemantics(
       );
     }
 
-    const temporary = record(input.duration) && input.duration.kind === "temporary";
+    const temporary =
+      input.schemaVersion === "1.2.0" &&
+      record(input.duration) &&
+      input.duration.kind === "temporary";
     if (temporary) {
       if (
         !record(input.reversibility) ||
