@@ -64,7 +64,7 @@ Parameters support SET, INCREASE_BY, DECREASE_BY, INCREASE_BY_PERCENT, DECREASE_
 
 Percentages use integer basis points plus explicit semantics: relative change, absolute share, percentage points, discount rate or margin rate.
 
-Money uses integer minor units plus an explicit three-letter currency.
+Money uses integer minor units plus an explicit three-letter currency. Periodic budget changes use a dedicated monetary-rate value with an explicit day, week or month denominator, so `CAD 1,000/week` cannot collapse into an unqualified `CAD 1,000`.
 
 ## Uncertainty
 
@@ -97,9 +97,9 @@ These are property references only. The ontology does not import Step 8 God-mode
 
 Atomic actions represent one intervention against one logical target.
 
-Compound actions contain validated atomic components. Each component keeps its own action ID plus the parent action ID and shared intent ID.
+Compound actions contain validated atomic components. Each component keeps its own action ID plus the parent action ID and shared intent ID. A required coordination contract declares an execution policy (`all_or_nothing`, `ordered` or `best_effort`) and machine-readable dependency edges between component actions.
 
-The budget-reallocation contract additionally requires one decrease, one increase and the same explicit monetary amount/currency, preventing downstream systems from treating a transfer as two unrelated spend changes.
+The budget-reallocation fixture is `all_or_nothing`; the Google increase depends on the paired Meta decrease. The contract additionally requires one decrease, one increase and the same explicit monetary amount, currency and period, preventing downstream systems from treating a transfer as two unrelated spend changes.
 
 ## Lifecycle
 
