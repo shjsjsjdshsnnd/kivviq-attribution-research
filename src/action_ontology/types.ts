@@ -195,6 +195,12 @@ export type ParameterValue =
       readonly currency: CurrencyCode;
     }
   | {
+      readonly kind: "money_rate";
+      readonly amountMinor: number;
+      readonly currency: CurrencyCode;
+      readonly per: "day" | "week" | "month";
+    }
+  | {
       readonly kind: "percentage";
       readonly basisPoints: number;
       readonly semantics: PercentageSemantics;
@@ -432,6 +438,21 @@ export interface ActionMeasurementHorizon {
   readonly baseline: BaselineRequirement;
 }
 
+export type CompoundExecutionPolicy =
+  | "all_or_nothing"
+  | "ordered"
+  | "best_effort";
+
+export interface CompoundComponentDependency {
+  readonly componentActionId: string;
+  readonly dependsOnActionIds: readonly string[];
+}
+
+export interface CompoundCoordination {
+  readonly executionPolicy: CompoundExecutionPolicy;
+  readonly dependencies: readonly CompoundComponentDependency[];
+}
+
 export interface Action {
   readonly ontologyVersion: string;
   readonly actionId: string;
@@ -459,6 +480,11 @@ export interface Action {
   /** Links a reversing intervention to the action whose effects it is intended to undo. */
   readonly reversalOfActionId?: string;
   readonly components?: readonly Action[];
+  /**
+   * Required for compound actions. Defines whether components form one
+   * coordinated intervention and any dependency edges between them.
+   */
+  readonly coordination?: CompoundCoordination;
 }
 
 export interface ActionMetricPrediction {
