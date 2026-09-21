@@ -148,7 +148,14 @@ export function promotionAwarenessProbability(
   promotion: PromotionDefinition,
   customer: PricingCustomerContext,
 ): number {
-  const declared = promotion.awarenessProbability ?? 0.72;
+  const declared = clamp(
+    promotion.awarenessProbability ?? 0.72,
+    0,
+    1,
+  );
+  if (declared === 0 || declared === 1) {
+    return declared;
+  }
   return clamp(
     declared *
       (0.72 +
@@ -179,14 +186,24 @@ function couponRedeemed(
   customer: PricingCustomerContext,
 ): boolean {
   if (!customerAwareOfPromotion(promotion, customer)) return false;
-  const probability = clamp(
-    (promotion.redemptionProbability ?? 0.5) *
-      (0.58 +
-        customer.source.latentFactors.dealOrientation * 0.52 +
-        customer.source.promotionSensitivityMultiplier * 0.18),
+  const declared = clamp(
+    promotion.redemptionProbability ?? 0.5,
     0,
     1,
   );
+  const probability =
+    declared === 0 || declared === 1
+      ? declared
+      : clamp(
+          declared *
+            (0.58 +
+              customer.source.latentFactors.dealOrientation *
+                0.52 +
+              customer.source.promotionSensitivityMultiplier *
+                0.18),
+          0,
+          1,
+        );
   return (
     stableProbability(
       "step10-redemption|" +
