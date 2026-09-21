@@ -73,6 +73,90 @@ function scanForbidden(
   }
 }
 
+
+function validatePricingMembershipBindings(
+  input: unknown,
+):
+  | { readonly ok: true }
+  | { readonly ok: false; readonly message: string } {
+  if (input === undefined) return { ok: true };
+  if (!Array.isArray(input)) {
+    return {
+      ok: false,
+      message: "pricingMembershipBindings must be an array",
+    };
+  }
+
+  const bindingIds = new Set<string>();
+  for (const binding of input) {
+    if (
+      !record(binding) ||
+      !record(binding.actionTarget) ||
+      !["product", "category", "collection"].includes(
+        String(binding.actionTarget.kind),
+      ) ||
+      !["decision_time", "translation_time", "effective_time"].includes(
+        String(binding.evaluateAt),
+      ) ||
+      !nonEmpty(binding.bindingRef) ||
+      !nonEmpty(binding.sourceRef) ||
+      typeof binding.snapshotTime !== "string" ||
+      !binding.snapshotTime.endsWith("Z") ||
+      !Number.isFinite(Date.parse(binding.snapshotTime)) ||
+      !Array.isArray(binding.members) ||
+      binding.members.length === 0
+    ) {
+      return {
+        ok: false,
+        message: "pricing membership binding is malformed",
+      };
+    }
+
+    if (bindingIds.has(binding.bindingRef)) {
+      return {
+        ok: false,
+        message: "pricing membership bindingRef values must be unique",
+      };
+    }
+    bindingIds.add(binding.bindingRef);
+
+    const members = new Set<string>();
+    for (const member of binding.members) {
+      if (
+        !record(member) ||
+        !record(member.skuTarget) ||
+        member.skuTarget.kind !== "sku" ||
+        !nonEmpty(member.skuTarget.skuId) ||
+        !record(member.simulatorTarget) ||
+        member.simulatorTarget.kind !== "sku" ||
+        !nonEmpty(member.simulatorTarget.simulatorSkuId) ||
+        !record(member.priceAtBoundary) ||
+        member.priceAtBoundary.kind !== "money" ||
+        !Number.isInteger(member.priceAtBoundary.amountMinor) ||
+        Number(member.priceAtBoundary.amountMinor) < 0 ||
+        typeof member.priceAtBoundary.currency !== "string" ||
+        !/^[A-Z]{3}$/.test(member.priceAtBoundary.currency) ||
+        !nonEmpty(member.priceSourceRef)
+      ) {
+        return {
+          ok: false,
+          message: "pricing membership member is malformed",
+        };
+      }
+
+      if (members.has(member.skuTarget.skuId)) {
+        return {
+          ok: false,
+          message: "pricing membership contains duplicate SKU members",
+        };
+      }
+      members.add(member.skuTarget.skuId);
+    }
+  }
+
+  return { ok: true };
+}
+
 export type TranslationContextValidationResult =
   | {
       readonly ok: true;
@@ -145,9 +229,7 @@ export function validateTranslationContext(
   if (
     !Array.isArray(input.capabilities) ||
     !Array.isArray(input.entityMappings) ||
-    !Array.isArray(input.referenceBindings) ||
-    (input.pricingMembershipBindings !== undefined &&
-      !Array.isArray(input.pricingMembershipBindings))
+    !Array.isArray(input.referenceBindings)
   ) {
     return {
       ok: false,
@@ -155,7 +237,21 @@ export function validateTranslationContext(
         status: "MISSING_CONTEXT",
         code: "MALFORMED_TRANSLATION_CONTEXT",
         message:
-          "TranslationContext capabilities, entityMappings, referenceBindings and optional pricingMembershipBindings must be arrays.",
+          "TranslationContext capabilities, entityMappings and referenceBindings must be arrays.",
+      },
+    };
+  }
+
+  const pricingMembershipValidation = validatePricingMembershipBindings(
+    input.pricingMembershipBindings,
+  );
+  if (!pricingMembershipValidation.ok) {
+    return {
+      ok: false,
+      failure: {
+        status: "MISSING_CONTEXT",
+        code: "MALFORMED_PRICING_MEMBERSHIP_CONTEXT",
+        message: pricingMembershipValidation.message,
       },
     };
   }
