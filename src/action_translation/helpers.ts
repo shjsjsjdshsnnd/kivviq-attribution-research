@@ -134,6 +134,15 @@ export function copyScope(scope: ActionScope): SimulatorScope {
               ? { campaignIds: [...dimension.campaignIds] }
               : {}),
           };
+        case "paid_media_segment":
+          return {
+            kind: "paid_media_segment" as const,
+            classification: dimension.classification,
+            taxonomySource: dimension.taxonomySource,
+            ...(dimension.segmentId
+              ? { segmentId: dimension.segmentId }
+              : {}),
+          };
         case "time_window":
           return {
             kind: "time_window" as const,
