@@ -323,6 +323,36 @@ export const temporaryCollectionX10PercentSevenDays = pricingAction({
   },
 });
 
+export const rollbackTemporaryCollectionX = pricingAction({
+  actionIdValue: "action_price_rollback_collection_x_temp",
+  actionTypeValue: "pricing.rollback_price",
+  description:
+    "Rollback Collection X temporary pricing only if the expanded membership pricing state is unchanged.",
+  target: { kind: "collection", collectionId: "collection:X" },
+  parameters: {
+    kind: "price_rollback",
+    originalActionId: temporaryCollectionX10PercentSevenDays.actionId,
+    strategy: {
+      kind: "RESTORE_PRE_ACTION_VALUE",
+      source: {
+        kind: "membership_snapshot",
+        bindingRef: "membership:collection-x:pre-action-prices",
+      },
+    },
+    conflictGuard: {
+      kind: "REQUIRE_CURRENT_MATCHES_ACTION_OUTPUT",
+      sourceActionId: temporaryCollectionX10PercentSevenDays.actionId,
+      expected: {
+        kind: "membership_state",
+        stateRef: "pricing-state:collection-x:after-temp-action",
+      },
+    },
+  },
+  duration: { kind: "instantaneous" },
+  termination: { kind: "fixed_end", at: DECISION },
+  reversalOfActionId: temporaryCollectionX10PercentSevenDays.actionId,
+});
+
 export const rollbackTemporarySkuAToPreActionPrice = pricingAction({
   actionIdValue: "action_price_rollback_sku_a_temp_799",
   actionTypeValue: "pricing.rollback_price",
