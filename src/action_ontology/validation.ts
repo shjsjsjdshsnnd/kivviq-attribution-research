@@ -338,6 +338,17 @@ function validateParameterValue(
     case "money":
       validateMoney(input, path, errors);
       return;
+    case "money_rate":
+      validateMoney(input, path, errors);
+      if (!["day", "week", "month"].includes(String(input.per))) {
+        add(
+          errors,
+          "INVALID_MONEY_RATE_PERIOD",
+          `${path}.per`,
+          "money rates require an explicit day, week or month period",
+        );
+      }
+      return;
     case "percentage": {
       if (!Number.isInteger(input.basisPoints) || (input.basisPoints as number) < 0) {
         add(
@@ -1140,17 +1151,27 @@ function validateReallocation(
 
   const left = decreases[0]?.value;
   const right = increases[0]?.value;
+  const leftMoney =
+    left?.kind === "money" || left?.kind === "money_rate" ? left : undefined;
+  const rightMoney =
+    right?.kind === "money" || right?.kind === "money_rate" ? right : undefined;
+  const ratePeriodMismatch =
+    leftMoney?.kind === "money_rate" &&
+    rightMoney?.kind === "money_rate" &&
+    leftMoney.per !== rightMoney.per;
   if (
-    left?.kind !== "money" ||
-    right?.kind !== "money" ||
-    left.amountMinor !== right.amountMinor ||
-    left.currency !== right.currency
+    !leftMoney ||
+    !rightMoney ||
+    leftMoney.kind !== rightMoney.kind ||
+    leftMoney.amountMinor !== rightMoney.amountMinor ||
+    leftMoney.currency !== rightMoney.currency ||
+    ratePeriodMismatch
   ) {
     add(
       errors,
       "REALLOCATION_AMOUNT_MISMATCH",
       "components",
-      "decrease and increase must transfer the same explicit monetary amount",
+      "decrease and increase must transfer the same explicit monetary amount, currency and period",
     );
   }
 }
@@ -1353,6 +1374,14 @@ export function validateAction(
         "atomic actions cannot contain components",
       );
     }
+    if (input.coordination !== undefined) {
+      add(
+        errors,
+        "ATOMIC_ACTION_HAS_COORDINATION",
+        "coordination",
+        "atomic actions cannot declare compound coordination",
+      );
+    }
   }
 
   if (input.atomicity === "COMPOUND") {
@@ -1430,6 +1459,91 @@ export function validateAction(
           componentIds.add(component.actionId);
         }
       });
+
+      if (!record(input.coordination)) {
+        add(
+          errors,
+          "MISSING_COMPOUND_COORDINATION",
+          "coordination",
+          "compound actions require an explicit coordination contract",
+        );
+      } else {
+        if (
+          !["all_or_nothing", "ordered", "best_effort"].includes(
+            String(input.coordination.executionPolicy),
+          )
+        ) {
+          add(
+            errors,
+            "INVALID_COMPOUND_EXECUTION_POLICY",
+            "coordination.executionPolicy",
+            "unsupported compound execution policy",
+          );
+        }
+
+        if (!Array.isArray(input.coordination.dependencies)) {
+          add(
+            errors,
+            "INVALID_COMPONENT_DEPENDENCIES",
+            "coordination.dependencies",
+            "component dependencies must be an array",
+          );
+        } else {
+          input.coordination.dependencies.forEach(
+            (dependency: unknown, dependencyIndex: number) => {
+              const dependencyPath =
+                `coordination.dependencies[${dependencyIndex}]`;
+              if (
+                !record(dependency) ||
+                !nonEmpty(dependency.componentActionId) ||
+                !Array.isArray(dependency.dependsOnActionIds)
+              ) {
+                add(
+                  errors,
+                  "INVALID_COMPONENT_DEPENDENCY",
+                  dependencyPath,
+                  "componentActionId and dependsOnActionIds are required",
+                );
+                return;
+              }
+
+              if (!componentIds.has(dependency.componentActionId)) {
+                add(
+                  errors,
+                  "UNKNOWN_COMPONENT_DEPENDENCY_SOURCE",
+                  `${dependencyPath}.componentActionId`,
+                  "dependency source must reference a component action",
+                );
+              }
+
+              dependency.dependsOnActionIds.forEach(
+                (dependencyActionId: unknown, actionIndex: number) => {
+                  if (
+                    !nonEmpty(dependencyActionId) ||
+                    !componentIds.has(dependencyActionId)
+                  ) {
+                    add(
+                      errors,
+                      "UNKNOWN_COMPONENT_DEPENDENCY_TARGET",
+                      `${dependencyPath}.dependsOnActionIds[${actionIndex}]`,
+                      "dependency target must reference a component action",
+                    );
+                  } else if (
+                    dependencyActionId === dependency.componentActionId
+                  ) {
+                    add(
+                      errors,
+                      "SELF_COMPONENT_DEPENDENCY",
+                      `${dependencyPath}.dependsOnActionIds[${actionIndex}]`,
+                      "a component cannot depend on itself",
+                    );
+                  }
+                },
+              );
+            },
+          );
+        }
+      }
     }
   }
 
