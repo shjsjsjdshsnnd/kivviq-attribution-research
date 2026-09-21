@@ -1715,9 +1715,13 @@ export function simulateWorld(
     },
     godMode: {
       exposureEffects: exposureTruth,
-      inventory: finalizeInventoryGodMode(
-        runtime.inventoryEconomy,
-      ),
+      ...(request.commercePolicy?.enableInventoryDynamics === true
+        ? {
+            inventory: finalizeInventoryGodMode(
+              runtime.inventoryEconomy,
+            ),
+          }
+        : {}),
       interactionEffects: interactionTruth,
       purchaseTruth,
       customerFinalStates: [...runtime.customers.values()].map(
