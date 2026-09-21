@@ -5,11 +5,15 @@ import {
   availableToSellUnits,
   commitAndSellReservations,
   createBackorder,
+  damageReturnedInventory,
   createInventoryEconomyState,
   finalizeInventoryGodMode,
   receiveInventory,
+  recordReturnReceived,
   releaseReservation,
   reserveInventory,
+  restockReturnedInventory,
+  writeOffDamagedInventory,
 } from "../../src/inventory_dynamics/state.js";
 
 describe("Step 9 authoritative inventory state", () => {
@@ -138,6 +142,74 @@ describe("Step 9 authoritative inventory state", () => {
         (row) => row.skuId === skuId,
       )?.reconcilesExactly,
     ).toBe(true);
+  });
+
+  it("moves physical returns through quarantine, damage and delayed restock without creating stock", () => {
+    const world = generateMerchantWorldRecord({
+      seed: 190004,
+      archetype: "fashion_apparel",
+      scale: "small",
+      complexity: "normal",
+      inventoryProfile: "deep",
+    });
+    const skuId =
+      world.manifest.inventoryMechanisms[0]!.productId;
+    const startMs =
+      Date.parse("2026-01-01T00:00:00.000Z");
+    const state =
+      createInventoryEconomyState(world, startMs);
+    const opening =
+      state.positions.get(skuId)!.onHandUnits;
+
+    recordReturnReceived(
+      state,
+      skuId,
+      2,
+      startMs + 86_400_000,
+      "return-received",
+    );
+    let position = state.positions.get(skuId)!;
+    expect(position.onHandUnits).toBe(opening + 2);
+    expect(position.quarantinedReturnUnits).toBe(2);
+
+    damageReturnedInventory(
+      state,
+      skuId,
+      1,
+      startMs + 86_400_000,
+      "return-inspection",
+    );
+    restockReturnedInventory(
+      state,
+      skuId,
+      1,
+      startMs + 2 * 86_400_000,
+      "return-restock",
+    );
+
+    position = state.positions.get(skuId)!;
+    expect(position.quarantinedReturnUnits).toBe(0);
+    expect(position.damagedUnits).toBe(1);
+
+    writeOffDamagedInventory(
+      state,
+      skuId,
+      1,
+      startMs + 3 * 86_400_000,
+      "damage-writeoff",
+    );
+
+    const truth = finalizeInventoryGodMode(state);
+    const reconciliation =
+      truth.reconciliation.find(
+        (row) => row.skuId === skuId,
+      )!;
+    expect(reconciliation.returnedUnits).toBe(2);
+    expect(reconciliation.writtenOffUnits).toBe(1);
+    expect(reconciliation.actualClosingOnHandUnits).toBe(
+      opening + 1,
+    );
+    expect(reconciliation.reconcilesExactly).toBe(true);
   });
 
   it("converts reserved inventory into committed and sold stock exactly", () => {
