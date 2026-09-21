@@ -379,17 +379,17 @@ export function createPullForwardTrapFixture(): PullForwardTrapFixture {
   validateGroundTruthManifest(world.manifest);
 
   const start = "2026-01-01T00:00:00.000Z";
-  // Keep the sale short relative to the replenishment cycle so treated
-  // customers can buy early during the event and then naturally leave a
-  // measurable below-baseline demand gap immediately afterward.
+  // Use a finite event window followed by a long observation horizon. The
+  // deep replenishment offer creates enough customer-specific pull-forward
+  // distance for future baseline needs to move into the sale window.
   const promotionEnd =
-    "2026-01-08T00:00:00.000Z";
+    "2026-01-22T00:00:00.000Z";
   const end = "2026-04-15T00:00:00.000Z";
   const baseScenario = scenario(
     world,
     start,
     promotionEnd,
-    0.18,
+    0.35,
   );
   const value: PricingPromotionScenario = {
     ...baseScenario,
