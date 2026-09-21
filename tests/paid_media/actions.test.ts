@@ -190,6 +190,42 @@ describe("Step 3 paid-media canonical Actions", () => {
     }
   });
 
+  it("rejects negative and >100% allocation shares", () => {
+    const negative = clone(metaProspectingRetargeting75_25);
+    negative.parameters.shares[0].shareBasisPoints = -1;
+    negative.parameters.shares[1].shareBasisPoints = 10_001;
+    const first = validateAction(negative);
+    expect(first.ok).toBe(false);
+    if (!first.ok) {
+      expect(
+        first.errors.some(
+          (issue) => issue.code === "INVALID_ALLOCATION_SHARE",
+        ),
+      ).toBe(true);
+    }
+
+    const over = clone(metaProspectingRetargeting75_25);
+    over.parameters.shares[0].shareBasisPoints = 10_001;
+    over.parameters.shares[1].shareBasisPoints = 0;
+    const second = validateAction(over);
+    expect(second.ok).toBe(false);
+    if (!second.ok) {
+      expect(
+        second.errors.some(
+          (issue) => issue.code === "INVALID_ALLOCATION_SHARE",
+        ),
+      ).toBe(true);
+    }
+  });
+
+  it("accepts backward-compatible schema 1.0 Actions while emitting Step 3 as 1.1", () => {
+    expect(increaseGoogleShoppingBudget20.schemaVersion).toBe("1.1.0");
+
+    const legacy = clone(increaseGoogleShoppingBudget20);
+    legacy.schemaVersion = "1.0.0";
+    expect(validateAction(legacy).ok).toBe(true);
+  });
+
   it("rejects missing allocation denominator rather than inferring it", () => {
     const invalid = clone(googleBrandNonBrand15_85);
     delete invalid.parameters.denominator;
