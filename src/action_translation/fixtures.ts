@@ -233,24 +233,6 @@ export const fullTranslationContext: TranslationContext = {
       sourceRef: "mapping:sku-a",
     },
     {
-      actionTarget: metaBudgetDown2000.target,
-      simulatorTarget: {
-        kind: "campaign",
-        simulatorChannelId: "sim:meta_ads",
-        simulatorCampaignId: "sim:meta_prospecting",
-      },
-      sourceRef: "mapping:meta-prospecting",
-    },
-    {
-      actionTarget: googleBudgetUp2000.target,
-      simulatorTarget: {
-        kind: "campaign",
-        simulatorChannelId: "sim:google_ads",
-        simulatorCampaignId: "sim:google_shopping",
-      },
-      sourceRef: "mapping:google-shopping",
-    },
-    {
       actionTarget: runCollectionPromotion15FourDays.target,
       simulatorTarget: {
         kind: "collection",
