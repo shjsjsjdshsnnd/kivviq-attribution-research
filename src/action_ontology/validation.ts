@@ -201,6 +201,100 @@ function validateForbiddenInformation(
   }
 }
 
+const ACTION_SCHEMA_1_1_TARGET_KINDS = new Set([
+  "advertising_account",
+  "campaign_group",
+  "ad_group",
+  "creative",
+  "product_group",
+]);
+
+const ACTION_SCHEMA_1_1_PARAMETER_KINDS = new Set([
+  "spend_cap_adjustment",
+  "paid_media_delivery",
+  "paid_media_allocation",
+  "paid_media_transfer_leg",
+]);
+
+const ACTION_SCHEMA_1_1_ACTION_TYPES = new Set([
+  "advertising.adjust_spend_cap",
+  "advertising.set_delivery_state",
+  "advertising.set_allocation",
+  "advertising.transfer_budget_leg",
+]);
+
+function validateSchemaFeatureCompatibility(
+  input: Record<string, unknown>,
+  errors: ActionValidationIssue[],
+): void {
+  if (input.schemaVersion !== "1.0.0") return;
+
+  if (
+    record(input.target) &&
+    ACTION_SCHEMA_1_1_TARGET_KINDS.has(String(input.target.kind))
+  ) {
+    add(
+      errors,
+      "SCHEMA_FEATURE_REQUIRES_1_1",
+      "target.kind",
+      "this target kind requires Action schema 1.1.0",
+    );
+  }
+
+  if (
+    record(input.scope) &&
+    Array.isArray(input.scope.dimensions) &&
+    input.scope.dimensions.some(
+      (dimension: unknown) =>
+        record(dimension) && dimension.kind === "paid_media_segment",
+    )
+  ) {
+    add(
+      errors,
+      "SCHEMA_FEATURE_REQUIRES_1_1",
+      "scope",
+      "paid_media_segment scope requires Action schema 1.1.0",
+    );
+  }
+
+  if (
+    record(input.parameters) &&
+    ACTION_SCHEMA_1_1_PARAMETER_KINDS.has(String(input.parameters.kind))
+  ) {
+    add(
+      errors,
+      "SCHEMA_FEATURE_REQUIRES_1_1",
+      "parameters.kind",
+      "this parameter kind requires Action schema 1.1.0",
+    );
+  }
+
+  if (
+    typeof input.actionType === "string" &&
+    ACTION_SCHEMA_1_1_ACTION_TYPES.has(input.actionType)
+  ) {
+    add(
+      errors,
+      "SCHEMA_FEATURE_REQUIRES_1_1",
+      "actionType",
+      "this Action type requires Action schema 1.1.0",
+    );
+  }
+
+  if (
+    input.actionType === "advertising.adjust_budget" &&
+    record(input.target) &&
+    !["advertising_channel", "campaign"].includes(String(input.target.kind))
+  ) {
+    add(
+      errors,
+      "SCHEMA_FEATURE_REQUIRES_1_1",
+      "target.kind",
+      "paid-media budget targets beyond channel/campaign require schema 1.1.0",
+    );
+  }
+}
+
 function validateTarget(
   input: unknown,
   path: string,
@@ -1955,6 +2049,7 @@ export function validateAction(
     add(errors, "MISSING_DESCRIPTION", "description", "human-readable description is required");
   }
 
+  validateSchemaFeatureCompatibility(input, errors);
   validateTarget(input.target, "target", errors);
   validateScope(input.scope, "scope", errors);
 
