@@ -25,6 +25,7 @@ function semanticProjection(action: Action): unknown {
     reversibilityClassification: action.reversibility.classification,
     reversalOfActionId: action.reversalOfActionId ?? null,
     sharedIntentId: action.sharedIntentId ?? null,
+    coordination: action.coordination ?? null,
     components: action.components?.map(semanticProjection) ?? null,
   };
 }
