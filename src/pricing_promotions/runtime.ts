@@ -985,7 +985,8 @@ export function bundleAttachmentOpportunity(
           Math.max(0.02, depth) *
           1.45 +
         customer.source.latentFactors.dealOrientation * 0.08 +
-        customer.source.complementAffinity * 0.06,
+        customer.source.latentFactors.categoryInvolvement *
+          0.06,
       0.03,
       0.78,
     );
