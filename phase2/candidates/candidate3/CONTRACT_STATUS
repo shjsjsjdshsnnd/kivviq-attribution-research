@@ -1,0 +1,11 @@
+Candidate 3 contract status
+
+Contracts frozen at: 60173ae35c29983a238eb3c5a98f3c0e94f2d234
+Candidate ID/version: candidate3-overlap-ato v1.0.0
+Estimator implemented: false
+Holdout: candidate3-holdout-v1
+Holdout evaluator branch head: 6c7f4ce482b814b7ab8121447a4ac683f637e59f
+Holdout status: SEALED_AFTER_CONTRACT_FREEZE_BEFORE_ESTIMATOR_IMPLEMENTATION
+
+The frozen contract fingerprints remain unchanged. This marker does not modify the
+ATO estimand, pre-treatment X, support/abstention, or uncertainty contracts.
