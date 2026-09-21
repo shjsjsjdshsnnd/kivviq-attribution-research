@@ -14,8 +14,27 @@ import type { Intervention } from "../ground_truth/interventions.js";
 import {
   checkoutPurchaseProbability,
   completePurchase,
+  markCartInventoryDemandAbandoned,
   promotionState,
+  reserveCheckoutInventory,
 } from "./commerce.js";
+import {
+  cancelBackorder,
+  damageReturnedInventory,
+  dispatchReorder,
+  finalizeInventoryGodMode,
+  legacyNetAvailableUnits,
+  markReorderDelayed,
+  placeReorder,
+  receiveInventory,
+  recordInventoryReturnTruth,
+  recordReturnReceived,
+  releaseReservation,
+  reorderQuantity,
+  restockReturnedInventory,
+  setAvailableInventoryAdjustment,
+  shouldReorder,
+} from "../inventory_dynamics/state.js";
 import {
   applyExposureLatentEffect,
   naturalVisitOpportunities,
@@ -107,6 +126,44 @@ interface InventoryReplenishmentPayload {
   readonly units: number;
   readonly cadenceMs?: number;
   readonly ordinal: number;
+  readonly reorderId?: string;
+}
+
+interface InventoryReservationExpiryPayload {
+  readonly reservationId: string;
+  readonly productId: string;
+}
+
+interface InventoryReorderCheckPayload {
+  readonly productId: string;
+  readonly ordinal: number;
+}
+
+interface SupplierShipmentPayload {
+  readonly reorderId: string;
+  readonly productId: string;
+}
+
+interface InventoryReturnReceivedPayload {
+  readonly returnId: string;
+  readonly orderId: string;
+  readonly customerId: string;
+  readonly productId: string;
+  readonly returnedUnits: number;
+  readonly damagedUnits: number;
+  readonly restockAtMs: number;
+}
+
+interface InventoryReturnRestockedPayload {
+  readonly returnId: string;
+  readonly productId: string;
+  readonly sellableUnits: number;
+}
+
+interface InventoryBackorderCancelledPayload {
+  readonly backorderId: string;
+  readonly productId: string;
+  readonly quantity: number;
 }
 
 const DEFAULT_MAX_EVENTS = 500_000;
@@ -484,11 +541,121 @@ function applyInventoryOverride(
   );
   if (state.inventoryOverrideUnits === undefined) return;
   for (const productId of runtime.inventory.keys()) {
-    runtime.inventory.set(
-      productId,
-      state.inventoryOverrideUnits,
-    );
+    if (request.commercePolicy?.enableInventoryDynamics === true) {
+      setAvailableInventoryAdjustment(
+        runtime.inventoryEconomy,
+        productId,
+        state.inventoryOverrideUnits,
+        timestampMs,
+        "inventory-intervention",
+      );
+      runtime.inventory.set(
+        productId,
+        legacyNetAvailableUnits(
+          runtime.inventoryEconomy,
+          productId,
+        ),
+      );
+    } else {
+      runtime.inventory.set(
+        productId,
+        state.inventoryOverrideUnits,
+      );
+    }
   }
+}
+
+function physicalReturnQuantity(
+  quantity: number,
+  probability: number,
+  randomness: SharedRandomness,
+  key: string,
+): number {
+  let returned = 0;
+  for (let unit = 0; unit < quantity; unit += 1) {
+    if (
+      randomness.bool(
+        `${key}:unit:${unit}`,
+        clamp(probability, 0, 0.75),
+      )
+    ) {
+      returned += 1;
+    }
+  }
+  return returned;
+}
+
+function damagedReturnQuantity(
+  quantity: number,
+  probability: number,
+  randomness: SharedRandomness,
+  key: string,
+): number {
+  let damaged = 0;
+  for (let unit = 0; unit < quantity; unit += 1) {
+    if (
+      randomness.bool(
+        `${key}:damage:${unit}`,
+        clamp(probability, 0, 1),
+      )
+    ) {
+      damaged += 1;
+    }
+  }
+  return damaged;
+}
+
+function realizedSupplierLeadMs(
+  request: SimulateWorldRequest,
+  productId: string,
+  expectedLeadMs: number,
+  placedAtMs: number,
+  randomness: SharedRandomness,
+): number {
+  const inventory = request.merchantWorld.manifest.inventoryMechanisms.find(
+    (candidate) => candidate.productId === productId,
+  );
+  const profile = request.merchantWorld.summary.inventoryProfile;
+  const volatility =
+    profile === "long_lead_time"
+      ? 0.32
+      : profile === "stockout_prone"
+        ? 0.26
+        : profile === "replenishment_friendly"
+          ? 0.1
+          : 0.18;
+  const stochasticLeadTime =
+    request.merchantWorld.summary.complexity !== "normal";
+  let factor = stochasticLeadTime
+    ? Math.max(
+        0.55,
+        1 +
+          randomness.normal(
+            `inventory-lead:${productId}:${placedAtMs}`,
+            0,
+            volatility,
+          ),
+      )
+    : 1;
+
+  for (const shock of request.merchantWorld.manifest.externalShocks) {
+    if (shock.kind !== "supplier_disruption") continue;
+    const start = Date.parse(shock.start);
+    const end =
+      start + Number(shock.durationSeconds) * 1_000;
+    if (placedAtMs < start || placedAtMs >= end) continue;
+    const effect = shock.mechanism.effect;
+    if (effect.scale === "relative") {
+      factor *= Math.max(0.1, 1 + effect.value);
+    } else if (effect.scale === "multiplicative") {
+      factor *= Math.max(0.1, effect.value);
+    }
+  }
+
+  const declared =
+    Number(inventory?.supplierLeadTimeSeconds ?? 0) * 1_000;
+  const baseline = Math.max(expectedLeadMs, declared);
+  return Math.max(hours(1), baseline * factor);
 }
 
 export function simulateWorld(
@@ -553,33 +720,190 @@ export function simulateWorld(
     queue.schedule(event);
   };
 
-  if (request.commercePolicy?.executeInventoryLifecycle === true) {
-    for (const inventory of request.merchantWorld.manifest.inventoryMechanisms) {
-      const units = Math.max(
+  const schedulePhysicalReturnForFulfilledUnits = (
+    purchase: RealizedPurchase,
+    customer: RuntimeCustomerState,
+    lineIndex: number,
+    fulfilledUnitsInput: number,
+    fulfilledAtMs: number,
+    keySuffix?: string,
+  ): void => {
+    if (
+      request.commercePolicy?.enableInventoryDynamics !== true ||
+      request.commercePolicy.inventoryReturnProfiles === undefined
+    ) {
+      return;
+    }
+
+    const line = purchase.lines[lineIndex];
+    if (!line) return;
+    const fulfilledUnits = Math.min(
+      line.quantity,
+      Math.max(
         0,
-        Math.floor(Number(inventory.replenishmentUnits)),
+        Math.floor(fulfilledUnitsInput),
+      ),
+    );
+    if (fulfilledUnits <= 0) return;
+
+    const profile =
+      request.commercePolicy.inventoryReturnProfiles[
+        line.productId
+      ];
+    if (!profile) return;
+
+    const customerMultiplier = clamp(
+      0.8 +
+        customer.source.promotionSensitivityMultiplier *
+          0.12 +
+        customer.source.priceSensitivityMultiplier *
+          0.05 -
+        customer.brandAffinity * 0.08,
+      0.55,
+      1.55,
+    );
+    const promotionMultiplier =
+      line.discountMinor > 0
+        ? 1 +
+          customer.source.promotionSensitivityMultiplier *
+            0.08
+        : 1;
+    const returnProbability = clamp(
+      profile.returnProbability *
+        customerMultiplier *
+        promotionMultiplier,
+      0.001,
+      0.6,
+    );
+
+    const baseKey =
+      `inventory-return:${purchase.orderId}:line:${lineIndex}`;
+    const returnKey =
+      keySuffix === undefined
+        ? baseKey
+        : `${baseKey}:${keySuffix}`;
+    const returnedUnits = physicalReturnQuantity(
+      fulfilledUnits,
+      returnProbability,
+      randomness,
+      returnKey,
+    );
+    if (returnedUnits <= 0) return;
+
+    const baselineReturnDays =
+      profile.oversized
+        ? 12 +
+          randomness.uniform(
+            `${returnKey}:delay-base`,
+          ) *
+            30
+        : 3 +
+          randomness.uniform(
+            `${returnKey}:delay-base`,
+          ) *
+            28;
+    const returnDelayMs = days(
+      Math.max(
+        1,
+        baselineReturnDays *
+          Math.exp(
+            randomness.normal(
+              `${returnKey}:delay-noise`,
+              0,
+              0.24,
+            ),
+          ),
+      ),
+    );
+    const returnAtMs =
+      fulfilledAtMs + returnDelayMs;
+    const restockDelayDays =
+      profile.oversized
+        ? 3 +
+          randomness.uniform(
+            `${returnKey}:restock-delay`,
+          ) *
+            6
+        : 1 +
+          randomness.uniform(
+            `${returnKey}:restock-delay`,
+          ) *
+            3;
+    const restockAtMs =
+      returnAtMs + days(restockDelayDays);
+    const damagedUnits =
+      damagedReturnQuantity(
+        returnedUnits,
+        profile.nonRecoverableValueRate,
+        randomness,
+        returnKey,
       );
-      if (units <= 0) continue;
+    const returnId =
+      keySuffix === undefined
+        ? `return:${purchase.orderId}:${lineIndex}`
+        : `return:${purchase.orderId}:${lineIndex}:${keySuffix}`;
 
-      const leadMs =
-        Number(inventory.supplierLeadTimeSeconds) * 1_000;
-      const cadenceMs =
-        inventory.replenishmentEverySeconds === undefined
-          ? undefined
-          : Number(inventory.replenishmentEverySeconds) * 1_000;
+    schedule<InventoryReturnReceivedPayload>({
+      id: `inventory-return-received:${returnId}`,
+      kind: "inventory_return_received",
+      timestampMs: returnAtMs,
+      priority: 7,
+      payload: {
+        returnId,
+        orderId: purchase.orderId,
+        customerId: purchase.customerId,
+        productId: line.productId,
+        returnedUnits,
+        damagedUnits,
+        restockAtMs,
+      },
+    });
+  };
 
-      schedule<InventoryReplenishmentPayload>({
-        id: `inventory-replenishment:${inventory.productId}:0`,
-        kind: "inventory_replenishment",
-        timestampMs: clock.startMs + Math.max(0, leadMs),
-        priority: 5,
-        payload: {
-          productId: inventory.productId,
-          units,
-          ...(cadenceMs === undefined ? {} : { cadenceMs }),
-          ordinal: 0,
-        },
-      });
+  if (request.commercePolicy?.executeInventoryLifecycle === true) {
+    if (request.commercePolicy.enableInventoryDynamics === true) {
+      for (const inventory of request.merchantWorld.manifest.inventoryMechanisms) {
+        schedule<InventoryReorderCheckPayload>({
+          id: `inventory-reorder-check:${inventory.productId}:0`,
+          kind: "inventory_reorder_check",
+          timestampMs: clock.startMs,
+          priority: 4,
+          payload: {
+            productId: inventory.productId,
+            ordinal: 0,
+          },
+        });
+      }
+    } else {
+      // Frozen Step 7 replenishment behavior remains unchanged unless the
+      // explicit Step 9 feature flag is enabled.
+      for (const inventory of request.merchantWorld.manifest.inventoryMechanisms) {
+        const units = Math.max(
+          0,
+          Math.floor(Number(inventory.replenishmentUnits)),
+        );
+        if (units <= 0) continue;
+
+        const leadMs =
+          Number(inventory.supplierLeadTimeSeconds) * 1_000;
+        const cadenceMs =
+          inventory.replenishmentEverySeconds === undefined
+            ? undefined
+            : Number(inventory.replenishmentEverySeconds) * 1_000;
+
+        schedule<InventoryReplenishmentPayload>({
+          id: `inventory-replenishment:${inventory.productId}:0`,
+          kind: "inventory_replenishment",
+          timestampMs: clock.startMs + Math.max(0, leadMs),
+          priority: 5,
+          payload: {
+            productId: inventory.productId,
+            units,
+            ...(cadenceMs === undefined ? {} : { cadenceMs }),
+            ordinal: 0,
+          },
+        });
+      }
     }
   }
 
@@ -626,6 +950,275 @@ export function simulateWorld(
     if (!clock.contains(event.timestampMs)) continue;
     clock.advanceTo(event.timestampMs);
 
+    if (event.kind === "inventory_reservation_expired") {
+      const payload =
+        event.payload as InventoryReservationExpiryPayload;
+      if (request.commercePolicy?.enableInventoryDynamics === true) {
+        releaseReservation(
+          runtime.inventoryEconomy,
+          payload.reservationId,
+          event.timestampMs,
+          event.id,
+        );
+        runtime.inventory.set(
+          payload.productId,
+          legacyNetAvailableUnits(
+            runtime.inventoryEconomy,
+            payload.productId,
+          ),
+        );
+      }
+      continue;
+    }
+
+    if (event.kind === "inventory_return_received") {
+      const payload =
+        event.payload as InventoryReturnReceivedPayload;
+      if (request.commercePolicy?.enableInventoryDynamics === true) {
+        recordReturnReceived(
+          runtime.inventoryEconomy,
+          payload.productId,
+          payload.returnedUnits,
+          event.timestampMs,
+          event.id,
+        );
+        damageReturnedInventory(
+          runtime.inventoryEconomy,
+          payload.productId,
+          payload.damagedUnits,
+          event.timestampMs,
+          event.id + ":damage",
+        );
+        recordInventoryReturnTruth(
+          runtime.inventoryEconomy,
+          {
+            returnId: payload.returnId,
+            orderId: payload.orderId,
+            customerId: payload.customerId,
+            skuId: payload.productId,
+            returnedUnits: payload.returnedUnits,
+            damagedUnits: payload.damagedUnits,
+            receivedAtMs: event.timestampMs,
+            restockAtMs: payload.restockAtMs,
+          },
+        );
+
+        const sellableUnits =
+          payload.returnedUnits -
+          payload.damagedUnits;
+        if (sellableUnits > 0) {
+          schedule<InventoryReturnRestockedPayload>({
+            id: `inventory-return-restocked:${payload.returnId}`,
+            kind: "inventory_return_restocked",
+            timestampMs: payload.restockAtMs,
+            priority: 7,
+            payload: {
+              returnId: payload.returnId,
+              productId: payload.productId,
+              sellableUnits,
+            },
+          });
+        }
+
+        runtime.inventory.set(
+          payload.productId,
+          legacyNetAvailableUnits(
+            runtime.inventoryEconomy,
+            payload.productId,
+          ),
+        );
+      }
+      continue;
+    }
+
+    if (event.kind === "inventory_return_restocked") {
+      const payload =
+        event.payload as InventoryReturnRestockedPayload;
+      if (request.commercePolicy?.enableInventoryDynamics === true) {
+        restockReturnedInventory(
+          runtime.inventoryEconomy,
+          payload.productId,
+          payload.sellableUnits,
+          event.timestampMs,
+          event.id,
+        );
+        runtime.inventory.set(
+          payload.productId,
+          legacyNetAvailableUnits(
+            runtime.inventoryEconomy,
+            payload.productId,
+          ),
+        );
+      }
+      continue;
+    }
+
+    if (event.kind === "inventory_backorder_cancelled") {
+      const payload =
+        event.payload as InventoryBackorderCancelledPayload;
+      if (request.commercePolicy?.enableInventoryDynamics === true) {
+        cancelBackorder(
+          runtime.inventoryEconomy,
+          payload.backorderId,
+          payload.quantity,
+          event.timestampMs,
+          event.id,
+        );
+        runtime.inventory.set(
+          payload.productId,
+          legacyNetAvailableUnits(
+            runtime.inventoryEconomy,
+            payload.productId,
+          ),
+        );
+      }
+      continue;
+    }
+
+    if (event.kind === "inventory_reorder_check") {
+      const payload =
+        event.payload as InventoryReorderCheckPayload;
+      if (
+        request.commercePolicy?.enableInventoryDynamics === true &&
+        request.commercePolicy.executeInventoryLifecycle === true
+      ) {
+        const position =
+          runtime.inventoryEconomy.positions.get(
+            payload.productId,
+          );
+        const interventionState =
+          buildSimulationInterventionState(
+            request.merchantWorld,
+            request.interventions ?? [],
+            event.timestampMs,
+          );
+
+        if (
+          position &&
+          interventionState.inventoryOverrideUnits === undefined &&
+          shouldReorder(position)
+        ) {
+          const units = reorderQuantity(position);
+          if (units > 0) {
+            const expectedLeadMs = Math.max(
+              hours(1),
+              position.supplierLeadTimeDays * 86_400_000,
+            );
+            const realizedLeadMs = realizedSupplierLeadMs(
+              request,
+              payload.productId,
+              expectedLeadMs,
+              event.timestampMs,
+              randomness,
+            );
+            const expectedArrivalAtMs =
+              event.timestampMs + expectedLeadMs;
+            const realizedArrivalAtMs =
+              event.timestampMs + realizedLeadMs;
+            const reorderId =
+              `reorder:${payload.productId}:${payload.ordinal}`;
+
+            const reorder = placeReorder(
+              runtime.inventoryEconomy,
+              {
+                reorderId,
+                skuId: payload.productId,
+                quantity: units,
+                placedAtMs: event.timestampMs,
+                expectedArrivalAtMs,
+                realizedArrivalAtMs,
+                sourceEventId: event.id,
+              },
+            );
+
+            if (reorder) {
+              const dispatchAt = Math.min(
+                realizedArrivalAtMs,
+                event.timestampMs +
+                  Math.max(hours(1), expectedLeadMs * 0.12),
+              );
+              schedule<SupplierShipmentPayload>({
+                id: `supplier-shipment-dispatched:${reorderId}`,
+                kind: "supplier_shipment_dispatched",
+                timestampMs: dispatchAt,
+                priority: 5,
+                payload: {
+                  reorderId,
+                  productId: payload.productId,
+                },
+              });
+
+              if (realizedArrivalAtMs > expectedArrivalAtMs) {
+                schedule<SupplierShipmentPayload>({
+                  id: `supplier-shipment-delayed:${reorderId}`,
+                  kind: "supplier_shipment_delayed",
+                  timestampMs: expectedArrivalAtMs,
+                  priority: 5,
+                  payload: {
+                    reorderId,
+                    productId: payload.productId,
+                  },
+                });
+              }
+
+              schedule<InventoryReplenishmentPayload>({
+                id: `inventory-replenishment:${reorderId}`,
+                kind: "inventory_replenishment",
+                timestampMs: realizedArrivalAtMs,
+                priority: 5,
+                payload: {
+                  productId: payload.productId,
+                  units,
+                  ordinal: payload.ordinal,
+                  reorderId,
+                },
+              });
+            }
+          }
+        }
+
+        schedule<InventoryReorderCheckPayload>({
+          id: `inventory-reorder-check:${payload.productId}:${payload.ordinal + 1}`,
+          kind: "inventory_reorder_check",
+          timestampMs: event.timestampMs + days(1),
+          priority: 4,
+          payload: {
+            productId: payload.productId,
+            ordinal: payload.ordinal + 1,
+          },
+        });
+      }
+      continue;
+    }
+
+    if (event.kind === "supplier_shipment_dispatched") {
+      const payload =
+        event.payload as SupplierShipmentPayload;
+      if (request.commercePolicy?.enableInventoryDynamics === true) {
+        dispatchReorder(
+          runtime.inventoryEconomy,
+          payload.reorderId,
+          event.timestampMs,
+          event.id,
+        );
+      }
+      continue;
+    }
+
+    if (event.kind === "supplier_shipment_delayed") {
+      const payload =
+        event.payload as SupplierShipmentPayload;
+      if (request.commercePolicy?.enableInventoryDynamics === true) {
+        markReorderDelayed(
+          runtime.inventoryEconomy,
+          payload.reorderId,
+          event.timestampMs,
+          event.id,
+        );
+      }
+      continue;
+    }
+
     if (event.kind === "inventory_replenishment") {
       const payload =
         event.payload as InventoryReplenishmentPayload;
@@ -636,33 +1229,141 @@ export function simulateWorld(
           event.timestampMs,
         );
 
-      if (interventionState.inventoryOverrideUnits !== undefined) {
+      if (request.commercePolicy?.enableInventoryDynamics === true) {
+        if (interventionState.inventoryOverrideUnits !== undefined) {
+          setAvailableInventoryAdjustment(
+            runtime.inventoryEconomy,
+            payload.productId,
+            interventionState.inventoryOverrideUnits,
+            event.timestampMs,
+            event.id,
+          );
+        } else {
+          const fulfilledBeforeReceipt =
+            new Map(
+              [
+                ...runtime.inventoryEconomy.backorders.values(),
+              ]
+                .filter(
+                  (obligation) =>
+                    obligation.skuId ===
+                    payload.productId,
+                )
+                .map(
+                  (obligation) =>
+                    [
+                      obligation.backorderId,
+                      obligation.fulfilledUnits,
+                    ] as const,
+                ),
+            );
+
+          receiveInventory(
+            runtime.inventoryEconomy,
+            payload.productId,
+            payload.units,
+            event.timestampMs,
+            event.id,
+          );
+
+          for (const obligation of runtime.inventoryEconomy.backorders.values()) {
+            if (
+              obligation.skuId !==
+              payload.productId
+            ) {
+              continue;
+            }
+            const fulfilledBefore =
+              fulfilledBeforeReceipt.get(
+                obligation.backorderId,
+              ) ?? obligation.fulfilledUnits;
+            const newlyFulfilled =
+              obligation.fulfilledUnits -
+              fulfilledBefore;
+            if (newlyFulfilled <= 0) continue;
+
+            const purchase = purchases.find(
+              (candidate) =>
+                candidate.orderId ===
+                obligation.sourceEventId,
+            );
+            const backorderCustomer =
+              runtime.customers.get(
+                obligation.customerId,
+              );
+            const lineIndex =
+              purchase?.lines.findIndex(
+                (line) =>
+                  line.productId ===
+                  obligation.skuId,
+              ) ?? -1;
+            if (
+              !purchase ||
+              !backorderCustomer ||
+              lineIndex < 0
+            ) {
+              continue;
+            }
+
+            schedulePhysicalReturnForFulfilledUnits(
+              purchase,
+              backorderCustomer,
+              lineIndex,
+              newlyFulfilled,
+              event.timestampMs,
+              `backorder:${obligation.backorderId}:${obligation.fulfilledUnits}`,
+            );
+          }
+
+          if (payload.reorderId !== undefined) {
+            const reorder =
+              runtime.inventoryEconomy.reorders.get(
+                payload.reorderId,
+              );
+            if (reorder) {
+              reorder.receivedUnits = Math.min(
+                reorder.quantity,
+                reorder.receivedUnits + payload.units,
+              );
+            }
+          }
+        }
         runtime.inventory.set(
           payload.productId,
-          interventionState.inventoryOverrideUnits,
+          legacyNetAvailableUnits(
+            runtime.inventoryEconomy,
+            payload.productId,
+          ),
         );
       } else {
-        runtime.inventory.set(
-          payload.productId,
-          (runtime.inventory.get(payload.productId) ?? 0) +
-            payload.units,
-        );
-      }
+        if (interventionState.inventoryOverrideUnits !== undefined) {
+          runtime.inventory.set(
+            payload.productId,
+            interventionState.inventoryOverrideUnits,
+          );
+        } else {
+          runtime.inventory.set(
+            payload.productId,
+            (runtime.inventory.get(payload.productId) ?? 0) +
+              payload.units,
+          );
+        }
 
-      if (payload.cadenceMs !== undefined) {
-        schedule<InventoryReplenishmentPayload>({
-          id: `inventory-replenishment:${payload.productId}:${payload.ordinal + 1}`,
-          kind: "inventory_replenishment",
-          timestampMs:
-            event.timestampMs + payload.cadenceMs,
-          priority: 5,
-          payload: {
-            productId: payload.productId,
-            units: payload.units,
-            cadenceMs: payload.cadenceMs,
-            ordinal: payload.ordinal + 1,
-          },
-        });
+        if (payload.cadenceMs !== undefined) {
+          schedule<InventoryReplenishmentPayload>({
+            id: `inventory-replenishment:${payload.productId}:${payload.ordinal + 1}`,
+            kind: "inventory_replenishment",
+            timestampMs:
+              event.timestampMs + payload.cadenceMs,
+            priority: 5,
+            payload: {
+              productId: payload.productId,
+              units: payload.units,
+              cadenceMs: payload.cadenceMs,
+              ordinal: payload.ordinal + 1,
+            },
+          });
+        }
       }
       continue;
     }
@@ -1104,6 +1805,38 @@ export function simulateWorld(
             inventoryAvailabilityRatio(runtime),
           interventionState,
         };
+        if (request.commercePolicy?.enableInventoryDynamics === true) {
+          const timeoutMinutes =
+            request.commercePolicy.inventoryReservationTimeoutMinutes ??
+            20;
+          const reservationIds = reserveCheckoutInventory(
+            runtime,
+            customer,
+            session.sessionId,
+            event.timestampMs,
+            timeoutMinutes,
+          );
+          for (const reservationId of reservationIds) {
+            const reservation =
+              runtime.inventoryEconomy.reservations.get(
+                reservationId,
+              );
+            if (!reservation) continue;
+            schedule<InventoryReservationExpiryPayload>({
+              id: `inventory-reservation-expired:${reservationId}`,
+              kind: "inventory_reservation_expired",
+              timestampMs: Date.parse(
+                reservation.expiresAt,
+              ),
+              priority: 6,
+              payload: {
+                reservationId,
+                productId: reservation.skuId,
+              },
+            });
+          }
+        }
+
         const purchaseProbability =
           checkoutPurchaseProbability(
             runtime,
@@ -1148,6 +1881,110 @@ export function simulateWorld(
               ordinal + 1,
             );
             purchases.push(purchase);
+
+            if (request.commercePolicy?.enableInventoryDynamics === true) {
+              const createdBackorders = [
+                ...runtime.inventoryEconomy.backorders.values(),
+              ].filter(
+                (obligation) =>
+                  obligation.sourceEventId === orderId &&
+                  obligation.quantity >
+                    obligation.fulfilledUnits +
+                      obligation.cancelledUnits,
+              );
+
+              for (const obligation of createdBackorders) {
+                const position =
+                  runtime.inventoryEconomy.positions.get(
+                    obligation.skuId,
+                  );
+                const leadDays =
+                  position?.supplierLeadTimeDays ?? 30;
+                const cancellationProbability = clamp(
+                  0.04 +
+                    leadDays * 0.006 +
+                    customer.need * 0.18 -
+                    customer.brandAffinity * 0.1,
+                  0.01,
+                  0.72,
+                );
+                if (
+                  randomness.bool(
+                    `${obligation.backorderId}:cancel`,
+                    cancellationProbability,
+                  )
+                ) {
+                  schedule<InventoryBackorderCancelledPayload>({
+                    id: `inventory-backorder-cancelled:${obligation.backorderId}`,
+                    kind: "inventory_backorder_cancelled",
+                    timestampMs:
+                      event.timestampMs +
+                      days(
+                        Math.max(
+                          0.5,
+                          Math.min(
+                            14,
+                            leadDays * 0.35,
+                          ),
+                        ),
+                      ),
+                    priority: 7,
+                    payload: {
+                      backorderId:
+                        obligation.backorderId,
+                      productId:
+                        obligation.skuId,
+                      quantity:
+                        obligation.quantity -
+                        obligation.fulfilledUnits -
+                        obligation.cancelledUnits,
+                    },
+                  });
+                }
+              }
+            }
+
+            if (
+              request.commercePolicy?.enableInventoryDynamics === true
+            ) {
+              for (
+                let lineIndex = 0;
+                lineIndex < purchase.lines.length;
+                lineIndex += 1
+              ) {
+                const line = purchase.lines[lineIndex]!;
+                const backorderedAtCheckout = [
+                  ...runtime.inventoryEconomy.backorders.values(),
+                ]
+                  .filter(
+                    (obligation) =>
+                      obligation.sourceEventId ===
+                        purchase.orderId &&
+                      obligation.skuId ===
+                        line.productId,
+                  )
+                  .reduce(
+                    (sum, obligation) =>
+                      sum + obligation.quantity,
+                    0,
+                  );
+                const physicallyFulfilledAtCheckout =
+                  Math.max(
+                    0,
+                    line.quantity -
+                      backorderedAtCheckout,
+                  );
+
+                schedulePhysicalReturnForFulfilledUnits(
+                  purchase,
+                  customer,
+                  lineIndex,
+                  physicallyFulfilledAtCheckout,
+                  event.timestampMs,
+                );
+              }
+            }
+
             observableEvents.push({
               eventId: `purchase:${orderId}`,
               eventType: "purchase",
@@ -1188,8 +2025,35 @@ export function simulateWorld(
                 repeat: true,
               },
             });
+          } else if (
+            request.commercePolicy?.enableInventoryDynamics === true
+          ) {
+            markCartInventoryDemandAbandoned(
+              runtime,
+              customer,
+            );
+            observableEvents.push({
+              eventId: `checkout-abandon-inventory:${session.sessionId}:${session.step}`,
+              eventType: "checkout_abandon",
+              occurredAt: new Date(
+                event.timestampMs,
+              ).toISOString(),
+              anonymousSubjectId:
+                customer.customerId,
+              sessionId: session.sessionId,
+              source: session.source,
+              device: session.device,
+            });
+            session.ended = true;
+            session.currentPage = "ended";
           }
         } else {
+          if (request.commercePolicy?.enableInventoryDynamics === true) {
+            markCartInventoryDemandAbandoned(
+              runtime,
+              customer,
+            );
+          }
           observableEvents.push({
             eventId: `checkout-abandon:${session.sessionId}:${session.step}`,
             eventType: "checkout_abandon",
@@ -1360,6 +2224,13 @@ export function simulateWorld(
     },
     godMode: {
       exposureEffects: exposureTruth,
+      ...(request.commercePolicy?.enableInventoryDynamics === true
+        ? {
+            inventory: finalizeInventoryGodMode(
+              runtime.inventoryEconomy,
+            ),
+          }
+        : {}),
       interactionEffects: interactionTruth,
       purchaseTruth,
       customerFinalStates: [...runtime.customers.values()].map(

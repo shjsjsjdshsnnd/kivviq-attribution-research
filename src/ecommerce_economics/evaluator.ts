@@ -474,6 +474,23 @@ export function evaluateEcommerceEconomics(
       enableProductRelationships: true,
       enableEnhancedBasketEconomics: true,
       executeInventoryLifecycle: true,
+      ...(request.enableInventoryDynamics === true
+        ? {
+            enableInventoryDynamics: true,
+            inventoryReturnProfiles: Object.fromEntries(
+              productProfiles.map((profile) => [
+                profile.productId,
+                {
+                  returnProbability:
+                    profile.returnProbability,
+                  nonRecoverableValueRate:
+                    profile.nonRecoverableValueRate,
+                  oversized: profile.oversized,
+                },
+              ]),
+            ),
+          }
+        : {}),
     },
     ...(request.simulationConfig === undefined
       ? {}
@@ -487,6 +504,9 @@ export function evaluateEcommerceEconomics(
     request.periodEnd,
     request.simulationSeed,
     profileMap,
+    request.enableInventoryDynamics === true
+      ? simulation.godMode.inventory?.returnTruth
+      : undefined,
   );
 
   const rawOrders = simulation.purchases.map((purchase) =>

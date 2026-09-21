@@ -11,6 +11,17 @@ import {
   totalMemoryLift,
   transitionAfterPurchase,
 } from "./state.js";
+import {
+  availableToSellUnits as step9AvailableToSellUnits,
+  commitAndSellReservations,
+  createBackorder,
+  legacyNetAvailableUnits,
+  markInventoryDemandOutcome,
+  recordInventoryDemand,
+  reserveInventory,
+  reservationQuantity,
+  sellAvailableInventory,
+} from "../inventory_dynamics/state.js";
 import type {
   PurchaseLine,
   RealizedPurchase,
@@ -25,6 +36,7 @@ export interface ProductOffer {
   readonly availableUnits: number;
   readonly priceUtilityMultiplier: number;
   readonly promotionUtilityMultiplier: number;
+  readonly demandTruthId?: string;
 }
 
 const clamp = (value: number, min: number, max: number): number =>
@@ -150,6 +162,7 @@ export function offerForProduct(
   timestampMs: number,
   intervention: SimulationInterventionState,
   randomness: SharedRandomness,
+  commercePolicy?: SimulationCommercePolicy,
 ): ProductOffer {
   const world = runtime.merchantWorld;
   const baselinePrice = baselineProductPriceMinor(world, productId);
@@ -202,10 +215,16 @@ export function offerForProduct(
     unitPriceMinor,
     discountMinor,
     finalPriceMinor,
-    availableUnits: Math.max(
-      0,
-      runtime.inventory.get(productId) ?? 0,
-    ),
+    availableUnits:
+      commercePolicy?.enableInventoryDynamics === true
+        ? step9AvailableToSellUnits(
+            runtime.inventoryEconomy,
+            productId,
+          )
+        : Math.max(
+            0,
+            runtime.inventory.get(productId) ?? 0,
+          ),
     priceUtilityMultiplier,
     promotionUtilityMultiplier,
   };
@@ -236,7 +255,12 @@ export function chooseProduct(
   const preferred = customer.source.productPreferences.map(
     (preference) => preference.productId,
   );
-  const candidates = [...new Set([...preferred, ...fallbackProducts(runtime.merchantWorld)])];
+  const candidates = [
+    ...new Set([
+      ...preferred,
+      ...fallbackProducts(runtime.merchantWorld),
+    ]),
+  ];
 
   const weighted = candidates
     .map((productId, index) => {
@@ -255,6 +279,7 @@ export function chooseProduct(
         timestampMs,
         intervention,
         randomness,
+        commercePolicy,
       );
 
       const inventoryMechanism =
@@ -282,56 +307,390 @@ export function chooseProduct(
           ? 2.4
           : 1;
       const memory = totalMemoryLift(customer);
-      const weight =
+      const latentWeight =
         Math.max(1e-9, preference) *
-        Math.max(1e-9, Number(demand?.baseLatentDemandUnits ?? 1)) **
+        Math.max(
+          1e-9,
+          Number(demand?.baseLatentDemandUnits ?? 1),
+        ) **
           0.25 *
         offer.priceUtilityMultiplier *
         offer.promotionUtilityMultiplier *
-        inventoryMultiplier *
         complementMultiplier *
         (1 + memory.productPreference);
 
-      return { value: offer, weight };
+      return {
+        value: offer,
+        weight: latentWeight * inventoryMultiplier,
+        latentWeight,
+      };
     })
     .filter((entry) => entry.weight > 0);
 
   if (weighted.length === 0) return undefined;
-  const selected = randomness.weightedPick(key, weighted);
-  if (
-    selected.availableUnits > 0 ||
-    commercePolicy?.enableProductRelationships !== true
-  ) {
-    return selected;
+
+  if (commercePolicy?.enableInventoryDynamics !== true) {
+    const selected = randomness.weightedPick(key, weighted);
+    if (
+      selected.availableUnits > 0 ||
+      commercePolicy?.enableProductRelationships !== true
+    ) {
+      return selected;
+    }
+
+    const inventoryMechanism =
+      runtime.merchantWorld.manifest.inventoryMechanisms.find(
+        (item) => item.productId === selected.productId,
+      );
+    const substitutes = [
+      ...(inventoryMechanism?.substituteProductIds ?? []),
+      ...(runtime.merchantWorld.manifest.productDemandMechanisms.find(
+        (item) => item.productId === selected.productId,
+      )?.substitutionProductIds ?? []),
+    ];
+
+    const availableSubstitutes = [...new Set(substitutes)]
+      .map((productId) =>
+        offerForProduct(
+          runtime,
+          customer,
+          productId,
+          timestampMs,
+          intervention,
+          randomness,
+          commercePolicy,
+        ),
+      )
+      .filter((offer) => offer.availableUnits > 0);
+
+    return availableSubstitutes.length > 0
+      ? randomness.pick(
+          `${key}:substitute`,
+          availableSubstitutes,
+        )
+      : selected;
+  }
+
+  const selected = randomness.weightedPick(
+    `${key}:latent-choice`,
+    weighted.map((entry) => ({
+      value: entry.value,
+      weight: entry.latentWeight,
+    })),
+  );
+  const demandId = `inventory-demand:${key}`;
+  const position =
+    runtime.inventoryEconomy.positions.get(
+      selected.productId,
+    );
+  const expectedReplenishmentAt =
+    position?.expectedArrivalAt ??
+    (position !== undefined
+      ? new Date(
+          timestampMs +
+            position.supplierLeadTimeDays *
+              86_400_000,
+        ).toISOString()
+      : undefined);
+
+  if (selected.availableUnits > 0) {
+    recordInventoryDemand(runtime.inventoryEconomy, {
+      demandId,
+      customerId: customer.customerId,
+      representedWeight: customer.populationWeight,
+      occurredAtMs: timestampMs,
+      requestedSkuId: selected.productId,
+      requestedUnits: 1,
+      inventoryDisposition: "available",
+      fulfilledSkuId: selected.productId,
+      sourceEventId: key,
+      ...(expectedReplenishmentAt === undefined
+        ? {}
+        : { expectedReplenishmentAt }),
+    });
+    return {
+      ...selected,
+      demandTruthId: demandId,
+    };
   }
 
   const inventoryMechanism =
     runtime.merchantWorld.manifest.inventoryMechanisms.find(
       (item) => item.productId === selected.productId,
     );
+  const demandMechanism =
+    runtime.merchantWorld.manifest.productDemandMechanisms.find(
+      (item) => item.productId === selected.productId,
+    );
+  const requestedCategory =
+    demandMechanism?.categoryId;
   const substitutes = [
     ...(inventoryMechanism?.substituteProductIds ?? []),
-    ...(runtime.merchantWorld.manifest.productDemandMechanisms.find(
-      (item) => item.productId === selected.productId,
-    )?.substitutionProductIds ?? []),
+    ...(demandMechanism?.substitutionProductIds ?? []),
   ];
 
-  const availableSubstitutes = [...new Set(substitutes)]
-    .map((productId) =>
-      offerForProduct(
+  const substitutionCandidates = [
+    ...new Set(substitutes),
+  ]
+    .map((productId) => {
+      const offer = offerForProduct(
         runtime,
         customer,
         productId,
         timestampMs,
         intervention,
         randomness,
+        commercePolicy,
+      );
+      const preference =
+        customer.source.productPreferences.find(
+          (candidate) =>
+            candidate.productId === productId,
+        )?.affinity ?? 0.12;
+      const substituteCategory =
+        runtime.merchantWorld.manifest.productDemandMechanisms.find(
+          (candidate) =>
+            candidate.productId === productId,
+        )?.categoryId;
+      const sameCategory =
+        substituteCategory !== undefined &&
+        substituteCategory === requestedCategory;
+      const priceGap =
+        Math.abs(
+          offer.finalPriceMinor -
+            selected.finalPriceMinor,
+        ) /
+        Math.max(1, selected.finalPriceMinor);
+      const similarityMultiplier =
+        sameCategory ? 1.45 : 0.72;
+      const priceMultiplier = clamp(
+        1.2 - priceGap,
+        0.15,
+        1.2,
+      );
+      const weight =
+        Math.max(1e-6, preference) *
+        similarityMultiplier *
+        priceMultiplier *
+        (0.75 + customer.need * 0.5) *
+        (0.8 + customer.brandAffinity * 0.35);
+      return { offer, weight };
+    })
+    .filter(
+      (entry) =>
+        entry.offer.availableUnits > 0 &&
+        entry.weight > 0,
+    );
+
+  if (substitutionCandidates.length > 0) {
+    const bestWeight = Math.max(
+      ...substitutionCandidates.map(
+        (entry) => entry.weight,
+      ),
+    );
+    const substitutionProbability = clamp(
+      0.18 +
+        customer.need * 0.24 +
+        customer.brandAffinity * 0.16 +
+        Math.min(0.28, bestWeight * 0.22),
+      0.08,
+      0.88,
+    );
+
+    if (
+      randomness.bool(
+        `${key}:accept-substitute`,
+        substitutionProbability,
+      )
+    ) {
+      const substitute = randomness.weightedPick(
+        `${key}:substitute-choice`,
+        substitutionCandidates.map((entry) => ({
+          value: entry.offer,
+          weight: entry.weight,
+        })),
+      );
+      recordInventoryDemand(runtime.inventoryEconomy, {
+        demandId,
+        customerId: customer.customerId,
+        representedWeight: customer.populationWeight,
+        occurredAtMs: timestampMs,
+        requestedSkuId: selected.productId,
+        requestedUnits: 1,
+        inventoryDisposition: "substituted",
+        fulfilledSkuId: substitute.productId,
+        substituteSkuId: substitute.productId,
+        sourceEventId: key,
+        ...(expectedReplenishmentAt === undefined
+          ? {}
+          : { expectedReplenishmentAt }),
+      });
+      return {
+        ...substitute,
+        demandTruthId: demandId,
+      };
+    }
+  }
+
+  const leadDays =
+    position?.supplierLeadTimeDays ?? 365;
+  const urgencyToleranceDays =
+    3 + (1 - customer.need) * 42;
+
+  if (
+    inventoryMechanism?.allowBackorders === true &&
+    inventoryMechanism.stockoutBehavior === "backorder"
+  ) {
+    const acceptanceProbability = clamp(
+      0.72 +
+        customer.brandAffinity * 0.18 -
+        customer.need * 0.18 -
+        leadDays * 0.008,
+      0.04,
+      0.92,
+    );
+
+    if (
+      randomness.bool(
+        `${key}:accept-backorder`,
+        acceptanceProbability,
+      )
+    ) {
+      recordInventoryDemand(runtime.inventoryEconomy, {
+        demandId,
+        customerId: customer.customerId,
+        representedWeight: customer.populationWeight,
+        occurredAtMs: timestampMs,
+        requestedSkuId: selected.productId,
+        requestedUnits: 1,
+        inventoryDisposition: "backordered",
+        fulfilledSkuId: selected.productId,
+        sourceEventId: key,
+        ...(expectedReplenishmentAt === undefined
+          ? {}
+          : { expectedReplenishmentAt }),
+      });
+      return {
+        ...selected,
+        demandTruthId: demandId,
+      };
+    }
+  }
+
+  if (
+    expectedReplenishmentAt !== undefined &&
+    leadDays <= urgencyToleranceDays &&
+    randomness.bool(
+      `${key}:wait-for-replenishment`,
+      clamp(
+        0.22 +
+          customer.brandAffinity * 0.32 -
+          customer.need * 0.16,
+        0.05,
+        0.75,
       ),
     )
-    .filter((offer) => offer.availableUnits > 0);
+  ) {
+    recordInventoryDemand(runtime.inventoryEconomy, {
+      demandId,
+      customerId: customer.customerId,
+      representedWeight: customer.populationWeight,
+      occurredAtMs: timestampMs,
+      requestedSkuId: selected.productId,
+      requestedUnits: 1,
+      inventoryDisposition: "delayed",
+      sourceEventId: key,
+      expectedReplenishmentAt,
+    });
+    customer.intent = clamp(
+      customer.intent + 0.04,
+      0,
+      1,
+    );
+    return undefined;
+  }
 
-  return availableSubstitutes.length > 0
-    ? randomness.pick(`${key}:substitute`, availableSubstitutes)
-    : selected;
+  const exitsMerchant = randomness.bool(
+    `${key}:merchant-exit`,
+    clamp(
+      0.1 +
+        (1 - customer.brandAffinity) * 0.34 +
+        customer.need * 0.16,
+      0.05,
+      0.72,
+    ),
+  );
+
+  recordInventoryDemand(runtime.inventoryEconomy, {
+    demandId,
+    customerId: customer.customerId,
+    representedWeight: customer.populationWeight,
+    occurredAtMs: timestampMs,
+    requestedSkuId: selected.productId,
+    requestedUnits: 1,
+    inventoryDisposition: exitsMerchant
+      ? "merchant_exit"
+      : "permanently_lost",
+    sourceEventId: key,
+    ...(expectedReplenishmentAt === undefined
+      ? {}
+      : { expectedReplenishmentAt }),
+  });
+
+  const requestedComplements =
+    demandMechanism?.complementaryProductIds ?? [];
+  const cartHasComplement =
+    customer.cart?.lines.some((line) => {
+      const cartDemand =
+        runtime.merchantWorld.manifest.productDemandMechanisms.find(
+          (candidate) =>
+            candidate.productId === line.productId,
+        );
+      return (
+        requestedComplements.includes(line.productId) ||
+        cartDemand?.complementaryProductIds?.includes(
+          selected.productId,
+        ) === true
+      );
+    }) ?? false;
+
+  if (
+    cartHasComplement &&
+    randomness.bool(
+      `${key}:complement-cart-abandon`,
+      clamp(
+        0.35 + customer.need * 0.28,
+        0.2,
+        0.82,
+      ),
+    )
+  ) {
+    for (const line of customer.cart?.lines ?? []) {
+      const demandIds =
+        line.demandTruthIds ??
+        (line.demandTruthId === undefined
+          ? []
+          : [line.demandTruthId]);
+      for (const demandId of demandIds) {
+        markInventoryDemandOutcome(
+          runtime.inventoryEconomy,
+          demandId,
+          "abandoned",
+        );
+      }
+    }
+    delete customer.cart;
+  }
+
+  if (exitsMerchant) {
+    customer.brandAffinity = clamp(
+      customer.brandAffinity - 0.025,
+      0,
+      1,
+    );
+  }
+
+  return undefined;
 }
 
 export function addToPersistentCart(
@@ -353,17 +712,98 @@ export function addToPersistentCart(
   if (existing) {
     existing.quantity += 1;
     existing.unitPriceMinor = offer.finalPriceMinor;
+    if (offer.demandTruthId !== undefined) {
+      const priorIds =
+        existing.demandTruthIds ??
+        (existing.demandTruthId === undefined
+          ? []
+          : [existing.demandTruthId]);
+      existing.demandTruthId = offer.demandTruthId;
+      existing.demandTruthIds = [
+        ...priorIds,
+        offer.demandTruthId,
+      ];
+    }
   } else {
     cart.lines.push({
       productId: offer.productId,
       quantity: 1,
       unitPriceMinor: offer.finalPriceMinor,
+      ...(offer.demandTruthId === undefined
+        ? {}
+        : {
+            demandTruthId: offer.demandTruthId,
+            demandTruthIds: [offer.demandTruthId],
+          }),
     });
   }
   cart.updatedAtMs = timestampMs;
   cart.expiresAtMs = timestampMs + 30 * 86_400_000;
   customer.cart = cart;
   return cart;
+}
+
+export function reserveCheckoutInventory(
+  runtime: RuntimeWorldState,
+  customer: RuntimeCustomerState,
+  sessionId: string,
+  timestampMs: number,
+  timeoutMinutes = 20,
+): readonly string[] {
+  if (!customer.cart) return [];
+  const timeoutMs =
+    Math.max(1, timeoutMinutes) * 60_000;
+  const reservationIds: string[] = [];
+
+  for (let index = 0; index < customer.cart.lines.length; index += 1) {
+    const line = customer.cart.lines[index]!;
+    const reservationId =
+      `inventory-reservation:${sessionId}:${line.productId}:${index}`;
+    const reservation = reserveInventory(
+      runtime.inventoryEconomy,
+      {
+        reservationId,
+        skuId: line.productId,
+        customerId: customer.customerId,
+        requestedUnits: line.quantity,
+        timestampMs,
+        expiresAtMs: timestampMs + timeoutMs,
+        sourceEventId: sessionId,
+      },
+    );
+    if (reservation) {
+      reservationIds.push(reservation.reservationId);
+      runtime.inventory.set(
+        line.productId,
+        legacyNetAvailableUnits(
+          runtime.inventoryEconomy,
+          line.productId,
+        ),
+      );
+    }
+  }
+
+  return reservationIds;
+}
+
+export function markCartInventoryDemandAbandoned(
+  runtime: RuntimeWorldState,
+  customer: RuntimeCustomerState,
+): void {
+  for (const line of customer.cart?.lines ?? []) {
+    const demandIds =
+      line.demandTruthIds ??
+      (line.demandTruthId === undefined
+        ? []
+        : [line.demandTruthId]);
+    for (const demandId of demandIds) {
+      markInventoryDemandOutcome(
+        runtime.inventoryEconomy,
+        demandId,
+        "abandoned",
+      );
+    }
+  }
 }
 
 export function checkoutPurchaseProbability(
@@ -480,7 +920,18 @@ export function completePurchase(
   const lines: PurchaseLine[] = [];
 
   for (const cartLine of customer.cart.lines) {
-    const available = runtime.inventory.get(cartLine.productId) ?? 0;
+    const available =
+      commercePolicy?.enableInventoryDynamics === true
+        ? step9AvailableToSellUnits(
+            runtime.inventoryEconomy,
+            cartLine.productId,
+          ) +
+          reservationQuantity(
+            runtime.inventoryEconomy,
+            sessionId,
+            cartLine.productId,
+          )
+        : runtime.inventory.get(cartLine.productId) ?? 0;
     const inventoryMechanism =
       runtime.merchantWorld.manifest.inventoryMechanisms.find(
         (item) => item.productId === cartLine.productId,
@@ -500,6 +951,7 @@ export function completePurchase(
       timestampMs,
       intervention,
       randomness,
+      commercePolicy,
     );
 
     const quantity = allowBackorders
@@ -574,17 +1026,110 @@ export function completePurchase(
       runtime.merchantWorld.manifest.inventoryMechanisms.find(
         (item) => item.productId === line.productId,
       );
-    const next =
-      (runtime.inventory.get(line.productId) ?? 0) -
-      line.quantity;
-    runtime.inventory.set(
-      line.productId,
-      commercePolicy?.executeInventoryLifecycle === true &&
+
+    if (commercePolicy?.enableInventoryDynamics === true) {
+      const reservedSold =
+        commitAndSellReservations(
+          runtime.inventoryEconomy,
+          sessionId,
+          line.productId,
+          line.quantity,
+          timestampMs,
+        );
+      const directSold = sellAvailableInventory(
+        runtime.inventoryEconomy,
+        line.productId,
+        Math.max(0, line.quantity - reservedSold),
+        timestampMs,
+        orderId,
+      );
+      const unfulfilled = Math.max(
+        0,
+        line.quantity - reservedSold - directSold,
+      );
+
+      if (
+        unfulfilled > 0 &&
         mechanism?.allowBackorders === true &&
         mechanism.stockoutBehavior === "backorder"
-        ? next
-        : Math.max(0, next),
-    );
+      ) {
+        const position =
+          runtime.inventoryEconomy.positions.get(
+            line.productId,
+          );
+        const maximumDelayDays =
+          position?.maximumBackorderDelayDays;
+        createBackorder(runtime.inventoryEconomy, {
+          backorderId:
+            `backorder:${orderId}:${line.productId}`,
+          skuId: line.productId,
+          customerId: customer.customerId,
+          quantity: unfulfilled,
+          timestampMs,
+          sourceEventId: orderId,
+          ...(maximumDelayDays === undefined
+            ? {}
+            : {
+                maximumAcceptableArrivalAtMs:
+                  timestampMs +
+                  maximumDelayDays * 86_400_000,
+              }),
+        });
+      }
+
+      runtime.inventory.set(
+        line.productId,
+        legacyNetAvailableUnits(
+          runtime.inventoryEconomy,
+          line.productId,
+        ),
+      );
+    } else {
+      const next =
+        (runtime.inventory.get(line.productId) ?? 0) -
+        line.quantity;
+      runtime.inventory.set(
+        line.productId,
+        commercePolicy?.executeInventoryLifecycle === true &&
+          mechanism?.allowBackorders === true &&
+          mechanism.stockoutBehavior === "backorder"
+          ? next
+          : Math.max(0, next),
+      );
+    }
+  }
+
+  if (commercePolicy?.enableInventoryDynamics === true) {
+    const purchasedUnitsByProduct = new Map<string, number>();
+    for (const line of lines) {
+      purchasedUnitsByProduct.set(
+        line.productId,
+        (purchasedUnitsByProduct.get(line.productId) ?? 0) +
+          line.quantity,
+      );
+    }
+
+    for (const cartLine of customer.cart.lines) {
+      const demandIds =
+        cartLine.demandTruthIds ??
+        (cartLine.demandTruthId === undefined
+          ? []
+          : [cartLine.demandTruthId]);
+      let purchasedUnits =
+        purchasedUnitsByProduct.get(
+          cartLine.productId,
+        ) ?? 0;
+
+      for (const demandId of demandIds) {
+        const purchased = purchasedUnits > 0;
+        markInventoryDemandOutcome(
+          runtime.inventoryEconomy,
+          demandId,
+          purchased ? "purchased" : "abandoned",
+        );
+        if (purchased) purchasedUnits -= 1;
+      }
+    }
   }
 
   const repeatPurchase = customer.purchaseCount > 0;

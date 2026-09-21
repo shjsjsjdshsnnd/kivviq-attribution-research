@@ -13,6 +13,13 @@ export type SimulationEventKind =
   | "repeat_need"
   | "lifecycle_check"
   | "inventory_replenishment"
+  | "inventory_reservation_expired"
+  | "inventory_reorder_check"
+  | "inventory_return_received"
+  | "inventory_return_restocked"
+  | "inventory_backorder_cancelled"
+  | "supplier_shipment_dispatched"
+  | "supplier_shipment_delayed"
   | "shock_start"
   | "shock_end";
 
