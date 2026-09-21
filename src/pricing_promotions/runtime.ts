@@ -864,7 +864,7 @@ export function promotionChannelResponseMultiplier(
   scenario: PricingPromotionScenario | undefined,
   customer: PricingCustomerContext,
   timestampMs: number,
-  channel: MarketingChannel | undefined,
+  channel: string | undefined,
 ): number {
   if (!scenario || channel === undefined) return 1;
   let multiplier = 1;
@@ -872,8 +872,11 @@ export function promotionChannelResponseMultiplier(
     if (!isActive(promotion.start, promotion.end, timestampMs)) continue;
     if (!targetingEligible(promotion, customer)) continue;
     if (!customerAwareOfPromotion(promotion, customer)) continue;
-    multiplier *=
-      promotion.channelResponseMultiplierByChannel?.[channel] ?? 1;
+    const channelMap =
+      promotion.channelResponseMultiplierByChannel as
+        | Readonly<Record<string, number | undefined>>
+        | undefined;
+    multiplier *= channelMap?.[channel] ?? 1;
   }
   return clamp(multiplier, 0.2, 5);
 }
