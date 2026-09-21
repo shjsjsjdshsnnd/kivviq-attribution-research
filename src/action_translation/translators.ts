@@ -207,7 +207,6 @@ function expandedPriceOperation(
   }
 
   if (
-    operation.kind !== "SET" &&
     operation.reference.kind === "explicit_baseline" &&
     operation.reference.value.kind === "money" &&
     (operation.reference.value.currency !== member.priceAtBoundary.currency ||
