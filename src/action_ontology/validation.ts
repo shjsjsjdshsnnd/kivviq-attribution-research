@@ -1937,6 +1937,57 @@ function validateConstraint(
   }
 }
 
+
+function validatePricingRollbackContract(
+  input: unknown,
+  path: string,
+  errors: ActionValidationIssue[],
+): void {
+  if (!record(input) || typeof input.available !== "boolean") {
+    add(errors, "INVALID_PRICING_ROLLBACK_CONTRACT", path, "available must be explicit");
+    return;
+  }
+
+  if (input.available === false) {
+    if (!nonEmpty(input.reason)) {
+      add(errors, "INVALID_PRICING_ROLLBACK_REASON", path + ".reason", "reason is required");
+    }
+    return;
+  }
+
+  validateTarget(input.target, path + ".target", errors);
+  validatePriceRollbackStrategy(
+    input.strategy,
+    path + ".strategy",
+    errors,
+  );
+
+  if (!record(input.trigger) || !nonEmpty(input.trigger.kind)) {
+    add(errors, "INVALID_PRICING_ROLLBACK_TRIGGER", path + ".trigger", "trigger is required");
+  } else if (input.trigger.kind === "AT") {
+    validateTimestamp(input.trigger.at, path + ".trigger.at", errors);
+  } else if (input.trigger.kind !== "ON_TERMINATION") {
+    add(errors, "INVALID_PRICING_ROLLBACK_TRIGGER", path + ".trigger.kind", "unsupported trigger");
+  }
+
+  validateNonNegativeInteger(
+    input.delaySeconds,
+    path + ".delaySeconds",
+    errors,
+  );
+  validateKnownOrUnknown(
+    input.cost,
+    path + ".cost",
+    errors,
+    (value, valuePath) => validateMoney(value, valuePath, errors),
+  );
+  validatePriceRollbackConflictGuard(
+    input.conflictGuard,
+    path + ".conflictGuard",
+    errors,
+  );
+}
+
 function validatePrecondition(
   input: unknown,
   path: string,
@@ -2049,6 +2100,14 @@ function validateReversibility(
       "DELAYED_REVERSAL_REQUIRES_DELAY",
       path + ".minimumDelaySeconds",
       "reversible_with_delay requires a positive delay",
+    );
+  }
+
+  if (input.pricingRollback !== undefined) {
+    validatePricingRollbackContract(
+      input.pricingRollback,
+      path + ".pricingRollback",
+      errors,
     );
   }
 }
