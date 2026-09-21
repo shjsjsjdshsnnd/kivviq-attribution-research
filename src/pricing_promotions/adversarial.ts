@@ -373,7 +373,7 @@ export function createPullForwardTrapFixture(): PullForwardTrapFixture {
   });
   const world = abundantInventory(generated);
   for (const demand of world.manifest.productDemandMechanisms) {
-    setElasticity(world, demand.productId, -2.0);
+    setElasticity(world, demand.productId, -0.35);
   }
   zeroCrossPrice(world);
   validateGroundTruthManifest(world.manifest);
@@ -386,7 +386,7 @@ export function createPullForwardTrapFixture(): PullForwardTrapFixture {
     world,
     start,
     promotionEnd,
-    0.28,
+    0.18,
   );
   const value: PricingPromotionScenario = {
     ...baseScenario,
