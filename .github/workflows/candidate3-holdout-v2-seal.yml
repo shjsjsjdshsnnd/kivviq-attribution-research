@@ -10,6 +10,10 @@ on:
       - "phase2/evaluator/seal_candidate3_holdout.py"
       - "phase2/evaluator/validate_candidate3_holdout_v2.py"
       - "phase2/evaluator/candidate3_frozen_contracts.json"
+      - "phase2/evaluator/candidate3-research-state.json"
+      - "phase2/evaluator/CANDIDATE3_HOLDOUT_V2.md"
+      - "src/attribution_lab/phase2_evaluator/exposure.py"
+      - "tests/phase2/test_exposure.py"
 
 permissions:
   contents: write
@@ -43,20 +47,58 @@ jobs:
       - run: python scripts/check_repo_safety.py
       - run: python scripts/check_phase1_frozen.py
 
-      - name: Verify Candidate 3 v1 remains frozen and consumed
+      - name: Verify Candidate 3 v1 evidence is immutable and v2 is prohibited
         shell: bash
         run: |
           set -euo pipefail
           python - <<'PY'
           import json
           from pathlib import Path
+          from attribution_lab.phase2_evaluator.exposure import (
+              EVALUATION_PROHIBITED_PRIOR_EXPOSURE,
+              EvaluationProhibitedPriorExposure,
+              assert_candidate3_v2_evaluation_permitted,
+          )
           freeze = json.loads(Path("candidate/phase2/candidates/candidate3/FROZEN_IMPLEMENTATION.json").read_text())
           exposure = json.loads(Path("candidate/phase2/candidates/candidate3/holdout_exposure_state.json").read_text())
+          final = json.loads(Path("candidate/phase2/candidates/candidate3/candidate3_final.json").read_text())
           assert freeze["candidate_id"] == "candidate3-overlap-ato"
           assert freeze["candidate_version"] == "1.0.0"
+          assert freeze["combined_code_fingerprint"] == "1a611d8777bc502ed4912b1fd98f7dae5009c834f3fa5e8a6dde5e0fdaac3522"
+          assert freeze["contract_manifest_sha256"] == "f760212ad3066bb266650fc0c7737f999a8f0c455d89f18a8c30526c2cbc983c"
+          assert freeze["hyperparameters"]["propensity_l2"] == 0.1
+          assert freeze["hyperparameters"]["bootstrap_replicates"] == 400
           assert exposure["feedback_bearing_exposure_count"] == 1
           assert exposure["holdout_version"] == "candidate3-holdout-v1"
           assert exposure["state"] == "CONSUMED"
+          assert final["final_outcome"] == "INCONCLUSIVE"
+          assert final["result_digest"] == "dec97f94f4532bc666cc0f9e730fca6baf60cfc81b1210c916430bbe3f5cc030"
+          expected_hashes = {
+              "FROZEN_IMPLEMENTATION.json": "b97f9df79f5323b667612d39a97c59d5fd1c4d8627147b77633e0fcf4dfaf6b1",
+              "holdout_exposure_state.json": "0bfe42facb617ec1eb0339b5c25d0dfdfb2483f61602fd626d750442d3134e8f",
+              "candidate3_final.json": "a54c45d7b8ad4c9a47a6c25e780c63c14bd354241f7e54b46680149ccd4310a3",
+              "sealed_holdout_results.json": "dec97f94f4532bc666cc0f9e730fca6baf60cfc81b1210c916430bbe3f5cc030",
+              "candidate3_report.md": "f903fc4f689127273f5eaf0d5f0ef0b7d03e6cc490692254fa2da0a79d66e530",
+              "research_state/research-ledger.jsonl": "2ee377b302766ac127d5030ad0c2b5e09c9a2c9b798b4ab1b46017f179ab03ff",
+          }
+          import hashlib
+          root = Path("candidate/phase2/candidates/candidate3")
+          for relative_path, expected_hash in expected_hashes.items():
+              actual_hash = hashlib.sha256((root / relative_path).read_bytes()).hexdigest()
+              assert actual_hash == expected_hash, relative_path
+          try:
+              assert_candidate3_v2_evaluation_permitted(
+                  candidate_id="renamed-candidate3",
+                  candidate_version="99.0.0",
+                  lineage_fingerprint=freeze["lineage_fingerprint"],
+                  combined_code_fingerprint=freeze["combined_code_fingerprint"],
+                  contract_manifest_fingerprint=freeze["contract_manifest_sha256"],
+                  holdout_version="candidate3-holdout-v2",
+              )
+          except EvaluationProhibitedPriorExposure as error:
+              assert str(error) == EVALUATION_PROHIBITED_PRIOR_EXPOSURE
+          else:
+              raise AssertionError("Candidate 3 v1 lineage was not prohibited from v2")
           PY
 
       - name: Instantiate fresh private v2 seal
@@ -69,6 +111,7 @@ jobs:
 
       - name: Static validation
         run: |
+          python -m pytest tests/phase2/test_exposure.py
           ruff check             phase2/evaluator/candidate3_holdout_spec.py             phase2/evaluator/candidate3_holdout_evaluator.py             phase2/evaluator/seal_candidate3_holdout.py             phase2/evaluator/validate_candidate3_holdout_v2.py
           mypy --ignore-missing-imports             phase2/evaluator/candidate3_holdout_spec.py             phase2/evaluator/candidate3_holdout_evaluator.py             phase2/evaluator/seal_candidate3_holdout.py             phase2/evaluator/validate_candidate3_holdout_v2.py
 
