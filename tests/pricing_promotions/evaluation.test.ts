@@ -141,6 +141,71 @@ describe("Step 10 evaluator invariants", () => {
   );
 
   it(
+    "does not misclassify an authoritative price-state markdown as promotion redemption",
+    () => {
+      const fixture =
+        createMarginDestructionTrapFixture();
+      const hydrated =
+        hydratePricingPromotionScenario(
+          fixture.evaluation,
+        );
+      const scenario = {
+        ...hydrated,
+        promotions: [],
+        priceStates: hydrated.priceStates.map((state) => {
+          if (
+            state.productId !== fixture.productAId
+          ) {
+            return state;
+          }
+          const effectivePriceMinor = Math.max(
+            1,
+            Math.round(
+              state.currentSellingPriceMinor * 0.9,
+            ),
+          );
+          const discountAmountMinor =
+            state.currentSellingPriceMinor -
+            effectivePriceMinor;
+          return {
+            ...state,
+            effectivePriceMinor,
+            discountAmountMinor,
+            discountPercentage:
+              discountAmountMinor /
+              state.currentSellingPriceMinor,
+          };
+        }),
+      };
+
+      const report =
+        evaluatePricingPromotionEconomics({
+          ...fixture.evaluation,
+          scenario,
+        });
+
+      expect(
+        report.factual.waterfall.discountsMinor,
+      ).toBeGreaterThan(0);
+      expect(
+        report.attribution
+          .promotionRedemptionPurchases,
+      ).toBe(0);
+      expect(
+        report.attribution
+          .discountCostOnIncrementalPurchasesMinor +
+          report.attribution
+            .discountCostOnAcceleratedPurchasesMinor +
+          report.attribution
+            .discountCostOnWouldHavePurchasedAnywayMinor +
+          report.attribution
+            .discountCostOnSwitchedPurchasesMinor,
+      ).toBe(0);
+    },
+    180_000,
+  );
+
+  it(
     "price increases can improve contribution for a weakly elastic SKU and hurt it for a highly elastic SKU",
     () => {
       const fixture =
