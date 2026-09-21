@@ -1,0 +1,29 @@
+{
+  "candidate_id": "candidate3-overlap-ato",
+  "candidate_version": "1.0.0",
+  "code": {
+    "input_sha256": "01030ee8bc72bfe6ef68c3192dfdf108315bb1c918c98538bf479cbcbbaa149b",
+    "model_sha256": "87d864a0c989f44a8b4e48a4bcfe5dc8ee825be81ad87f0745950a4699bbf40a"
+  },
+  "combined_code_fingerprint": "1a611d8777bc502ed4912b1fd98f7dae5009c834f3fa5e8a6dde5e0fdaac3522",
+  "contract_fingerprints": {
+    "ato_estimand": "bfad931307f76f55176cf624059362581490f1446b9500676ec1c9d43ba3f1d0",
+    "pretreatment_x": "1f74b7719b6087f500ad24bdd51c335ade9587bc8adfc9d82eebe2a528ce2f48",
+    "support_abstention": "9ba0dc7ab2e980ce08b0709a396d08163c75b91aa247a1dfea9349b95deec705",
+    "uncertainty": "c5299f349f2cd68d956ed1c7eab498b1f0e60c69731d248a33c766ed9ffeea2a"
+  },
+  "contract_manifest_sha256": "f760212ad3066bb266650fc0c7737f999a8f0c455d89f18a8c30526c2cbc983c",
+  "development_results_sha256": "a1fc1e41276ff7294153c7c77e32bfabfcf7665b4173682e64133d68318ad130",
+  "full_population_ate_estimated": false,
+  "holdout_configuration_fingerprint": "e964c0043b2d4a1ae23f234c26718925a4581d0543ff0c16e380f877edde7684",
+  "holdout_generator_fingerprint": "cfd8e0e5f4c0d77aa5fe715c2afa197748d8ee1dae82d51f46b803a3c42e36b3",
+  "holdout_public_metadata_sha256": "236d7bb9219d9e0ba7f68587c9dbb72cbc7485130e8700e13abf6bad34aa8115",
+  "holdout_version": "candidate3-holdout-v1",
+  "hyperparameters": {
+    "bootstrap_replicates": 400,
+    "estimator_family": "logistic propensity + overlap weighting",
+    "propensity_l2": 0.1
+  },
+  "lineage_fingerprint": "1571c29726e79154c2d9bc9016909ab7ab04540fe24cf63a62e0f46b66288620",
+  "status": "FROZEN_BEFORE_PUBLIC_FALSIFICATION"
+}
