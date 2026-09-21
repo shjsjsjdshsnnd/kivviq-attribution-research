@@ -274,6 +274,7 @@ export function chooseProduct(
         timestampMs,
         intervention,
         randomness,
+        commercePolicy,
       );
 
       const inventoryMechanism =
@@ -344,6 +345,7 @@ export function chooseProduct(
         timestampMs,
         intervention,
         randomness,
+        commercePolicy,
       ),
     )
     .filter((offer) => offer.availableUnits > 0);
@@ -519,6 +521,7 @@ export function completePurchase(
       timestampMs,
       intervention,
       randomness,
+      commercePolicy,
     );
 
     const quantity = allowBackorders
