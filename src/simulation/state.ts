@@ -400,6 +400,7 @@ export function applyMarketingMemory(
 export function transitionAfterPurchase(
   customer: RuntimeCustomerState,
   nowMs: number,
+  needDeferralMultiplier = 1,
 ): void {
   customer.purchaseCount += 1;
   customer.lastPurchaseMs = nowMs;
@@ -422,7 +423,13 @@ export function transitionAfterPurchase(
     3,
     customer.source.expectedPurchaseIntervalDays,
   );
-  customer.nextNeedEligibleMs = nowMs + days(intervalDays * 0.35);
+  customer.nextNeedEligibleMs =
+    nowMs +
+    days(
+      intervalDays *
+        0.35 *
+        clamp(needDeferralMultiplier, 1, 2.5),
+    );
   customer.lastActivityMs = nowMs;
 }
 
