@@ -386,6 +386,33 @@ export const rollbackTemporarySkuAToPreActionPrice = pricingAction({
   reversalOfActionId: temporarySkuA799SevenDays.actionId,
 });
 
+export const rollbackTemporarySkuASetExplicit899 = pricingAction({
+  actionIdValue: "action_price_rollback_sku_a_explicit_899",
+  actionTypeValue: "pricing.rollback_price",
+  description:
+    "Rollback SKU A to an explicit CAD 899 value only if the original temporary Action still owns the current price state.",
+  target: { kind: "sku", productId: "product:A", skuId: "sku:A" },
+  parameters: {
+    kind: "price_rollback",
+    originalActionId: temporarySkuA799SevenDays.actionId,
+    strategy: {
+      kind: "SET_EXPLICIT_VALUE",
+      value: money(89_900),
+    },
+    conflictGuard: {
+      kind: "REQUIRE_CURRENT_MATCHES_ACTION_OUTPUT",
+      sourceActionId: temporarySkuA799SevenDays.actionId,
+      expected: {
+        kind: "single_price",
+        price: money(79_900),
+      },
+    },
+  },
+  duration: { kind: "instantaneous" },
+  termination: { kind: "fixed_end", at: DECISION },
+  reversalOfActionId: temporarySkuA799SevenDays.actionId,
+});
+
 export const reduceSkuA10WithGrossMargin35Floor = pricingAction({
   actionIdValue: "action_price_sku_a_reduce_10_gross_margin_35",
   description:
