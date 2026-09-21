@@ -162,6 +162,7 @@ export function offerForProduct(
   timestampMs: number,
   intervention: SimulationInterventionState,
   randomness: SharedRandomness,
+  commercePolicy?: SimulationCommercePolicy,
 ): ProductOffer {
   const world = runtime.merchantWorld;
   const baselinePrice = baselineProductPriceMinor(world, productId);
@@ -214,10 +215,16 @@ export function offerForProduct(
     unitPriceMinor,
     discountMinor,
     finalPriceMinor,
-    availableUnits: Math.max(
-      0,
-      runtime.inventory.get(productId) ?? 0,
-    ),
+    availableUnits:
+      commercePolicy?.enableInventoryDynamics === true
+        ? step9AvailableToSellUnits(
+            runtime.inventoryEconomy,
+            productId,
+          )
+        : Math.max(
+            0,
+            runtime.inventory.get(productId) ?? 0,
+          ),
     priceUtilityMultiplier,
     promotionUtilityMultiplier,
   };
