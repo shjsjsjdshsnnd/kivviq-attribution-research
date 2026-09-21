@@ -1,0 +1,48 @@
+name: Candidate 3 Public Falsification
+
+on:
+  push:
+    branches: ["phase2/candidate3-ato-estimator"]
+    paths:
+      - "phase2/candidates/candidate3/PUBLIC_FALSIFICATION_PROTOCOL.json"
+      - "phase2/candidates/candidate3/public_falsification_worlds.py"
+      - "phase2/candidates/candidate3/run_public_falsification.py"
+      - "tests/candidate3_public/**"
+
+permissions:
+  contents: write
+
+jobs:
+  public_falsification:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+      - run: python -m pip install --upgrade pip
+      - run: python -m pip install -e ".[dev]"
+      - run: python scripts/check_repo_safety.py
+      - run: python scripts/check_phase1_frozen.py
+      - run: pytest tests/candidate3_public tests/candidate3 tests/candidate3_contracts
+      - run: ruff check .
+      - run: mypy
+      - name: Run frozen Candidate 3 public falsification
+        run: python phase2/candidates/candidate3/run_public_falsification.py
+      - name: Persist public falsification result
+        shell: bash
+        run: |
+          set -euo pipefail
+          python scripts/check_repo_safety.py
+          git add \
+            phase2/candidates/candidate3/public_falsification_results.json \
+            phase2/candidates/candidate3/public_falsification_report.md
+          git diff --cached --check
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git commit -m "Record Candidate 3 frozen public falsification"
+          git push origin "HEAD:${GITHUB_REF_NAME}"
