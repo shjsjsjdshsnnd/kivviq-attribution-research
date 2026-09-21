@@ -1,4 +1,8 @@
-import { nonNegative } from "../core/units.js";
+import {
+  moneyMinor,
+  nonNegative,
+  positive,
+} from "../core/units.js";
 import type { GeneratedMerchantWorld } from "../generation/config.js";
 import { validateGroundTruthManifest } from "../ground_truth/manifest.js";
 import {
@@ -11,6 +15,76 @@ import {
 import type {
   InventoryDynamicsEvaluationRequest,
 } from "./types.js";
+
+function withPositiveMetaResponse(
+  source: GeneratedMerchantWorld,
+): GeneratedMerchantWorld {
+  const world =
+    structuredClone(source) as unknown as {
+      summary: {
+        expectedAnnualOrders: number;
+      };
+      manifest: {
+        channelIncrementality: Array<{
+          channelId: string;
+          effect: { value: number };
+          responseCurveId?: string;
+        }>;
+        responseCurves: Array<Record<string, unknown>>;
+      };
+    } & GeneratedMerchantWorld;
+
+  const mechanism =
+    world.manifest.channelIncrementality.find(
+      (candidate) =>
+        candidate.channelId === "meta",
+    );
+  if (!mechanism?.responseCurveId) {
+    throw new RangeError(
+      "Step 9 advertising trap requires a Meta response curve",
+    );
+  }
+
+  const monthlyOrders = Math.max(
+    1,
+    world.summary.expectedAnnualOrders / 12,
+  );
+
+  // Step 8's vanity-ROAS fixture deliberately makes Meta nearly
+  // non-incremental. Step 9 needs a different adversarial fact pattern:
+  // historically attractive platform reporting AND genuinely positive
+  // unconstrained incremental response, with inventory becoming the binding
+  // constraint only after spend increases.
+  mechanism.effect.value =
+    monthlyOrders * 0.35;
+
+  const curveIndex =
+    world.manifest.responseCurves.findIndex(
+      (curve) =>
+        curve["id"] ===
+        mechanism.responseCurveId,
+    );
+  if (curveIndex < 0) {
+    throw new RangeError(
+      "Step 9 advertising trap is missing the Meta response curve",
+    );
+  }
+
+  world.manifest.responseCurves[curveIndex] = {
+    id: mechanism.responseCurveId,
+    kind: "hill",
+    inputUnit: "money_minor",
+    outputUnit: "orders",
+    maxIncrementalOutcome: positive(
+      monthlyOrders * 2.4,
+    ),
+    halfSaturationSpend: moneyMinor(220_000),
+    hillCoefficient: positive(1.15),
+  };
+
+  validateGroundTruthManifest(world.manifest);
+  return world;
+}
 
 export interface StockoutObservedDemandTrapFixture {
   readonly id: "stockout_observed_demand";
@@ -122,8 +196,12 @@ export function createStockoutObservedDemandTrapFixture(): StockoutObservedDeman
 export function createInventoryAdvertisingScaleTrapFixture(): InventoryAdvertisingScaleTrapFixture {
   const source =
     createLowInventoryProductRoasTrapFixture();
+  const responsiveWorld =
+    withPositiveMetaResponse(
+      source.merchantWorld,
+    );
   const world =
-    makeSupplyScarce(source.merchantWorld, {
+    makeSupplyScarce(responsiveWorld, {
       targetProductId: source.productId,
       targetUnits: 17,
       defaultUnits: 2,
@@ -134,7 +212,7 @@ export function createInventoryAdvertisingScaleTrapFixture(): InventoryAdvertisi
     source.channelSpendMinor;
   return {
     id: "inventory_advertising_scale",
-    historicalSignalMerchantWorld: source.merchantWorld,
+    historicalSignalMerchantWorld: responsiveWorld,
     productId: source.productId,
     channel: "meta",
     baselineSpendMinor,
