@@ -33,7 +33,7 @@ class _TracingRandom(stdlib_random.Random):
         super().__init__(seed)
         self.latent_intents = []
 
-    def gauss(self, mu: float, sigma: float) -> float:
+    def gauss(self, mu: float = 0.0, sigma: float = 1.0) -> float:
         value = super().gauss(mu, sigma)
         if mu == 0.0 and sigma == 1.0:
             self.latent_intents.append(value)

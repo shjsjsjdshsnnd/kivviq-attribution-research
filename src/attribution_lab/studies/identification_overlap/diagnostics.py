@@ -46,7 +46,8 @@ class CellDiagnostics:
 
 
 def _sigmoid(values: np.ndarray) -> np.ndarray:
-    return 1.0 / (1.0 + np.exp(-np.clip(values, -35.0, 35.0)))
+    result = 1.0 / (1.0 + np.exp(-np.clip(values, -35.0, 35.0)))
+    return np.asarray(result, dtype=float)
 
 
 def _fit_logistic(matrix: np.ndarray, target: np.ndarray) -> tuple[np.ndarray, bool]:
