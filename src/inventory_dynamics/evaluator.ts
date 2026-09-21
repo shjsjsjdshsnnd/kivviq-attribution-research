@@ -121,9 +121,11 @@ function sumDemand(
       if (
         demand.fulfilledSkuId === productId &&
         demand.commerceOutcome === "purchased" &&
-        demand.inventoryDisposition !== "backordered"
+        demand.physicallyFulfilledUnits > 0
       ) {
-        total += weightedUnits;
+        total +=
+          demand.physicallyFulfilledUnits *
+          demand.representedWeight;
       }
       continue;
     }
@@ -146,7 +148,8 @@ function sumDemand(
       total += weightedUnits;
     } else if (
       mode === "backordered" &&
-      demand.inventoryDisposition === "backordered"
+      demand.inventoryDisposition === "backordered" &&
+      demand.commerceOutcome === "purchased"
     ) {
       total += weightedUnits;
     } else if (
