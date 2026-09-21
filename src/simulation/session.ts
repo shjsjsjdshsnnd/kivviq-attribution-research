@@ -9,8 +9,12 @@ import type { SimulationInterventionState } from "./interventions.js";
 import {
   addToPersistentCart,
   chooseProduct,
+  pricingCustomerContext,
   type ProductOffer,
 } from "./commerce.js";
+import {
+  effectiveFreeShippingThreshold,
+} from "../pricing_promotions/runtime.js";
 
 export type SessionPage =
   | "landing"
@@ -454,9 +458,12 @@ export function advanceSession(
         addToPersistentCart(customer, offer, timestampMs);
         const extraUnitProbability = clamp(
           (runtime.merchantWorld.summary.expectedUnitsPerOrder - 1) *
-            0.22,
+            0.22 *
+            (offer.stockpilingMultiplier ?? 1),
           0,
-          0.45,
+          commercePolicy?.pricingPromotionScenario === undefined
+            ? 0.45
+            : 0.78,
         );
         if (
           commercePolicy?.enableEnhancedBasketEconomics === true &&
@@ -508,7 +515,12 @@ export function advanceSession(
         0,
       ) ?? 0;
     const threshold =
-      commercePolicy?.freeShippingThresholdMinor;
+      effectiveFreeShippingThreshold(
+        commercePolicy?.pricingPromotionScenario,
+        pricingCustomerContext(customer),
+        timestampMs,
+        commercePolicy?.freeShippingThresholdMinor,
+      );
     const shippingCharge =
       commercePolicy?.customerShippingChargeMinor ?? 0;
     const belowThreshold =
