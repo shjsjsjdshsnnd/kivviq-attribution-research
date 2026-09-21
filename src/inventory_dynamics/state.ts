@@ -1301,6 +1301,51 @@ export function markInventoryDemandOutcome(
   if (record) record.commerceOutcome = outcome;
 }
 
+export function recordInventoryReturnTruth(
+  state: InventoryEconomyRuntime,
+  input: {
+    readonly returnId: string;
+    readonly orderId: string;
+    readonly customerId: string;
+    readonly skuId: string;
+    readonly returnedUnits: number;
+    readonly damagedUnits: number;
+    readonly receivedAtMs: number;
+    readonly restockAtMs?: number;
+  },
+): void {
+  if (
+    state.returnTruth.some(
+      (record) => record.returnId === input.returnId,
+    )
+  ) {
+    return;
+  }
+  state.returnTruth.push({
+    returnId: input.returnId,
+    orderId: input.orderId,
+    customerId: input.customerId,
+    skuId: input.skuId,
+    returnedUnits: nonNegativeInteger(
+      input.returnedUnits,
+    ),
+    damagedUnits: Math.min(
+      nonNegativeInteger(input.returnedUnits),
+      nonNegativeInteger(input.damagedUnits),
+    ),
+    receivedAt: new Date(
+      input.receivedAtMs,
+    ).toISOString(),
+    ...(input.restockAtMs === undefined
+      ? {}
+      : {
+          restockAt: new Date(
+            input.restockAtMs,
+          ).toISOString(),
+        }),
+  });
+}
+
 export function reconciliationFor(
   position: MutableInventoryPosition,
 ): InventoryReconciliation {
