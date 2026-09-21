@@ -1076,13 +1076,27 @@ function validatePriceRollbackStrategy(
   }
 
   if (input.kind === "RESTORE_PRE_ACTION_VALUE") {
-    validateReference(
-      input.preActionPrice,
-      path + ".preActionPrice",
-      errors,
-      decisionTime,
-      "money",
-    );
+    if (!record(input.source) || !nonEmpty(input.source.kind)) {
+      add(errors, "INVALID_ROLLBACK_RESTORE_SOURCE", path + ".source", "restore source is required");
+      return;
+    }
+    if (input.source.kind === "single_price") {
+      validateReference(
+        input.source.preActionPrice,
+        path + ".source.preActionPrice",
+        errors,
+        decisionTime,
+        "money",
+      );
+      return;
+    }
+    if (input.source.kind === "membership_snapshot") {
+      if (!nonEmpty(input.source.bindingRef)) {
+        add(errors, "INVALID_ROLLBACK_MEMBERSHIP_BINDING", path + ".source.bindingRef", "bindingRef is required");
+      }
+      return;
+    }
+    add(errors, "UNKNOWN_ROLLBACK_RESTORE_SOURCE", path + ".source.kind", "unsupported restore source");
     return;
   }
 
@@ -1124,11 +1138,21 @@ function validatePriceRollbackConflictGuard(
       "conflict guard must reference the original pricing Action",
     );
   }
-  validateMoney(
-    input.expectedCurrentPrice,
-    path + ".expectedCurrentPrice",
-    errors,
-  );
+  if (!record(input.expected) || !nonEmpty(input.expected.kind)) {
+    add(errors, "INVALID_ROLLBACK_EXPECTED_STATE", path + ".expected", "expected state is required");
+  } else if (input.expected.kind === "single_price") {
+    validateMoney(
+      input.expected.price,
+      path + ".expected.price",
+      errors,
+    );
+  } else if (input.expected.kind === "membership_state") {
+    if (!nonEmpty(input.expected.stateRef)) {
+      add(errors, "INVALID_ROLLBACK_MEMBERSHIP_STATE", path + ".expected.stateRef", "stateRef is required");
+    }
+  } else {
+    add(errors, "UNKNOWN_ROLLBACK_EXPECTED_STATE", path + ".expected.kind", "unsupported expected state");
+  }
 }
 
 function validatePriceRollbackParameters(
