@@ -894,7 +894,18 @@ export function completePurchase(
   const lines: PurchaseLine[] = [];
 
   for (const cartLine of customer.cart.lines) {
-    const available = runtime.inventory.get(cartLine.productId) ?? 0;
+    const available =
+      commercePolicy?.enableInventoryDynamics === true
+        ? step9AvailableToSellUnits(
+            runtime.inventoryEconomy,
+            cartLine.productId,
+          ) +
+          reservationQuantity(
+            runtime.inventoryEconomy,
+            sessionId,
+            cartLine.productId,
+          )
+        : runtime.inventory.get(cartLine.productId) ?? 0;
     const inventoryMechanism =
       runtime.merchantWorld.manifest.inventoryMechanisms.find(
         (item) => item.productId === cartLine.productId,
