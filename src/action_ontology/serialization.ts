@@ -1,5 +1,6 @@
 import {
   ACTION_SCHEMA_VERSION,
+  SUPPORTED_ACTION_SCHEMA_VERSIONS,
   type Action,
 } from "./types.js";
 import {
@@ -27,7 +28,7 @@ export function deserializeAction(
 }
 
 export function isSupportedActionSchemaVersion(version: string): boolean {
-  return version === ACTION_SCHEMA_VERSION;
+  return SUPPORTED_ACTION_SCHEMA_VERSIONS.includes(version as never);
 }
 
 /**

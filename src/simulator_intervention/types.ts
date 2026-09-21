@@ -77,6 +77,17 @@ export type SimulatorScopeDimension =
       readonly campaignIds?: readonly string[];
     }
   | {
+      readonly kind: "paid_media_segment";
+      readonly classification:
+        | "prospecting"
+        | "retargeting"
+        | "brand"
+        | "non_brand"
+        | "custom";
+      readonly segmentId?: string;
+      readonly taxonomySource: "merchant_defined" | "kivviq_canonical";
+    }
+  | {
       readonly kind: "time_window";
       readonly start: UtcTimestamp;
       readonly end: UtcTimestamp;

@@ -123,6 +123,53 @@ const campaignStatusTranslator: ActionTranslator = {
   },
 };
 
+
+const paidMediaDeliveryTranslator: ActionTranslator = {
+  actionType: "advertising.set_delivery_state",
+  translatorId: "translator.paid_media_delivery.v1",
+  translationVersion: ACTION_TRANSLATION_VERSION,
+  supportedTargetKinds: ["campaign"],
+  requiredCapability: "campaign_delivery",
+  translate(action, context, origin) {
+    if (action.parameters.kind !== "paid_media_delivery") {
+      return {
+        status: "INVALID_ACTION",
+        actionId: action.actionId,
+        code: "PAID_MEDIA_DELIVERY_PARAMETER_MISMATCH",
+        message:
+          "Paid-media delivery translator requires paid_media_delivery parameters.",
+      };
+    }
+
+    const target = requireTarget(action, context);
+    if (!target.ok) return target.failure;
+    const time = requireTime(action);
+    if (!time.ok) return time.failure;
+
+    const operation: SimulatorOperation = {
+      kind: "SET",
+      value: {
+        kind: "boolean",
+        value: action.parameters.operation === "RESUME",
+      },
+    };
+
+    return {
+      status: "TRANSLATED",
+      interventions: [
+        buildIntervention(
+          action,
+          origin,
+          "translator.paid_media_delivery.v1",
+          "campaign_delivery",
+          target.target,
+          operation,
+        ),
+      ],
+    };
+  },
+};
+
 const priceTranslator: ActionTranslator = {
   actionType: "pricing.adjust_price",
   translatorId: "translator.price.v1",
@@ -307,6 +354,7 @@ const experimentTranslator: ActionTranslator = {
 export const CORE_ACTION_TRANSLATORS: readonly ActionTranslator[] = Object.freeze([
   budgetTranslator,
   campaignStatusTranslator,
+  paidMediaDeliveryTranslator,
   priceTranslator,
   promotionTranslator,
   merchandisingTranslator,
