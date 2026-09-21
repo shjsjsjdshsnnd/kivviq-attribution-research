@@ -22,6 +22,11 @@ def _evaluate_l2(l2: float) -> dict[str, object]:
     records: list[dict[str, object]] = []
     estimate_errors: list[float] = []
     behavior_failures = 0
+    abstention_expected = 0
+    abstention_correct = 0
+    estimate_expected = 0
+    estimate_correct = 0
+    ato_targeting_failures = 0
     for world in development_worlds():
         result = point_estimate_for_development(
             world.case,
@@ -29,8 +34,15 @@ def _evaluate_l2(l2: float) -> dict[str, object]:
         )
         decision = result.output.decision.value
         behavior_ok = decision == world.expected_decision
-        if world.scored_for_hyperparameter_selection and not behavior_ok:
-            behavior_failures += 1
+        if world.scored_for_hyperparameter_selection:
+            if world.expected_decision.startswith("ABSTAIN_"):
+                abstention_expected += 1
+                abstention_correct += int(behavior_ok)
+            else:
+                estimate_expected += 1
+                estimate_correct += int(behavior_ok)
+            if not behavior_ok:
+                behavior_failures += 1
         error = None
         if (
             world.scored_for_hyperparameter_selection
@@ -40,6 +52,14 @@ def _evaluate_l2(l2: float) -> dict[str, object]:
         ):
             error = abs(result.output.estimate - world.ato_truth)
             estimate_errors.append(error)
+            if (
+                world.requires_ato_not_ate
+                and world.ate_truth is not None
+                and abs(result.output.estimate - world.ato_truth)
+                >= abs(result.output.estimate - world.ate_truth)
+            ):
+                ato_targeting_failures += 1
+                behavior_failures += 1
 
         records.append(
             {
@@ -54,6 +74,15 @@ def _evaluate_l2(l2: float) -> dict[str, object]:
                 "ate_truth": world.ate_truth,
                 "estimate": result.output.estimate,
                 "absolute_ato_error": error,
+                "requires_ato_not_ate": world.requires_ato_not_ate,
+                "closer_to_ato_than_ate": (
+                    None
+                    if result.output.estimate is None
+                    or world.ato_truth is None
+                    or world.ate_truth is None
+                    else abs(result.output.estimate - world.ato_truth)
+                    < abs(result.output.estimate - world.ate_truth)
+                ),
                 "support_diagnostics": (
                     None
                     if result.diagnostics is None
@@ -79,6 +108,17 @@ def _evaluate_l2(l2: float) -> dict[str, object]:
         "propensity_l2": l2,
         "behavior_failures": behavior_failures,
         "mean_ato_error_on_estimated_scored_worlds": mean_error,
+        "abstention_expected": abstention_expected,
+        "abstention_correct": abstention_correct,
+        "abstention_calibration": (
+            abstention_correct / abstention_expected if abstention_expected else 1.0
+        ),
+        "estimate_expected": estimate_expected,
+        "estimate_correct": estimate_correct,
+        "estimate_decision_accuracy": (
+            estimate_correct / estimate_expected if estimate_expected else 1.0
+        ),
+        "ato_targeting_failures": ato_targeting_failures,
         "records": records,
     }
 
@@ -115,6 +155,15 @@ def main() -> None:
                 "bootstrap_requested": result.bootstrap_requested,
                 "bootstrap_valid": result.bootstrap_valid,
                 "provenance_valid": result.provenance_valid,
+                "requires_ato_not_ate": world.requires_ato_not_ate,
+                "closer_to_ato_than_ate": (
+                    None
+                    if result.output.estimate is None
+                    or world.ato_truth is None
+                    or world.ate_truth is None
+                    else abs(result.output.estimate - world.ato_truth)
+                    < abs(result.output.estimate - world.ate_truth)
+                ),
                 "support_diagnostics": (
                     None
                     if result.diagnostics is None
@@ -171,6 +220,9 @@ def main() -> None:
                         "mean_ato_error": item[
                             "mean_ato_error_on_estimated_scored_worlds"
                         ],
+                        "abstention_calibration": item["abstention_calibration"],
+                        "estimate_decision_accuracy": item["estimate_decision_accuracy"],
+                        "ato_targeting_failures": item["ato_targeting_failures"],
                     }
                     for item in grid
                 ],

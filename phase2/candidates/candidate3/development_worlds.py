@@ -21,6 +21,7 @@ class DevelopmentWorld:
     ato_truth: float | None
     ate_truth: float | None
     scored_for_hyperparameter_selection: bool
+    requires_ato_not_ate: bool = False
 
 
 def _sigmoid(value: float) -> float:
@@ -161,11 +162,12 @@ def development_worlds() -> tuple[DevelopmentWorld, ...]:
 
     case, ato, ate = _generate(
         world_id="c3-dev-adequate-overlap",
-        n=620,
+        n=1500,
         seed=3301,
         treatment_intercept=0.0,
         selection_strength=0.55,
-        treatment_effect=0.45,
+        treatment_effect=0.60,
+        baseline_logit=-2.15,
     )
     worlds.append(
         DevelopmentWorld(
@@ -175,17 +177,19 @@ def development_worlds() -> tuple[DevelopmentWorld, ...]:
             ato,
             ate,
             True,
+            False,
         )
     )
 
     case, ato, ate = _generate(
         world_id="c3-dev-weak-full-support",
-        n=900,
+        n=1500,
         seed=3302,
         treatment_intercept=-1.35,
         selection_strength=1.65,
-        treatment_effect=0.35,
-        effect_heterogeneity=0.55,
+        treatment_effect=0.45,
+        effect_heterogeneity=0.70,
+        baseline_logit=-2.15,
     )
     worlds.append(
         DevelopmentWorld(
@@ -195,15 +199,16 @@ def development_worlds() -> tuple[DevelopmentWorld, ...]:
             ato,
             ate,
             True,
+            True,
         )
     )
 
     case, ato, ate = _generate(
         world_id="c3-dev-inadequate-support",
-        n=650,
+        n=900,
         seed=3303,
-        treatment_intercept=-3.4,
-        selection_strength=3.3,
+        treatment_intercept=-5.2,
+        selection_strength=5.5,
         treatment_effect=0.40,
     )
     worlds.append(
@@ -214,6 +219,7 @@ def development_worlds() -> tuple[DevelopmentWorld, ...]:
             ato,
             ate,
             True,
+            False,
         )
     )
 
@@ -234,6 +240,7 @@ def development_worlds() -> tuple[DevelopmentWorld, ...]:
             ato,
             ate,
             True,
+            False,
         )
     )
 
@@ -254,17 +261,19 @@ def development_worlds() -> tuple[DevelopmentWorld, ...]:
             ato,
             ate,
             True,
+            False,
         )
     )
 
     case, ato, ate = _generate(
         world_id="c3-dev-heterogeneous-overlap",
-        n=760,
+        n=1300,
         seed=3306,
         treatment_intercept=0.25,
         selection_strength=0.85,
-        treatment_effect=0.25,
-        effect_heterogeneity=0.70,
+        treatment_effect=0.35,
+        effect_heterogeneity=0.80,
+        baseline_logit=-2.20,
     )
     worlds.append(
         DevelopmentWorld(
@@ -274,12 +283,13 @@ def development_worlds() -> tuple[DevelopmentWorld, ...]:
             ato,
             ate,
             True,
+            True,
         )
     )
 
     case, ato, ate = _generate(
         world_id="c3-dev-latent-confounding-nongoal",
-        n=850,
+        n=1200,
         seed=3307,
         treatment_intercept=0.0,
         selection_strength=0.35,
@@ -294,6 +304,7 @@ def development_worlds() -> tuple[DevelopmentWorld, ...]:
             "ESTIMATE_ATO",
             ato,
             ate,
+            False,
             False,
         )
     )
