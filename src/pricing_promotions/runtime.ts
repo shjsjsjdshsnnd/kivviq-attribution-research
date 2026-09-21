@@ -1,7 +1,6 @@
 import type { LatentCustomer } from "../customer_population/types.js";
 import type {
   GeneratedMerchantWorld,
-  MarketingChannel,
 } from "../generation/config.js";
 import {
   priceResponseTruth,
