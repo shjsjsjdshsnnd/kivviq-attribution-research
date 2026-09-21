@@ -7,6 +7,7 @@ import {
 } from "../../src/pricing_promotions/evaluator.js";
 import {
   bundleAttachmentOpportunity,
+  promotionTimingDeferralMultiplier,
   resolveCartLinePricing,
   resolveCartShippingTerms,
   resolveProductOffer,
@@ -481,6 +482,59 @@ describe("Step 10 promotion mechanics", () => {
     expect(
       above[0]!.promotionIds,
     ).toContain("coupon-20");
+  });
+
+  it("suppresses later replenishment demand for stockpiling only after extra quantity is actually purchased", () => {
+    const fixture =
+      createMarginDestructionTrapFixture();
+    const scenario = scenarioWith(fixture, [
+      {
+        promotionId: "stockpile-sale",
+        mechanic: "percentage_discount",
+        scope: { kind: "sitewide" },
+        start: fixture.evaluation.periodStart,
+        end: fixture.evaluation.periodEnd,
+        percentageOff: 0.25,
+        awarenessProbability: 1,
+        stockpilingEligible: true,
+      },
+    ]);
+    const customer = context(fixture);
+    const timestamp = Date.parse(
+      fixture.evaluation.periodStart,
+    );
+
+    const singleUnit =
+      promotionTimingDeferralMultiplier(
+        fixture.evaluation.merchantWorld,
+        scenario,
+        customer,
+        timestamp,
+        [
+          {
+            productId: fixture.productAId,
+            quantity: 1,
+          },
+        ],
+      );
+    const realizedStockpile =
+      promotionTimingDeferralMultiplier(
+        fixture.evaluation.merchantWorld,
+        scenario,
+        customer,
+        timestamp,
+        [
+          {
+            productId: fixture.productAId,
+            quantity: 2,
+          },
+        ],
+      );
+
+    expect(singleUnit).toBeGreaterThanOrEqual(1);
+    expect(realizedStockpile).toBeGreaterThan(
+      singleUnit,
+    );
   });
 
   it("explicit collection membership scopes an offer without inventing frozen collection truth", () => {
