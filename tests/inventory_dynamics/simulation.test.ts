@@ -66,11 +66,14 @@ describe("Step 9 inventory dynamics integration", () => {
         },
       });
 
+      const inventoryTruth =
+        result.godMode.inventory;
+      expect(inventoryTruth).toBeDefined();
       expect(
-        result.godMode.inventory.demandTruth.length,
+        inventoryTruth!.demandTruth.length,
       ).toBeGreaterThan(0);
       expect(
-        result.godMode.inventory.demandTruth.some(
+        inventoryTruth!.demandTruth.some(
           (demand) =>
             demand.inventoryDisposition ===
               "permanently_lost" ||
@@ -81,13 +84,13 @@ describe("Step 9 inventory dynamics integration", () => {
         ),
       ).toBe(true);
 
-      for (const position of result.godMode.inventory.positions) {
+      for (const position of inventoryTruth!.positions) {
         expect(position.onHandUnits).toBeGreaterThanOrEqual(0);
         expect(position.availableToSellUnits).toBeGreaterThanOrEqual(0);
         expect(position.backorderedUnits).toBeGreaterThanOrEqual(0);
       }
       expect(
-        result.godMode.inventory.reconciliation.every(
+        inventoryTruth!.reconciliation.every(
           (row) => row.reconcilesExactly,
         ),
       ).toBe(true);
