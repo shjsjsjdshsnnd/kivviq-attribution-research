@@ -7,6 +7,7 @@ import {
 } from "../../src/pricing_promotions/evaluator.js";
 import {
   bundleAttachmentOpportunity,
+  promotionChannelResponseMultiplier,
   promotionTimingDeferralMultiplier,
   resolveCartLinePricing,
   resolveCartShippingTerms,
@@ -58,6 +59,55 @@ function scenarioWith(
 }
 
 describe("Step 10 promotion mechanics", () => {
+  it("applies promotion × marketing interaction only to the realized channel", () => {
+    const fixture =
+      createMarginDestructionTrapFixture();
+    const scenario = scenarioWith(fixture, [
+      {
+        promotionId: "channel-interaction",
+        mechanic: "percentage_discount",
+        scope: { kind: "sitewide" },
+        start: fixture.evaluation.periodStart,
+        end: fixture.evaluation.periodEnd,
+        percentageOff: 0.1,
+        awarenessProbability: 1,
+        channelResponseMultiplierByChannel: {
+          meta: 1.6,
+          google_search: 0.7,
+        },
+      },
+    ]);
+    const customer = context(fixture);
+    const timestamp = Date.parse(
+      fixture.evaluation.periodStart,
+    );
+
+    expect(
+      promotionChannelResponseMultiplier(
+        scenario,
+        customer,
+        timestamp,
+        "meta",
+      ),
+    ).toBe(1.6);
+    expect(
+      promotionChannelResponseMultiplier(
+        scenario,
+        customer,
+        timestamp,
+        "google_search",
+      ),
+    ).toBe(0.7);
+    expect(
+      promotionChannelResponseMultiplier(
+        scenario,
+        customer,
+        timestamp,
+        "direct",
+      ),
+    ).toBe(1);
+  });
+
   it("free shipping changes shipping economics without changing product price", () => {
     const fixture =
       createMarginDestructionTrapFixture();
