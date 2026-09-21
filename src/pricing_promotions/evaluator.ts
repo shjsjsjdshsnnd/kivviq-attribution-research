@@ -17,6 +17,7 @@ import type {
   InventoryDynamicsEvaluationRequest,
 } from "../inventory_dynamics/types.js";
 import {
+  activePriceState,
   customerAwareOfPromotion,
   promotionScopeMatches,
   type PricingCustomerContext,
@@ -713,7 +714,6 @@ function promotionAttribution(
 
     const purchase = purchaseByOrderId.get(order.orderId);
     const redeemed =
-      order.discountsMinor > 0 ||
       (purchase?.freeShippingPromotionIds?.length ?? 0) > 0 ||
       (purchase?.lines.some(
         (line) => (line.promotionIds?.length ?? 0) > 0,
@@ -772,8 +772,36 @@ function promotionAttribution(
           Math.abs(left.occurredAtMs - orderMs) -
           Math.abs(right.occurredAtMs - orderMs),
       )[0];
+    const promotionDiscountMinor = order.lines.reduce(
+      (sum, line) => {
+        const purchaseLine = purchase?.lines.find(
+          (candidate) =>
+            candidate.productId === line.productId &&
+            (candidate.promotionIds?.length ?? 0) > 0,
+        );
+        if (!purchaseLine) return sum;
+
+        const priceState = activePriceState(
+          scenario,
+          line.productId,
+          orderMs,
+          line.listPriceMinor,
+        );
+        const authoritativePriceStateDiscount =
+          priceState.discountAmountMinor * line.quantity;
+        return (
+          sum +
+          Math.max(
+            0,
+            line.discountMinor -
+              authoritativePriceStateDiscount,
+          )
+        );
+      },
+      0,
+    );
     const weightedDiscount =
-      order.discountsMinor * weight;
+      promotionDiscountMinor * weight;
 
     let matchedBaseline: ComparableOrder | undefined;
     if (!anyBaseline) {
