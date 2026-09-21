@@ -411,45 +411,46 @@ function returnDispositions(
     typeof evaluateEcommerceEconomics
   >,
 ): InventoryDynamicsReport["returnDispositions"] {
-  const profiles = new Map(
-    report.productProfiles.map(
-      (profile) =>
-        [profile.productId, profile] as const,
-    ),
-  );
+  const inventoryTruth =
+    report.simulation.godMode.inventory;
+  if (!inventoryTruth) {
+    throw new RangeError(
+      "Step 9 evaluation requires inventory god mode",
+    );
+  }
 
-  return report.returns.flatMap((returned) =>
-    returned.lines.map((line) => {
-      const profile =
-        profiles.get(line.productId);
-      const damagedRate =
-        profile?.nonRecoverableValueRate ?? 0;
-      const damagedUnits = Math.min(
-        line.quantity,
-        Math.round(
-          line.quantity * damagedRate,
-        ),
-      );
-      const sellableRestockUnits =
-        line.quantity - damagedUnits;
+  return inventoryTruth.returnTruth
+    .map((returned) => {
       const restockDelayDays =
-        line.quantity <= 0
+        returned.restockAt === undefined
           ? 0
-          : profile?.oversized === true
-            ? 4
-            : 2;
+          : Math.max(
+              0,
+              (Date.parse(returned.restockAt) -
+                Date.parse(returned.receivedAt)) /
+                DAY_MS,
+            );
 
       return {
         returnId: returned.returnId,
-        skuId: line.productId,
-        occurredAt: returned.occurredAt,
-        returnedUnits: line.quantity,
-        sellableRestockUnits,
-        damagedUnits,
+        skuId: returned.skuId,
+        occurredAt: returned.receivedAt,
+        returnedUnits: returned.returnedUnits,
+        sellableRestockUnits:
+          returned.returnedUnits -
+          returned.damagedUnits,
+        damagedUnits: returned.damagedUnits,
         restockDelayDays,
       };
-    }),
-  );
+    })
+    .sort(
+      (left, right) =>
+        Date.parse(left.occurredAt) -
+          Date.parse(right.occurredAt) ||
+        left.returnId.localeCompare(
+          right.returnId,
+        ),
+    );
 }
 
 function collectionHealth(
