@@ -666,11 +666,18 @@ export function chooseProduct(
     )
   ) {
     for (const line of customer.cart?.lines ?? []) {
-      markInventoryDemandOutcome(
-        runtime.inventoryEconomy,
-        line.demandTruthId,
-        "abandoned",
-      );
+      const demandIds =
+        line.demandTruthIds ??
+        (line.demandTruthId === undefined
+          ? []
+          : [line.demandTruthId]);
+      for (const demandId of demandIds) {
+        markInventoryDemandOutcome(
+          runtime.inventoryEconomy,
+          demandId,
+          "abandoned",
+        );
+      }
     }
     delete customer.cart;
   }
@@ -706,7 +713,16 @@ export function addToPersistentCart(
     existing.quantity += 1;
     existing.unitPriceMinor = offer.finalPriceMinor;
     if (offer.demandTruthId !== undefined) {
+      const priorIds =
+        existing.demandTruthIds ??
+        (existing.demandTruthId === undefined
+          ? []
+          : [existing.demandTruthId]);
       existing.demandTruthId = offer.demandTruthId;
+      existing.demandTruthIds = [
+        ...priorIds,
+        offer.demandTruthId,
+      ];
     }
   } else {
     cart.lines.push({
@@ -715,7 +731,10 @@ export function addToPersistentCart(
       unitPriceMinor: offer.finalPriceMinor,
       ...(offer.demandTruthId === undefined
         ? {}
-        : { demandTruthId: offer.demandTruthId }),
+        : {
+            demandTruthId: offer.demandTruthId,
+            demandTruthIds: [offer.demandTruthId],
+          }),
     });
   }
   cart.updatedAtMs = timestampMs;
@@ -772,11 +791,18 @@ export function markCartInventoryDemandAbandoned(
   customer: RuntimeCustomerState,
 ): void {
   for (const line of customer.cart?.lines ?? []) {
-    markInventoryDemandOutcome(
-      runtime.inventoryEconomy,
-      line.demandTruthId,
-      "abandoned",
-    );
+    const demandIds =
+      line.demandTruthIds ??
+      (line.demandTruthId === undefined
+        ? []
+        : [line.demandTruthId]);
+    for (const demandId of demandIds) {
+      markInventoryDemandOutcome(
+        runtime.inventoryEconomy,
+        demandId,
+        "abandoned",
+      );
+    }
   }
 }
 
@@ -1075,11 +1101,18 @@ export function completePurchase(
 
   if (commercePolicy?.enableInventoryDynamics === true) {
     for (const cartLine of customer.cart.lines) {
-      markInventoryDemandOutcome(
-        runtime.inventoryEconomy,
-        cartLine.demandTruthId,
-        "purchased",
-      );
+      const demandIds =
+        cartLine.demandTruthIds ??
+        (cartLine.demandTruthId === undefined
+          ? []
+          : [cartLine.demandTruthId]);
+      for (const demandId of demandIds) {
+        markInventoryDemandOutcome(
+          runtime.inventoryEconomy,
+          demandId,
+          "purchased",
+        );
+      }
     }
   }
 
