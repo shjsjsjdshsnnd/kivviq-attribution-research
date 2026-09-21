@@ -561,6 +561,10 @@ export function resolveProductOffer(
       priceState.regularPriceMinor,
       effectivePriceMinor,
       timestampMs,
+      {
+        need: customer.need,
+        brandAffinity: customer.brandAffinity,
+      },
     ),
     promotion: {
       promotionIds: awareApplicable.map(
@@ -1136,11 +1140,19 @@ export function promotionTimingDeferralMultiplier(
   scenario: PricingPromotionScenario | undefined,
   customer: PricingCustomerContext,
   timestampMs: number,
-  purchasedProductIds: readonly string[],
+  purchasedLines: readonly {
+    readonly productId: string;
+    readonly quantity: number;
+  }[],
 ): number {
   if (!scenario) return 1;
   let deferralDays = 0;
-  for (const productId of purchasedProductIds) {
+  for (const purchasedLine of purchasedLines) {
+    const productId = purchasedLine.productId;
+    const realizedQuantity = Math.max(
+      0,
+      Math.floor(purchasedLine.quantity),
+    );
     const offer = resolveProductOffer(
       world,
       scenario,
@@ -1159,12 +1171,24 @@ export function promotionTimingDeferralMultiplier(
       deferralDays,
       promotionPullForwardDays(customer.source, depth),
     );
-    if (offer.promotion.stockpilingMultiplier > 1) {
+
+    // Stockpiling can suppress future replenishment demand only when the
+    // customer actually buys additional quantity. Merely being eligible for a
+    // stockpiling promotion cannot create a future-demand dip.
+    const realizedExtraUnits = Math.max(
+      0,
+      realizedQuantity - 1,
+    );
+    if (
+      realizedExtraUnits > 0 &&
+      offer.promotion.stockpilingMultiplier > 1
+    ) {
       deferralDays = Math.max(
         deferralDays,
         customer.source.expectedPurchaseIntervalDays *
           (offer.promotion.stockpilingMultiplier - 1) *
-          0.65,
+          0.65 *
+          Math.min(2.5, realizedExtraUnits),
       );
     }
   }
