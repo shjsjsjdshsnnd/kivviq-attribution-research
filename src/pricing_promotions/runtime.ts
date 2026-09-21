@@ -407,6 +407,10 @@ export function resolveProductOffer(
   );
 
   const automaticCandidates = applicable
+    .filter(
+      (promotion) =>
+        (promotion.minimumSpendMinor ?? 0) <= 0,
+    )
     .map((promotion) => ({
       promotion,
       discountMinor: automaticUnitDiscount(
@@ -682,6 +686,53 @@ export function resolveCartLinePricing(
   );
 
   for (const promotion of active) {
+    const minimumSpendQualified =
+      (promotion.minimumSpendMinor ?? 0) > 0;
+    const orderPercentage =
+      minimumSpendQualified &&
+      promotion.percentageOff !== undefined &&
+      (promotion.mechanic === "coupon" ||
+        promotion.mechanic === "percentage_discount" ||
+        promotion.mechanic === "loyalty_percentage" ||
+        promotion.mechanic === "clearance");
+
+    if (orderPercentage) {
+      const depth = clamp(
+        promotion.percentageOff ?? 0,
+        0,
+        0.95,
+      );
+      for (const line of lines) {
+        if (
+          !promotionScopeMatches(
+            world,
+            scenario,
+            promotion,
+            line.productId,
+          )
+        ) {
+          continue;
+        }
+        const perUnit = Math.min(
+          line.effectiveUnitPriceMinor - 1,
+          Math.round(
+            line.effectiveUnitPriceMinor * depth,
+          ),
+        );
+        line.effectiveUnitPriceMinor -= perUnit;
+        line.discountMinor += perUnit * line.quantity;
+        line.returnProbabilityMultiplier *=
+          promotion.returnProbabilityMultiplier ?? 1;
+        if (!line.promotionIds.includes(promotion.promotionId)) {
+          line.promotionIds = [
+            ...line.promotionIds,
+            promotion.promotionId,
+          ];
+        }
+      }
+      continue;
+    }
+
     if (promotion.mechanic === "bundle" && promotion.bundle) {
       const present = new Set(
         lines
