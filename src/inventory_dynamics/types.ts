@@ -281,6 +281,8 @@ export interface InventoryHealthRow {
   readonly oldestInventoryAgeDays: number;
   readonly carryingCostMinor: number;
   readonly obsolescenceEconomicLossMinor: number;
+  readonly markdownRiskProbability: number;
+  readonly expectedMarkdownValueDragMinor: number;
 
   readonly inventoryBookValueMinor: number;
   readonly expectedRecoverableContributionMinor: number;
