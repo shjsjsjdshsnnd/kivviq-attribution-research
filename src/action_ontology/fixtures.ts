@@ -1,500 +1,614 @@
 import { currencyCode, utcTimestamp } from "../core/units.js";
-import { assertValidAction } from "./validation.js";
+import { actionId, actionType, constraintId } from "./identity.js";
 import {
-  ACTION_ONTOLOGY_VERSION,
-  RISK_DIMENSIONS,
+  ACTION_SCHEMA_VERSION,
   type Action,
   type ActionCost,
   type ActionMeasurementHorizon,
-  type ActionReversibility,
-  type KnowledgeValue,
-  type MonetaryAmount,
-  type ParameterValue,
-  type ValueProvenance,
+  type ActionProvenance,
+  type ActionRiskDimension,
+  type CompoundAction,
+  type KnownOrUnknown,
+  type MonetaryValue,
 } from "./types.js";
+import { assertValidAction } from "./validation.js";
 
 const CAD = currencyCode("CAD");
-const DAY = 86_400;
-const WEEK = DAY * 7;
+const DECISION = utcTimestamp("2026-09-21T13:00:00Z");
+const FIVE_MINUTES_LATER = utcTimestamp("2026-09-21T13:05:00Z");
+const FOUR_DAYS = 4 * 24 * 60 * 60;
+const FOURTEEN_DAYS = 14 * 24 * 60 * 60;
+const THIRTY_DAYS = 30 * 24 * 60 * 60;
 
-function known<T>(
-  value: T,
-  provenance: ValueProvenance = "operator_input",
-): KnowledgeValue<T> {
-  return { status: "known", value, provenance };
-}
-
-function estimated<T>(value: T): KnowledgeValue<T> {
-  return { status: "estimated", value, provenance: "modeled_estimate" };
-}
-
-function unknownValue<T>(reason: string): KnowledgeValue<T> {
-  return { status: "unknown", provenance: "unknown", reason };
-}
-
-function na<T>(reason: string): KnowledgeValue<T> {
-  return { status: "not_applicable", provenance: "not_applicable", reason };
-}
-
-function money(amountMinor: number): MonetaryAmount {
-  return { amountMinor, currency: CAD };
-}
-
-function moneyValue(amountMinor: number): ParameterValue {
+function money(amountMinor: number): MonetaryValue {
   return { kind: "money", amountMinor, currency: CAD };
 }
 
-function moneyRateValue(
-  amountMinor: number,
-  per: "day" | "week" | "month",
-): ParameterValue {
-  return { kind: "money_rate", amountMinor, currency: CAD, per };
+function unknownMoney(reason: string): KnownOrUnknown<MonetaryValue> {
+  return { kind: "unknown", reason };
 }
 
-function pct(
-  basisPoints: number,
-  semantics:
-    | "relative_change"
-    | "absolute_share"
-    | "percentage_points"
-    | "discount_rate"
-    | "margin_rate",
-): ParameterValue {
-  return { kind: "percentage", basisPoints, semantics };
+function knownMoney(amountMinor: number, sourceRef: string): KnownOrUnknown<MonetaryValue> {
+  return { kind: "known", value: money(amountMinor), sourceRef };
 }
 
-function costs(): ActionCost {
+function defaultCost(): ActionCost {
   return {
-    incrementalSpend: unknownValue("requires evaluation"),
-    implementationCost: unknownValue("not yet estimated"),
-    discountMarginCost: unknownValue("not yet estimated"),
-    operationalCost: unknownValue("not yet estimated"),
-    opportunityCost: unknownValue("not yet estimated"),
-    totalEconomicExposure: unknownValue("requires evaluation"),
+    directFinancialCost: unknownMoney("not committed by the Action definition"),
+    mediaSpend: unknownMoney("depends on realized delivery"),
+    implementationCost: unknownMoney("not yet supplied"),
+    engineeringCost: unknownMoney("not yet supplied"),
+    operationalCost: unknownMoney("not yet supplied"),
+    promotionalCost: unknownMoney("not applicable unless measured later"),
+    inventoryCommitment: unknownMoney("not applicable unless measured later"),
+    opportunityCostReference: "evaluate separately; never record as realized expense",
   };
 }
 
-function risks() {
-  return RISK_DIMENSIONS.map((dimension) => ({
-    dimension,
-    probability: unknownValue<number>("requires evaluation"),
-    impact: unknownValue("requires evaluation"),
-  }));
-}
-
-function measurement(metrics: readonly string[], primary = WEEK * 2): ActionMeasurementHorizon {
-  return {
-    earliestMeaningfulObservationSeconds: known(DAY * 3, "derived"),
-    primaryEvaluationSeconds: known(primary, "derived"),
-    longerTermEvaluationSeconds: known(Math.max(primary * 2, WEEK * 4), "derived"),
-    metrics: metrics.map((metricId) => ({ metricId })),
-    baseline: {
-      strategy: "same_length_prior",
-      lookbackSeconds: Math.max(primary, WEEK * 2),
-      minimumObservations: 1,
+function defaultRisks(): readonly ActionRiskDimension[] {
+  return [
+    {
+      dimension: "financial_downside",
+      downsideDefinition: "The intervention can consume spend without sufficient incremental return.",
     },
-  };
+    {
+      dimension: "inventory_exposure",
+      downsideDefinition: "Additional demand can deplete constrained sellable inventory.",
+    },
+    {
+      dimension: "measurement_uncertainty",
+      downsideDefinition: "Observed post-action movement may not identify the causal effect.",
+    },
+  ];
 }
 
-function reversible(mechanism: string): ActionReversibility {
+function defaultMeasurement(): ActionMeasurementHorizon {
   return {
-    classification: "fully_reversible",
-    reversalMechanism: known(mechanism),
-    reversalCost: unknownValue("not yet estimated"),
-    reversalDelaySeconds: estimated(300),
+    earliestMeaningfulEvaluationSeconds: 3 * 24 * 60 * 60,
+    primaryEvaluationSeconds: FOURTEEN_DAYS,
+    longTermFollowUpSeconds: THIRTY_DAYS,
+    outcomes: [
+      {
+        family: "incremental_contribution_profit",
+        metricId: "incremental_contribution_profit",
+        role: "primary",
+      },
+      {
+        family: "inventory_position",
+        metricId: "sellable_inventory_units",
+        role: "guardrail",
+      },
+    ],
   };
 }
 
-function partiallyReversible(mechanism: string): ActionReversibility {
+function provenance(source: ActionProvenance["source"] = "human"): ActionProvenance {
   return {
-    classification: "partially_reversible",
-    reversalMechanism: known(mechanism),
-    reversalCost: unknownValue("some completed effects cannot be undone"),
-    reversalDelaySeconds: estimated(300),
+    source,
+    createdAt: utcTimestamp("2026-09-21T13:00:00Z"),
+    evidenceRefs: [],
   };
 }
 
-function fixture(input: Record<string, unknown>): Action {
+function baseAction(overrides: Partial<Action>): Action {
   return assertValidAction({
-    ontologyVersion: ACTION_ONTOLOGY_VERSION,
-    version: 1,
-    atomicity: "ATOMIC",
+    kind: "atomic_action",
+    actionId: actionId("action_placeholder"),
+    actionType: actionType("no_op.do_nothing"),
+    actionCategory: "no_op",
+    schemaVersion: ACTION_SCHEMA_VERSION,
+    description: "Intentional no-op placeholder.",
+    target: { kind: "merchant", merchantId: "merchant:synthetic" },
+    scope: { dimensions: [] },
+    parameters: { kind: "no_op", reasonCode: "placeholder" },
     timing: {
-      proposedStart: known(utcTimestamp("2026-09-21T13:00:00Z")),
-      earliestPossibleStart: known(utcTimestamp("2026-09-21T12:00:00Z")),
-      latestUsefulStart: known(utcTimestamp("2026-09-23T13:00:00Z")),
-      schedulingRequirements: [],
-      dependencies: [],
+      decisionTime: DECISION,
+      requestedStart: { kind: "known", at: DECISION },
+      effectiveStart: { kind: "known", at: DECISION },
+      implementationDelaySeconds: { kind: "known", seconds: 0 },
     },
-    duration: {
-      kind: "persistent",
-      durationSeconds: na("persistent action"),
-      endTime: na("persistent action"),
-    },
-    cost: costs(),
+    duration: { kind: "temporary", durationSeconds: FOURTEEN_DAYS },
+    termination: { kind: "fixed_duration", durationSeconds: FOURTEEN_DAYS },
+    cost: defaultCost(),
+    resourceRequirements: [],
     constraints: [],
-    reversibility: reversible("restore the prior configuration"),
-    risks: risks(),
-    measurement: measurement(["net_revenue", "contribution_profit"]),
-    state: "PROPOSED",
-    ...input,
+    preconditions: [],
+    reversibility: {
+      classification: "immediately_reversible",
+      reversal: {
+        kind: "restore_previous_value",
+        target: { kind: "merchant", merchantId: "merchant:synthetic" },
+        parameterKind: "no_op",
+      },
+      minimumDelaySeconds: 0,
+    },
+    riskDimensions: defaultRisks(),
+    uncertaintyDimensions: [
+      {
+        dimension: "causal_effect",
+        informationGap: "No outcome effect is stored inside Action.",
+      },
+    ],
+    measurement: defaultMeasurement(),
+    intent: { statement: "Represent a possible business intervention." },
+    provenance: provenance(),
+    ...overrides,
   });
 }
 
-export const increaseGoogleShoppingBudget20 = fixture({
-  actionId: "act-google-shopping-budget-up-20",
-  actionType: "paid_media.adjust_budget",
-  actionCategory: "paid_media",
-  description: "Increase Google Shopping campaign budget by 20%.",
+export const increaseGoogleShoppingBudget20 = baseAction({
+  actionId: actionId("action_google_shopping_budget_multiply_120"),
+  actionType: actionType("advertising.adjust_budget"),
+  actionCategory: "advertising",
+  description: "Increase Google Shopping budget by 20% for 14 days.",
   target: {
     kind: "campaign",
     channelId: "google_ads",
-    campaignId: "campaign:google-shopping",
+    campaignId: "google_shopping",
   },
-  parameters: [
-    {
-      parameterId: "budget_change",
-      mode: "INCREASE_BY_PERCENT",
-      value: pct(2_000, "relative_change"),
+  parameters: {
+    kind: "budget_adjustment",
+    operation: {
+      kind: "MULTIPLY",
+      factor: 1.2,
+      reference: {
+        kind: "current_at_decision",
+        decisionTime: DECISION,
+      },
     },
-  ],
-  cost: { ...costs(), incrementalSpend: estimated(money(140_000)) },
-  measurement: measurement([
-    "paid_media.spend",
-    "orders",
-    "net_revenue",
-    "contribution_profit",
-  ]),
-});
-
-export const pauseUnderperformingMetaCampaign = fixture({
-  actionId: "act-pause-meta-underperformer",
-  actionType: "paid_media.pause_campaign",
-  actionCategory: "paid_media",
-  description: "Pause an underperforming Meta campaign.",
-  target: {
-    kind: "campaign",
-    channelId: "meta_ads",
-    campaignId: "campaign:meta-underperformer",
   },
-  parameters: [
+  timing: {
+    decisionTime: DECISION,
+    requestedStart: { kind: "known", at: DECISION },
+    effectiveStart: { kind: "known", at: FIVE_MINUTES_LATER },
+    implementationDelaySeconds: { kind: "known", seconds: 300 },
+  },
+  resourceRequirements: [
     {
-      parameterId: "state_change",
-      mode: "PAUSE",
-      value: { kind: "boolean", value: true },
-    },
-  ],
-  reversibility: reversible("resume the same campaign"),
-});
-
-export const reduceProductPrice10 = fixture({
-  actionId: "act-price-product-101-down-10",
-  actionType: "pricing.adjust_product_price",
-  actionCategory: "pricing",
-  description: "Reduce Product 101 price by 10%.",
-  target: { kind: "price", productId: "product:101", skuId: "sku:101" },
-  parameters: [
-    {
-      parameterId: "price_change",
-      mode: "DECREASE_BY_PERCENT",
-      value: pct(1_000, "relative_change"),
-      fromValue: moneyValue(89_900),
-      toValue: moneyValue(80_910),
+      resourceType: "advertising_budget",
+      amount: unknownMoney("increment depends on the observable decision-time baseline"),
     },
   ],
   constraints: [
     {
-      constraintId: "margin-floor",
-      kind: "property_comparison",
-      property: "product.gross_margin_rate",
-      operator: "GTE",
-      value: pct(3_000, "margin_rate"),
-      whenUnmet: "INVALID",
+      constraintId: constraintId("budget_available"),
+      constraintClass: "hard",
+      expression: {
+        kind: "property_comparison",
+        propertyId: "budget.available_minor",
+        operator: "GT",
+        value: money(0),
+      },
+      description: "Additional spend requires available budget.",
     },
-  ],
-  cost: { ...costs(), discountMarginCost: estimated(money(45_000)) },
-  reversibility: partiallyReversible(
-    "restore prior price; completed discounted sales remain final",
-  ),
-  measurement: measurement([
-    "product.conversion_rate",
-    "product.units_sold",
-    "product.gross_margin_rate",
-    "product.expected_contribution_per_unit_minor",
-  ]),
-});
-
-export const runCollectionPromotion15FourDays = fixture({
-  actionId: "act-rugs-promo-15-four-days",
-  actionType: "promotions.collection_discount",
-  actionCategory: "promotions",
-  description: "Run a 15% collection promotion for four days.",
-  target: { kind: "collection", collectionId: "collection:rugs" },
-  parameters: [
     {
-      parameterId: "discount_rate",
-      mode: "APPLY",
-      value: pct(1_500, "discount_rate"),
+      constraintId: constraintId("preferred_margin"),
+      constraintClass: "soft",
+      expression: {
+        kind: "property_comparison",
+        propertyId: "finance.gross_margin_rate",
+        operator: "GTE",
+        value: { kind: "percentage", basisPoints: 4500 },
+      },
+      description: "Prefer at least 45% gross margin.",
     },
   ],
-  duration: {
-    kind: "temporary",
-    durationSeconds: known(DAY * 4),
-    endTime: known(utcTimestamp("2026-09-25T13:00:00Z")),
-  },
-  cost: { ...costs(), discountMarginCost: estimated(money(180_000)) },
-  reversibility: partiallyReversible(
-    "end the promotion; completed discounted orders cannot be undone",
-  ),
-  measurement: measurement(
-    ["collection.net_revenue", "collection.margin", "collection.contribution_profit"],
-    WEEK,
-  ),
-});
-
-export const increaseEmailCampaignFrequency = fixture({
-  actionId: "act-email-frequency-2-to-3",
-  actionType: "crm.adjust_campaign_frequency",
-  actionCategory: "email_sms_crm",
-  description: "Increase email campaign frequency from 2 to 3 sends per week.",
-  target: {
-    kind: "email_campaign",
-    emailCampaignId: "email-campaign:weekly-editorial",
-  },
-  parameters: [
+  preconditions: [
     {
-      parameterId: "frequency_change",
-      mode: "SET",
-      fromValue: { kind: "frequency", value: 2, per: "week" },
-      toValue: { kind: "frequency", value: 3, per: "week" },
+      preconditionId: "campaign_exists",
+      expression: {
+        kind: "entity_exists",
+        target: {
+          kind: "campaign",
+          channelId: "google_ads",
+          campaignId: "google_shopping",
+        },
+      },
+      whenUnknown: "unknown_eligibility",
     },
   ],
-  reversibility: reversible("restore two sends per week"),
-  measurement: measurement([
-    "crm.revenue",
-    "crm.unsubscribe_rate",
-    "crm.spam_complaint_rate",
-  ]),
-});
-
-export const moveProductHigherInCollection = fixture({
-  actionId: "act-merch-product-202-position-1",
-  actionType: "merchandising.move_collection_position",
-  actionCategory: "merchandising",
-  description: "Move Product 202 from position 6 to position 1.",
-  target: {
-    kind: "merchandising_placement",
-    collectionId: "collection:dining",
-    productId: "product:202",
+  reversibility: {
+    classification: "immediately_reversible",
+    reversal: {
+      kind: "restore_previous_value",
+      target: {
+        kind: "campaign",
+        channelId: "google_ads",
+        campaignId: "google_shopping",
+      },
+      parameterKind: "budget_adjustment",
+    },
+    minimumDelaySeconds: 0,
   },
-  parameters: [
-    {
-      parameterId: "position_change",
-      mode: "MOVE_TO",
-      fromValue: { kind: "position", value: 6 },
-      toValue: { kind: "position", value: 1 },
-    },
-  ],
-  reversibility: reversible("restore Product 202 to position 6"),
+  intent: { statement: "Capture additional profitable demand." },
 });
 
-const sharedIntentId = "intent:move-1000-meta-to-google";
-const parentActionId = "act-reallocate-meta-to-google-1000";
-
-const metaDecrease = fixture({
-  actionId: "act-reallocate-meta-down-1000",
-  actionType: "paid_media.adjust_budget",
-  actionCategory: "paid_media",
-  description: "Decrease Meta prospecting by CAD 1,000 per week.",
-  target: {
-    kind: "campaign",
-    channelId: "meta_ads",
-    campaignId: "campaign:meta-prospecting",
-  },
-  parameters: [
-    {
-      parameterId: "budget_change",
-      mode: "DECREASE_BY",
-      value: moneyRateValue(100_000, "week"),
-    },
-  ],
-  sharedIntentId,
-  parentActionId,
-});
-
-const googleIncrease = fixture({
-  actionId: "act-reallocate-google-up-1000",
-  actionType: "paid_media.adjust_budget",
-  actionCategory: "paid_media",
-  description: "Increase Google Shopping by CAD 1,000 per week.",
+export const setGoogleShoppingBudgetAbsolute = baseAction({
+  actionId: actionId("action_google_shopping_budget_set_11000_week"),
+  actionType: actionType("advertising.adjust_budget"),
+  actionCategory: "advertising",
+  description: "Set Google Shopping budget to CAD 11,000 per week.",
   target: {
     kind: "campaign",
     channelId: "google_ads",
-    campaignId: "campaign:google-shopping",
+    campaignId: "google_shopping",
   },
-  parameters: [
-    {
-      parameterId: "budget_change",
-      mode: "INCREASE_BY",
-      value: moneyRateValue(100_000, "week"),
+  parameters: {
+    kind: "budget_adjustment",
+    operation: {
+      kind: "SET",
+      value: {
+        kind: "money_rate",
+        amountMinor: 1_100_000,
+        currency: CAD,
+        per: "week",
+      },
     },
-  ],
-  sharedIntentId,
-  parentActionId,
+  },
 });
 
-export const reallocateMetaToGoogle1000PerWeek = fixture({
-  actionId: parentActionId,
-  actionType: "paid_media.reallocate_budget",
-  actionCategory: "paid_media",
-  description: "Move CAD 1,000 per week from Meta prospecting to Google Shopping.",
-  atomicity: "COMPOUND",
-  target: { kind: "compound", targets: [metaDecrease.target, googleIncrease.target] },
-  parameters: [
+export const increaseGoogleShoppingBudgetBy1000 = baseAction({
+  actionId: actionId("action_google_shopping_budget_delta_1000_week"),
+  actionType: actionType("advertising.adjust_budget"),
+  actionCategory: "advertising",
+  description: "Increase Google Shopping budget by CAD 1,000 per week.",
+  target: {
+    kind: "campaign",
+    channelId: "google_ads",
+    campaignId: "google_shopping",
+  },
+  parameters: {
+    kind: "budget_adjustment",
+    operation: {
+      kind: "DELTA",
+      direction: "increase",
+      amount: {
+        kind: "money_rate",
+        amountMinor: 100_000,
+        currency: CAD,
+        per: "week",
+      },
+      reference: {
+        kind: "explicit_baseline",
+        value: {
+          kind: "money_rate",
+          amountMinor: 1_000_000,
+          currency: CAD,
+          per: "week",
+        },
+      },
+    },
+  },
+});
+
+export const pauseUnderperformingMetaCampaign = baseAction({
+  actionId: actionId("action_meta_campaign_pause"),
+  actionType: actionType("advertising.pause_campaign"),
+  actionCategory: "advertising",
+  description: "Pause a Meta prospecting campaign.",
+  target: {
+    kind: "campaign",
+    channelId: "meta_ads",
+    campaignId: "meta_prospecting",
+  },
+  parameters: {
+    kind: "toggle",
+    setting: "campaign_enabled",
+    value: false,
+  },
+  duration: { kind: "until_reversed" },
+  termination: { kind: "manual_reversal" },
+  reversibility: {
+    classification: "immediately_reversible",
+    reversal: {
+      kind: "restore_previous_value",
+      target: {
+        kind: "campaign",
+        channelId: "meta_ads",
+        campaignId: "meta_prospecting",
+      },
+      parameterKind: "toggle",
+    },
+    minimumDelaySeconds: 0,
+  },
+});
+
+export const reduceProductPrice10 = baseAction({
+  actionId: actionId("action_product_price_multiply_090"),
+  actionType: actionType("pricing.adjust_price"),
+  actionCategory: "pricing",
+  description: "Reduce a product price by 10%.",
+  target: { kind: "product", productId: "product:A" },
+  parameters: {
+    kind: "price_adjustment",
+    operation: {
+      kind: "MULTIPLY",
+      factor: 0.9,
+      reference: {
+        kind: "current_at_decision",
+        decisionTime: DECISION,
+      },
+    },
+  },
+  constraints: [
     {
-      parameterId: "transfer_amount",
-      mode: "SET",
-      value: moneyRateValue(100_000, "week"),
+      constraintId: constraintId("price_floor"),
+      constraintClass: "hard",
+      expression: {
+        kind: "property_comparison",
+        propertyId: "price.floor_minor",
+        operator: "LTE",
+        value: money(20_000),
+      },
+    },
+    {
+      constraintId: constraintId("minimum_margin"),
+      constraintClass: "hard",
+      expression: {
+        kind: "property_comparison",
+        propertyId: "finance.gross_margin_rate",
+        operator: "GTE",
+        value: { kind: "percentage", basisPoints: 3000 },
+      },
+      description: "Never allow the action when gross margin would violate the 30% floor.",
     },
   ],
-  sharedIntentId,
-  components: [metaDecrease, googleIncrease],
-  coordination: {
-    executionPolicy: "all_or_nothing",
-    dependencies: [
-      {
-        componentActionId: googleIncrease.actionId,
-        dependsOnActionIds: [metaDecrease.actionId],
-      },
+});
+
+export const runCollectionPromotion15FourDays = baseAction({
+  actionId: actionId("action_collection_promo_15pct_4d"),
+  actionType: actionType("promotion.apply_discount"),
+  actionCategory: "promotion",
+  description: "Apply a 15% collection promotion for four days.",
+  target: { kind: "collection", collectionId: "collection:A" },
+  scope: {
+    dimensions: [
+      { kind: "geography", include: ["CA"] },
+      { kind: "device", devices: ["mobile"] },
+      { kind: "customer_population", segmentIds: ["new_customers"] },
     ],
   },
-  cost: { ...costs(), incrementalSpend: known(money(0), "derived") },
-  reversibility: reversible("transfer the same amount back"),
-});
-
-export const stopAdsForLowInventoryHighRoasSku = fixture({
-  actionId: "act-stop-ads-low-inventory-sku",
-  actionType: "paid_media.stop_product_advertising",
-  actionCategory: "paid_media",
-  description:
-    "Stop advertising a high-ROAS SKU when available inventory reaches 17 units or fewer.",
-  target: {
-    kind: "sku",
-    productId: "product:inventory-trap",
-    skuId: "sku:inventory-trap",
-  },
-  parameters: [
-    {
-      parameterId: "state_change",
-      mode: "PAUSE",
-      value: { kind: "boolean", value: true },
+  parameters: {
+    kind: "promotion",
+    discount: {
+      kind: "SET",
+      value: { kind: "percentage", basisPoints: 1500 },
     },
-  ],
+  },
+  duration: { kind: "temporary", durationSeconds: FOUR_DAYS },
+  termination: { kind: "fixed_duration", durationSeconds: FOUR_DAYS },
+  cost: {
+    ...defaultCost(),
+    promotionalCost: unknownMoney("margin impact must be measured separately"),
+  },
   constraints: [
     {
-      constraintId: "inventory-threshold",
-      kind: "property_comparison",
-      property: "inventory.available_units",
-      operator: "LTE",
-      value: { kind: "number", value: 17, unit: "units" },
-      whenUnmet: "INVALID",
+      constraintId: constraintId("max_discount"),
+      constraintClass: "hard",
+      expression: {
+        kind: "property_comparison",
+        propertyId: "promotion.maximum_discount_rate",
+        operator: "GTE",
+        value: { kind: "percentage", basisPoints: 1500 },
+      },
     },
   ],
-  measurement: measurement([
-    "inventory.available_units",
-    "paid_media.platform_product_roas",
-    "product.expected_contribution_per_unit_minor",
-    "product.structural_demand_units_per_day",
-    "product.substitution_product_ids",
-  ]),
-  reversibility: reversible("resume advertising after inventory recovers"),
 });
 
-export const increaseAdsConditionalOnContribution = fixture({
-  actionId: "act-scale-product-if-contribution-safe",
-  actionType: "paid_media.adjust_product_budget",
-  actionCategory: "paid_media",
-  description:
-    "Increase product advertising by 15% only while contribution, margin and inventory remain above floors.",
-  target: {
-    kind: "sku",
-    productId: "product:scale-candidate",
-    skuId: "sku:scale-candidate",
+export const reorderInventoryWith45DayDelay = baseAction({
+  actionId: actionId("action_inventory_reorder_50_units"),
+  actionType: actionType("inventory.adjust_policy"),
+  actionCategory: "inventory",
+  description: "Order 50 additional units of a SKU with a 45-day implementation delay.",
+  target: { kind: "sku", skuId: "sku:A", productId: "product:A" },
+  parameters: {
+    kind: "inventory",
+    operation: {
+      kind: "DELTA",
+      direction: "increase",
+      amount: { kind: "quantity", value: 50, unit: "units" },
+      reference: {
+        kind: "current_at_decision",
+        decisionTime: DECISION,
+      },
+    },
   },
-  parameters: [
+  timing: {
+    decisionTime: DECISION,
+    requestedStart: { kind: "known", at: DECISION },
+    effectiveStart: {
+      kind: "known",
+      at: utcTimestamp("2026-11-05T13:00:00Z"),
+    },
+    implementationDelaySeconds: {
+      kind: "known",
+      seconds: 45 * 24 * 60 * 60,
+    },
+  },
+  duration: { kind: "instantaneous" },
+  termination: {
+    kind: "fixed_end",
+    at: utcTimestamp("2026-11-05T13:00:00Z"),
+  },
+  cost: {
+    ...defaultCost(),
+    inventoryCommitment: knownMoney(250_000, "purchase_order:synthetic"),
+  },
+  resourceRequirements: [
     {
-      parameterId: "budget_change",
-      mode: "INCREASE_BY_PERCENT",
-      value: pct(1_500, "relative_change"),
+      resourceType: "inventory",
+      amount: {
+        kind: "known",
+        value: { kind: "quantity", value: 50, unit: "units" },
+        sourceRef: "purchase_order:synthetic",
+      },
     },
   ],
-  constraints: [
+  reversibility: {
+    classification: "effectively_irreversible",
+    reversal: {
+      kind: "none",
+      reason: "Committed inventory cannot be meaningfully unpurchased after supplier commitment.",
+    },
+  },
+  riskDimensions: [
     {
-      constraintId: "contribution-floor",
-      kind: "property_comparison",
-      property: "product.expected_contribution_per_unit_minor",
-      operator: "GTE",
-      value: moneyValue(5_000),
-      whenUnmet: "BLOCKED",
+      dimension: "inventory_exposure",
+      downsideDefinition: "Committed units may exceed realized sell-through.",
     },
     {
-      constraintId: "margin-floor",
-      kind: "property_comparison",
-      property: "product.gross_margin_rate",
-      operator: "GTE",
-      value: pct(3_500, "margin_rate"),
-      whenUnmet: "BLOCKED",
+      dimension: "financial_downside",
+      downsideDefinition: "Inventory commitment can tie up working capital.",
     },
     {
-      constraintId: "inventory-floor",
-      kind: "property_comparison",
-      property: "inventory.available_units",
-      operator: "GTE",
-      value: { kind: "number", value: 50, unit: "units" },
-      whenUnmet: "BLOCKED",
+      dimension: "irreversibility",
+      downsideDefinition: "Supplier commitment may not be cancellable.",
     },
   ],
-  measurement: measurement([
-    "product.expected_contribution_per_unit_minor",
-    "product.gross_margin_rate",
-    "product.return_rate",
-    "product.shipping_cost_per_unit_minor",
-    "product.fulfillment_cost_per_unit_minor",
-    "product.structural_demand_units_per_day",
-  ]),
+  measurement: {
+    earliestMeaningfulEvaluationSeconds: 45 * 24 * 60 * 60,
+    primaryEvaluationSeconds: 60 * 24 * 60 * 60,
+    longTermFollowUpSeconds: 120 * 24 * 60 * 60,
+    outcomes: [
+      { family: "inventory_position", role: "primary" },
+      { family: "incremental_contribution_profit", role: "guardrail" },
+    ],
+  },
 });
 
-export const reverseGoogleShoppingBudgetIncrease = fixture({
-  actionId: "act-reverse-google-shopping-budget-up-20",
-  actionType: "paid_media.adjust_budget",
-  actionCategory: "paid_media",
-  description: "Reverse a previous budget increase by restoring the prior budget.",
+export const doNothingAction = baseAction({
+  actionId: actionId("action_do_nothing_14d"),
+  actionType: actionType("no_op.do_nothing"),
+  actionCategory: "no_op",
+  description: "Intentionally keep the current policy unchanged for 14 days.",
+  parameters: { kind: "no_op", reasonCode: "current_policy_is_candidate" },
+  cost: {
+    directFinancialCost: knownMoney(0, "ontology:no_op"),
+    mediaSpend: knownMoney(0, "ontology:no_op"),
+    implementationCost: knownMoney(0, "ontology:no_op"),
+    engineeringCost: knownMoney(0, "ontology:no_op"),
+    operationalCost: knownMoney(0, "ontology:no_op"),
+    promotionalCost: knownMoney(0, "ontology:no_op"),
+    inventoryCommitment: knownMoney(0, "ontology:no_op"),
+  },
+  intent: { statement: "Measure the current policy as a first-class candidate action." },
+});
+
+export const waitObserveAction = baseAction({
+  actionId: actionId("action_wait_observe_7d"),
+  actionType: actionType("no_op.wait_observe"),
+  actionCategory: "no_op",
+  description: "Defer intervention for seven days while natural evidence accumulates.",
+  parameters: {
+    kind: "wait_observe",
+    observationUntil: {
+      kind: "time",
+      at: utcTimestamp("2026-09-28T13:00:00Z"),
+    },
+  },
+  duration: { kind: "temporary", durationSeconds: 7 * 24 * 60 * 60 },
+  termination: { kind: "fixed_duration", durationSeconds: 7 * 24 * 60 * 60 },
+  intent: {
+    statement: "Wait because additional naturally arriving evidence is expected.",
+  },
+});
+
+export const investigateTrackingAnomaly = baseAction({
+  actionId: actionId("action_investigate_tracking_anomaly"),
+  actionType: actionType("investigation.inspect"),
+  actionCategory: "investigation",
+  description: "Investigate an unexpected tracking anomaly.",
+  parameters: {
+    kind: "investigate",
+    investigationType: "tracking_anomaly",
+    question: "Why did observed checkout tracking diverge from order records?",
+    requestedEvidenceRefs: ["checkout_events", "order_records"],
+  },
+  duration: { kind: "instantaneous" },
+  termination: { kind: "persistent" },
+  reversibility: {
+    classification: "effectively_irreversible",
+    reversal: {
+      kind: "none",
+      reason: "Information learned by an investigation cannot be unlearned.",
+    },
+  },
+  intent: { statement: "Improve the information state before economic intervention." },
+});
+
+export const runExperimentAction = baseAction({
+  actionId: actionId("action_run_checkout_experiment"),
+  actionType: actionType("experimentation.run_experiment"),
+  actionCategory: "experimentation",
+  description: "Run a checkout experiment for 21 days.",
+  target: { kind: "experiment", experimentId: "experiment:checkout-v1" },
+  parameters: {
+    kind: "run_experiment",
+    hypothesisRef: "hypothesis:checkout-friction",
+    interventionActionId: actionId("action_checkout_variant"),
+    controlActionId: actionId("action_checkout_control"),
+    targetPopulationRef: "population:eligible-checkout-sessions",
+    durationSeconds: 21 * 24 * 60 * 60,
+    primaryOutcomeMetricId: "checkout_conversion_rate",
+  },
+  duration: { kind: "temporary", durationSeconds: 21 * 24 * 60 * 60 },
+  termination: {
+    kind: "fixed_duration",
+    durationSeconds: 21 * 24 * 60 * 60,
+  },
+  resourceRequirements: [
+    {
+      resourceType: "testing_traffic",
+      amount: {
+        kind: "unknown",
+        reason: "required sample is determined by a future experiment planner",
+      },
+    },
+  ],
+  preconditions: [
+    {
+      preconditionId: "experiment_infrastructure_available",
+      expression: {
+        kind: "capability_available",
+        capabilityId: "experimentation.checkout",
+      },
+      whenUnknown: "unknown_eligibility",
+    },
+  ],
+});
+
+export const reverseGoogleBudgetIncrease = baseAction({
+  actionId: actionId("action_reverse_google_budget_increase"),
+  actionType: actionType("advertising.adjust_budget"),
+  actionCategory: "advertising",
+  description: "Restore Google Shopping weekly budget to CAD 10,000.",
   target: {
     kind: "campaign",
     channelId: "google_ads",
-    campaignId: "campaign:google-shopping",
+    campaignId: "google_shopping",
   },
-  parameters: [
-    {
-      parameterId: "budget_change",
-      mode: "SET",
-      fromValue: moneyValue(120_000),
-      toValue: moneyValue(100_000),
+  parameters: {
+    kind: "budget_adjustment",
+    operation: {
+      kind: "SET",
+      value: {
+        kind: "money_rate",
+        amountMinor: 1_000_000,
+        currency: CAD,
+        per: "week",
+      },
     },
-  ],
-  reversalOfActionId: "act-google-shopping-budget-up-20",
-  cost: { ...costs(), incrementalSpend: known(money(0), "derived") },
+  },
+  reversalOfActionId: actionId("action_google_shopping_budget_multiply_120"),
 });
 
-export const ACTION_ONTOLOGY_FIXTURES = [
-  increaseGoogleShoppingBudget20,
-  pauseUnderperformingMetaCampaign,
-  reduceProductPrice10,
-  runCollectionPromotion15FourDays,
-  increaseEmailCampaignFrequency,
-  moveProductHigherInCollection,
-  reallocateMetaToGoogle1000PerWeek,
-  stopAdsForLowInventoryHighRoasSku,
-  increaseAdsConditionalOnContribution,
-  reverseGoogleShoppingBudgetIncrease,
-] as const;
+export const budgetReallocationReadiness: CompoundAction = {
+  kind: "compound_action",
+  compoundActionId: actionId("action_compound_meta_to_google"),
+  schemaVersion: ACTION_SCHEMA_VERSION,
+  description: "Future compound action: decrease Meta and increase Google by paired amounts.",
+  componentActionIds: [
+    actionId("action_meta_budget_down_2000"),
+    actionId("action_google_budget_up_2000"),
+  ],
+};
