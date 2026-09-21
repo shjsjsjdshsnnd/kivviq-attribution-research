@@ -3,6 +3,9 @@ import {
   actionFingerprint,
 } from "../../src/action_ontology/semantics.js";
 import {
+  increaseGoogleShoppingBudget20 as step1GoogleBudgetAction,
+} from "../../src/action_ontology/fixtures.js";
+import {
   serializeAction,
 } from "../../src/action_ontology/serialization.js";
 import {
@@ -221,9 +224,21 @@ describe("Step 3 paid-media canonical Actions", () => {
   it("accepts backward-compatible schema 1.0 Actions while emitting Step 3 as 1.1", () => {
     expect(increaseGoogleShoppingBudget20.schemaVersion).toBe("1.1.0");
 
-    const legacy = clone(increaseGoogleShoppingBudget20);
+    const legacy = clone(step1GoogleBudgetAction);
     legacy.schemaVersion = "1.0.0";
     expect(validateAction(legacy).ok).toBe(true);
+
+    const mislabeled = clone(increaseSkuAAdvertising20);
+    mislabeled.schemaVersion = "1.0.0";
+    const result = validateAction(mislabeled);
+    expect(result.ok).toBe(false);
+    if (!result.ok) {
+      expect(
+        result.errors.some(
+          (issue) => issue.code === "SCHEMA_FEATURE_REQUIRES_1_1",
+        ),
+      ).toBe(true);
+    }
   });
 
   it("rejects missing allocation denominator rather than inferring it", () => {
