@@ -96,7 +96,7 @@ function baseAction(overrides: Partial<Action>): Action {
     actionId: actionId("action_placeholder"),
     actionType: actionType("no_op.do_nothing"),
     actionCategory: "no_op",
-    schemaVersion: ACTION_SCHEMA_VERSION,
+    schemaVersion: "1.0.0",
     description: "Intentional no-op placeholder.",
     target: { kind: "merchant", merchantId: "merchant:synthetic" },
     scope: { dimensions: [] },
@@ -605,7 +605,7 @@ export const reverseGoogleBudgetIncrease = baseAction({
 export const budgetReallocationReadiness: CompoundAction = {
   kind: "compound_action",
   compoundActionId: actionId("action_compound_meta_to_google"),
-  schemaVersion: ACTION_SCHEMA_VERSION,
+  schemaVersion: "1.0.0",
   description: "Future compound action: decrease Meta and increase Google by paired amounts.",
   componentActionIds: [
     actionId("action_meta_budget_down_2000"),

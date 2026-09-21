@@ -4,9 +4,10 @@ import type {
   UtcTimestamp,
 } from "../core/units.js";
 
-export const ACTION_SCHEMA_VERSION = "1.1.0" as const;
+export const ACTION_SCHEMA_VERSION = "1.2.0" as const;
 export const SUPPORTED_ACTION_SCHEMA_VERSIONS = [
   "1.0.0",
+  "1.1.0",
   ACTION_SCHEMA_VERSION,
 ] as const;
 export type ActionSchemaVersion =
@@ -291,6 +292,72 @@ export type PaidMediaTransferAmount =
       readonly sourceReference: ReferenceValue;
     };
 
+
+export type PricingMembershipBoundary =
+  | "decision_time"
+  | "translation_time"
+  | "effective_time";
+
+export interface PricingMembershipSemantics {
+  readonly evaluateAt: PricingMembershipBoundary;
+  /**
+   * Optional stable canonical snapshot/binding identifier. If supplied,
+   * translation must resolve this exact binding rather than a later membership.
+   */
+  readonly bindingRef?: string;
+}
+
+export type PriceRollbackStrategy =
+  | {
+      readonly kind: "RESTORE_PRE_ACTION_VALUE";
+      readonly source:
+        | {
+            readonly kind: "single_price";
+            readonly preActionPrice: ReferenceValue;
+          }
+        | {
+            readonly kind: "membership_snapshot";
+            readonly bindingRef: string;
+          };
+    }
+  | {
+      readonly kind: "SET_EXPLICIT_VALUE";
+      readonly value: MonetaryValue;
+    };
+
+export interface PriceRollbackConflictGuard {
+  readonly kind: "REQUIRE_CURRENT_MATCHES_ACTION_OUTPUT";
+  readonly sourceActionId: ActionId;
+  readonly expected:
+    | {
+        readonly kind: "single_price";
+        readonly price: MonetaryValue;
+      }
+    | {
+        readonly kind: "membership_state";
+        readonly stateRef: string;
+      };
+}
+
+export type PricingRollbackTrigger =
+  | { readonly kind: "ON_TERMINATION" }
+  | { readonly kind: "AT"; readonly at: UtcTimestamp };
+
+export type PricingRollbackContract =
+  | {
+      readonly available: false;
+      readonly reason: string;
+    }
+  | {
+      readonly available: true;
+      readonly target: ActionTarget;
+      readonly strategy: PriceRollbackStrategy;
+      readonly trigger: PricingRollbackTrigger;
+      readonly delaySeconds: number;
+      readonly cost: KnownOrUnknown<MonetaryValue>;
+      readonly conflictGuard: PriceRollbackConflictGuard;
+    };
+
 export type ActionParameters =
   | {
       readonly kind: "budget_adjustment";
@@ -324,6 +391,17 @@ export type ActionParameters =
   | {
       readonly kind: "price_adjustment";
       readonly operation: ValueOperation<MonetaryValue>;
+      /**
+       * Required for product/category/collection pricing because the business
+       * action may later expand to multiple SKU interventions.
+       */
+      readonly membership?: PricingMembershipSemantics;
+    }
+  | {
+      readonly kind: "price_rollback";
+      readonly originalActionId: ActionId;
+      readonly strategy: PriceRollbackStrategy;
+      readonly conflictGuard: PriceRollbackConflictGuard;
     }
   | {
       readonly kind: "promotion";
@@ -577,6 +655,11 @@ export interface ActionReversibility {
   readonly classification: ReversibilityClass;
   readonly reversal: ReversalActionReference;
   readonly minimumDelaySeconds?: number;
+  /**
+   * Step 4 pricing-safe rollback semantics. This is metadata/readiness only;
+   * it does not execute rollback.
+   */
+  readonly pricingRollback?: PricingRollbackContract;
 }
 
 export const RISK_DIMENSIONS = [

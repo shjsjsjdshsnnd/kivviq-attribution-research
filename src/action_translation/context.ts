@@ -9,7 +9,9 @@ import type {
   SimulatorTarget,
 } from "../simulator_intervention/types.js";
 import {
+  SUPPORTED_TRANSLATION_CONTEXT_SCHEMA_VERSIONS,
   TRANSLATION_CONTEXT_SCHEMA_VERSION,
+  type PricingMembershipBinding,
   type TranslationContext,
   type TranslationFailure,
 } from "./types.js";
@@ -34,6 +36,10 @@ const FORBIDDEN_CONTEXT_KEYS = new Set([
 
 function record(value: unknown): value is any {
   return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function nonEmpty(value: unknown): value is string {
+  return typeof value === "string" && value.trim().length > 0;
 }
 
 function canonicalize(value: unknown): unknown {
@@ -69,6 +75,90 @@ function scanForbidden(
     if (FORBIDDEN_CONTEXT_KEYS.has(key)) hits.push(next);
     scanForbidden(value, next, hits);
   }
+}
+
+
+function validatePricingMembershipBindings(
+  input: unknown,
+):
+  | { readonly ok: true }
+  | { readonly ok: false; readonly message: string } {
+  if (input === undefined) return { ok: true };
+  if (!Array.isArray(input)) {
+    return {
+      ok: false,
+      message: "pricingMembershipBindings must be an array",
+    };
+  }
+
+  const bindingIds = new Set<string>();
+  for (const binding of input) {
+    if (
+      !record(binding) ||
+      !record(binding.actionTarget) ||
+      !["product", "category", "collection"].includes(
+        String(binding.actionTarget.kind),
+      ) ||
+      !["decision_time", "translation_time", "effective_time"].includes(
+        String(binding.evaluateAt),
+      ) ||
+      !nonEmpty(binding.bindingRef) ||
+      !nonEmpty(binding.sourceRef) ||
+      typeof binding.snapshotTime !== "string" ||
+      !binding.snapshotTime.endsWith("Z") ||
+      !Number.isFinite(Date.parse(binding.snapshotTime)) ||
+      !Array.isArray(binding.members) ||
+      binding.members.length === 0
+    ) {
+      return {
+        ok: false,
+        message: "pricing membership binding is malformed",
+      };
+    }
+
+    if (bindingIds.has(binding.bindingRef)) {
+      return {
+        ok: false,
+        message: "pricing membership bindingRef values must be unique",
+      };
+    }
+    bindingIds.add(binding.bindingRef);
+
+    const members = new Set<string>();
+    for (const member of binding.members) {
+      if (
+        !record(member) ||
+        !record(member.skuTarget) ||
+        member.skuTarget.kind !== "sku" ||
+        !nonEmpty(member.skuTarget.skuId) ||
+        !record(member.simulatorTarget) ||
+        member.simulatorTarget.kind !== "sku" ||
+        !nonEmpty(member.simulatorTarget.simulatorSkuId) ||
+        !record(member.priceAtBoundary) ||
+        member.priceAtBoundary.kind !== "money" ||
+        !Number.isInteger(member.priceAtBoundary.amountMinor) ||
+        Number(member.priceAtBoundary.amountMinor) < 0 ||
+        typeof member.priceAtBoundary.currency !== "string" ||
+        !/^[A-Z]{3}$/.test(member.priceAtBoundary.currency) ||
+        !nonEmpty(member.priceSourceRef)
+      ) {
+        return {
+          ok: false,
+          message: "pricing membership member is malformed",
+        };
+      }
+
+      if (members.has(member.skuTarget.skuId)) {
+        return {
+          ok: false,
+          message: "pricing membership contains duplicate SKU members",
+        };
+      }
+      members.add(member.skuTarget.skuId);
+    }
+  }
+
+  return { ok: true };
 }
 
 export type TranslationContextValidationResult =
@@ -110,7 +200,11 @@ export function validateTranslationContext(
     };
   }
 
-  if (input.schemaVersion !== TRANSLATION_CONTEXT_SCHEMA_VERSION) {
+  if (
+    !SUPPORTED_TRANSLATION_CONTEXT_SCHEMA_VERSIONS.includes(
+      input.schemaVersion as never,
+    )
+  ) {
     return {
       ok: false,
       failure: {
@@ -148,6 +242,20 @@ export function validateTranslationContext(
         code: "MALFORMED_TRANSLATION_CONTEXT",
         message:
           "TranslationContext capabilities, entityMappings and referenceBindings must be arrays.",
+      },
+    };
+  }
+
+  const pricingMembershipValidation = validatePricingMembershipBindings(
+    input.pricingMembershipBindings,
+  );
+  if (!pricingMembershipValidation.ok) {
+    return {
+      ok: false,
+      failure: {
+        status: "MISSING_CONTEXT",
+        code: "MALFORMED_PRICING_MEMBERSHIP_CONTEXT",
+        message: pricingMembershipValidation.message,
       },
     };
   }
@@ -282,4 +390,61 @@ export function contextHasCapability(
   capability: string,
 ): boolean {
   return context.capabilities.includes(capability as never);
+}
+
+
+export type PricingMembershipResolution =
+  | {
+      readonly status: "resolved";
+      readonly binding: PricingMembershipBinding;
+    }
+  | { readonly status: "missing"; readonly ref: string }
+  | { readonly status: "ambiguous"; readonly ref: string };
+
+export function resolvePricingMembership(
+  context: TranslationContext,
+  action: Action,
+): PricingMembershipResolution {
+  if (
+    action.parameters.kind !== "price_adjustment" ||
+    !action.parameters.membership ||
+    !["product", "category", "collection"].includes(action.target.kind)
+  ) {
+    return {
+      status: "missing",
+      ref: "pricing-membership:not-applicable:" + action.actionId,
+    };
+  }
+
+  const membership = action.parameters.membership;
+  const targetKey = stableKey(action.target);
+  const matches = (context.pricingMembershipBindings ?? []).filter(
+    (binding) =>
+      stableKey(binding.actionTarget) === targetKey &&
+      binding.evaluateAt === membership.evaluateAt &&
+      (!membership.bindingRef ||
+        binding.bindingRef === membership.bindingRef),
+  );
+
+  const ref =
+    "pricing-membership:" +
+    action.actionId +
+    ":" +
+    membership.evaluateAt +
+    ":" +
+    (membership.bindingRef ?? targetKey);
+
+  if (matches.length === 0) {
+    return { status: "missing", ref };
+  }
+  if (matches.length > 1) {
+    return { status: "ambiguous", ref };
+  }
+
+  const binding = matches[0]!;
+  if (binding.members.length === 0) {
+    return { status: "missing", ref };
+  }
+
+  return { status: "resolved", binding };
 }

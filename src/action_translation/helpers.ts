@@ -307,6 +307,15 @@ export function buildIntervention(
   operation: SimulatorOperation,
   interventionIndexWithinComponent = 0,
   interventionCountWithinComponent = 1,
+  membershipProvenance?: {
+    readonly membershipSourceRef: string;
+    readonly membershipBindingRef: string;
+    readonly membershipBoundary:
+      | "decision_time"
+      | "translation_time"
+      | "effective_time";
+    readonly membershipSnapshotTime: Action["timing"]["decisionTime"];
+  },
 ): SimulatorIntervention {
   const time = prepareEffectiveTime(action);
   if (!time.ok) throw new Error(time.failure.code);
@@ -329,6 +338,7 @@ export function buildIntervention(
       componentCount: origin.componentCount,
       interventionIndexWithinComponent,
       interventionCountWithinComponent,
+      ...(membershipProvenance ?? {}),
     },
   };
 

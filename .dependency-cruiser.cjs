@@ -6,7 +6,7 @@ module.exports = {
         "Operator-facing modules must never depend on GroundTruth, generation, latent customers, simulation, advertising economics, cross-channel interactions, ecommerce economics, product economics, evaluator/oracle, or other God-mode internals.",
       severity: "error",
       from: {
-        path: "^(src/(observation|operator|operator_safe|action_ontology|action_translation|simulator_intervention|paid_media)(/|$)|src/index\\.ts$)",
+        path: "^(src/(observation|operator|operator_safe|action_ontology|action_translation|simulator_intervention|paid_media|pricing)(/|$)|src/index\\.ts$)",
       },
       to: {
         path: "^src/(ground_truth|generation|customer_population|simulation|advertising_economics|cross_channel|ecommerce_economics|product_economics|evaluation|oracle|god_mode)(/|$)",
@@ -46,6 +46,18 @@ module.exports = {
       },
       to: {
         path: "^src/(action_translation|simulator_intervention|simulation)(/|$)",
+      },
+    },
+    {
+      name: "pricing-business-language-cannot-depend-on-simulator",
+      comment:
+        "Pricing business Actions and rollback readiness may depend on canonical Action contracts but not translation adapters, simulator-specific contracts, product-economics God-mode modules, evaluators or oracle state.",
+      severity: "error",
+      from: {
+        path: "^src/pricing(/|$)",
+      },
+      to: {
+        path: "^src/(action_translation|simulator_intervention|simulation|product_economics|evaluation|oracle|god_mode|ground_truth)(/|$)",
       },
     },
     {

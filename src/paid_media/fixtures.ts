@@ -92,6 +92,7 @@ function paidMediaAction(
     actionId: actionId(input.actionIdValue),
     actionType: actionType(input.actionTypeValue),
     actionCategory: "advertising",
+    schemaVersion: "1.1.0",
     description: input.description,
     target: input.target,
     scope,
@@ -193,7 +194,7 @@ function bundle(
   const compoundAction: CompoundAction = {
     kind: "compound_action",
     compoundActionId: actionId(id),
-    schemaVersion: ACTION_SCHEMA_VERSION,
+    schemaVersion: "1.1.0",
     description,
     componentActionIds: components.map((component) => component.actionId),
   };
