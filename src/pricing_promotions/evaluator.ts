@@ -7,6 +7,7 @@ import type {
   EcommerceEvaluationRequest,
 } from "../ecommerce_economics/types.js";
 import {
+  applyProductEconomicOverrides,
   buildProductEconomicProfiles,
 } from "../ecommerce_economics/products.js";
 import {
@@ -157,8 +158,9 @@ function baselinePriceState(
 export function hydratePricingPromotionScenario(
   request: PricingPromotionEvaluationRequest,
 ): PricingPromotionScenario {
-  const profiles = buildProductEconomicProfiles(
-    request.merchantWorld,
+  const profiles = applyProductEconomicOverrides(
+    buildProductEconomicProfiles(request.merchantWorld),
+    request.productEconomicsOverrides,
   );
   const supplied = request.scenario.priceStates;
   const suppliedProducts = new Set(
