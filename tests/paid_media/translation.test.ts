@@ -13,6 +13,7 @@ import {
   increaseSkuAAdvertising20,
   metaCampaignAtoB500PerDay,
   metaProspectingRetargeting75_25,
+  metaRetargetingToProspecting1000PerWeek,
   metaToGoogle2000PerWeek,
   pauseMetaCampaignA,
   pinterestToMetaTenPercent,
@@ -230,6 +231,32 @@ describe("Step 3 paid-media Step 2 translation behavior", () => {
         simulatorCampaignId: "sim:meta_campaign_b",
       },
     ]);
+  });
+
+  it("preserves retargeting and prospecting scopes in an intra-channel reallocation", () => {
+    const result = translateBusinessAction(
+      resolved(metaRetargetingToProspecting1000PerWeek),
+      context,
+    );
+    expect(result.status).toBe("TRANSLATED");
+    if (result.status !== "TRANSLATED") return;
+
+    expect(result.interventions).toHaveLength(2);
+    expect(result.interventions[0]!.scope.dimensions[0]).toMatchObject({
+      kind: "paid_media_segment",
+      classification: "retargeting",
+    });
+    expect(result.interventions[1]!.scope.dimensions[0]).toMatchObject({
+      kind: "paid_media_segment",
+      classification: "prospecting",
+    });
+    expect(
+      result.interventions.every(
+        (intervention) =>
+          intervention.provenance.originatingBusinessActionId ===
+          metaRetargetingToProspecting1000PerWeek.compoundAction.compoundActionId,
+      ),
+    ).toBe(true);
   });
 
   it("preserves Brand and Non-Brand scopes when translating a supported fixed reallocation", () => {
