@@ -705,11 +705,17 @@ export function addToPersistentCart(
   if (existing) {
     existing.quantity += 1;
     existing.unitPriceMinor = offer.finalPriceMinor;
+    if (offer.demandTruthId !== undefined) {
+      existing.demandTruthId = offer.demandTruthId;
+    }
   } else {
     cart.lines.push({
       productId: offer.productId,
       quantity: 1,
       unitPriceMinor: offer.finalPriceMinor,
+      ...(offer.demandTruthId === undefined
+        ? {}
+        : { demandTruthId: offer.demandTruthId }),
     });
   }
   cart.updatedAtMs = timestampMs;
