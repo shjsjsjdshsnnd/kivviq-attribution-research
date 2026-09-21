@@ -91,6 +91,13 @@ describe("Step 10 deterministic acceptance traps", () => {
       );
 
       expect(
+        report.attribution.promotionExposedPurchases,
+      ).toBeGreaterThanOrEqual(
+        report.attribution
+          .promotionRedemptionPurchases,
+      );
+
+      expect(
         report.attribution
           .discountCostOnWouldHavePurchasedAnywayMinor +
           report.attribution
