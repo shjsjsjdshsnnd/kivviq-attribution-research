@@ -39,13 +39,13 @@ module.exports = {
     {
       name: "simulator-cannot-interpret-business-actions",
       comment:
-        "Simulator internals receive typed SimulatorIntervention objects and must not interpret canonical business Actions directly.",
+        "Simulator internals receive typed SimulatorIntervention objects and must not import canonical Actions or the translation layer directly.",
       severity: "error",
       from: {
         path: "^src/simulation(/|$)",
       },
       to: {
-        path: "^src/action_ontology(/|$)",
+        path: "^src/(action_ontology|action_translation)(/|$)",
       },
     },
   ],
