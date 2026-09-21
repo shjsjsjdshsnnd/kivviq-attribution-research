@@ -272,7 +272,7 @@ function validateScope(
   }
 
   const seen = new Set<string>();
-  input.dimensions.forEach((dimension, index) => {
+  input.dimensions.forEach((dimension: unknown, index: number) => {
     const itemPath = path + ".dimensions[" + index + "]";
     if (!record(dimension) || !nonEmpty(dimension.kind)) {
       add(errors, "INVALID_SCOPE_DIMENSION", itemPath, "kind is required");
@@ -292,11 +292,11 @@ function validateScope(
       case "geography": {
         const includeOk =
           Array.isArray(dimension.include) &&
-          dimension.include.every((value) => nonEmpty(value));
+          dimension.include.every((value: unknown) => nonEmpty(value));
         const excludeOk =
           dimension.exclude === undefined ||
           (Array.isArray(dimension.exclude) &&
-            dimension.exclude.every((value) => nonEmpty(value)));
+            dimension.exclude.every((value: unknown) => nonEmpty(value)));
         if (!includeOk || !excludeOk) {
           add(errors, "INVALID_GEOGRAPHY_SCOPE", itemPath, "invalid geography lists");
         }
@@ -320,7 +320,7 @@ function validateScope(
           !Array.isArray(dimension.devices) ||
           dimension.devices.length === 0 ||
           dimension.devices.some(
-            (value) =>
+            (value: unknown) =>
               !["desktop", "mobile", "tablet", "other"].includes(String(value)),
           )
         ) {
@@ -995,7 +995,7 @@ function validateDuration(
         if (
           !Array.isArray(input.recurrence.daysOfWeek) ||
           input.recurrence.daysOfWeek.some(
-            (day) => !Number.isInteger(day) || Number(day) < 0 || Number(day) > 6,
+            (day: unknown) => !Number.isInteger(day) || Number(day) < 0 || Number(day) > 6,
           )
         ) {
           add(
@@ -1583,7 +1583,7 @@ function validateMeasurement(
     return;
   }
   let primaryCount = 0;
-  input.outcomes.forEach((outcome, index) => {
+  input.outcomes.forEach((outcome: unknown, index: number) => {
     const itemPath = path + ".outcomes[" + index + "]";
     if (!record(outcome) || !OUTCOME_FAMILIES.includes(outcome.family as never)) {
       add(errors, "INVALID_OUTCOME_FAMILY", itemPath + ".family", "unsupported");
@@ -1743,7 +1743,7 @@ export function validateAction(
   if (!Array.isArray(input.resourceRequirements)) {
     add(errors, "INVALID_RESOURCE_REQUIREMENTS", "resourceRequirements", "must be an array");
   } else {
-    input.resourceRequirements.forEach((resource, index) =>
+    input.resourceRequirements.forEach((resource: unknown, index: number) =>
       validateResource(resource, "resourceRequirements[" + index + "]", errors),
     );
   }
@@ -1756,7 +1756,7 @@ export function validateAction(
   if (!Array.isArray(input.constraints)) {
     add(errors, "INVALID_CONSTRAINTS", "constraints", "must be an array");
   } else {
-    input.constraints.forEach((constraint, index) =>
+    input.constraints.forEach((constraint: unknown, index: number) =>
       validateConstraint(
         constraint,
         "constraints[" + index + "]",
@@ -1770,7 +1770,7 @@ export function validateAction(
   if (!Array.isArray(input.preconditions)) {
     add(errors, "INVALID_PRECONDITIONS", "preconditions", "must be an array");
   } else {
-    input.preconditions.forEach((precondition, index) =>
+    input.preconditions.forEach((precondition: unknown, index: number) =>
       validatePrecondition(
         precondition,
         "preconditions[" + index + "]",
