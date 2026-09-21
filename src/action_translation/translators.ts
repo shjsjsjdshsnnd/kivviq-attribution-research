@@ -16,6 +16,9 @@ import {
   prepareTarget,
   translateOperation,
 } from "./helpers.js";
+import {
+  resolvePricingMembership,
+} from "./context.js";
 
 function translated(interventions: AtomicTranslatorResult extends infer _T ? any : never): AtomicTranslatorResult {
   return { status: "TRANSLATED", interventions };
@@ -170,11 +173,75 @@ const paidMediaDeliveryTranslator: ActionTranslator = {
   },
 };
 
+function expandedPriceOperation(
+  action: Action,
+  member: {
+    readonly priceAtBoundary: Extract<
+      import("../action_ontology/types.js").MonetaryValue,
+      { readonly kind: "money" }
+    >;
+    readonly priceSourceRef: string;
+  },
+): SimulatorOperation {
+  if (action.parameters.kind !== "price_adjustment") {
+    throw new TypeError("expanded pricing requires price_adjustment parameters");
+  }
+
+  const operation = action.parameters.operation;
+  if (operation.kind === "SET") {
+    return {
+      kind: "SET",
+      value: {
+        kind: "money",
+        amountMinor: operation.value.amountMinor,
+        currency: operation.value.currency,
+      },
+    };
+  }
+
+  if (member.priceAtBoundary.currency !==
+      (operation.kind === "DELTA"
+        ? operation.amount.currency
+        : member.priceAtBoundary.currency)) {
+    throw new TypeError("expanded pricing currency mismatch");
+  }
+
+  const baseline = {
+    value: {
+      kind: "money" as const,
+      amountMinor: member.priceAtBoundary.amountMinor,
+      currency: member.priceAtBoundary.currency,
+    },
+    referenceKind: operation.reference.kind,
+    source: "translation_context" as const,
+    sourceRef: member.priceSourceRef,
+  };
+
+  if (operation.kind === "DELTA") {
+    return {
+      kind: "DELTA",
+      direction: operation.direction,
+      amount: {
+        kind: "money",
+        amountMinor: operation.amount.amountMinor,
+        currency: operation.amount.currency,
+      },
+      baseline,
+    };
+  }
+
+  return {
+    kind: "MULTIPLY",
+    factor: operation.factor,
+    baseline,
+  };
+}
+
 const priceTranslator: ActionTranslator = {
   actionType: "pricing.adjust_price",
-  translatorId: "translator.price.v1",
+  translatorId: "translator.price.v2",
   translationVersion: ACTION_TRANSLATION_VERSION,
-  supportedTargetKinds: ["product", "sku"],
+  supportedTargetKinds: ["sku", "product", "category", "collection"],
   requiredCapability: "product_price",
   translate(action, context, origin) {
     if (action.parameters.kind !== "price_adjustment") {
@@ -186,32 +253,131 @@ const priceTranslator: ActionTranslator = {
       };
     }
 
-    const target = requireTarget(action, context);
-    if (!target.ok) return target.failure;
     const time = requireTime(action);
     if (!time.ok) return time.failure;
 
-    const operation = translateOperation(
-      action,
-      context,
-      action.parameters.operation,
-      "money",
-    );
-    if (!operation.ok) return operation.failure;
+    if (action.target.kind === "sku") {
+      const target = requireTarget(action, context);
+      if (!target.ok) return target.failure;
+      if (target.target.kind !== "sku") {
+        return {
+          status: "UNSUPPORTED_TARGET",
+          actionId: action.actionId,
+          code: "PRICE_TARGET_MAPPING_MUST_BE_SKU",
+          message: "SKU pricing must map to a simulator SKU target.",
+        };
+      }
 
-    return {
-      status: "TRANSLATED",
-      interventions: [
+      const operation = translateOperation(
+        action,
+        context,
+        action.parameters.operation,
+        "money",
+      );
+      if (!operation.ok) return operation.failure;
+
+      return {
+        status: "TRANSLATED",
+        interventions: [
+          buildIntervention(
+            action,
+            origin,
+            "translator.price.v2",
+            "price",
+            target.target,
+            operation.operation,
+          ),
+        ],
+      };
+    }
+
+    const membership = resolvePricingMembership(context, action);
+    if (membership.status === "missing") {
+      return {
+        status: "MISSING_CONTEXT",
+        actionId: action.actionId,
+        code: "MISSING_PRICING_MEMBERSHIP",
+        message:
+          "Product/category/collection pricing requires a deterministic membership snapshot.",
+        missingContextRefs: [membership.ref],
+      };
+    }
+    if (membership.status === "ambiguous") {
+      return {
+        status: "AMBIGUOUS_TRANSLATION",
+        actionId: action.actionId,
+        code: "AMBIGUOUS_PRICING_MEMBERSHIP",
+        message:
+          "More than one pricing membership binding matches the business Action.",
+        missingContextRefs: [membership.ref],
+      };
+    }
+
+    const binding = membership.binding;
+    if (
+      action.parameters.membership?.evaluateAt === "decision_time" &&
+      binding.snapshotTime !== action.timing.decisionTime
+    ) {
+      return {
+        status: "MISSING_CONTEXT",
+        actionId: action.actionId,
+        code: "PRICING_MEMBERSHIP_SNAPSHOT_TIME_MISMATCH",
+        message:
+          "Decision-time pricing membership must use a snapshot from the Action decision time.",
+        missingContextRefs: [binding.sourceRef],
+      };
+    }
+    if (
+      action.parameters.membership?.evaluateAt === "effective_time" &&
+      action.timing.effectiveStart.kind === "known" &&
+      binding.snapshotTime !== action.timing.effectiveStart.at
+    ) {
+      return {
+        status: "MISSING_CONTEXT",
+        actionId: action.actionId,
+        code: "PRICING_MEMBERSHIP_SNAPSHOT_TIME_MISMATCH",
+        message:
+          "Effective-time pricing membership must use a snapshot from the effective time.",
+        missingContextRefs: [binding.sourceRef],
+      };
+    }
+
+    try {
+      const interventions = binding.members.map((member, index) =>
         buildIntervention(
           action,
           origin,
-          "translator.price.v1",
+          "translator.price.v2",
           "price",
-          target.target,
-          operation.operation,
+          member.simulatorTarget,
+          expandedPriceOperation(action, member),
+          index,
+          binding.members.length,
+          {
+            membershipSourceRef: binding.sourceRef,
+            membershipBindingRef: binding.bindingRef,
+            membershipBoundary: binding.evaluateAt,
+            membershipSnapshotTime: binding.snapshotTime,
+          },
         ),
-      ],
-    };
+      );
+
+      return {
+        status: "TRANSLATED",
+        interventions,
+      };
+    } catch (error) {
+      return {
+        status: "MISSING_CONTEXT",
+        actionId: action.actionId,
+        code: "PRICING_MEMBERSHIP_BASELINE_INVALID",
+        message:
+          error instanceof Error
+            ? error.message
+            : "Pricing membership baseline was invalid.",
+        missingContextRefs: [binding.sourceRef],
+      };
+    }
   },
 };
 
