@@ -199,11 +199,24 @@ function expandedPriceOperation(
     };
   }
 
-  if (member.priceAtBoundary.currency !==
-      (operation.kind === "DELTA"
-        ? operation.amount.currency
-        : member.priceAtBoundary.currency)) {
+  if (
+    operation.kind === "DELTA" &&
+    member.priceAtBoundary.currency !== operation.amount.currency
+  ) {
     throw new TypeError("expanded pricing currency mismatch");
+  }
+
+  if (
+    operation.kind !== "SET" &&
+    operation.reference.kind === "explicit_baseline" &&
+    operation.reference.value.kind === "money" &&
+    (operation.reference.value.currency !== member.priceAtBoundary.currency ||
+      operation.reference.value.amountMinor !==
+        member.priceAtBoundary.amountMinor)
+  ) {
+    throw new TypeError(
+      "expanded pricing explicit baseline does not match the membership snapshot",
+    );
   }
 
   const baseline = {
@@ -324,6 +337,19 @@ const priceTranslator: ActionTranslator = {
         code: "PRICING_MEMBERSHIP_SNAPSHOT_TIME_MISMATCH",
         message:
           "Decision-time pricing membership must use a snapshot from the Action decision time.",
+        missingContextRefs: [binding.sourceRef],
+      };
+    }
+    if (
+      action.parameters.membership?.evaluateAt === "translation_time" &&
+      binding.snapshotTime !== context.simulatorClock
+    ) {
+      return {
+        status: "MISSING_CONTEXT",
+        actionId: action.actionId,
+        code: "PRICING_MEMBERSHIP_SNAPSHOT_TIME_MISMATCH",
+        message:
+          "Translation-time pricing membership must use a snapshot from the translation clock.",
         missingContextRefs: [binding.sourceRef],
       };
     }
