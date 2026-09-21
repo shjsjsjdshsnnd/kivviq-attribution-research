@@ -1322,7 +1322,10 @@ export function completePurchase(
       commercePolicy?.pricingPromotionScenario,
       pricingCustomerContext(customer),
       timestampMs,
-      lines.map((line) => line.productId),
+      lines.map((line) => ({
+        productId: line.productId,
+        quantity: line.quantity,
+      })),
     );
   delete customer.cart;
   transitionAfterPurchase(
