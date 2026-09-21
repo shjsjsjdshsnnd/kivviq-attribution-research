@@ -304,7 +304,7 @@ const experimentTranslator: ActionTranslator = {
   },
 };
 
-export const CORE_ACTION_TRANSLATORS: readonly ActionTranslator[] = [
+export const CORE_ACTION_TRANSLATORS: readonly ActionTranslator[] = Object.freeze([
   budgetTranslator,
   campaignStatusTranslator,
   priceTranslator,
@@ -326,4 +326,4 @@ export const CORE_ACTION_TRANSLATORS: readonly ActionTranslator[] = [
     ["merchant", "funnel_stage", "page", "advertising_channel"],
   ),
   experimentTranslator,
-] as const;
+] as const);
