@@ -9,6 +9,9 @@ import type {
   SimulationConfig,
   SimulationResult,
 } from "../simulation/types.js";
+import type {
+  PricingPromotionScenario,
+} from "../pricing_promotions/runtime-types.js";
 
 export const ECOMMERCE_ECONOMICS_VERSION =
   "ecommerce-economics-7.0.0" as const;
@@ -230,6 +233,10 @@ export interface EcommerceEvaluationRequest {
    * Step 9 opt-in. Omitted/false preserves frozen Step 7/8 behavior.
    */
   readonly enableInventoryDynamics?: boolean;
+  /**
+   * Opt-in Step 10 sidecar. Omitted preserves frozen Step 1-9 behavior.
+   */
+  readonly pricingPromotionScenario?: PricingPromotionScenario;
 }
 
 export interface EconomicCounterfactualDelta {
