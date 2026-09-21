@@ -1910,6 +1910,7 @@ export function simulateWorld(
             });
             session.ended = true;
             session.currentPage = "ended";
+          }
         } else {
           if (request.commercePolicy?.enableInventoryDynamics === true) {
             markCartInventoryDemandAbandoned(
