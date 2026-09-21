@@ -1,113 +1,130 @@
 import type {
-  ActionAtomicity,
   ActionCategory,
-  AtomicActionTarget,
+  ActionParameters,
+  ActionTarget,
 } from "./types.js";
 
 export interface ActionTypeContract {
   readonly actionType: string;
   readonly category: ActionCategory;
-  readonly atomicity: ActionAtomicity;
-  readonly allowedTargetKinds: readonly (
-    | AtomicActionTarget["kind"]
-    | "compound"
-  )[];
-  readonly requiredParameterIds: readonly string[];
+  readonly allowedTargetKinds: readonly ActionTarget["kind"][];
+  readonly parameterKind: ActionParameters["kind"];
 }
 
-/**
- * Initial ecommerce action vocabulary. The canonical Action contract does not
- * depend on this fixed list: new namespaced action types can be registered
- * without changing the Action shape.
- */
 export const CORE_ACTION_TYPE_CONTRACTS: readonly ActionTypeContract[] = [
   {
-    actionType: "paid_media.adjust_budget",
-    category: "paid_media",
-    atomicity: "ATOMIC",
-    allowedTargetKinds: ["campaign", "advertising_channel"],
-    requiredParameterIds: ["budget_change"],
+    actionType: "advertising.adjust_budget",
+    category: "advertising",
+    allowedTargetKinds: ["advertising_channel", "campaign"],
+    parameterKind: "budget_adjustment",
   },
   {
-    actionType: "paid_media.pause_campaign",
-    category: "paid_media",
-    atomicity: "ATOMIC",
+    actionType: "advertising.pause_campaign",
+    category: "advertising",
     allowedTargetKinds: ["campaign"],
-    requiredParameterIds: ["state_change"],
+    parameterKind: "toggle",
   },
   {
-    actionType: "pricing.adjust_product_price",
+    actionType: "pricing.adjust_price",
     category: "pricing",
-    atomicity: "ATOMIC",
-    allowedTargetKinds: ["price"],
-    requiredParameterIds: ["price_change"],
+    allowedTargetKinds: ["product", "sku"],
+    parameterKind: "price_adjustment",
   },
   {
-    actionType: "promotions.collection_discount",
-    category: "promotions",
-    atomicity: "ATOMIC",
-    allowedTargetKinds: ["collection"],
-    requiredParameterIds: ["discount_rate"],
+    actionType: "promotion.apply_discount",
+    category: "promotion",
+    allowedTargetKinds: ["product", "sku", "category", "collection"],
+    parameterKind: "promotion",
   },
   {
-    actionType: "crm.adjust_campaign_frequency",
-    category: "email_sms_crm",
-    atomicity: "ATOMIC",
-    allowedTargetKinds: ["email_campaign"],
-    requiredParameterIds: ["frequency_change"],
+    actionType: "shipping.change_policy",
+    category: "shipping",
+    allowedTargetKinds: ["shipping_policy", "merchant"],
+    parameterKind: "shipping_policy",
   },
   {
-    actionType: "merchandising.move_collection_position",
+    actionType: "merchandising.move_product",
     category: "merchandising",
-    atomicity: "ATOMIC",
-    allowedTargetKinds: ["merchandising_placement"],
-    requiredParameterIds: ["position_change"],
+    allowedTargetKinds: ["collection", "product"],
+    parameterKind: "merchandising_position",
   },
   {
-    actionType: "paid_media.reallocate_budget",
-    category: "paid_media",
-    atomicity: "COMPOUND",
-    allowedTargetKinds: ["compound"],
-    requiredParameterIds: ["transfer_amount"],
+    actionType: "inventory.adjust_policy",
+    category: "inventory",
+    allowedTargetKinds: ["inventory_policy", "sku"],
+    parameterKind: "inventory",
   },
   {
-    actionType: "paid_media.stop_product_advertising",
-    category: "paid_media",
-    atomicity: "ATOMIC",
-    allowedTargetKinds: ["product", "sku"],
-    requiredParameterIds: ["state_change"],
+    actionType: "cro.change_page",
+    category: "cro",
+    allowedTargetKinds: ["page", "funnel_stage"],
+    parameterKind: "page_change",
   },
   {
-    actionType: "paid_media.adjust_product_budget",
-    category: "paid_media",
-    atomicity: "ATOMIC",
-    allowedTargetKinds: ["product", "sku"],
-    requiredParameterIds: ["budget_change"],
+    actionType: "lifecycle.adjust_frequency",
+    category: "lifecycle",
+    allowedTargetKinds: ["lifecycle_program", "customer_segment"],
+    parameterKind: "frequency_adjustment",
+  },
+  {
+    actionType: "customer_targeting.set_segment",
+    category: "customer_targeting",
+    allowedTargetKinds: ["customer_segment", "audience"],
+    parameterKind: "segment_targeting",
+  },
+  {
+    actionType: "experimentation.run_experiment",
+    category: "experimentation",
+    allowedTargetKinds: ["experiment"],
+    parameterKind: "run_experiment",
+  },
+  {
+    actionType: "investigation.inspect",
+    category: "investigation",
+    allowedTargetKinds: ["merchant", "funnel_stage", "page", "advertising_channel"],
+    parameterKind: "investigate",
+  },
+  {
+    actionType: "operational.change_setting",
+    category: "operational",
+    allowedTargetKinds: ["merchant", "inventory_policy", "shipping_policy"],
+    parameterKind: "toggle",
+  },
+  {
+    actionType: "no_op.do_nothing",
+    category: "no_op",
+    allowedTargetKinds: ["merchant"],
+    parameterKind: "no_op",
+  },
+  {
+    actionType: "no_op.wait_observe",
+    category: "no_op",
+    allowedTargetKinds: ["merchant", "advertising_channel", "campaign", "product", "sku"],
+    parameterKind: "wait_observe",
   },
 ] as const;
 
 export const CORE_CONSTRAINT_PROPERTIES = [
+  "budget.available_minor",
+  "budget.channel_available_minor",
+  "price.floor_minor",
+  "promotion.maximum_discount_rate",
   "inventory.available_units",
   "inventory.sellable_units",
   "inventory.stock_coverage_days",
-  "finance.maximum_budget_minor",
-  "finance.minimum_margin_rate",
-  "paid_media.channel_spend_minor",
-  "paid_media.campaign_spend_minor",
-  "paid_media.contract_allows_change",
-  "audience.size",
-  "promotion.product_excluded",
+  "channel.exists",
+  "campaign.exists",
+  "product.exists",
+  "product.active",
+  "sku.exists",
+  "experiment.eligible_traffic_sessions",
+  "experiment.infrastructure_available",
+  "lifecycle.audience_exists",
+  "shipping.backorders_supported",
+  "finance.gross_margin_rate",
+  "finance.contribution_per_unit_minor",
   "operations.fulfillment_capacity_units_per_day",
-  "data.is_available",
-  "product.gross_margin_rate",
-  "product.expected_contribution_per_unit_minor",
-  "product.structural_demand_units_per_day",
-  "product.structural_desirability_index",
-  "product.substitution_product_ids",
-  "product.complementary_product_ids",
-  "product.return_rate",
-  "product.shipping_cost_per_unit_minor",
-  "product.fulfillment_cost_per_unit_minor",
+  "data.measurement_available",
 ] as const;
 
 export function getCoreActionTypeContract(
