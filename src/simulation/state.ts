@@ -39,6 +39,11 @@ export interface PersistentCartLine {
   readonly productId: string;
   quantity: number;
   unitPriceMinor: number;
+  /**
+   * Step 9 links an observed cart line back to the latent inventory-demand
+   * record that preceded it. Optional for frozen Step 1-8 compatibility.
+   */
+  demandTruthId?: string;
 }
 
 export interface InteractionMemoryState {
