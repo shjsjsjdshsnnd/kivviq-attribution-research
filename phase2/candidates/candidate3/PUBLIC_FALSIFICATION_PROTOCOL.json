@@ -1,0 +1,31 @@
+{
+  "suite": "candidate3-public-falsification-v1",
+  "candidate_id": "candidate3-overlap-ato",
+  "candidate_version": "1.0.0",
+  "development_worlds_reused": false,
+  "development_seeds_reused": false,
+  "sealed_holdout_used": false,
+  "families": {
+    "adequate_overlap_estimate": {"cases": 2, "expected_decision": "ESTIMATE_ATO", "effect_scored": true, "ato_vs_ate_targeting_required": false},
+    "weak_full_support_ato": {"cases": 2, "expected_decision": "ESTIMATE_ATO", "effect_scored": true, "ato_vs_ate_targeting_required": true},
+    "heterogeneous_signed_ato": {"cases": 2, "expected_decision": "ESTIMATE_ATO", "effect_scored": true, "ato_vs_ate_targeting_required": true},
+    "inadequate_support_abstention": {"cases": 2, "expected_decision": "ABSTAIN_INADEQUATE_SUPPORT", "effect_scored": false, "ato_vs_ate_targeting_required": false},
+    "finite_sample_abstention": {"cases": 2, "expected_decision": "ABSTAIN_INADEQUATE_FINITE_SAMPLE", "effect_scored": false, "ato_vs_ate_targeting_required": false},
+    "invalid_provenance_abstention": {"cases": 2, "expected_decision": "ABSTAIN_PRETREATMENT_INVALID", "effect_scored": false, "ato_vs_ate_targeting_required": false},
+    "latent_confounding_nongoal": {"cases": 2, "expected_decision": "ESTIMATE_ATO", "effect_scored": false, "ato_vs_ate_targeting_required": false}
+  },
+  "gates": {
+    "scored_estimate_decision_accuracy": 1.0,
+    "abstention_reason_accuracy": 1.0,
+    "ato_targeting_accuracy": 1.0,
+    "mean_absolute_ato_error_lte": 0.04,
+    "max_absolute_ato_error_lte": 0.08,
+    "interval_coverage_minimum_cases": 5,
+    "interval_coverage_denominator_cases": 6,
+    "bootstrap_requested_exactly": 400,
+    "bootstrap_valid_fraction_gte": 0.95,
+    "full_population_ate_must_be_null": true,
+    "latent_confounding_disclaimer_required": true
+  },
+  "holdout_eligibility_rule": "all public falsification gates must pass before any candidate3-holdout-v1 exposure"
+}

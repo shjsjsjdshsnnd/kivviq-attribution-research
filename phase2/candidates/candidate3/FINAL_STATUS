@@ -1,0 +1,20 @@
+Candidate 3 final status: INCONCLUSIVE
+
+Candidate: candidate3-overlap-ato v1.0.0
+Lineage fingerprint: 1571c29726e79154c2d9bc9016909ab7ab04540fe24cf63a62e0f46b66288620
+Holdout: candidate3-holdout-v1
+Feedback-bearing holdout exposures consumed: 1
+Result digest: dec97f94f4532bc666cc0f9e730fca6baf60cfc81b1210c916430bbe3f5cc030
+
+Reason:
+The sealed inadequate_overlap_abstention family failed its own evaluator-side
+design check: oracle support diagnostics classified the instantiated world as
+ESTIMATE_ATO rather than ABSTAIN_INADEQUATE_SUPPORT. Under the frozen scoring
+protocol, a holdout-design failure yields INCONCLUSIVE rather than a candidate
+REJECT.
+
+No Candidate 3 estimator, contract, threshold, public-falsification result,
+sealed result, or research-ledger entry is modified by this marker.
+
+The consumed sealed holdout will not be rerun for Candidate 3 v1.0.0.
+No merge or deployment.

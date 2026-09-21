@@ -1,0 +1,69 @@
+{
+  "candidate1_status": "REJECT_FROZEN_UNTOUCHED",
+  "candidate2_status": "REJECT_FROZEN_UNTOUCHED",
+  "candidate3_contracts_frozen": true,
+  "candidate3_public_falsification_passed": true,
+  "candidate_id": "candidate3-overlap-ato",
+  "candidate_version": "1.0.0",
+  "criteria": {
+    "abstention_reason_accuracy": {
+      "pass": false,
+      "threshold": 1.0,
+      "value": 0.6666666666666666
+    },
+    "ato_targeting_accuracy": {
+      "pass": false,
+      "threshold": 1.0,
+      "value": 0.5
+    },
+    "bootstrap_contract": {
+      "pass": true
+    },
+    "effect_estimation_decision_accuracy": {
+      "pass": true,
+      "threshold": 1.0,
+      "value": 1.0
+    },
+    "full_population_ate_null": {
+      "pass": true
+    },
+    "interval_coverage": {
+      "denominator": 3,
+      "hits": 3,
+      "pass": true,
+      "required": 2
+    },
+    "latent_confounding_disclaimer": {
+      "pass": true
+    },
+    "max_absolute_ato_error": {
+      "pass": true,
+      "threshold": 0.08,
+      "value": 0.023548207894105794
+    },
+    "mean_absolute_ato_error": {
+      "pass": true,
+      "threshold": 0.04,
+      "value": 0.014524638446584755
+    },
+    "overlap_boundary_behavior": {
+      "pass": true
+    }
+  },
+  "design_failures": [
+    {
+      "family": "inadequate_overlap_abstention",
+      "reason": "oracle decision ESTIMATE_ATO did not match family intent ABSTAIN_INADEQUATE_SUPPORT"
+    }
+  ],
+  "feedback_bearing_exposure_count": 1,
+  "final_outcome": "INCONCLUSIVE",
+  "full_population_ate_estimated": false,
+  "holdout_version": "candidate3-holdout-v1",
+  "lineage_fingerprint": "1571c29726e79154c2d9bc9016909ab7ab04540fe24cf63a62e0f46b66288620",
+  "no_merge_or_deploy": true,
+  "reasons": [
+    "inadequate_overlap_abstention: oracle decision ESTIMATE_ATO did not match family intent ABSTAIN_INADEQUATE_SUPPORT"
+  ],
+  "result_digest": "dec97f94f4532bc666cc0f9e730fca6baf60cfc81b1210c916430bbe3f5cc030"
+}
