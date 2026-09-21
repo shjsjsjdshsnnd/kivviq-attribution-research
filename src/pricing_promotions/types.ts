@@ -69,7 +69,10 @@ export interface PromotionResponseCurvePoint {
 export interface PriceResponseCurvePoint {
   readonly relativePriceChange: number;
   readonly priceMinor: number;
+  /** Merchant-wide represented units under the price counterfactual. */
   readonly representedUnits: number;
+  /** Represented units of the SKU whose price is being varied. */
+  readonly targetProductRepresentedUnits: number;
   readonly representedOrders: number;
   readonly grossRevenueMinor: number;
   readonly grossProfitMinor: number;
