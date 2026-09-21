@@ -74,9 +74,14 @@ export interface PriceResponseCurvePoint {
   /** Represented units of the SKU whose price is being varied. */
   readonly targetProductRepresentedUnits: number;
   readonly representedOrders: number;
+  /** Merchant-wide economics, including substitution/complement spillovers. */
   readonly grossRevenueMinor: number;
   readonly grossProfitMinor: number;
   readonly contributionProfitMinor: number;
+  /** Allocated economics of the SKU whose price is being varied. */
+  readonly targetProductGrossRevenueMinor: number;
+  readonly targetProductGrossProfitMinor: number;
+  readonly targetProductContributionProfitMinor: number;
 }
 
 export interface OracleGridAnswer<TPoint> {
