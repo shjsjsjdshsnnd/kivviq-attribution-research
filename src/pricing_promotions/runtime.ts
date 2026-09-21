@@ -1101,6 +1101,6 @@ export function promotionTimingDeferralMultiplier(
   return clamp(
     1 + deferralDays / baselineNeedResetDays,
     1,
-    4.5,
+    8,
   );
 }
