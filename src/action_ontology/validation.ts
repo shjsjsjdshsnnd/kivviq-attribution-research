@@ -58,7 +58,7 @@ const CATEGORY_PATTERN = /^[a-z][a-z0-9_]*$/;
 const CURRENCY_PATTERN = /^[A-Z]{3}$/;
 const ISO_UTC_PATTERN = /Z$/;
 
-function record(value: unknown): value is Record<string, unknown> {
+function record(value: unknown): value is any {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
