@@ -159,6 +159,41 @@ def main() -> None:
         json.dumps(final, indent=2, sort_keys=True) + "\n",
         encoding="utf-8",
     )
+
+    lines = [
+        "# Candidate 3 final research report",
+        "",
+        f"Final outcome: **{result['outcome']}**",
+        "",
+        "- Estimand: ATO / overlap-population incremental conversion effect",
+        "- Full-population ATE estimated: **False**",
+        "- Feedback-bearing sealed-holdout exposures: **1**",
+        "",
+        "## Sealed holdout criteria",
+        "",
+    ]
+    for name, value in sorted(criteria.items()):
+        lines.append(f"- {name}: **{'PASS' if value['pass'] else 'FAIL'}**")
+    lines.extend(["", "## Family results", ""])
+    for record in result["records"]:
+        line = (
+            f"- {record['family']}: decision={record['candidate_decision']}"
+        )
+        if record.get("absolute_ato_error") is not None:
+            line += f", absolute ATO error={record['absolute_ato_error']:.4f}"
+        lines.append(line)
+    lines.extend(
+        [
+            "",
+            "Candidate 3 remains conditional on declared pre-treatment observables "
+            "and does not claim to solve latent confounding.",
+            "",
+        ]
+    )
+    (candidate_dir / "candidate3_report.md").write_text(
+        "\n".join(lines),
+        encoding="utf-8",
+    )
     print("CANDIDATE3_FINAL=" + json.dumps(final, sort_keys=True))
 
 
