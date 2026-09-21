@@ -405,6 +405,11 @@ function rowFor(
     skuId: position.skuId,
     productId: product.productId,
     categoryId: product.categoryId,
+    supplierId: position.supplierId,
+    supplierSource:
+      position.supplierSource,
+    expectedSupplierLeadTimeDays:
+      position.expectedSupplierLeadTimeDays,
     openingInventoryUnits:
       reconciliation.openingOnHandUnits,
     closingOnHandUnits: position.onHandUnits,

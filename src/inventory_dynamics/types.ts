@@ -56,6 +56,9 @@ export interface InventorySnapshot {
   readonly productId: string;
   readonly variantId?: string;
   readonly locationId: string;
+  readonly supplierId: string;
+  readonly supplierSource: "step9_synthetic_supplier_assignment";
+  readonly expectedSupplierLeadTimeDays: number;
   readonly onHandUnits: number;
   readonly availableToSellUnits: number;
   readonly reservedUnits: number;
@@ -159,6 +162,9 @@ export interface MutableInventoryPosition {
   readonly productId: string;
   readonly locationId: string;
   readonly variantId?: string;
+  readonly supplierId: string;
+  readonly supplierSource: "step9_synthetic_supplier_assignment";
+  readonly supplierLeadTimeMultiplier: number;
 
   onHandUnits: number;
   reservedUnits: number;
@@ -253,6 +259,9 @@ export interface InventoryHealthRow {
   readonly skuId: string;
   readonly productId: string;
   readonly categoryId: string;
+  readonly supplierId: string;
+  readonly supplierSource: "step9_synthetic_supplier_assignment";
+  readonly expectedSupplierLeadTimeDays: number;
   readonly openingInventoryUnits: number;
   readonly closingOnHandUnits: number;
   readonly closingAvailableToSellUnits: number;

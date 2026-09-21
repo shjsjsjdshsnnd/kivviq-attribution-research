@@ -140,7 +140,9 @@ Supported policy forms:
 - safety stock;
 - minimum order quantity.
 
-Expected supplier lead time is distinct from realized lead time. Realized lead time is deterministic conditional on the simulation seed/shared-randomness key and may differ by inventory profile and supplier disruption shock.
+Expected supplier lead time is distinct from realized lead time. Steps 1–8 contain no authoritative supplier entity, so Step 9 deterministically assigns category-derived synthetic supplier IDs and labels them `supplierSource = "step9_synthetic_supplier_assignment"`. A supplier-specific multiplier is applied on top of the frozen per-SKU lead time; this creates merchant/SKU/category/supplier/inventory-profile variation without pretending the supplier identity is merchant truth.
+
+Realized lead time is deterministic conditional on the simulation seed/shared-randomness key and may differ further by inventory profile and supplier disruption shock.
 
 A delayed receipt propagates through the normal commerce system:
 

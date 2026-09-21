@@ -29,6 +29,14 @@ describe("Step 9 evaluator diagnostics", () => {
         ),
       ).toBe(true);
       expect(
+        report.rows.every(
+          (row) =>
+            row.supplierSource ===
+              "step9_synthetic_supplier_assignment" &&
+            row.expectedSupplierLeadTimeDays >= 0,
+        ),
+      ).toBe(true);
+      expect(
         report.bookedRevenueBeforeBackorderCancellationsMinor,
       ).toBeGreaterThanOrEqual(
         report.representedRevenueMinor,

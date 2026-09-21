@@ -75,6 +75,36 @@ function safetyFactorFor(
   }
 }
 
+function syntheticSupplierFor(
+  world: GeneratedMerchantWorld,
+  productId: string,
+): {
+  readonly supplierId: string;
+  readonly leadTimeMultiplier: number;
+} {
+  const categoryId =
+    world.manifest.productDemandMechanisms.find(
+      (candidate) =>
+        candidate.productId === productId,
+    )?.categoryId ?? "uncategorized";
+  const key =
+    world.manifest.worldId + "|" + categoryId;
+  let hash = 2166136261;
+  for (let index = 0; index < key.length; index += 1) {
+    hash ^= key.charCodeAt(index);
+    hash = Math.imul(hash, 16777619);
+  }
+  const bucket = Math.abs(hash >>> 0) % 3;
+  const multipliers = [1, 1.15, 1.35] as const;
+  return {
+    supplierId:
+      "step9_supplier_" +
+      String(bucket + 1).padStart(2, "0"),
+    leadTimeMultiplier:
+      multipliers[bucket]!,
+  };
+}
+
 function carryingRateFor(
   world: GeneratedMerchantWorld,
 ): number {
@@ -133,6 +163,10 @@ function snapshot(
       ? {}
       : { variantId: position.variantId }),
     locationId: position.locationId,
+    supplierId: position.supplierId,
+    supplierSource: position.supplierSource,
+    expectedSupplierLeadTimeDays:
+      position.supplierLeadTimeDays,
     onHandUnits: position.onHandUnits,
     availableToSellUnits,
     reservedUnits: position.reservedUnits,
@@ -333,11 +367,19 @@ export function createInventoryEconomyState(
         Number(mechanism.initialReservedUnits),
       ),
     );
-    const leadDays = Math.max(
+    const supplier =
+      syntheticSupplierFor(
+        world,
+        mechanism.productId,
+      );
+    const declaredLeadDays = Math.max(
       0,
       Number(mechanism.supplierLeadTimeSeconds) /
         (24 * 60 * 60),
     );
+    const leadDays =
+      declaredLeadDays *
+      supplier.leadTimeMultiplier;
     const dailyDemand = dailyDemandFor(
       world,
       mechanism.productId,
@@ -384,6 +426,11 @@ export function createInventoryEconomyState(
       skuId: mechanism.productId,
       productId: mechanism.productId,
       locationId: DEFAULT_INVENTORY_LOCATION_ID,
+      supplierId: supplier.supplierId,
+      supplierSource:
+        "step9_synthetic_supplier_assignment",
+      supplierLeadTimeMultiplier:
+        supplier.leadTimeMultiplier,
       onHandUnits: onHand,
       reservedUnits: reserved,
       committedUnits: 0,
