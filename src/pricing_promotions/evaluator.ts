@@ -34,6 +34,7 @@ import type {
   PriceResponseCurvePoint,
   PricingPromotionEvaluationRequest,
   PricingPromotionReport,
+  ProductPromotionEconomics,
   PromotionAttributionDiagnostics,
   PromotionResponseCurvePoint,
 } from "./types.js";
@@ -289,6 +290,179 @@ function expectedFutureContribution(
   );
 }
 
+interface MutableProductEconomics {
+  productId: string;
+  representedUnits: number;
+  grossRevenueMinor: number;
+  discountsMinor: number;
+  allocatedNetRevenueMinor: number;
+  allocatedGrossProfitMinor: number;
+  allocatedContributionProfitMinor: number;
+}
+
+function productEconomics(
+  request: PricingPromotionEvaluationRequest,
+  report: EcommerceEconomicReport,
+): readonly ProductPromotionEconomics[] {
+  const weights = customerWeightMap(request);
+  const rows = new Map<string, MutableProductEconomics>();
+
+  const rowFor = (productId: string): MutableProductEconomics => {
+    const existing = rows.get(productId);
+    if (existing) return existing;
+    const created: MutableProductEconomics = {
+      productId,
+      representedUnits: 0,
+      grossRevenueMinor: 0,
+      discountsMinor: 0,
+      allocatedNetRevenueMinor: 0,
+      allocatedGrossProfitMinor: 0,
+      allocatedContributionProfitMinor: 0,
+    };
+    rows.set(productId, created);
+    return created;
+  };
+
+  for (const order of report.orders) {
+    const weight = weights.get(order.customerId) ?? 1;
+    const lineBasis = order.lines.map((line) =>
+      Math.max(0, line.netSalesBeforeReturnsMinor),
+    );
+    const basisTotal = lineBasis.reduce(
+      (sum, value) => sum + value,
+      0,
+    );
+    let remainingNet = order.netRevenueMinor;
+    let remainingGrossProfit = order.grossProfitMinor;
+    let remainingContribution =
+      order.contributionProfitBeforeAdvertisingMinor;
+
+    for (
+      let lineIndex = 0;
+      lineIndex < order.lines.length;
+      lineIndex += 1
+    ) {
+      const line = order.lines[lineIndex]!;
+      const row = rowFor(line.productId);
+      const isLast =
+        lineIndex === order.lines.length - 1;
+      const share =
+        basisTotal > 0
+          ? lineBasis[lineIndex]! / basisTotal
+          : 1 / Math.max(1, order.lines.length);
+      const allocatedNet = isLast
+        ? remainingNet
+        : Math.round(order.netRevenueMinor * share);
+      const allocatedGrossProfit = isLast
+        ? remainingGrossProfit
+        : Math.round(order.grossProfitMinor * share);
+      const allocatedContribution = isLast
+        ? remainingContribution
+        : Math.round(
+            order.contributionProfitBeforeAdvertisingMinor *
+              share,
+          );
+
+      remainingNet -= allocatedNet;
+      remainingGrossProfit -= allocatedGrossProfit;
+      remainingContribution -= allocatedContribution;
+
+      row.representedUnits +=
+        line.quantity * weight;
+      row.grossRevenueMinor +=
+        line.grossMerchandiseRevenueMinor * weight;
+      row.discountsMinor +=
+        line.discountMinor * weight;
+      row.allocatedNetRevenueMinor +=
+        allocatedNet * weight;
+      row.allocatedGrossProfitMinor +=
+        allocatedGrossProfit * weight;
+      row.allocatedContributionProfitMinor +=
+        allocatedContribution * weight;
+    }
+  }
+
+  const sorted = [...rows.values()].sort(
+    (left, right) =>
+      left.productId.localeCompare(right.productId),
+  );
+  const totalNet = sorted.reduce(
+    (sum, row) => sum + row.allocatedNetRevenueMinor,
+    0,
+  );
+  const totalContributionBeforeAds = sorted.reduce(
+    (sum, row) =>
+      sum + row.allocatedContributionProfitMinor,
+    0,
+  );
+
+  for (const row of sorted) {
+    const share =
+      totalNet > 0
+        ? row.allocatedNetRevenueMinor / totalNet
+        : sorted.length > 0
+          ? 1 / sorted.length
+          : 0;
+    row.allocatedContributionProfitMinor -=
+      report.waterfall.advertisingCostMinor * share;
+  }
+
+  const rounded: ProductPromotionEconomics[] = sorted.map(
+    (row) => ({
+      productId: row.productId,
+      representedUnits: row.representedUnits,
+      grossRevenueMinor: Math.round(row.grossRevenueMinor),
+      discountsMinor: Math.round(row.discountsMinor),
+      allocatedNetRevenueMinor: Math.round(
+        row.allocatedNetRevenueMinor,
+      ),
+      allocatedGrossProfitMinor: Math.round(
+        row.allocatedGrossProfitMinor,
+      ),
+      allocatedContributionProfitMinor: Math.round(
+        row.allocatedContributionProfitMinor,
+      ),
+    }),
+  );
+
+  if (rounded.length > 0) {
+    const last = rounded[rounded.length - 1]!;
+    const netResidual =
+      report.waterfall.netRevenueMinor -
+      rounded.reduce(
+        (sum, row) => sum + row.allocatedNetRevenueMinor,
+        0,
+      );
+    const grossProfitResidual =
+      report.waterfall.grossProfitMinor -
+      rounded.reduce(
+        (sum, row) => sum + row.allocatedGrossProfitMinor,
+        0,
+      );
+    const contributionResidual =
+      report.waterfall.contributionProfitMinor -
+      rounded.reduce(
+        (sum, row) =>
+          sum + row.allocatedContributionProfitMinor,
+        0,
+      );
+    rounded[rounded.length - 1] = {
+      ...last,
+      allocatedNetRevenueMinor:
+        last.allocatedNetRevenueMinor + netResidual,
+      allocatedGrossProfitMinor:
+        last.allocatedGrossProfitMinor +
+        grossProfitResidual,
+      allocatedContributionProfitMinor:
+        last.allocatedContributionProfitMinor +
+        contributionResidual,
+    };
+  }
+
+  void totalContributionBeforeAds;
+  return rounded;
+}
+
 function noPromotionScenario(
   scenario: PricingPromotionScenario,
 ): PricingPromotionScenario {
@@ -531,6 +705,14 @@ export function evaluatePricingPromotionEconomics(
     authoritativePriceStates: scenario.priceStates,
     factual,
     noPromotionCounterfactual,
+    factualProductEconomics: productEconomics(
+      request,
+      factual,
+    ),
+    noPromotionProductEconomics: productEconomics(
+      request,
+      noPromotionCounterfactual,
+    ),
     incremental: incrementalEconomics(
       request,
       factual,
