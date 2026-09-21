@@ -110,8 +110,14 @@ export const CORE_ACTION_TYPE_CONTRACTS: readonly ActionTypeContract[] = [
   {
     actionType: "pricing.adjust_price",
     category: "pricing",
-    allowedTargetKinds: ["product", "sku"],
+    allowedTargetKinds: ["sku", "product", "category", "collection"],
     parameterKind: "price_adjustment",
+  },
+  {
+    actionType: "pricing.rollback_price",
+    category: "pricing",
+    allowedTargetKinds: ["sku", "product", "category", "collection"],
+    parameterKind: "price_rollback",
   },
   {
     actionType: "promotion.apply_discount",
@@ -205,6 +211,7 @@ export const CORE_CONSTRAINT_PROPERTIES = [
   "lifecycle.audience_exists",
   "shipping.backorders_supported",
   "finance.gross_margin_rate",
+  "finance.gross_margin_per_unit_minor",
   "finance.contribution_margin_rate",
   "finance.contribution_per_unit_minor",
   "paid_media.total_budget_rate",
