@@ -122,7 +122,8 @@ function snapshot(
     position.onHandUnits -
       position.reservedUnits -
       position.committedUnits -
-      position.damagedUnits,
+      position.damagedUnits -
+      position.quarantinedReturnUnits,
   );
 
   return {
@@ -137,6 +138,8 @@ function snapshot(
     reservedUnits: position.reservedUnits,
     committedUnits: position.committedUnits,
     damagedUnits: position.damagedUnits,
+    quarantinedReturnUnits:
+      position.quarantinedReturnUnits,
     inboundUnits: position.inboundUnits,
     backorderedUnits: position.backorderedUnits,
     safetyStockUnits: position.safetyStockUnits,
@@ -190,6 +193,7 @@ function assertPosition(position: MutableInventoryPosition): void {
     "reservedUnits",
     "committedUnits",
     "damagedUnits",
+    "quarantinedReturnUnits",
     "inboundUnits",
     "backorderedUnits",
   ];
@@ -208,12 +212,13 @@ function assertPosition(position: MutableInventoryPosition): void {
   if (
     position.reservedUnits +
       position.committedUnits +
-      position.damagedUnits >
+      position.damagedUnits +
+      position.quarantinedReturnUnits >
     position.onHandUnits
   ) {
     throw new RangeError(
       position.skuId +
-        " reserved + committed + damaged exceeds physical on-hand stock",
+        " reserved + committed + damaged + quarantined returns exceeds physical on-hand stock",
     );
   }
 }
@@ -379,6 +384,7 @@ export function createInventoryEconomyState(
       reservedUnits: reserved,
       committedUnits: 0,
       damagedUnits: 0,
+      quarantinedReturnUnits: 0,
       inboundUnits: 0,
       backorderedUnits: 0,
       openingOnHandUnits: onHand,
@@ -408,7 +414,7 @@ export function createInventoryEconomyState(
       obsolescenceRatePerDay:
         obsolescenceRateFor(world),
       cumulativeReceivedUnits: 0,
-      cumulativeSellableReturnsUnits: 0,
+      cumulativeReturnedUnits: 0,
       cumulativeSoldUnits: 0,
       cumulativeWriteOffUnits: 0,
       cumulativeExplicitAdjustmentUnits: 0,
@@ -428,6 +434,7 @@ export function createInventoryEconomyState(
     reorders: new Map(),
     ledger,
     demandTruth: [],
+    returnTruth: [],
     nextMovementOrdinal: 0,
   };
 
@@ -866,7 +873,7 @@ export function receiveInventory(
   return quantity;
 }
 
-export function restockReturnedInventory(
+export function recordReturnReceived(
   state: InventoryEconomyRuntime,
   skuId: string,
   quantityInput: number,
@@ -881,18 +888,43 @@ export function restockReturnedInventory(
   movement(
     state,
     position,
-    "return_restocked",
+    "return_received",
     quantity,
     timestampMs,
     sourceEventId,
     () => {
       position.onHandUnits += quantity;
-      position.cumulativeSellableReturnsUnits += quantity;
-      position.oldestInventoryReceivedAtMs =
-        Math.min(
-          position.oldestInventoryReceivedAtMs,
-          timestampMs,
-        );
+      position.quarantinedReturnUnits += quantity;
+      position.cumulativeReturnedUnits += quantity;
+    },
+  );
+  return quantity;
+}
+
+export function restockReturnedInventory(
+  state: InventoryEconomyRuntime,
+  skuId: string,
+  quantityInput: number,
+  timestampMs: number,
+  sourceEventId: string,
+): number {
+  const position = state.positions.get(skuId);
+  if (!position) return 0;
+  const quantity = Math.min(
+    nonNegativeInteger(quantityInput),
+    position.quarantinedReturnUnits,
+  );
+  if (quantity <= 0) return 0;
+
+  movement(
+    state,
+    position,
+    "return_restocked",
+    quantity,
+    timestampMs,
+    sourceEventId,
+    () => {
+      position.quarantinedReturnUnits -= quantity;
     },
   );
   fulfillBackordersFromAvailable(
@@ -904,30 +936,34 @@ export function restockReturnedInventory(
   return quantity;
 }
 
-export function recordReturnReceived(
+export function damageReturnedInventory(
   state: InventoryEconomyRuntime,
   skuId: string,
   quantityInput: number,
   timestampMs: number,
   sourceEventId: string,
-): void {
+): number {
   const position = state.positions.get(skuId);
-  if (!position) return;
-  const quantity = nonNegativeInteger(quantityInput);
-  const current = snapshot(position);
-  state.ledger.push({
-    movementId:
-      "inventory-movement:" +
-      String(state.nextMovementOrdinal++).padStart(8, "0"),
-    skuId,
-    productId: position.productId,
-    occurredAt: new Date(timestampMs).toISOString(),
-    movementType: "return_received",
+  if (!position) return 0;
+  const quantity = Math.min(
+    nonNegativeInteger(quantityInput),
+    position.quarantinedReturnUnits,
+  );
+  if (quantity <= 0) return 0;
+
+  movement(
+    state,
+    position,
+    "damage",
     quantity,
+    timestampMs,
     sourceEventId,
-    before: current,
-    after: current,
-  });
+    () => {
+      position.quarantinedReturnUnits -= quantity;
+      position.damagedUnits += quantity;
+    },
+  );
+  return quantity;
 }
 
 export function damageInventory(
@@ -1018,7 +1054,8 @@ export function setAvailableInventoryAdjustment(
       position.onHandUnits = Math.max(
         position.reservedUnits +
           position.committedUnits +
-          position.damagedUnits,
+          position.damagedUnits +
+          position.quarantinedReturnUnits,
         position.onHandUnits + delta,
       );
       position.cumulativeExplicitAdjustmentUnits +=
@@ -1269,7 +1306,7 @@ export function reconciliationFor(
   const expectedClosing =
     position.openingOnHandUnits +
     position.cumulativeReceivedUnits +
-    position.cumulativeSellableReturnsUnits +
+    position.cumulativeReturnedUnits +
     position.cumulativeExplicitAdjustmentUnits -
     position.cumulativeSoldUnits -
     position.cumulativeWriteOffUnits;
@@ -1278,8 +1315,8 @@ export function reconciliationFor(
     skuId: position.skuId,
     openingOnHandUnits: position.openingOnHandUnits,
     receivedUnits: position.cumulativeReceivedUnits,
-    sellableReturnUnits:
-      position.cumulativeSellableReturnsUnits,
+    returnedUnits:
+      position.cumulativeReturnedUnits,
     explicitAdjustmentUnits:
       position.cumulativeExplicitAdjustmentUnits,
     soldUnits: position.cumulativeSoldUnits,
@@ -1326,6 +1363,7 @@ export function finalizeInventoryGodMode(
         ),
     ),
     demandTruth: [...state.demandTruth],
+    returnTruth: [...state.returnTruth],
     reservations: [...state.reservations.values()].map(
       (reservation) => ({ ...reservation }),
     ),
