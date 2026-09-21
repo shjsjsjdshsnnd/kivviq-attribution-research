@@ -54,7 +54,7 @@ function expressionRequirement(
       return {
         requirementId: prefix + ":" + index,
         kind: "entity_presence",
-        reference: JSON.stringify(expression.target),
+        reference: JSON.stringify(expression.target) as string,
       };
     case "capability_available":
       return {
