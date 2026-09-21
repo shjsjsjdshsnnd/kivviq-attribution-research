@@ -374,6 +374,11 @@ function promotionAttribution(
   );
   const baselineByCustomer =
     baselineOrdersByCustomer(baseline);
+  const purchaseByOrderId = new Map(
+    factual.simulation.purchases.map(
+      (purchase) => [purchase.orderId, purchase] as const,
+    ),
+  );
 
   let purchasesDuringPromotion = 0;
   let promotionExposedPurchases = 0;
@@ -423,12 +428,13 @@ function promotionAttribution(
       promotionExposedPurchases += weight;
     }
 
+    const purchase = purchaseByOrderId.get(order.orderId);
     const redeemed =
       order.discountsMinor > 0 ||
-      (order.freeShippingPromotionIds?.length ?? 0) > 0 ||
-      order.lines.some(
+      (purchase?.freeShippingPromotionIds?.length ?? 0) > 0 ||
+      (purchase?.lines.some(
         (line) => (line.promotionIds?.length ?? 0) > 0,
-      );
+      ) ?? false);
     if (redeemed) {
       promotionRedemptionPurchases += weight;
     }
