@@ -1,45 +1,102 @@
 import { describe, expect, it } from "vitest";
 import {
-  ACTION_ONTOLOGY_FIXTURES,
+  budgetReallocationReadiness,
+  doNothingAction,
   increaseGoogleShoppingBudget20,
-  reallocateMetaToGoogle1000PerWeek,
+  increaseGoogleShoppingBudgetBy1000,
+  investigateTrackingAnomaly,
+  reorderInventoryWith45DayDelay,
+  runExperimentAction,
+  setGoogleShoppingBudgetAbsolute,
+  waitObserveAction,
 } from "../../src/action_ontology/fixtures.js";
-import { actionSemanticKey } from "../../src/action_ontology/semantics.js";
-import { validateAction } from "../../src/action_ontology/validation.js";
 
-describe("Step 2.1 Action Ontology fixtures", () => {
-  it("represents all ten required ecommerce interventions as valid Actions", () => {
-    expect(ACTION_ONTOLOGY_FIXTURES).toHaveLength(10);
-
-    for (const action of ACTION_ONTOLOGY_FIXTURES) {
-      const result = validateAction(action);
-      expect(result.ok, JSON.stringify(result.ok ? [] : result.errors, null, 2)).toBe(true);
+describe("Action ontology fixtures", () => {
+  it("makes SET, DELTA and MULTIPLY explicit", () => {
+    expect(setGoogleShoppingBudgetAbsolute.parameters.kind).toBe(
+      "budget_adjustment",
+    );
+    if (setGoogleShoppingBudgetAbsolute.parameters.kind === "budget_adjustment") {
+      expect(setGoogleShoppingBudgetAbsolute.parameters.operation.kind).toBe("SET");
     }
-  });
 
-  it("preserves coordinated component intent for compound reallocations", () => {
-    expect(reallocateMetaToGoogle1000PerWeek.atomicity).toBe("COMPOUND");
-    expect(reallocateMetaToGoogle1000PerWeek.components).toHaveLength(2);
+    if (increaseGoogleShoppingBudgetBy1000.parameters.kind === "budget_adjustment") {
+      expect(increaseGoogleShoppingBudgetBy1000.parameters.operation.kind).toBe(
+        "DELTA",
+      );
+    }
 
-    for (const component of reallocateMetaToGoogle1000PerWeek.components ?? []) {
-      expect(component.parentActionId).toBe(reallocateMetaToGoogle1000PerWeek.actionId);
-      expect(component.sharedIntentId).toBe(
-        reallocateMetaToGoogle1000PerWeek.sharedIntentId,
+    if (increaseGoogleShoppingBudget20.parameters.kind === "budget_adjustment") {
+      expect(increaseGoogleShoppingBudget20.parameters.operation.kind).toBe(
+        "MULTIPLY",
       );
     }
   });
 
-  it("does not collapse materially different actions into one representation", () => {
-    const keys = ACTION_ONTOLOGY_FIXTURES.map(actionSemanticKey);
-    expect(new Set(keys).size).toBe(keys.length);
-
-    const opposite = JSON.parse(
-      JSON.stringify(increaseGoogleShoppingBudget20),
-    ) as any;
-    opposite.parameters[0].mode = "DECREASE_BY_PERCENT";
-
-    expect(actionSemanticKey(opposite)).not.toBe(
-      actionSemanticKey(increaseGoogleShoppingBudget20),
+  it("distinguishes decision time from delayed effective time", () => {
+    expect(reorderInventoryWith45DayDelay.timing.decisionTime).toBe(
+      "2026-09-21T13:00:00Z",
     );
+    expect(reorderInventoryWith45DayDelay.timing.effectiveStart).toEqual({
+      kind: "known",
+      at: "2026-11-05T13:00:00Z",
+    });
+    expect(reorderInventoryWith45DayDelay.timing.implementationDelaySeconds).toEqual(
+      {
+        kind: "known",
+        seconds: 45 * 24 * 60 * 60,
+      },
+    );
+  });
+
+  it("keeps NO_OP and WAIT/OBSERVE as distinct first-class actions", () => {
+    expect(doNothingAction.actionType).toBe("no_op.do_nothing");
+    expect(waitObserveAction.actionType).toBe("no_op.wait_observe");
+    expect(doNothingAction.parameters.kind).toBe("no_op");
+    expect(waitObserveAction.parameters.kind).toBe("wait_observe");
+  });
+
+  it("represents investigation as information-state work", () => {
+    expect(investigateTrackingAnomaly.actionCategory).toBe("investigation");
+    expect(investigateTrackingAnomaly.parameters.kind).toBe("investigate");
+  });
+
+  it("represents experiment output without building an experiment selector", () => {
+    expect(runExperimentAction.parameters.kind).toBe("run_experiment");
+    if (runExperimentAction.parameters.kind === "run_experiment") {
+      expect(runExperimentAction.parameters.hypothesisRef).toBe(
+        "hypothesis:checkout-friction",
+      );
+      expect(runExperimentAction.parameters.interventionActionId).not.toBe(
+        runExperimentAction.parameters.controlActionId,
+      );
+    }
+  });
+
+  it("keeps compound actions as readiness-only references", () => {
+    expect(budgetReallocationReadiness.kind).toBe("compound_action");
+    expect(budgetReallocationReadiness.componentActionIds).toHaveLength(2);
+    expect("executionPolicy" in budgetReallocationReadiness).toBe(false);
+    expect("components" in budgetReallocationReadiness).toBe(false);
+  });
+
+  it("does not put evaluation, ranking or lifecycle state into Action", () => {
+    expect("state" in increaseGoogleShoppingBudget20).toBe(false);
+    expect("expectedProfit" in increaseGoogleShoppingBudget20).toBe(false);
+    expect("predictedLift" in increaseGoogleShoppingBudget20).toBe(false);
+    expect("rank" in increaseGoogleShoppingBudget20).toBe(false);
+    expect("recommendationScore" in increaseGoogleShoppingBudget20).toBe(false);
+  });
+
+  it("keeps risk and uncertainty distinct", () => {
+    expect(increaseGoogleShoppingBudget20.riskDimensions.length).toBeGreaterThan(0);
+    expect(
+      increaseGoogleShoppingBudget20.uncertaintyDimensions.length,
+    ).toBeGreaterThan(0);
+    expect(
+      increaseGoogleShoppingBudget20.riskDimensions.some(
+        (risk) => "probability" in risk || "confidence" in risk,
+      ),
+    ).toBe(false);
   });
 });
