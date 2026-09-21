@@ -1,284 +1,255 @@
 import { describe, expect, it } from "vitest";
 import {
-  increaseEmailCampaignFrequency,
+  doNothingAction,
   increaseGoogleShoppingBudget20,
+  increaseGoogleShoppingBudgetBy1000,
+  investigateTrackingAnomaly,
   pauseUnderperformingMetaCampaign,
-  reallocateMetaToGoogle1000PerWeek,
+  reorderInventoryWith45DayDelay,
   runCollectionPromotion15FourDays,
+  runExperimentAction,
+  waitObserveAction,
 } from "../../src/action_ontology/fixtures.js";
 import { validateAction } from "../../src/action_ontology/validation.js";
 
-function clone<T>(value: T): T {
-  return JSON.parse(JSON.stringify(value)) as T;
+function clone<T>(value: T): any {
+  return JSON.parse(JSON.stringify(value));
 }
 
-describe("Step 2.1 Action validation", () => {
-  it("accepts valid atomic and compound actions", () => {
-    expect(validateAction(increaseGoogleShoppingBudget20).ok).toBe(true);
-    expect(validateAction(reallocateMetaToGoogle1000PerWeek).ok).toBe(true);
-  });
-
-  it("rejects an action without a typed target identifier", () => {
-    const invalid = clone(increaseGoogleShoppingBudget20) as any;
-    delete invalid.target.campaignId;
-
-    const result = validateAction(invalid);
-    expect(result.ok).toBe(false);
-    if (!result.ok) {
-      expect(result.errors.some((error) => error.code === "MISSING_TARGET_ID")).toBe(true);
+describe("Step 1 canonical Action validation", () => {
+  it("accepts representative action families", () => {
+    for (const action of [
+      increaseGoogleShoppingBudget20,
+      increaseGoogleShoppingBudgetBy1000,
+      pauseUnderperformingMetaCampaign,
+      runCollectionPromotion15FourDays,
+      reorderInventoryWith45DayDelay,
+      doNothingAction,
+      waitObserveAction,
+      investigateTrackingAnomaly,
+      runExperimentAction,
+    ]) {
+      expect(validateAction(action).ok).toBe(true);
     }
   });
 
-  it("rejects missing required parameters", () => {
-    const invalid = clone(increaseGoogleShoppingBudget20) as any;
-    invalid.parameters = [];
-
-    const result = validateAction(invalid);
-    expect(result.ok).toBe(false);
-    if (!result.ok) {
-      expect(
-        result.errors.some((error) => error.code === "MISSING_REQUIRED_PARAMETER"),
-      ).toBe(true);
-    }
-  });
-
-  it("rejects negative duration and an end time before start", () => {
-    const invalid = clone(runCollectionPromotion15FourDays) as any;
-    invalid.duration.durationSeconds = {
-      status: "known",
-      value: -1,
-      provenance: "operator_input",
-    };
-    invalid.duration.endTime = {
-      status: "known",
-      value: "2026-09-20T10:00:00Z",
-      provenance: "operator_input",
-    };
+  it("keeps lifecycle status outside Action", () => {
+    const invalid = clone(increaseGoogleShoppingBudget20);
+    invalid.state = "accepted";
 
     const result = validateAction(invalid);
     expect(result.ok).toBe(false);
     if (!result.ok) {
       expect(
         result.errors.some(
-          (error) => error.code === "INVALID_NON_NEGATIVE_NUMBER",
-        ),
-      ).toBe(true);
-      expect(result.errors.some((error) => error.code === "END_BEFORE_START")).toBe(
-        true,
-      );
-    }
-  });
-
-  it("requires explicit currency on monetary values", () => {
-    const invalid = clone(increaseGoogleShoppingBudget20) as any;
-    delete invalid.cost.incrementalSpend.value.currency;
-
-    const result = validateAction(invalid);
-    expect(result.ok).toBe(false);
-    if (!result.ok) {
-      expect(result.errors.some((error) => error.code === "INVALID_CURRENCY")).toBe(
-        true,
-      );
-    }
-  });
-
-  it("requires explicit percentage semantics", () => {
-    const invalid = clone(increaseGoogleShoppingBudget20) as any;
-    delete invalid.parameters[0].value.semantics;
-
-    const result = validateAction(invalid);
-    expect(result.ok).toBe(false);
-    if (!result.ok) {
-      expect(
-        result.errors.some(
-          (error) => error.code === "MISSING_PERCENTAGE_SEMANTICS",
+          (issue) =>
+            issue.code === "FORBIDDEN_ACTION_INFORMATION" &&
+            issue.path === "state",
         ),
       ).toBe(true);
     }
   });
 
-  it("allows unknown values instead of inventing precision", () => {
-    expect(validateAction(pauseUnderperformingMetaCampaign).ok).toBe(true);
-    expect(pauseUnderperformingMetaCampaign.cost.implementationCost.status).toBe(
-      "unknown",
-    );
-    expect(pauseUnderperformingMetaCampaign.risks[0]?.probability.status).toBe(
-      "unknown",
-    );
-  });
+  it("rejects God-mode, prediction and ranking fields at runtime", () => {
+    for (const forbidden of [
+      ["trueIncrementalROAS", 8.4],
+      ["expectedProfit", 1000],
+      ["recommendationScore", 0.99],
+      ["bestAction", true],
+    ] as const) {
+      const invalid = clone(increaseGoogleShoppingBudget20);
+      invalid[forbidden[0]] = forbidden[1];
 
-  it("rejects unregistered action types but accepts explicit extension contracts", () => {
-    const extended = clone(increaseGoogleShoppingBudget20) as any;
-    extended.actionType = "custom.raise_campaign_budget";
-    extended.parameters = [
-      {
-        parameterId: "custom_change",
-        mode: "INCREASE_BY",
-        value: { kind: "money", amountMinor: 10_000, currency: "CAD" },
-      },
-    ];
-
-    const unregistered = validateAction(extended);
-    expect(unregistered.ok).toBe(false);
-    if (!unregistered.ok) {
-      expect(
-        unregistered.errors.some(
-          (error) => error.code === "UNREGISTERED_ACTION_TYPE",
-        ),
-      ).toBe(true);
+      const result = validateAction(invalid);
+      expect(result.ok).toBe(false);
+      if (!result.ok) {
+        expect(
+          result.errors.some(
+            (issue) => issue.code === "FORBIDDEN_ACTION_INFORMATION",
+          ),
+        ).toBe(true);
+      }
     }
-
-    expect(
-      validateAction(extended, {
-        additionalActionTypeContracts: [
-          {
-            actionType: "custom.raise_campaign_budget",
-            category: "paid_media",
-            atomicity: "ATOMIC",
-            allowedTargetKinds: ["campaign"],
-            requiredParameterIds: ["custom_change"],
-          },
-        ],
-      }).ok,
-    ).toBe(true);
   });
 
-  it("validates constraint properties but allows explicit extensions", () => {
-    const extended = clone(increaseGoogleShoppingBudget20) as any;
-    extended.constraints.push({
-      constraintId: "custom-cap",
-      kind: "property_comparison",
-      property: "merchant.custom_daily_cap_minor",
-      operator: "LTE",
-      value: {
-        kind: "money",
-        amountMinor: 500_000,
-        currency: "CAD",
-      },
-      whenUnmet: "BLOCKED",
-    });
-
-    expect(validateAction(extended).ok).toBe(false);
-    expect(
-      validateAction(extended, {
-        additionalConstraintProperties: ["merchant.custom_daily_cap_minor"],
-      }).ok,
-    ).toBe(true);
-  });
-
-  it("requires reversal metadata to agree with reversibility", () => {
-    const invalid = clone(pauseUnderperformingMetaCampaign) as any;
-    invalid.reversibility.classification = "irreversible";
-
-    const first = validateAction(invalid);
+  it("rejects malformed or unknown targets", () => {
+    const missing = clone(increaseGoogleShoppingBudget20);
+    delete missing.target.campaignId;
+    const first = validateAction(missing);
     expect(first.ok).toBe(false);
     if (!first.ok) {
       expect(
-        first.errors.some(
-          (error) => error.code === "IRREVERSIBLE_HAS_REVERSAL_METADATA",
-        ),
+        first.errors.some((issue) => issue.code === "MISSING_TARGET_ID"),
       ).toBe(true);
     }
 
-    invalid.reversibility.reversalMechanism = {
-      status: "not_applicable",
-      provenance: "not_applicable",
-    };
-    invalid.reversibility.reversalCost = {
-      status: "not_applicable",
-      provenance: "not_applicable",
-    };
-    invalid.reversibility.reversalDelaySeconds = {
-      status: "not_applicable",
-      provenance: "not_applicable",
-    };
-
-    expect(validateAction(invalid).ok).toBe(true);
+    const unknown = clone(increaseGoogleShoppingBudget20);
+    unknown.target = { kind: "mystery", id: "x" };
+    const second = validateAction(unknown);
+    expect(second.ok).toBe(false);
+    if (!second.ok) {
+      expect(
+        second.errors.some((issue) => issue.code === "UNKNOWN_TARGET_KIND"),
+      ).toBe(true);
+    }
   });
 
-  it("distinguishes temporary, persistent and recurring actions", () => {
-    expect(runCollectionPromotion15FourDays.duration.kind).toBe("temporary");
-    expect(increaseEmailCampaignFrequency.duration.kind).toBe("persistent");
-
-    const recurring = clone(increaseEmailCampaignFrequency) as any;
-    recurring.duration = {
-      kind: "recurring",
-      durationSeconds: {
-        status: "not_applicable",
-        provenance: "not_applicable",
-      },
-      endTime: {
-        status: "not_applicable",
-        provenance: "not_applicable",
-      },
-      recurrence: {
-        frequency: "weekly",
-        interval: 1,
-      },
-    };
-
-    expect(validateAction(recurring).ok).toBe(true);
-  });
-
-  it("requires an explicit period for monetary rates", () => {
-    const invalid = clone(reallocateMetaToGoogle1000PerWeek) as any;
-    delete invalid.components[0].parameters[0].value.per;
+  it("requires relative operations to carry a typed baseline reference", () => {
+    const invalid = clone(increaseGoogleShoppingBudget20);
+    delete invalid.parameters.operation.reference;
 
     const result = validateAction(invalid);
     expect(result.ok).toBe(false);
     if (!result.ok) {
       expect(
         result.errors.some(
-          (error) =>
-            error.code === "COMPONENT_INVALID_MONEY_RATE_PERIOD" ||
-            error.code === "INVALID_MONEY_RATE_PERIOD",
+          (issue) => issue.code === "INVALID_REFERENCE_VALUE",
         ),
       ).toBe(true);
     }
   });
 
-  it("requires compound coordination and valid component dependencies", () => {
-    const missingCoordination = clone(reallocateMetaToGoogle1000PerWeek) as any;
-    delete missingCoordination.coordination;
+  it("enforces unit safety for operation values and explicit baselines", () => {
+    const invalid = clone(increaseGoogleShoppingBudgetBy1000);
+    invalid.parameters.operation.amount = {
+      kind: "percentage",
+      basisPoints: 1000,
+    };
 
-    const missingResult = validateAction(missingCoordination);
-    expect(missingResult.ok).toBe(false);
-    if (!missingResult.ok) {
+    const result = validateAction(invalid);
+    expect(result.ok).toBe(false);
+    if (!result.ok) {
       expect(
-        missingResult.errors.some(
-          (error) => error.code === "MISSING_COMPOUND_COORDINATION",
+        result.errors.some(
+          (issue) => issue.code === "OPERATION_UNIT_KIND_MISMATCH",
         ),
       ).toBe(true);
     }
+  });
 
-    const badDependency = clone(reallocateMetaToGoogle1000PerWeek) as any;
-    badDependency.coordination.dependencies[0].dependsOnActionIds = [
-      "act:not-a-component",
+  it("rejects NaN-equivalent and infinite multiplier semantics", () => {
+    const invalid = clone(increaseGoogleShoppingBudget20);
+    invalid.parameters.operation.factor = Infinity;
+
+    const result = validateAction(invalid);
+    expect(result.ok).toBe(false);
+    if (!result.ok) {
+      expect(
+        result.errors.some((issue) => issue.code === "INVALID_MULTIPLIER"),
+      ).toBe(true);
+    }
+  });
+
+  it("enforces decision, requested, effective and implementation-delay chronology", () => {
+    const invalid = clone(reorderInventoryWith45DayDelay);
+    invalid.timing.effectiveStart = {
+      kind: "known",
+      at: "2026-09-22T13:00:00Z",
+    };
+
+    const result = validateAction(invalid);
+    expect(result.ok).toBe(false);
+    if (!result.ok) {
+      expect(
+        result.errors.some(
+          (issue) =>
+            issue.code === "EFFECTIVE_START_BEFORE_IMPLEMENTATION_DELAY",
+        ),
+      ).toBe(true);
+    }
+  });
+
+  it("keeps target and scope separate and validates scoped dimensions", () => {
+    expect(runCollectionPromotion15FourDays.target.kind).toBe("collection");
+    expect(
+      runCollectionPromotion15FourDays.scope.dimensions.map(
+        (dimension) => dimension.kind,
+      ),
+    ).toEqual(["geography", "device", "customer_population"]);
+
+    const invalid = clone(runCollectionPromotion15FourDays);
+    invalid.scope.dimensions.push({
+      kind: "device",
+      devices: ["desktop"],
+    });
+
+    const result = validateAction(invalid);
+    expect(result.ok).toBe(false);
+    if (!result.ok) {
+      expect(
+        result.errors.some(
+          (issue) => issue.code === "DUPLICATE_SCOPE_DIMENSION",
+        ),
+      ).toBe(true);
+    }
+  });
+
+  it("distinguishes hard constraints from soft preferences", () => {
+    const classes = increaseGoogleShoppingBudget20.constraints.map(
+      (constraint) => constraint.constraintClass,
+    );
+    expect(classes).toContain("hard");
+    expect(classes).toContain("soft");
+  });
+
+  it("rejects contradictory minimum and maximum constraint definitions", () => {
+    const invalid = clone(increaseGoogleShoppingBudget20);
+    invalid.constraints = [
+      {
+        constraintId: "margin_min",
+        constraintClass: "hard",
+        expression: {
+          kind: "property_comparison",
+          propertyId: "finance.gross_margin_rate",
+          operator: "GTE",
+          value: { kind: "percentage", basisPoints: 5000 },
+        },
+      },
+      {
+        constraintId: "margin_max",
+        constraintClass: "hard",
+        expression: {
+          kind: "property_comparison",
+          propertyId: "finance.gross_margin_rate",
+          operator: "LTE",
+          value: { kind: "percentage", basisPoints: 3000 },
+        },
+      },
     ];
 
-    const dependencyResult = validateAction(badDependency);
-    expect(dependencyResult.ok).toBe(false);
-    if (!dependencyResult.ok) {
+    const result = validateAction(invalid);
+    expect(result.ok).toBe(false);
+    if (!result.ok) {
       expect(
-        dependencyResult.errors.some(
-          (error) => error.code === "UNKNOWN_COMPONENT_DEPENDENCY_TARGET",
+        result.errors.some(
+          (issue) => issue.code === "CONSTRAINT_MIN_EXCEEDS_MAX",
         ),
       ).toBe(true);
     }
   });
 
-  it("rejects unbalanced compound budget reallocations", () => {
-    const invalid = clone(reallocateMetaToGoogle1000PerWeek) as any;
-    invalid.components[1].parameters[0].value.amountMinor = 90_000;
+  it("rejects unsupported schema versions and unknown top-level fields", () => {
+    const invalid = clone(doNothingAction);
+    invalid.schemaVersion = "2.0.0";
+    invalid.surpriseField = "silently reinterpret me";
 
     const result = validateAction(invalid);
     expect(result.ok).toBe(false);
     if (!result.ok) {
       expect(
         result.errors.some(
-          (error) => error.code === "REALLOCATION_AMOUNT_MISMATCH",
+          (issue) => issue.code === "UNSUPPORTED_SCHEMA_VERSION",
         ),
       ).toBe(true);
+      expect(
+        result.errors.some((issue) => issue.code === "UNKNOWN_ACTION_FIELD"),
+      ).toBe(true);
     }
+  });
+
+  it("freezes validated actions to preserve immutable semantics", () => {
+    expect(Object.isFrozen(increaseGoogleShoppingBudget20)).toBe(true);
+    expect(Object.isFrozen(increaseGoogleShoppingBudget20.parameters)).toBe(true);
+    expect(Object.isFrozen(increaseGoogleShoppingBudget20.timing)).toBe(true);
   });
 });
