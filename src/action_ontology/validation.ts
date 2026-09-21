@@ -93,12 +93,17 @@ const FORBIDDEN_ACTION_KEYS = new Set([
   "trueResponseCurve",
   "futureDemand",
   "futureStockout",
+  "futureMargin",
   "counterfactualRevenue",
   "oracleBestAction",
   "expectedRevenue",
   "expectedProfit",
+  "expectedContribution",
+  "expectedDemand",
+  "expectedUnitsSold",
   "expectedROAS",
   "expectedConversions",
+  "predictedElasticity",
   "predictedLift",
   "confidence",
   "confidenceScore",
@@ -223,11 +228,21 @@ const ACTION_SCHEMA_1_1_ACTION_TYPES = new Set([
   "advertising.transfer_budget_leg",
 ]);
 
+const ACTION_SCHEMA_1_2_PARAMETER_KINDS = new Set([
+  "price_rollback",
+]);
+
+const ACTION_SCHEMA_1_2_ACTION_TYPES = new Set([
+  "pricing.rollback_price",
+]);
+
 function validateSchemaFeatureCompatibility(
   input: any,
   errors: ActionValidationIssue[],
 ): void {
-  if (input.schemaVersion !== "1.0.0") return;
+  const schemaVersion = String(input.schemaVersion);
+
+  if (schemaVersion === "1.0.0") {
 
   if (
     record(input.target) &&
@@ -292,6 +307,71 @@ function validateSchemaFeatureCompatibility(
       "target.kind",
       "paid-media budget targets beyond channel/campaign require schema 1.1.0",
     );
+  }
+  }
+
+  if (schemaVersion === "1.0.0" || schemaVersion === "1.1.0") {
+    if (
+      record(input.parameters) &&
+      ACTION_SCHEMA_1_2_PARAMETER_KINDS.has(String(input.parameters.kind))
+    ) {
+      add(
+        errors,
+        "SCHEMA_FEATURE_REQUIRES_1_2",
+        "parameters.kind",
+        "this pricing parameter kind requires Action schema 1.2.0",
+      );
+    }
+
+    if (
+      record(input.parameters) &&
+      input.parameters.kind === "price_adjustment" &&
+      input.parameters.membership !== undefined
+    ) {
+      add(
+        errors,
+        "SCHEMA_FEATURE_REQUIRES_1_2",
+        "parameters.membership",
+        "pricing membership semantics require Action schema 1.2.0",
+      );
+    }
+
+    if (
+      typeof input.actionType === "string" &&
+      ACTION_SCHEMA_1_2_ACTION_TYPES.has(input.actionType)
+    ) {
+      add(
+        errors,
+        "SCHEMA_FEATURE_REQUIRES_1_2",
+        "actionType",
+        "this pricing Action type requires Action schema 1.2.0",
+      );
+    }
+
+    if (
+      input.actionType === "pricing.adjust_price" &&
+      record(input.target) &&
+      ["category", "collection"].includes(String(input.target.kind))
+    ) {
+      add(
+        errors,
+        "SCHEMA_FEATURE_REQUIRES_1_2",
+        "target.kind",
+        "category/collection pricing requires Action schema 1.2.0",
+      );
+    }
+
+    if (
+      record(input.reversibility) &&
+      input.reversibility.pricingRollback !== undefined
+    ) {
+      add(
+        errors,
+        "SCHEMA_FEATURE_REQUIRES_1_2",
+        "reversibility.pricingRollback",
+        "pricing rollback semantics require Action schema 1.2.0",
+      );
+    }
   }
 }
 
