@@ -21,6 +21,11 @@ import type {
 const clamp = (value: number, min: number, max: number): number =>
   Math.min(max, Math.max(min, value));
 
+type MutableCartLinePricing = {
+  -readonly [Key in keyof ResolvedCartLinePricing]:
+    ResolvedCartLinePricing[Key];
+};
+
 function fnv1a32(value: string): number {
   let hash = 0x811c9dc5;
   for (let index = 0; index < value.length; index += 1) {
@@ -592,7 +597,7 @@ export function resolveProductOffer(
 }
 
 function allocateFixedDiscount(
-  lines: ResolvedCartLinePricing[],
+  lines: MutableCartLinePricing[],
   eligibleProductIds: ReadonlySet<string>,
   amountMinor: number,
 ): void {
@@ -639,7 +644,7 @@ export function resolveCartLinePricing(
   timestampMs: number,
   inputLines: readonly CartPricingInputLine[],
 ): readonly ResolvedCartLinePricing[] {
-  const lines: ResolvedCartLinePricing[] = inputLines.map((line) => {
+  const lines: MutableCartLinePricing[] = inputLines.map((line) => {
     const offer = resolveProductOffer(
       world,
       scenario,
