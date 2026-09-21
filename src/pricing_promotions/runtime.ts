@@ -520,20 +520,6 @@ export function resolveProductOffer(
           )
         : 1;
 
-  const channelResponseMultiplier = awareApplicable.reduce(
-    (value, promotion) => {
-      const multipliers =
-        promotion.channelResponseMultiplierByChannel;
-      if (!multipliers) return value;
-      const values = Object.values(multipliers).filter(
-        (candidate): candidate is number =>
-          typeof candidate === "number" && Number.isFinite(candidate),
-      );
-      if (values.length === 0) return value;
-      return value * Math.max(...values);
-    },
-    1,
-  );
   const returnProbabilityMultiplier = realizedApplied.reduce(
     (value, entry) =>
       value *
@@ -614,11 +600,6 @@ export function resolveProductOffer(
               ),
           }),
       promotionUtilityMultiplier: promotionUtility,
-      channelResponseMultiplier: clamp(
-        channelResponseMultiplier,
-        0.2,
-        5,
-      ),
       returnProbabilityMultiplier: clamp(
         returnProbabilityMultiplier,
         0.2,
