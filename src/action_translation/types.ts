@@ -65,7 +65,8 @@ export interface PricingMembershipBinding {
 }
 
 export interface TranslationContext {
-  readonly schemaVersion: typeof TRANSLATION_CONTEXT_SCHEMA_VERSION;
+  readonly schemaVersion:
+    (typeof SUPPORTED_TRANSLATION_CONTEXT_SCHEMA_VERSIONS)[number];
   readonly simulatorClock: UtcTimestamp;
   readonly capabilities: readonly SimulatorCapability[];
   readonly entityMappings: readonly TranslationEntityMapping[];
