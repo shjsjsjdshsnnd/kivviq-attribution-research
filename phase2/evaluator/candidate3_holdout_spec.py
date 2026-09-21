@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+# ruff: noqa: I001
+
 import hashlib
 import json
 import math
@@ -216,5 +218,11 @@ def create_private_seal(
         "public_family_manifest": list(PUBLIC_FAMILIES),
         "private_seed_exposed": False,
         "private_parameters_committed_to_git": False,
-        "status": "SEALED_AFTER_CONTRACT_FREEZE_BEFORE_ESTIMATOR_IMPLEMENTATION",
+        "candidate3_v1_feedback_exposure_already_consumed": True,
+        "eligible_for_candidate3_v1_second_feedback_exposure": False,
+        "repair_scope": (
+            "benchmark-design repair only; Candidate 3 v1.0.0 estimator, "
+            "contracts, hyperparameters and v1 results remain immutable"
+        ),
+        "status": "SEALED_BENCHMARK_REPAIR_AFTER_V1_DESIGN_FAILURE",
     }

@@ -1,0 +1,91 @@
+name: Candidate 3 Holdout v2 Design Seal
+
+on:
+  push:
+    branches: ["phase2/candidate3-holdout-v2-design"]
+    paths:
+      - ".github/workflows/candidate3-holdout-v2-seal.yml"
+      - "phase2/evaluator/candidate3_holdout_spec.py"
+      - "phase2/evaluator/candidate3_holdout_evaluator.py"
+      - "phase2/evaluator/seal_candidate3_holdout.py"
+      - "phase2/evaluator/validate_candidate3_holdout_v2.py"
+      - "phase2/evaluator/candidate3_frozen_contracts.json"
+
+permissions:
+  contents: write
+
+jobs:
+  seal_and_validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Checkout evaluator
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Checkout frozen Candidate 3 only for input schema and exposure history
+        uses: actions/checkout@v4
+        with:
+          ref: phase2/candidate3-ato-estimator
+          path: candidate
+          fetch-depth: 0
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - run: python -m pip install --upgrade pip
+      - run: python -m pip install -e ".[dev]"
+      - run: python -m pip install -e candidate
+
+      - run: python scripts/check_repo_safety.py
+      - run: python scripts/check_phase1_frozen.py
+
+      - name: Verify Candidate 3 v1 remains frozen and consumed
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          freeze = json.loads(Path("candidate/phase2/candidates/candidate3/FROZEN_IMPLEMENTATION.json").read_text())
+          exposure = json.loads(Path("candidate/phase2/candidates/candidate3/holdout_exposure_state.json").read_text())
+          assert freeze["candidate_id"] == "candidate3-overlap-ato"
+          assert freeze["candidate_version"] == "1.0.0"
+          assert exposure["feedback_bearing_exposure_count"] == 1
+          assert exposure["holdout_version"] == "candidate3-holdout-v1"
+          assert exposure["state"] == "CONSUMED"
+          PY
+
+      - name: Instantiate fresh private v2 seal
+        run: |
+          python phase2/evaluator/seal_candidate3_holdout.py             --contracts phase2/evaluator/candidate3_frozen_contracts.json             --seal-out /tmp/candidate3-holdout-v2/candidate3-holdout-v2.seal.json             --metadata-out phase2/evaluator/candidate3-holdout-v2.public.json
+
+      - name: Validate actual instantiated v2 design before sealing
+        run: |
+          python phase2/evaluator/validate_candidate3_holdout_v2.py             --seal /tmp/candidate3-holdout-v2/candidate3-holdout-v2.seal.json             --candidate-root candidate             --metadata phase2/evaluator/candidate3-holdout-v2.public.json
+
+      - name: Static validation
+        run: |
+          ruff check             phase2/evaluator/candidate3_holdout_spec.py             phase2/evaluator/candidate3_holdout_evaluator.py             phase2/evaluator/seal_candidate3_holdout.py             phase2/evaluator/validate_candidate3_holdout_v2.py
+          mypy --ignore-missing-imports             phase2/evaluator/candidate3_holdout_spec.py             phase2/evaluator/candidate3_holdout_evaluator.py             phase2/evaluator/seal_candidate3_holdout.py             phase2/evaluator/validate_candidate3_holdout_v2.py
+
+      - name: Save validated evaluator-only v2 seal
+        uses: actions/cache/save@v4
+        with:
+          path: /tmp/candidate3-holdout-v2/candidate3-holdout-v2.seal.json
+          key: candidate3-holdout-v2-${{ hashFiles('phase2/evaluator/candidate3_holdout_spec.py', 'phase2/evaluator/candidate3_frozen_contracts.json') }}
+
+      - name: Persist public v2 metadata only
+        shell: bash
+        run: |
+          set -euo pipefail
+          python scripts/check_repo_safety.py
+          git add phase2/evaluator/candidate3-holdout-v2.public.json
+          git diff --cached --check
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git commit -m "Record validated Candidate 3 holdout v2 metadata"
+          git push origin "HEAD:${GITHUB_REF_NAME}"

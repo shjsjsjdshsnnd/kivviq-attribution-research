@@ -8,6 +8,8 @@ from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import Any
 
+from candidate3_holdout_spec import HOLDOUT_VERSION
+
 from phase2_candidate3_contracts.contracts import (
     Candidate3Decision,
     SupportDiagnostics,
@@ -305,7 +307,7 @@ def generate_holdout_case(instance: dict[str, Any]) -> GeneratedHoldoutCase:
 
     return GeneratedHoldoutCase(
         family=family,
-        case=Candidate3Case(case_id=f"candidate3-holdout-v2:{family}", units=tuple(units)),
+        case=Candidate3Case(case_id=f"{HOLDOUT_VERSION}:{family}", units=tuple(units)),
         ato_truth=ato,
         ate_truth=ate,
         oracle_expected_decision=(
@@ -499,7 +501,7 @@ def evaluate_holdout(
 
     return {
         "stage": "SEALED_HOLDOUT",
-        "holdout_version": "candidate3-holdout-v1",
+        "holdout_version": HOLDOUT_VERSION,
         "evaluation_protocol_version": scoring["protocol_version"],
         "outcome": outcome,
         "reasons": list(reasons),
@@ -511,7 +513,7 @@ def evaluate_holdout(
 
 def load_private_instances(path: str | Path) -> list[dict[str, Any]]:
     payload = json.loads(Path(path).read_text(encoding="utf-8"))
-    if payload["version"] != "candidate3-holdout-v1":
+    if payload["version"] != HOLDOUT_VERSION:
         raise RuntimeError("unexpected Candidate 3 holdout version")
     instances = payload.get("instances")
     if not isinstance(instances, list):

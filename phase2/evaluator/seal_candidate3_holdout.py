@@ -14,12 +14,9 @@ def main() -> None:
     parser.add_argument("--metadata-out", required=True)
     args = parser.parse_args()
 
-    if Path("phase2/candidates/candidate3/model.py").exists():
-        raise RuntimeError("Candidate 3 estimator exists before holdout sealing")
-    if Path("src/phase2_candidates/candidate3").exists():
-        raise RuntimeError("Candidate 3 estimator package exists before holdout sealing")
-
     contracts = json.loads(Path(args.contracts).read_text(encoding="utf-8"))
+    if contracts["status"] != "CONTRACTS_FROZEN_BEFORE_HOLDOUT_SEAL":
+        raise RuntimeError("Candidate 3 contracts are not the frozen pre-holdout contracts")
     public = create_private_seal(Path(args.seal_out), frozen_contracts=contracts)
     Path(args.metadata_out).parent.mkdir(parents=True, exist_ok=True)
     Path(args.metadata_out).write_text(
