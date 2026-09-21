@@ -9,7 +9,9 @@ import type {
   SimulatorTarget,
 } from "../simulator_intervention/types.js";
 import {
+  SUPPORTED_TRANSLATION_CONTEXT_SCHEMA_VERSIONS,
   TRANSLATION_CONTEXT_SCHEMA_VERSION,
+  type PricingMembershipBinding,
   type TranslationContext,
   type TranslationFailure,
 } from "./types.js";
@@ -110,7 +112,11 @@ export function validateTranslationContext(
     };
   }
 
-  if (input.schemaVersion !== TRANSLATION_CONTEXT_SCHEMA_VERSION) {
+  if (
+    !SUPPORTED_TRANSLATION_CONTEXT_SCHEMA_VERSIONS.includes(
+      input.schemaVersion as never,
+    )
+  ) {
     return {
       ok: false,
       failure: {
@@ -139,7 +145,9 @@ export function validateTranslationContext(
   if (
     !Array.isArray(input.capabilities) ||
     !Array.isArray(input.entityMappings) ||
-    !Array.isArray(input.referenceBindings)
+    !Array.isArray(input.referenceBindings) ||
+    (input.pricingMembershipBindings !== undefined &&
+      !Array.isArray(input.pricingMembershipBindings))
   ) {
     return {
       ok: false,
@@ -147,7 +155,7 @@ export function validateTranslationContext(
         status: "MISSING_CONTEXT",
         code: "MALFORMED_TRANSLATION_CONTEXT",
         message:
-          "TranslationContext capabilities, entityMappings and referenceBindings must be arrays.",
+          "TranslationContext capabilities, entityMappings, referenceBindings and optional pricingMembershipBindings must be arrays.",
       },
     };
   }
@@ -282,4 +290,60 @@ export function contextHasCapability(
   capability: string,
 ): boolean {
   return context.capabilities.includes(capability as never);
+}
+
+
+export type PricingMembershipResolution =
+  | {
+      readonly status: "resolved";
+      readonly binding: PricingMembershipBinding;
+    }
+  | { readonly status: "missing"; readonly ref: string }
+  | { readonly status: "ambiguous"; readonly ref: string };
+
+export function resolvePricingMembership(
+  context: TranslationContext,
+  action: Action,
+): PricingMembershipResolution {
+  if (
+    action.parameters.kind !== "price_adjustment" ||
+    !action.parameters.membership ||
+    !["product", "category", "collection"].includes(action.target.kind)
+  ) {
+    return {
+      status: "missing",
+      ref: "pricing-membership:not-applicable:" + action.actionId,
+    };
+  }
+
+  const targetKey = stableKey(action.target);
+  const matches = (context.pricingMembershipBindings ?? []).filter(
+    (binding) =>
+      stableKey(binding.actionTarget) === targetKey &&
+      binding.evaluateAt === action.parameters.membership?.evaluateAt &&
+      (!action.parameters.membership?.bindingRef ||
+        binding.bindingRef === action.parameters.membership.bindingRef),
+  );
+
+  const ref =
+    "pricing-membership:" +
+    action.actionId +
+    ":" +
+    action.parameters.membership.evaluateAt +
+    ":" +
+    (action.parameters.membership.bindingRef ?? targetKey);
+
+  if (matches.length === 0) {
+    return { status: "missing", ref };
+  }
+  if (matches.length > 1) {
+    return { status: "ambiguous", ref };
+  }
+
+  const binding = matches[0]!;
+  if (binding.members.length === 0) {
+    return { status: "missing", ref };
+  }
+
+  return { status: "resolved", binding };
 }
