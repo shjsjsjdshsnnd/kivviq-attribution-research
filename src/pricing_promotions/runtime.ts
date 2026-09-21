@@ -930,9 +930,25 @@ export function resolveCartShippingTerms(
     },
   );
 
-  const unconditional = qualifying.some(
+  const unconditionalPromotions = qualifying.filter(
     (promotion) => promotion.mechanic === "free_shipping",
   );
+  const thresholdPromotions = qualifying
+    .filter(
+      (promotion) =>
+        promotion.mechanic ===
+          "free_shipping_threshold" &&
+        promotion.freeShippingThresholdMinor !==
+          undefined,
+    )
+    .sort(
+      (left, right) =>
+        Date.parse(right.start) -
+          Date.parse(left.start) ||
+        left.promotionId.localeCompare(
+          right.promotionId,
+        ),
+    );
   const threshold = effectiveFreeShippingThreshold(
     scenario,
     customer,
@@ -943,16 +959,25 @@ export function resolveCartShippingTerms(
     threshold !== undefined &&
     threshold !== null &&
     cartMerchandiseMinor >= threshold;
-  const freeShipping = unconditional || qualifiesByThreshold;
+  const freeShipping =
+    unconditionalPromotions.length > 0 ||
+    qualifiesByThreshold;
+  const realizedPromotionIds = [
+    ...unconditionalPromotions.map(
+      (promotion) => promotion.promotionId,
+    ),
+    ...(qualifiesByThreshold &&
+    thresholdPromotions[0] !== undefined
+      ? [thresholdPromotions[0].promotionId]
+      : []),
+  ];
 
   return {
     ...(freeShipping
       ? { customerShippingChargeOverrideMinor: 0 }
       : {}),
     freeShipping,
-    qualifyingPromotionIds: qualifying.map(
-      (promotion) => promotion.promotionId,
-    ),
+    qualifyingPromotionIds: realizedPromotionIds,
   };
 }
 
