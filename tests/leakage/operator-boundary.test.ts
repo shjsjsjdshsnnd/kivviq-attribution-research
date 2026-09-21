@@ -147,5 +147,14 @@ describe("Operator information boundary", () => {
     expect(operatorSafeApi).not.toHaveProperty("evaluateSelloutSubstitution");
     expect(operatorSafeApi).not.toHaveProperty("createLowInventoryProductRoasTrapFixture");
     expect(operatorSafeApi).not.toHaveProperty("createSelloutSubstitutionTrapFixture");
+    expect(operatorSafeApi).not.toHaveProperty("evaluateInventoryDynamics");
+    expect(operatorSafeApi).not.toHaveProperty("inventoryConstrainedResponseCurve");
+    expect(operatorSafeApi).not.toHaveProperty("evaluateLostSalesCounterfactual");
+    expect(operatorSafeApi).not.toHaveProperty("estimateTrueStockoutProbability");
+    expect(operatorSafeApi).not.toHaveProperty("evaluateReplenishmentDelayCounterfactual");
+    expect(operatorSafeApi).not.toHaveProperty("evaluatePromotionStockoutCounterfactual");
+    expect(operatorSafeApi).not.toHaveProperty("evaluateScarceInventoryOpportunityCost");
+    expect(operatorSafeApi).not.toHaveProperty("createInventoryEconomyState");
+    expect(operatorSafeApi).not.toHaveProperty("finalizeInventoryGodMode");
   });
 });
