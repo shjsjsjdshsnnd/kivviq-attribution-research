@@ -17,6 +17,7 @@ export type SimulationEventKind =
   | "inventory_reorder_check"
   | "inventory_return_received"
   | "inventory_return_restocked"
+  | "inventory_backorder_cancelled"
   | "supplier_shipment_dispatched"
   | "supplier_shipment_delayed"
   | "shock_start"
