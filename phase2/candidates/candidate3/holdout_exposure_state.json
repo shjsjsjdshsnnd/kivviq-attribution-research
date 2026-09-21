@@ -1,0 +1,9 @@
+{
+  "candidate_id": "candidate3-overlap-ato",
+  "candidate_version": "1.0.0",
+  "evaluation_protocol_version": "candidate3-evaluation-v1",
+  "feedback_bearing_exposure_count": 1,
+  "holdout_version": "candidate3-holdout-v1",
+  "lineage_fingerprint": "1571c29726e79154c2d9bc9016909ab7ab04540fe24cf63a62e0f46b66288620",
+  "state": "CONSUMED"
+}
