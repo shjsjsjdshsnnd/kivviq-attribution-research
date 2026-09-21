@@ -410,6 +410,30 @@ export function validateSimulatorIntervention(
         "out of range",
       );
     }
+
+    if (input.provenance.membershipSourceRef !== undefined) {
+      if (
+        !nonEmpty(input.provenance.membershipSourceRef) ||
+        !nonEmpty(input.provenance.membershipBindingRef) ||
+        !["decision_time", "translation_time", "effective_time"].includes(
+          String(input.provenance.membershipBoundary),
+        )
+      ) {
+        add(
+          errors,
+          "INVALID_MEMBERSHIP_PROVENANCE",
+          "provenance",
+          "membership expansion provenance is incomplete",
+        );
+      }
+      if (input.provenance.membershipSnapshotTime !== undefined) {
+        validateTimestamp(
+          input.provenance.membershipSnapshotTime,
+          "provenance.membershipSnapshotTime",
+          errors,
+        );
+      }
+    }
   }
 
   return errors.length === 0
