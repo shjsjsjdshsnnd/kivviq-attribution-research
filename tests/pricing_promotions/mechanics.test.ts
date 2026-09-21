@@ -459,24 +459,35 @@ describe("Step 10 promotion mechanics", () => {
       },
     ]);
 
-    expect(
+    const belowRaisedThreshold =
       resolveCartShippingTerms(
         higher,
         customer,
         timestamp,
         11_000,
         10_000,
-      ).freeShipping,
+      );
+    expect(
+      belowRaisedThreshold.freeShipping,
     ).toBe(false);
     expect(
+      belowRaisedThreshold.qualifyingPromotionIds,
+    ).toEqual([]);
+
+    const aboveLoweredThreshold =
       resolveCartShippingTerms(
         lower,
         customer,
         timestamp,
         9_000,
         15_000,
-      ).freeShipping,
+      );
+    expect(
+      aboveLoweredThreshold.freeShipping,
     ).toBe(true);
+    expect(
+      aboveLoweredThreshold.qualifyingPromotionIds,
+    ).toEqual(["threshold-down"]);
   });
 
   it("coupon minimum spend and redemption rules gate the realized discount", () => {
