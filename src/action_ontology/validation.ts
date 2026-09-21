@@ -858,10 +858,10 @@ function validateTiming(
   input: unknown,
   path: string,
   errors: ActionValidationIssue[],
-): { decisionTime?: string; effectiveStart?: string } {
+): { readonly decisionTime: string | undefined; readonly effectiveStart: string | undefined } {
   if (!record(input)) {
     add(errors, "INVALID_TIMING", path, "timing is required");
-    return {};
+    return { decisionTime: undefined, effectiveStart: undefined };
   }
 
   validateTimestamp(input.decisionTime, path + ".decisionTime", errors);
