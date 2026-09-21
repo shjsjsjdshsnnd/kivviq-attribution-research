@@ -820,6 +820,13 @@ export function fulfillBackordersFromAvailable(
     );
 
     obligation.fulfilledUnits += quantity;
+    markBackorderDemandFulfilled(
+      state,
+      obligation.customerId,
+      skuId,
+      quantity,
+      timestampMs,
+    );
     total += quantity;
     available -= quantity;
   }
@@ -1294,6 +1301,7 @@ export function recordInventoryDemand(
         }),
     sourceEventId: input.sourceEventId,
     commerceOutcome: "pending",
+    physicallyFulfilledUnits: 0,
   };
   state.demandTruth.push(record);
   return record;
@@ -1308,7 +1316,58 @@ export function markInventoryDemandOutcome(
   const record = state.demandTruth.find(
     (candidate) => candidate.demandId === demandId,
   );
-  if (record) record.commerceOutcome = outcome;
+  if (!record) return;
+  record.commerceOutcome = outcome;
+  if (
+    outcome === "purchased" &&
+    record.inventoryDisposition !== "backordered"
+  ) {
+    record.physicallyFulfilledUnits =
+      record.requestedUnits;
+  } else if (outcome === "abandoned") {
+    record.physicallyFulfilledUnits = 0;
+    delete record.fulfilledAt;
+  }
+}
+
+function markBackorderDemandFulfilled(
+  state: InventoryEconomyRuntime,
+  customerId: string,
+  skuId: string,
+  quantityInput: number,
+  timestampMs: number,
+): void {
+  let remaining = nonNegativeInteger(quantityInput);
+  if (remaining <= 0) return;
+
+  const candidates = state.demandTruth
+    .filter(
+      (record) =>
+        record.customerId === customerId &&
+        record.inventoryDisposition === "backordered" &&
+        record.fulfilledSkuId === skuId &&
+        record.commerceOutcome === "purchased" &&
+        record.physicallyFulfilledUnits <
+          record.requestedUnits,
+    )
+    .sort(
+      (left, right) =>
+        Date.parse(left.occurredAt) -
+          Date.parse(right.occurredAt) ||
+        left.demandId.localeCompare(right.demandId),
+    );
+
+  for (const record of candidates) {
+    if (remaining <= 0) break;
+    const open =
+      record.requestedUnits -
+      record.physicallyFulfilledUnits;
+    const fulfilled = Math.min(open, remaining);
+    record.physicallyFulfilledUnits += fulfilled;
+    record.fulfilledAt =
+      new Date(timestampMs).toISOString();
+    remaining -= fulfilled;
+  }
 }
 
 export function recordInventoryReturnTruth(
