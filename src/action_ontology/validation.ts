@@ -319,7 +319,7 @@ function validateTarget(
     );
     return;
   }
-  input.targets.forEach((target, index) =>
+  input.targets.forEach((target: unknown, index: number) =>
     validateAtomicTarget(target, `${path}.targets[${index}]`, errors),
   );
 }
@@ -558,7 +558,7 @@ function validateConstraint(
     if (
       !Array.isArray(constraint.actionIds) ||
       constraint.actionIds.length === 0 ||
-      constraint.actionIds.some((id) => !nonEmpty(id))
+      constraint.actionIds.some((id: unknown) => !nonEmpty(id))
     ) {
       add(
         errors,
@@ -663,7 +663,7 @@ function validateTiming(
       "must be an array",
     );
   } else {
-    input.schedulingRequirements.forEach((requirement, index) => {
+    input.schedulingRequirements.forEach((requirement: unknown, index: number) => {
       if (
         !record(requirement) ||
         !nonEmpty(requirement.requirementId) ||
@@ -683,7 +683,7 @@ function validateTiming(
   if (!Array.isArray(input.dependencies)) {
     add(errors, "INVALID_DEPENDENCIES", `${path}.dependencies`, "must be an array");
   } else {
-    input.dependencies.forEach((dependency, index) => {
+    input.dependencies.forEach((dependency: unknown, index: number) => {
       const depPath = `${path}.dependencies[${index}]`;
       if (!record(dependency) || !nonEmpty(dependency.kind)) {
         add(errors, "INVALID_DEPENDENCY", depPath, "dependency kind is required");
@@ -1036,7 +1036,7 @@ function validateMeasurement(
       "at least one metric must be observed",
     );
   } else {
-    input.metrics.forEach((metric, index) => {
+    input.metrics.forEach((metric: unknown, index: number) => {
       if (!record(metric) || !nonEmpty(metric.metricId)) {
         add(
           errors,
@@ -1217,7 +1217,7 @@ export function validateAction(
     add(errors, "MISSING_PARAMETERS", "parameters", "at least one intervention parameter is required");
   } else {
     const parameterIds = new Set<string>();
-    input.parameters.forEach((parameter, index) => {
+    input.parameters.forEach((parameter: unknown, index: number) => {
       validateParameter(parameter, `parameters[${index}]`, errors);
       if (record(parameter) && typeof parameter.parameterId === "string") {
         if (parameterIds.has(parameter.parameterId)) {
@@ -1270,7 +1270,7 @@ export function validateAction(
       Array.isArray(input.parameters)
         ? input.parameters
             .filter(record)
-            .map((parameter) => String(parameter.parameterId))
+            .map((parameter: any) => String(parameter.parameterId))
         : [],
     );
     for (const requiredId of contract.requiredParameterIds) {
@@ -1296,7 +1296,7 @@ export function validateAction(
   if (!Array.isArray(input.constraints)) {
     add(errors, "INVALID_CONSTRAINTS", "constraints", "must be an array");
   } else {
-    input.constraints.forEach((constraint, index) =>
+    input.constraints.forEach((constraint: unknown, index: number) =>
       validateConstraint(
         constraint,
         `constraints[${index}]`,
@@ -1373,7 +1373,7 @@ export function validateAction(
       );
     } else {
       const componentIds = new Set<string>();
-      input.components.forEach((component, index) => {
+      input.components.forEach((component: unknown, index: number) => {
         const componentResult = validateAction(component, options);
         if (!componentResult.ok) {
           componentResult.errors.forEach((issue) =>
