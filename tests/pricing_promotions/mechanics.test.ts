@@ -6,6 +6,7 @@ import {
   hydratePricingPromotionScenario,
 } from "../../src/pricing_promotions/evaluator.js";
 import {
+  bundleAttachmentOpportunity,
   resolveCartLinePricing,
   resolveCartShippingTerms,
   resolveProductOffer,
@@ -255,6 +256,62 @@ describe("Step 10 promotion mechanics", () => {
         fixture.productBId,
       ]),
     );
+  });
+
+  it("bundle offers can create a genuine missing-component purchase opportunity", () => {
+    const fixture =
+      createMarginDestructionTrapFixture();
+    const scenario = scenarioWith(fixture, [
+      {
+        promotionId: "bundle-incremental-ab",
+        mechanic: "bundle",
+        scope: {
+          kind: "sku_set",
+          productIds: [
+            fixture.productAId,
+            fixture.productBId,
+          ],
+        },
+        start: fixture.evaluation.periodStart,
+        end: fixture.evaluation.periodEnd,
+        bundle: {
+          requiredProductIds: [
+            fixture.productAId,
+            fixture.productBId,
+          ],
+          percentageOff: 0.15,
+        },
+        awarenessProbability: 1,
+      },
+    ]);
+    const timestamp = Date.parse(
+      fixture.evaluation.periodStart,
+    );
+    const customer = context(fixture);
+
+    const opportunity = bundleAttachmentOpportunity(
+      scenario,
+      customer,
+      timestamp,
+      [fixture.productAId],
+    );
+    expect(opportunity).toBeDefined();
+    expect(opportunity?.productId).toBe(
+      fixture.productBId,
+    );
+    expect(opportunity?.probability).toBeGreaterThan(0);
+
+    expect(
+      bundleAttachmentOpportunity(
+        scenario,
+        customer,
+        timestamp,
+        [
+          fixture.productAId,
+          fixture.productBId,
+        ],
+      ),
+    ).toBeUndefined();
   });
 
   it("loyalty eligibility uses prior observable purchase state rather than future value", () => {
