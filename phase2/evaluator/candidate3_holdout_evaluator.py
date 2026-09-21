@@ -305,7 +305,7 @@ def generate_holdout_case(instance: dict[str, Any]) -> GeneratedHoldoutCase:
 
     return GeneratedHoldoutCase(
         family=family,
-        case=Candidate3Case(case_id=f"candidate3-holdout-v1:{family}", units=tuple(units)),
+        case=Candidate3Case(case_id=f"candidate3-holdout-v2:{family}", units=tuple(units)),
         ato_truth=ato,
         ate_truth=ate,
         oracle_expected_decision=(
