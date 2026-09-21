@@ -133,6 +133,59 @@ describe("Step 10 price response semantics", () => {
     );
   });
 
+  it("changes the same customer's elasticity as runtime need and brand affinity evolve", () => {
+    const fixture =
+      createMarginDestructionTrapFixture();
+    const scenario =
+      hydratePricingPromotionScenario(
+        fixture.evaluation,
+      );
+    const customer =
+      fixture.evaluation.latentPopulation.customers[0]!;
+    const state = scenario.priceStates.find(
+      (candidate) =>
+        candidate.productId === fixture.productAId,
+    )!;
+    const timestamp = Date.parse(
+      fixture.evaluation.periodStart,
+    );
+    const discountedPrice = Math.round(
+      state.regularPriceMinor * 0.9,
+    );
+
+    const lowNeedLowAffinity = priceResponseTruth(
+      fixture.evaluation.merchantWorld,
+      scenario,
+      customer,
+      fixture.productAId,
+      state.regularPriceMinor,
+      discountedPrice,
+      timestamp,
+      { need: 0, brandAffinity: 0 },
+    );
+    const highNeedHighAffinity = priceResponseTruth(
+      fixture.evaluation.merchantWorld,
+      scenario,
+      customer,
+      fixture.productAId,
+      state.regularPriceMinor,
+      discountedPrice,
+      timestamp,
+      { need: 1, brandAffinity: 1 },
+    );
+
+    expect(
+      highNeedHighAffinity.customerElasticityMultiplier,
+    ).toBeLessThan(
+      lowNeedLowAffinity.customerElasticityMultiplier,
+    );
+    expect(
+      highNeedHighAffinity.combinedDemandMultiplier,
+    ).not.toBe(
+      lowNeedLowAffinity.combinedDemandMultiplier,
+    );
+  });
+
   it("applies sparse declared cross-price effects only to linked targets", () => {
     const world = generateMerchantWorldRecord({
       seed: 211001,
