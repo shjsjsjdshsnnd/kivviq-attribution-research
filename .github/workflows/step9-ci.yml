@@ -29,6 +29,9 @@ jobs:
       - name: Typecheck
         run: npm run typecheck
       - name: Test
-        run: npm test
+        # Step 9 counterfactual traps are CPU-heavy. Keep the full inherited
+        # suite, but serialize workers so Vitest's RPC layer is not starved on
+        # the two-core hosted runner.
+        run: npm test -- --maxWorkers=1
       - name: Build
         run: npm run build
