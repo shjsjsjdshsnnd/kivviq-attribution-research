@@ -473,6 +473,12 @@ export function resolveProductOffer(
   );
   const totalDiscountMinor =
     Math.max(0, listPriceMinor - effectivePriceMinor);
+  const realizedPromotionDiscountMinor = Math.max(
+    0,
+    prePromotionPrice - effectivePriceMinor,
+  );
+  const realizedApplied =
+    realizedPromotionDiscountMinor > 0 ? applied : [];
   const depth = discountRate(
     priceState.regularPriceMinor,
     Math.max(
@@ -528,13 +534,13 @@ export function resolveProductOffer(
     },
     1,
   );
-  const returnProbabilityMultiplier = applied.reduce(
+  const returnProbabilityMultiplier = realizedApplied.reduce(
     (value, entry) =>
       value *
       (entry.promotion.returnProbabilityMultiplier ?? 1),
     1,
   );
-  const stockpile = applied.reduce(
+  const stockpile = realizedApplied.reduce(
     (value, entry) =>
       Math.max(
         value,
@@ -571,7 +577,7 @@ export function resolveProductOffer(
       // on this offer. Awareness/exposure is evaluated separately. Cart-level
       // mechanics (minimum-spend credits, bundles) add their IDs only after
       // their qualification conditions are satisfied.
-      promotionIds: applied.map(
+      promotionIds: realizedApplied.map(
         (entry) => entry.promotion.promotionId,
       ),
       priceDiscountMinorPerUnit: totalDiscountMinor,
