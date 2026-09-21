@@ -9,7 +9,7 @@ from dataclasses import dataclass, asdict
 from pathlib import Path
 from typing import Any
 
-HOLDOUT_VERSION = "candidate3-holdout-v1"
+HOLDOUT_VERSION = "candidate3-holdout-v2"
 
 PUBLIC_FAMILIES = (
     (
@@ -107,9 +107,9 @@ def _instance_for_family(rng: random.Random, family: str) -> HiddenInstance:
     if family == "inadequate_overlap_abstention":
         return HiddenInstance(
             **common,
-            n_units=rng.randint(450, 800),
-            treatment_intercept=_logit(rng.choice([rng.uniform(0.01, 0.05), rng.uniform(0.95, 0.99)])),
-            observed_selection_strength=rng.uniform(2.8, 4.0),
+            n_units=rng.randint(700, 1100),
+            treatment_intercept=_logit(rng.choice([rng.uniform(0.002, 0.012), rng.uniform(0.988, 0.998)])),
+            observed_selection_strength=rng.uniform(5.0, 7.0),
             baseline_outcome_logit=_logit(rng.uniform(0.04, 0.09)),
             treatment_effect_log_odds=rng.uniform(-0.40, 0.60),
         )
