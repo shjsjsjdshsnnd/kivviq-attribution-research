@@ -1,0 +1,23 @@
+{
+  "candidate": "candidate4-identification-aware-policy",
+  "status": "PREREGISTERED_NO_IMPLEMENTATION_NO_HOLDOUT",
+  "research_question": "Can observable pre-estimation diagnostics select ATE, ATO, or ABSTAIN without treating favorable estimates as identification evidence?",
+  "hypothesis": "Observable support, information, provenance, completeness, and uncertainty diagnostics may distinguish some ATE-supportable, ATO-only, and abstention regimes; they cannot prove absence of unmeasured confounding.",
+  "actions": {
+    "ATE": "Permit only when the full-population identification and support contract is satisfied.",
+    "ATO": "Permit only when ATE is not permitted and the overlap-population contract is satisfied.",
+    "ABSTAIN": "Emit no causal effect estimate and one structured preregistered reason."
+  },
+  "decision_order": ["VALIDATE_PRETREATMENT_PROVENANCE", "VALIDATE_MEASUREMENT", "CHECK_ATE_SUPPORT", "CHECK_ATO_SUPPORT", "CHECK_INFORMATION_AND_UNCERTAINTY", "EMIT_ACTION"],
+  "ate_support_contract": {"diagnostics": ["treatment_prevalence", "propensity_distribution", "central_support_fraction", "extreme_propensity_fraction", "treated_control_ess", "covariate_balance", "outcome_event_count", "sample_size", "temporal_provenance", "measurement_completeness"], "thresholds": "TO_BE_PREREGISTERED_FROM_PUBLIC_DEVELOPMENT_ONLY_BEFORE_IMPLEMENTATION"},
+  "ato_support_contract": {"choice": "NEW_CANDIDATE4_POLICY_CONTRACT", "rationale": "Target-selection policy is a distinct hypothesis; Candidate 3 thresholds and results remain untouched.", "thresholds": "TO_BE_PREREGISTERED_FROM_PUBLIC_DEVELOPMENT_ONLY_BEFORE_IMPLEMENTATION"},
+  "xt_contract": {"required": "source_event_time < decision_time", "prohibited": ["later_touches", "subsequent_sessions", "checkout_behavior", "conversion_path", "outcome_information", "post_treatment_behavior", "later_learned_identity", "oracle_truth", "latent_intent", "hidden_holdout_parameters"]},
+  "policy_inputs": {"allowed": ["treatment_prevalence", "estimated_propensity_summary", "overlap_mass", "central_overlap_fraction", "effective_sample_size", "balance_summary", "sample_size", "outcome_event_count", "missingness", "identity_quality", "temporal_provenance_validity", "bootstrap_feasibility"], "prohibited_oracle": ["true_propensity", "true_ate", "true_ato", "counterfactual_outcomes", "true_overlap_population", "hidden_treatment_mechanism", "hidden_confounding_strength"]},
+  "evaluator_truth": {"basis": "STRUCTURAL_IDENTIFICATION_AND_SUPPORT_RULES_NOT_ESTIMATOR_ERROR", "regimes": {"good_full_support": "ATE", "weak_full_support_valid_overlap": "ATO", "inadequate_overlap": "ABSTAIN", "finite_sample_inadequate": "ABSTAIN", "invalid_provenance": "ABSTAIN", "measurement_destroyed": "ABSTAIN", "latent_confounding": "EVALUATOR_SCORES_FALSE_CONFIDENCE_WITHOUT_REWARDING_ORACLE_KNOWLEDGE"}},
+  "abstention_reasons": ["INVALID_PRETREATMENT_PROVENANCE", "INADEQUATE_FULL_POPULATION_SUPPORT", "INADEQUATE_OVERLAP_SUPPORT", "INADEQUATE_EFFECTIVE_SAMPLE", "INSUFFICIENT_OUTCOME_EVENTS", "MEASUREMENT_SUPPORT_DESTROYED", "UNCERTAINTY_TOO_WIDE", "IDENTIFICATION_NOT_SUPPORTED", "OTHER_PREREGISTERED_REASON"],
+  "evaluation": {"confusion_matrix": ["ATE", "ATO", "ABSTAIN"], "severity": {"ABSTAIN_TO_ATE": "CRITICAL_OVERCLAIM", "ABSTAIN_TO_ATO": "CRITICAL_OVERCLAIM", "ATO_TO_ATE": "TARGET_POPULATION_MISMATCH", "ATE_TO_ATO": "SUPPORTED_POPULATION_UNDERSHOOT", "ATE_TO_ABSTAIN": "UNNECESSARY_ABSTENTION"}, "always_action_policies_pass": false, "estimation_is_downstream": true},
+  "boundaries": "For every frozen threshold, test immediately below, at, and above it; policy behavior must be deterministic.",
+  "robustness": ["sample_size", "missing_touches", "identity_fragmentation", "treatment_prevalence", "selection_strength", "measurement_loss", "temporal_shift", "overlap_deterioration"],
+  "holdout_assignment": "NONE; candidate3-holdout-v2 remains VALIDATED_UNUSED_AND_UNASSIGNED",
+  "frozen_references": {"phase1": "1d92f4d2d5fd89de261127b8ed4bdcced6f18fdf", "identification_overlap": "cfdf9cc1c71e28366fe1c4b27968cf11e2faa14a", "candidate3_outcome": "INCONCLUSIVE"}
+}
