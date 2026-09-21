@@ -1016,11 +1016,18 @@ export function promotionTimingDeferralMultiplier(
       );
     }
   }
+  const baselineNeedResetDays =
+    Math.max(
+      1,
+      customer.source.expectedPurchaseIntervalDays * 0.35,
+    );
+  // transitionAfterPurchase schedules the frozen baseline at
+  // 0.35 * expected interval. Divide by that same baseline so an explicit
+  // X-day pull-forward/stockpile deferral adds approximately X real days,
+  // rather than only 35% of X.
   return clamp(
-    1 +
-      deferralDays /
-        Math.max(1, customer.source.expectedPurchaseIntervalDays),
+    1 + deferralDays / baselineNeedResetDays,
     1,
-    2.5,
+    4.5,
   );
 }
