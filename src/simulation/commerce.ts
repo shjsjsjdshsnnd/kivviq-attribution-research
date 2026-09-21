@@ -917,11 +917,38 @@ export function checkoutPurchaseProbability(
         item.outcome === "conversion_probability",
     )?.effect.value ?? 0;
 
+  const rawCartLines = customer.cart?.lines ?? [];
+  const step10CartLines =
+    commercePolicy?.pricingPromotionScenario === undefined
+      ? undefined
+      : resolveCartLinePricing(
+          runtime.merchantWorld,
+          commercePolicy.pricingPromotionScenario,
+          pricingCustomerContext(customer),
+          timestampMs,
+          rawCartLines.map((line) => ({
+            productId: line.productId,
+            quantity: line.quantity,
+            fallbackBasePriceMinor:
+              baselineProductPriceMinor(
+                runtime.merchantWorld,
+                line.productId,
+              ),
+          })),
+        );
   const cartValue =
-    customer.cart?.lines.reduce(
-      (sum, line) => sum + line.quantity * line.unitPriceMinor,
-      0,
-    ) ?? 0;
+    step10CartLines === undefined
+      ? rawCartLines.reduce(
+          (sum, line) =>
+            sum + line.quantity * line.unitPriceMinor,
+          0,
+        )
+      : step10CartLines.reduce(
+          (sum, line) =>
+            sum +
+            line.quantity * line.effectiveUnitPriceMinor,
+          0,
+        );
   const expectedAov = Math.max(
     1,
     runtime.merchantWorld.summary.expectedAovMinor,
@@ -943,19 +970,37 @@ export function checkoutPurchaseProbability(
     );
   const shippingCharge =
     commercePolicy?.customerShippingChargeMinor ?? 0;
+  const shippingTerms = resolveCartShippingTerms(
+    commercePolicy?.pricingPromotionScenario,
+    pricingCustomerContext(customer),
+    timestampMs,
+    cartValue,
+    commercePolicy?.freeShippingThresholdMinor,
+  );
   const shippingFriction =
-    threshold !== undefined &&
-    threshold !== null &&
-    cartValue < threshold &&
-    shippingCharge > 0
-      ? clamp(
-          (shippingCharge / expectedAov) *
-            customer.source.priceSensitivityMultiplier *
-            0.9,
-          0,
-          0.45,
-        )
-      : 0;
+    shippingTerms.freeShipping
+      ? 0
+      : threshold !== undefined &&
+          threshold !== null &&
+          cartValue < threshold &&
+          shippingCharge > 0
+        ? clamp(
+            (shippingCharge / expectedAov) *
+              customer.source.priceSensitivityMultiplier *
+              0.9,
+            0,
+            0.45,
+          )
+        : shippingCharge > 0 &&
+            threshold === undefined
+          ? clamp(
+              (shippingCharge / expectedAov) *
+                customer.source.priceSensitivityMultiplier *
+                0.55,
+              0,
+              0.32,
+            )
+          : 0;
 
   const channelResponse =
     promotionChannelResponseMultiplier(
@@ -972,11 +1017,13 @@ export function checkoutPurchaseProbability(
       (1 + Number(deviceEffect)) *
       (1 - valueFriction) *
       (1 - shippingFriction) *
-      (promotion.active
-        ? 1 +
-          0.18 *
-            customer.source.promotionSensitivityMultiplier
-        : 1) +
+      (commercePolicy?.pricingPromotionScenario !== undefined
+        ? 1
+        : promotion.active
+          ? 1 +
+            0.18 *
+              customer.source.promotionSensitivityMultiplier
+          : 1) +
       memory.purchaseProbability +
       interactionLift) *
     channelResponse;
