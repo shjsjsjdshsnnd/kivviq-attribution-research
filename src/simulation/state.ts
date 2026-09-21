@@ -44,6 +44,7 @@ export interface PersistentCartLine {
    * record that preceded it. Optional for frozen Step 1-8 compatibility.
    */
   demandTruthId?: string;
+  demandTruthIds?: string[];
 }
 
 export interface InteractionMemoryState {
