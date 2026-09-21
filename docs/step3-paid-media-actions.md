@@ -108,6 +108,7 @@ Paid-media reallocation validation enforces:
 - at least one source and destination;
 - unique component IDs;
 - source/destination target+scope distinction;
+- shared timing, duration and termination semantics;
 - same currency;
 - same rate period;
 - conservation for pure reallocations;
@@ -264,6 +265,7 @@ The Step 3 fixture set includes:
 16. TikTok account spend-cap Action that is valid but not currently simulatable.
 17. Pinterest → Meta 10% source-share reallocation.
 18. Google Non-Brand Campaign X → Y 20% source-share reallocation.
+19. Meta retargeting → prospecting CAD 1,000/week.
 
 ## Non-scope
 
