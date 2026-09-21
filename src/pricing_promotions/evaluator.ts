@@ -276,6 +276,24 @@ function representedUnits(
   );
 }
 
+function representedPhysicalInventoryConsumption(
+  report: EcommerceEconomicReport,
+): number {
+  const inventory = report.simulation.godMode.inventory;
+  if (!inventory) {
+    throw new RangeError(
+      "Step 10 response curves require Step 9 inventory truth",
+    );
+  }
+  return inventory.demandTruth.reduce(
+    (sum, demand) =>
+      sum +
+      demand.physicallyFulfilledUnits *
+        demand.representedWeight,
+    0,
+  );
+}
+
 function expectedFutureContribution(
   request: PricingPromotionEvaluationRequest,
   report: EcommerceEconomicReport,
@@ -508,6 +526,7 @@ function incrementalEconomics(
 }
 
 interface ComparableOrder {
+  readonly orderId: string;
   readonly occurredAtMs: number;
   readonly productIds: ReadonlySet<string>;
 }
@@ -519,6 +538,7 @@ function baselineOrdersByCustomer(
   for (const order of report.orders) {
     const list = map.get(order.customerId) ?? [];
     list.push({
+      orderId: order.orderId,
       occurredAtMs: Date.parse(order.occurredAt),
       productIds: new Set(
         order.lines.map((line) => line.productId),
@@ -555,6 +575,8 @@ function promotionAttribution(
       (purchase) => [purchase.orderId, purchase] as const,
     ),
   );
+  const usedBaselineOrderIdsByCustomer =
+    new Map<string, Set<string>>();
 
   let purchasesDuringPromotion = 0;
   let promotionExposedPurchases = 0;
@@ -615,8 +637,23 @@ function promotionAttribution(
       promotionRedemptionPurchases += weight;
     }
 
-    const candidates =
-      baselineByCustomer.get(order.customerId) ?? [];
+    const usedBaselineOrderIds =
+      usedBaselineOrderIdsByCustomer.get(order.customerId) ??
+      new Set<string>();
+    if (
+      !usedBaselineOrderIdsByCustomer.has(order.customerId)
+    ) {
+      usedBaselineOrderIdsByCustomer.set(
+        order.customerId,
+        usedBaselineOrderIds,
+      );
+    }
+    const candidates = (
+      baselineByCustomer.get(order.customerId) ?? []
+    ).filter(
+      (candidate) =>
+        !usedBaselineOrderIds.has(candidate.orderId),
+    );
     const productMatched = candidates.filter((candidate) =>
       [...treatmentProducts].some((productId) =>
         candidate.productIds.has(productId),
@@ -653,6 +690,7 @@ function promotionAttribution(
     const weightedDiscount =
       order.discountsMinor * weight;
 
+    let matchedBaseline: ComparableOrder | undefined;
     if (!anyBaseline) {
       trueIncrementalPromotionPurchases += weight;
       discountCostOnIncrementalPurchasesMinor +=
@@ -661,14 +699,20 @@ function promotionAttribution(
       switchedProductPurchases += weight;
       discountCostOnSwitchedPurchasesMinor +=
         weightedDiscount;
+      matchedBaseline = anyBaseline;
     } else if (futureSameProduct !== undefined) {
       acceleratedPurchases += weight;
       discountCostOnAcceleratedPurchasesMinor +=
         weightedDiscount;
+      matchedBaseline = futureSameProduct;
     } else {
       wouldHavePurchasedAnyway += weight;
       discountCostOnWouldHavePurchasedAnywayMinor +=
         weightedDiscount;
+      matchedBaseline = sameProduct;
+    }
+    if (matchedBaseline !== undefined) {
+      usedBaselineOrderIds.add(matchedBaseline.orderId);
     }
   }
 
@@ -761,10 +805,8 @@ function reportPoint(
     grossProfitMinor: report.waterfall.grossProfitMinor,
     contributionProfitMinor:
       report.waterfall.contributionProfitMinor,
-    inventoryConsumptionUnits: representedUnits(
-      request,
-      report,
-    ),
+    inventoryConsumptionUnits:
+      representedPhysicalInventoryConsumption(report),
     expectedFutureContributionMinor:
       expectedFutureContribution(request, report),
   };
