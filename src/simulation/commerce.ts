@@ -1327,6 +1327,36 @@ export function completePurchase(
         quantity: line.quantity,
       })),
     );
+  const realizedShippingPromotionReturnMultiplier =
+    commercePolicy?.pricingPromotionScenario === undefined
+      ? 1
+      : commercePolicy.pricingPromotionScenario.promotions
+          .filter((promotion) =>
+            shippingTerms.qualifyingPromotionIds.includes(
+              promotion.promotionId,
+            ),
+          )
+          .reduce(
+            (value, promotion) =>
+              value *
+              (promotion.returnProbabilityMultiplier ?? 1),
+            1,
+          );
+  const realizedLines =
+    Math.abs(
+      realizedShippingPromotionReturnMultiplier - 1,
+    ) < 1e-12
+      ? lines
+      : lines.map((line) => ({
+          ...line,
+          returnProbabilityMultiplier: clamp(
+            (line.returnProbabilityMultiplier ?? 1) *
+              realizedShippingPromotionReturnMultiplier,
+            0.2,
+            5,
+          ),
+        }));
+
   delete customer.cart;
   transitionAfterPurchase(
     customer,
@@ -1340,7 +1370,7 @@ export function completePurchase(
     sessionId,
     occurredAt: new Date(timestampMs).toISOString(),
     source,
-    lines,
+    lines: realizedLines,
     grossRevenueMinor,
     discountMinor,
     netRevenueMinor,
