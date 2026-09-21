@@ -39,6 +39,21 @@ export interface PromotionAttributionDiagnostics {
   readonly discountCostOnSwitchedPurchasesMinor: number;
 }
 
+export interface ProductPromotionEconomics {
+  readonly productId: string;
+  readonly representedUnits: number;
+  readonly grossRevenueMinor: number;
+  readonly discountsMinor: number;
+  readonly allocatedNetRevenueMinor: number;
+  readonly allocatedGrossProfitMinor: number;
+  /**
+   * Order-level costs/refunds are allocated by line net-sales share with the
+   * final line taking rounding residuals, so product rows reconcile exactly
+   * to the merchant waterfall.
+   */
+  readonly allocatedContributionProfitMinor: number;
+}
+
 export interface PromotionResponseCurvePoint {
   readonly discountDepth: number;
   readonly representedUnits: number;
@@ -98,6 +113,8 @@ export interface PricingPromotionReport {
   readonly authoritativePriceStates: readonly AuthoritativePriceState[];
   readonly factual: EcommerceEconomicReport;
   readonly noPromotionCounterfactual: EcommerceEconomicReport;
+  readonly factualProductEconomics: readonly ProductPromotionEconomics[];
+  readonly noPromotionProductEconomics: readonly ProductPromotionEconomics[];
   readonly incremental: IncrementalPromotionEconomics;
   readonly attribution: PromotionAttributionDiagnostics;
   readonly godModeOnly: true;
