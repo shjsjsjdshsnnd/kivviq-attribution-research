@@ -329,13 +329,13 @@ export function createRevenueProfitTrapFixture(): RevenueProfitTrapFixture {
       profile.productId,
       overrideFor(profile, {
         cogsPerUnitMinor: Math.round(
-          profile.listPriceMinor * 0.64,
+          profile.listPriceMinor * 0.76,
         ),
         shippingCostPerUnitMinor: Math.round(
-          profile.listPriceMinor * 0.035,
+          profile.listPriceMinor * 0.03,
         ),
         fulfillmentCostPerUnitMinor: Math.round(
-          profile.listPriceMinor * 0.018,
+          profile.listPriceMinor * 0.015,
         ),
         returnProbability: 0.015,
       }),
@@ -386,7 +386,7 @@ export function createPullForwardTrapFixture(): PullForwardTrapFixture {
     world,
     start,
     promotionEnd,
-    0.18,
+    0.28,
   );
   const value: PricingPromotionScenario = {
     ...baseScenario,
