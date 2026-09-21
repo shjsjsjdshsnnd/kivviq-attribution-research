@@ -107,6 +107,42 @@ describe("Step 2.1 Action validation", () => {
     );
   });
 
+  it("rejects unregistered action types but accepts explicit extension contracts", () => {
+    const extended = clone(increaseGoogleShoppingBudget20) as any;
+    extended.actionType = "custom.raise_campaign_budget";
+    extended.parameters = [
+      {
+        parameterId: "custom_change",
+        mode: "INCREASE_BY",
+        value: { kind: "money", amountMinor: 10_000, currency: "CAD" },
+      },
+    ];
+
+    const unregistered = validateAction(extended);
+    expect(unregistered.ok).toBe(false);
+    if (!unregistered.ok) {
+      expect(
+        unregistered.errors.some(
+          (error) => error.code === "UNREGISTERED_ACTION_TYPE",
+        ),
+      ).toBe(true);
+    }
+
+    expect(
+      validateAction(extended, {
+        additionalActionTypeContracts: [
+          {
+            actionType: "custom.raise_campaign_budget",
+            category: "paid_media",
+            atomicity: "ATOMIC",
+            allowedTargetKinds: ["campaign"],
+            requiredParameterIds: ["custom_change"],
+          },
+        ],
+      }).ok,
+    ).toBe(true);
+  });
+
   it("validates constraint properties but allows explicit extensions", () => {
     const extended = clone(increaseGoogleShoppingBudget20) as any;
     extended.constraints.push({
