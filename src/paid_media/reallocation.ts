@@ -183,6 +183,29 @@ export function validatePaidMediaReallocation(
     }
   }
 
+  if (ordered.length > 1) {
+    const coordinationTiming = stable({
+      timing: ordered[0]!.timing,
+      duration: ordered[0]!.duration,
+      termination: ordered[0]!.termination,
+    });
+    for (let index = 1; index < ordered.length; index += 1) {
+      const candidateTiming = stable({
+        timing: ordered[index]!.timing,
+        duration: ordered[index]!.duration,
+        termination: ordered[index]!.termination,
+      });
+      if (candidateTiming !== coordinationTiming) {
+        add(
+          errors,
+          "REALLOCATION_TIMING_MISMATCH",
+          "components[" + index + "]",
+          "coordinated reallocation legs must share timing, duration and termination semantics",
+        );
+      }
+    }
+  }
+
   const budgetLegs = ordered.map(moneyRateFromBudgetDelta);
   const transferLegs = ordered.map(transferLeg);
   const allBudget = budgetLegs.every((leg) => leg !== undefined);
@@ -332,4 +355,18 @@ export function paidMediaReallocationFingerprint(
     }),
   };
   return "fnv1a64:" + fnv1a64(stable(projection));
+}
+
+
+export function serializePaidMediaReallocation(
+  bundle: PaidMediaReallocationBundle,
+): string {
+  const result = validatePaidMediaReallocation(bundle);
+  if (!result.ok) {
+    throw new Error(
+      "Invalid paid-media reallocation: " +
+        result.errors.map((issue) => issue.code).join(", "),
+    );
+  }
+  return stable(bundle);
 }
