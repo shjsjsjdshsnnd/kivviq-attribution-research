@@ -1,0 +1,220 @@
+{
+  "candidate_id": "candidate3-overlap-ato",
+  "candidate_version": "1.0.0",
+  "criteria": {
+    "abstention_reason_accuracy": {
+      "pass": false,
+      "threshold": 1.0,
+      "value": 0.6666666666666666
+    },
+    "ato_targeting_accuracy": {
+      "pass": false,
+      "threshold": 1.0,
+      "value": 0.5
+    },
+    "bootstrap_contract": {
+      "pass": true
+    },
+    "effect_estimation_decision_accuracy": {
+      "pass": true,
+      "threshold": 1.0,
+      "value": 1.0
+    },
+    "full_population_ate_null": {
+      "pass": true
+    },
+    "interval_coverage": {
+      "denominator": 3,
+      "hits": 3,
+      "pass": true,
+      "required": 2
+    },
+    "latent_confounding_disclaimer": {
+      "pass": true
+    },
+    "max_absolute_ato_error": {
+      "pass": true,
+      "threshold": 0.08,
+      "value": 0.023548207894105794
+    },
+    "mean_absolute_ato_error": {
+      "pass": true,
+      "threshold": 0.04,
+      "value": 0.014524638446584755
+    },
+    "overlap_boundary_behavior": {
+      "pass": true
+    }
+  },
+  "design_failures": [
+    {
+      "family": "inadequate_overlap_abstention",
+      "reason": "oracle decision ESTIMATE_ATO did not match family intent ABSTAIN_INADEQUATE_SUPPORT"
+    }
+  ],
+  "evaluation_protocol_version": "candidate3-evaluation-v1",
+  "feedback_bearing_exposure_count": 1,
+  "full_population_ate_estimated": false,
+  "holdout_version": "candidate3-holdout-v1",
+  "lineage_fingerprint": "1571c29726e79154c2d9bc9016909ab7ab04540fe24cf63a62e0f46b66288620",
+  "outcome": "INCONCLUSIVE",
+  "public_falsification_eligible": true,
+  "reasons": [
+    "inadequate_overlap_abstention: oracle decision ESTIMATE_ATO did not match family intent ABSTAIN_INADEQUATE_SUPPORT"
+  ],
+  "records": [
+    {
+      "absolute_ato_error": 0.018035180615045547,
+      "ate_truth": -0.0259982347261016,
+      "ato_truth": -0.026214056631907283,
+      "bootstrap_requested": 400,
+      "bootstrap_valid": 400,
+      "candidate_decision": "ESTIMATE_ATO",
+      "closer_to_ato_than_ate": null,
+      "design_valid": true,
+      "effect_scored": true,
+      "estimate": -0.04424923724695283,
+      "family": "adequate_overlap_recovery",
+      "full_population_ate": null,
+      "interval_covers_ato": true,
+      "interval_lower": -0.08039487262469801,
+      "interval_upper": -0.014309109039015437,
+      "latent_confounding_statement": "Candidate 3 does not solve latent confounding or unmeasured common causes",
+      "oracle_expected_decision": "ESTIMATE_ATO"
+    },
+    {
+      "absolute_ato_error": 0.023548207894105794,
+      "ate_truth": 0.0021655595757981263,
+      "ato_truth": 0.002536763025170479,
+      "bootstrap_requested": 400,
+      "bootstrap_valid": 400,
+      "candidate_decision": "ESTIMATE_ATO",
+      "closer_to_ato_than_ate": false,
+      "design_valid": true,
+      "effect_scored": true,
+      "estimate": -0.021011444868935317,
+      "family": "weak_full_support_overlap_recovery",
+      "full_population_ate": null,
+      "interval_covers_ato": true,
+      "interval_lower": -0.06873613906115397,
+      "interval_upper": 0.038585450946298346,
+      "latent_confounding_statement": "Candidate 3 does not solve latent confounding or unmeasured common causes",
+      "oracle_expected_decision": "ESTIMATE_ATO"
+    },
+    {
+      "absolute_ato_error": null,
+      "ate_truth": null,
+      "ato_truth": null,
+      "bootstrap_requested": 400,
+      "bootstrap_valid": 243,
+      "candidate_decision": "ABSTAIN_INADEQUATE_FINITE_SAMPLE",
+      "closer_to_ato_than_ate": null,
+      "design_valid": false,
+      "effect_scored": false,
+      "estimate": null,
+      "family": "inadequate_overlap_abstention",
+      "full_population_ate": null,
+      "interval_covers_ato": null,
+      "interval_lower": null,
+      "interval_upper": null,
+      "latent_confounding_statement": "Candidate 3 does not solve latent confounding or unmeasured common causes",
+      "oracle_expected_decision": "ESTIMATE_ATO"
+    },
+    {
+      "absolute_ato_error": null,
+      "ate_truth": null,
+      "ato_truth": null,
+      "bootstrap_requested": 400,
+      "bootstrap_valid": 0,
+      "candidate_decision": "ABSTAIN_INADEQUATE_FINITE_SAMPLE",
+      "closer_to_ato_than_ate": null,
+      "design_valid": true,
+      "effect_scored": false,
+      "estimate": null,
+      "family": "finite_sample_abstention",
+      "full_population_ate": null,
+      "interval_covers_ato": null,
+      "interval_lower": null,
+      "interval_upper": null,
+      "latent_confounding_statement": "Candidate 3 does not solve latent confounding or unmeasured common causes",
+      "oracle_expected_decision": "ABSTAIN_INADEQUATE_FINITE_SAMPLE"
+    },
+    {
+      "absolute_ato_error": null,
+      "ate_truth": null,
+      "ato_truth": null,
+      "bootstrap_requested": 400,
+      "bootstrap_valid": 0,
+      "candidate_decision": "ABSTAIN_PRETREATMENT_INVALID",
+      "closer_to_ato_than_ate": null,
+      "design_valid": true,
+      "effect_scored": false,
+      "estimate": null,
+      "family": "measurement_provenance_abstention",
+      "full_population_ate": null,
+      "interval_covers_ato": null,
+      "interval_lower": null,
+      "interval_upper": null,
+      "latent_confounding_statement": "Candidate 3 does not solve latent confounding or unmeasured common causes",
+      "oracle_expected_decision": "ABSTAIN_PRETREATMENT_INVALID"
+    },
+    {
+      "absolute_ato_error": null,
+      "ate_truth": null,
+      "ato_truth": null,
+      "bootstrap_requested": 400,
+      "bootstrap_valid": 400,
+      "candidate_decision": "ESTIMATE_ATO",
+      "closer_to_ato_than_ate": null,
+      "design_valid": true,
+      "effect_scored": false,
+      "estimate": 0.1213916059308522,
+      "family": "latent_confounding_non_goal",
+      "full_population_ate": null,
+      "interval_covers_ato": null,
+      "interval_lower": 0.08852460103252137,
+      "interval_upper": 0.15032768028298174,
+      "latent_confounding_statement": "Candidate 3 does not solve latent confounding or unmeasured common causes",
+      "oracle_expected_decision": "ESTIMATE_ATO"
+    },
+    {
+      "absolute_ato_error": null,
+      "ate_truth": null,
+      "ato_truth": null,
+      "bootstrap_requested": 400,
+      "bootstrap_valid": 400,
+      "candidate_decision": "ESTIMATE_ATO",
+      "closer_to_ato_than_ate": null,
+      "design_valid": true,
+      "effect_scored": false,
+      "estimate": -0.010999167933609236,
+      "family": "overlap_boundary",
+      "full_population_ate": null,
+      "interval_covers_ato": null,
+      "interval_lower": -0.06276973291693896,
+      "interval_upper": 0.033592426078850546,
+      "latent_confounding_statement": "Candidate 3 does not solve latent confounding or unmeasured common causes",
+      "oracle_expected_decision": "ESTIMATE_ATO"
+    },
+    {
+      "absolute_ato_error": 0.0019905268306029227,
+      "ate_truth": 0.04176738858963397,
+      "ato_truth": 0.02843193625246129,
+      "bootstrap_requested": 400,
+      "bootstrap_valid": 400,
+      "candidate_decision": "ESTIMATE_ATO",
+      "closer_to_ato_than_ate": true,
+      "design_valid": true,
+      "effect_scored": true,
+      "estimate": 0.026441409421858367,
+      "family": "heterogeneous_overlap_effect",
+      "full_population_ate": null,
+      "interval_covers_ato": true,
+      "interval_lower": -0.016977266483110494,
+      "interval_upper": 0.06631411435518018,
+      "latent_confounding_statement": "Candidate 3 does not solve latent confounding or unmeasured common causes",
+      "oracle_expected_decision": "ESTIMATE_ATO"
+    }
+  ],
+  "stage": "SEALED_HOLDOUT"
+}
