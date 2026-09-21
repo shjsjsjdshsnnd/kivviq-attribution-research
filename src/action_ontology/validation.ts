@@ -224,7 +224,7 @@ const ACTION_SCHEMA_1_1_ACTION_TYPES = new Set([
 ]);
 
 function validateSchemaFeatureCompatibility(
-  input: Record<string, unknown>,
+  input: any,
   errors: ActionValidationIssue[],
 ): void {
   if (input.schemaVersion !== "1.0.0") return;
