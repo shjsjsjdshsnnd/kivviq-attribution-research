@@ -22,6 +22,8 @@ export interface StockoutObservedDemandTrapFixture {
 export interface InventoryAdvertisingScaleTrapFixture {
   readonly id: "inventory_advertising_scale";
   readonly evaluation: InventoryDynamicsEvaluationRequest;
+  /** Frozen Step 8 world used only to reproduce the historical platform signal. */
+  readonly historicalSignalMerchantWorld: GeneratedMerchantWorld;
   readonly productId: string;
   readonly channel: "meta";
   readonly baselineSpendMinor: number;
@@ -132,6 +134,7 @@ export function createInventoryAdvertisingScaleTrapFixture(): InventoryAdvertisi
     source.channelSpendMinor;
   return {
     id: "inventory_advertising_scale",
+    historicalSignalMerchantWorld: source.merchantWorld,
     productId: source.productId,
     channel: "meta",
     baselineSpendMinor,

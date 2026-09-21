@@ -77,21 +77,17 @@ describe("Step 9 deterministic inventory traps", () => {
           }
         | undefined;
 
-      for (
-        let seed = fixture.evaluation.simulationSeed;
-        seed < fixture.evaluation.simulationSeed + 4 &&
-        accepted === undefined;
-        seed += 1
-      ) {
-        const baseRequest = {
-          ...fixture.evaluation,
-          simulationSeed: seed,
-        };
-        const platformReport =
+      for (let seed = 1; seed <= 8; seed += 1) {
+        const historicalPlatformReport =
           evaluateEcommerceEconomics({
-            ...baseRequest,
+            merchantWorld:
+              fixture.historicalSignalMerchantWorld,
+            latentPopulation:
+              fixture.evaluation.latentPopulation,
+            simulationSeed: seed,
+            periodStart: fixture.evaluation.periodStart,
+            periodEnd: fixture.evaluation.periodEnd,
             interventions: [
-              ...(baseRequest.interventions ?? []),
               {
                 variable: "marketing.meta.spend",
                 operation: "set" as const,
@@ -102,11 +98,16 @@ describe("Step 9 deterministic inventory traps", () => {
                 },
               },
             ],
-            enableInventoryDynamics: true,
+            advertisingSpendMinor:
+              fixture.platformCampaignSpendMinor,
+            simulationConfig: {
+              maxEvents: 180_000,
+              maxSessionsPerCustomer: 18,
+            },
           });
         const campaign =
           productCampaignPerformance(
-            platformReport,
+            historicalPlatformReport,
             fixture.evaluation.latentPopulation,
             fixture.productId,
             fixture.channel,
@@ -120,12 +121,26 @@ describe("Step 9 deterministic inventory traps", () => {
           continue;
         }
 
+        const baseRequest = {
+          ...fixture.evaluation,
+          simulationSeed: seed,
+        };
         const curve =
           inventoryConstrainedResponseCurve(
             baseRequest,
             fixture.channel,
             fixture.spendLevelsMinor,
           );
+
+        console.info(
+          "STEP9_ADVERTISING_SCALE_DIAGNOSTIC",
+          JSON.stringify({
+            seed,
+            platformRoas:
+              campaign.platformProductRoas,
+            points: curve.points,
+          }),
+        );
 
         for (
           let index = 1;
@@ -161,6 +176,11 @@ describe("Step 9 deterministic inventory traps", () => {
             break;
           }
         }
+
+        // Freeze the first historical seed that satisfies the predeclared
+        // platform-signal threshold. Do not search for a favorable
+        // counterfactual realization after observing the response curve.
+        break;
       }
 
       expect(accepted).toBeDefined();
