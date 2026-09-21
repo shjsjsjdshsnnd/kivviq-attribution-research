@@ -68,6 +68,9 @@ export interface InventorySnapshot {
   readonly reorderState: ReorderState;
   readonly expectedArrivalAt?: string;
   readonly realizedArrivalAt?: string;
+  readonly oldestInventoryReceivedAt: string;
+  readonly carryingCostRatePerCogsValuePerDay: number;
+  readonly obsolescenceRatePerDay: number;
 }
 
 export interface InventoryMovement {
