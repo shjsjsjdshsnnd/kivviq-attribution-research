@@ -226,6 +226,10 @@ export interface EcommerceEvaluationRequest {
     Record<string, Partial<ProductEconomicProfile>>
   >;
   readonly advertisingSpendMinor?: number;
+  /**
+   * Step 9 opt-in. Omitted/false preserves frozen Step 7/8 behavior.
+   */
+  readonly enableInventoryDynamics?: boolean;
 }
 
 export interface EconomicCounterfactualDelta {
