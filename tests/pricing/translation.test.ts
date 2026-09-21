@@ -270,7 +270,7 @@ describe("Step 4 pricing translation", () => {
     const missing: TranslationContext = {
       ...baseContext,
       pricingMembershipBindings:
-        baseContext.pricingMembershipBindings?.filter(
+        (baseContext.pricingMembershipBindings ?? []).filter(
           (binding) => binding.actionTarget.kind !== "category",
         ),
     };
