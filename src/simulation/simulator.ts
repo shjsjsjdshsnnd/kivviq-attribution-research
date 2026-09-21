@@ -19,6 +19,7 @@ import {
   reserveCheckoutInventory,
 } from "./commerce.js";
 import {
+  cancelBackorder,
   damageReturnedInventory,
   dispatchReorder,
   finalizeInventoryGodMode,
@@ -157,6 +158,12 @@ interface InventoryReturnRestockedPayload {
   readonly returnId: string;
   readonly productId: string;
   readonly sellableUnits: number;
+}
+
+interface InventoryBackorderCancelledPayload {
+  readonly backorderId: string;
+  readonly productId: string;
+  readonly quantity: number;
 }
 
 const DEFAULT_MAX_EVENTS = 500_000;
@@ -888,6 +895,28 @@ export function simulateWorld(
           runtime.inventoryEconomy,
           payload.productId,
           payload.sellableUnits,
+          event.timestampMs,
+          event.id,
+        );
+        runtime.inventory.set(
+          payload.productId,
+          legacyNetAvailableUnits(
+            runtime.inventoryEconomy,
+            payload.productId,
+          ),
+        );
+      }
+      continue;
+    }
+
+    if (event.kind === "inventory_backorder_cancelled") {
+      const payload =
+        event.payload as InventoryBackorderCancelledPayload;
+      if (request.commercePolicy?.enableInventoryDynamics === true) {
+        cancelBackorder(
+          runtime.inventoryEconomy,
+          payload.backorderId,
+          payload.quantity,
           event.timestampMs,
           event.id,
         );
@@ -1639,6 +1668,68 @@ export function simulateWorld(
               ordinal + 1,
             );
             purchases.push(purchase);
+
+            if (request.commercePolicy?.enableInventoryDynamics === true) {
+              const createdBackorders = [
+                ...runtime.inventoryEconomy.backorders.values(),
+              ].filter(
+                (obligation) =>
+                  obligation.sourceEventId === orderId &&
+                  obligation.quantity >
+                    obligation.fulfilledUnits +
+                      obligation.cancelledUnits,
+              );
+
+              for (const obligation of createdBackorders) {
+                const position =
+                  runtime.inventoryEconomy.positions.get(
+                    obligation.skuId,
+                  );
+                const leadDays =
+                  position?.supplierLeadTimeDays ?? 30;
+                const cancellationProbability = clamp(
+                  0.04 +
+                    leadDays * 0.006 +
+                    customer.need * 0.18 -
+                    customer.brandAffinity * 0.1,
+                  0.01,
+                  0.72,
+                );
+                if (
+                  randomness.bool(
+                    `${obligation.backorderId}:cancel`,
+                    cancellationProbability,
+                  )
+                ) {
+                  schedule<InventoryBackorderCancelledPayload>({
+                    id: `inventory-backorder-cancelled:${obligation.backorderId}`,
+                    kind: "inventory_backorder_cancelled",
+                    timestampMs:
+                      event.timestampMs +
+                      days(
+                        Math.max(
+                          0.5,
+                          Math.min(
+                            14,
+                            leadDays * 0.35,
+                          ),
+                        ),
+                      ),
+                    priority: 7,
+                    payload: {
+                      backorderId:
+                        obligation.backorderId,
+                      productId:
+                        obligation.skuId,
+                      quantity:
+                        obligation.quantity -
+                        obligation.fulfilledUnits -
+                        obligation.cancelledUnits,
+                    },
+                  });
+                }
+              }
+            }
 
             if (
               request.commercePolicy?.enableInventoryDynamics === true &&
