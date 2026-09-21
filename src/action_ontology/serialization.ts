@@ -1,22 +1,48 @@
-import type { Action } from "./types.js";
+import {
+  ACTION_SCHEMA_VERSION,
+  type Action,
+} from "./types.js";
 import {
   assertValidAction,
   type ActionValidationOptions,
 } from "./validation.js";
+import { canonicalizeForSerialization } from "./semantics.js";
 
 export function serializeAction(action: Action): string {
-  assertValidAction(action);
-  return JSON.stringify(action);
+  const validated = assertValidAction(action);
+  return JSON.stringify(canonicalizeForSerialization(validated));
 }
 
 export function deserializeAction(
   serialized: string,
   options: ActionValidationOptions = {},
 ): Action {
-  const parsed: unknown = JSON.parse(serialized);
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(serialized);
+  } catch {
+    throw new TypeError("Serialized Action must be valid JSON");
+  }
   return assertValidAction(parsed, options);
 }
 
-export function isBackwardCompatibleOntologyVersion(version: string): boolean {
-  return /^1\.\d+\.\d+$/.test(version);
+export function isSupportedActionSchemaVersion(version: string): boolean {
+  return version === ACTION_SCHEMA_VERSION;
+}
+
+/**
+ * Migrations must be explicit. Step 1 intentionally ships no implicit
+ * reinterpretation path for unsupported Action schema versions.
+ */
+export function migrateSerializedAction(
+  _serialized: string,
+  fromVersion: string,
+  toVersion: string,
+): never {
+  throw new Error(
+    "No Action migration registered from " +
+      fromVersion +
+      " to " +
+      toVersion,
+  );
 }
