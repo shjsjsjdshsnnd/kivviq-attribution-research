@@ -7,6 +7,7 @@ import {
 } from "../../src/action_ontology/serialization.js";
 import {
   eligibilityInformationRequirements,
+  type ActionEligibilityEvaluator,
 } from "../../src/action_ontology/eligibility.js";
 import {
   validateAction,
@@ -210,6 +211,41 @@ describe("Step 4 canonical pricing Actions", () => {
             "product_economics:contribution_inputs:sku:B",
       ),
     ).toBe(true);
+  });
+
+  it("supports unknown eligibility when required economic evidence is unavailable", () => {
+    const evaluator: ActionEligibilityEvaluator = {
+      isEligible() {
+        return {
+          status: "unknown",
+          failedConstraintIds: [],
+          missingEvidenceRefs: [
+            "product_economics:contribution_inputs:sku:B",
+          ],
+          reasonCodes: ["INSUFFICIENT_ECONOMIC_EVIDENCE"],
+        };
+      },
+    };
+
+    const result = evaluator.isEligible(
+      reduceSkuB10WithContributionMargin20Floor,
+      {
+        readProperty() {
+          return { status: "unknown", reason: "margin inputs unavailable" };
+        },
+        entityExists() {
+          return { status: "known", value: true };
+        },
+        capabilityAvailable() {
+          return { status: "known", value: true };
+        },
+        evidenceAvailable() {
+          return { status: "unknown", reason: "COGS unavailable" };
+        },
+      },
+    );
+
+    expect(result.status).toBe("unknown");
   });
 
   it("rejects negative and currency-less absolute prices", () => {
