@@ -296,8 +296,15 @@ export interface InventoryDynamicsReport {
   readonly ledger: readonly InventoryMovement[];
   readonly demandTruth: readonly InventoryDemandTruthRecord[];
   readonly reconciliation: readonly InventoryReconciliation[];
-  readonly contributionProfitMinor: number;
   readonly representedRevenueMinor: number;
+  readonly baseContributionProfitMinor: number;
+  readonly inventoryCarryingCostMinor: number;
+  readonly contributionProfitAfterInventoryCarryingMinor: number;
+  /**
+   * Obsolescence is a change in recoverable inventory value, not realized
+   * sales accounting, and is therefore reported separately.
+   */
+  readonly obsolescenceEconomicLossMinor: number;
   readonly godModeOnly: true;
 }
 
