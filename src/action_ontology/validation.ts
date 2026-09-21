@@ -1,5 +1,6 @@
 import {
   ACTION_SCHEMA_VERSION,
+  SUPPORTED_ACTION_SCHEMA_VERSIONS,
   OUTCOME_FAMILIES,
   RISK_DIMENSIONS,
   UNCERTAINTY_DIMENSIONS,
@@ -1922,12 +1923,13 @@ export function validateAction(
   if (input.kind !== "atomic_action") {
     add(errors, "INVALID_ACTION_KIND", "kind", "Step 1 canonical Action must be atomic_action");
   }
-  if (input.schemaVersion !== ACTION_SCHEMA_VERSION) {
+  if (!SUPPORTED_ACTION_SCHEMA_VERSIONS.includes(input.schemaVersion as never)) {
     add(
       errors,
       "UNSUPPORTED_SCHEMA_VERSION",
       "schemaVersion",
-      "supported Action schema version is " + ACTION_SCHEMA_VERSION,
+      "supported Action schema versions are " +
+        SUPPORTED_ACTION_SCHEMA_VERSIONS.join(", "),
     );
   }
   if (!nonEmpty(input.actionId) || !ACTION_ID_PATTERN.test(input.actionId)) {
