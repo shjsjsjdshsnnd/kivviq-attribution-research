@@ -152,7 +152,7 @@ There is no generic manually subtracted delay cost.
 
 ## Returns
 
-When Step 9 is enabled, Step 7's product return probabilities feed the same physical return process used by inventory. Return sampling at checkout is limited to units that were physically fulfilled at checkout; an accepted but still-unfulfilled backorder cannot generate a fictional merchandise return.
+When Step 9 is enabled, Step 7's product return probabilities feed the same physical return process used by inventory. Return sampling at checkout is limited to units that were physically fulfilled at checkout; an accepted but still-unfulfilled backorder cannot generate a fictional merchandise return. When a backordered unit is physically fulfilled by a later receipt, it becomes return-eligible from that fulfillment timestamp under the same return model.
 
 A realized return:
 

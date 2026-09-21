@@ -3,6 +3,7 @@ import { nonNegative } from "../../src/core/units.js";
 import { generateMerchantWorldRecord } from "../../src/generation/generator.js";
 import {
   availableToSellUnits,
+  cancelBackorder,
   commitAndSellReservations,
   createBackorder,
   damageReturnedInventory,
@@ -145,6 +146,70 @@ describe("Step 9 authoritative inventory state", () => {
       truth.reconciliation.find(
         (row) => row.skuId === skuId,
       )?.reconcilesExactly,
+    ).toBe(true);
+  });
+
+  it("cancels backorder obligations without creating physical inventory", () => {
+    const base = generateMerchantWorldRecord({
+      seed: 190005,
+      archetype: "furniture",
+      scale: "small",
+      complexity: "normal",
+    });
+    const world = structuredClone(base);
+    const mechanism =
+      world.manifest.inventoryMechanisms[0]!;
+    const mutable = mechanism as unknown as {
+      initialAvailableUnits: number;
+      initialReservedUnits: number;
+      allowBackorders: boolean;
+      stockoutBehavior:
+        | "lost_demand"
+        | "substitute"
+        | "backorder";
+    };
+    mutable.initialAvailableUnits = nonNegative(0);
+    mutable.initialReservedUnits = nonNegative(0);
+    mutable.allowBackorders = true;
+    mutable.stockoutBehavior = "backorder";
+
+    const startMs =
+      Date.parse("2026-01-01T00:00:00.000Z");
+    const state =
+      createInventoryEconomyState(world, startMs);
+    const skuId = mechanism.productId;
+
+    createBackorder(state, {
+      backorderId: "cancel-b1",
+      skuId,
+      customerId: "c1",
+      quantity: 3,
+      timestampMs: startMs + 1_000,
+      sourceEventId: "order-cancel",
+    });
+
+    const cancelled = cancelBackorder(
+      state,
+      "cancel-b1",
+      2,
+      startMs + 2_000,
+      "backorder-cancellation",
+    );
+
+    expect(cancelled).toBe(2);
+    const position = state.positions.get(skuId)!;
+    expect(position.onHandUnits).toBe(0);
+    expect(position.availableToSellUnits ?? 0).toBe(0);
+    expect(position.backorderedUnits).toBe(1);
+    expect(
+      state.backorders.get("cancel-b1")
+        ?.cancelledUnits,
+    ).toBe(2);
+    expect(
+      finalizeInventoryGodMode(state)
+        .reconciliation.find(
+          (row) => row.skuId === skuId,
+        )?.reconcilesExactly,
     ).toBe(true);
   });
 
