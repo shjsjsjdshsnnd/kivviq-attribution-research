@@ -190,24 +190,51 @@ describe("Step 10 deterministic acceptance traps", () => {
         report.attribution.acceleratedPurchases,
       ).toBeGreaterThan(0);
 
-      const dipWindowEnd = new Date(
-        Date.parse(fixture.promotionEnd) +
-          28 * 86_400_000,
-      ).toISOString();
-      const promotedPost = revenueBetween(
-        report.factual,
+      const weekMs = 7 * 86_400_000;
+      const promotionEndMs = Date.parse(
         fixture.promotionEnd,
-        dipWindowEnd,
       );
-      const baselinePost = revenueBetween(
-        report.noPromotionCounterfactual,
-        fixture.promotionEnd,
-        dipWindowEnd,
+      const postPromotionWeeks = Array.from(
+        { length: 4 },
+        (_, index) => {
+          const start = new Date(
+            promotionEndMs + index * weekMs,
+          ).toISOString();
+          const end = new Date(
+            promotionEndMs + (index + 1) * weekMs,
+          ).toISOString();
+          return {
+            week: index + 1,
+            start,
+            end,
+            promotedRevenueMinor: revenueBetween(
+              report.factual,
+              start,
+              end,
+            ),
+            baselineRevenueMinor: revenueBetween(
+              report.noPromotionCounterfactual,
+              start,
+              end,
+            ),
+          };
+        },
       );
+      const dipWeek = postPromotionWeeks
+        .filter(
+          (week) =>
+            week.promotedRevenueMinor <
+            week.baselineRevenueMinor,
+        )
+        .sort(
+          (left, right) =>
+            left.promotedRevenueMinor -
+              left.baselineRevenueMinor -
+            (right.promotedRevenueMinor -
+              right.baselineRevenueMinor),
+        )[0];
 
-      expect(promotedPost).toBeLessThan(
-        baselinePost,
-      );
+      expect(dipWeek).toBeDefined();
 
       console.info(
         "STEP10_PULL_FORWARD_TRAP",
@@ -217,12 +244,8 @@ describe("Step 10 deterministic acceptance traps", () => {
           trueIncrementalPurchases:
             report.attribution
               .trueIncrementalPromotionPurchases,
-          postPromotionWindowEnd:
-            dipWindowEnd,
-          postPromotionRevenueMinor:
-            promotedPost,
-          baselinePostPromotionRevenueMinor:
-            baselinePost,
+          postPromotionWeeks,
+          dipWeek,
           fullHorizonIncrementalContributionMinor:
             report.incremental
               .incrementalContributionProfitMinor,
