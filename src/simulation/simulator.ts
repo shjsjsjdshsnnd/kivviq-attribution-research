@@ -1814,6 +1814,7 @@ export function simulateWorld(
           interventionState,
           event.timestampMs,
           randomness,
+          request.commercePolicy,
         );
         const interactionContext = {
           timestampMs: event.timestampMs,
