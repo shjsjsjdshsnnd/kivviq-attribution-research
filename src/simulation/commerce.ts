@@ -1000,17 +1000,87 @@ export function completePurchase(
       runtime.merchantWorld.manifest.inventoryMechanisms.find(
         (item) => item.productId === line.productId,
       );
-    const next =
-      (runtime.inventory.get(line.productId) ?? 0) -
-      line.quantity;
-    runtime.inventory.set(
-      line.productId,
-      commercePolicy?.executeInventoryLifecycle === true &&
+
+    if (commercePolicy?.enableInventoryDynamics === true) {
+      const reservedSold =
+        commitAndSellReservations(
+          runtime.inventoryEconomy,
+          sessionId,
+          line.productId,
+          line.quantity,
+          timestampMs,
+        );
+      const directSold = sellAvailableInventory(
+        runtime.inventoryEconomy,
+        line.productId,
+        Math.max(0, line.quantity - reservedSold),
+        timestampMs,
+        orderId,
+      );
+      const unfulfilled = Math.max(
+        0,
+        line.quantity - reservedSold - directSold,
+      );
+
+      if (
+        unfulfilled > 0 &&
         mechanism?.allowBackorders === true &&
         mechanism.stockoutBehavior === "backorder"
-        ? next
-        : Math.max(0, next),
-    );
+      ) {
+        const position =
+          runtime.inventoryEconomy.positions.get(
+            line.productId,
+          );
+        const maximumDelayDays =
+          position?.maximumBackorderDelayDays;
+        createBackorder(runtime.inventoryEconomy, {
+          backorderId:
+            `backorder:${orderId}:${line.productId}`,
+          skuId: line.productId,
+          customerId: customer.customerId,
+          quantity: unfulfilled,
+          timestampMs,
+          sourceEventId: orderId,
+          ...(maximumDelayDays === undefined
+            ? {}
+            : {
+                maximumAcceptableArrivalAtMs:
+                  timestampMs +
+                  maximumDelayDays * 86_400_000,
+              }),
+        });
+      }
+
+      runtime.inventory.set(
+        line.productId,
+        legacyNetAvailableUnits(
+          runtime.inventoryEconomy,
+          line.productId,
+        ),
+      );
+    } else {
+      const next =
+        (runtime.inventory.get(line.productId) ?? 0) -
+        line.quantity;
+      runtime.inventory.set(
+        line.productId,
+        commercePolicy?.executeInventoryLifecycle === true &&
+          mechanism?.allowBackorders === true &&
+          mechanism.stockoutBehavior === "backorder"
+          ? next
+          : Math.max(0, next),
+      );
+    }
+  }
+
+  if (commercePolicy?.enableInventoryDynamics === true) {
+    for (const cartLine of customer.cart.lines) {
+      markInventoryDemandOutcome(
+        runtime.inventoryEconomy,
+        cartLine.demandTruthId,
+        "purchased",
+      );
+    }
   }
 
   const repeatPurchase = customer.purchaseCount > 0;
