@@ -44,6 +44,13 @@ function moneyValue(amountMinor: number): ParameterValue {
   return { kind: "money", amountMinor, currency: CAD };
 }
 
+function moneyRateValue(
+  amountMinor: number,
+  per: "day" | "week" | "month",
+): ParameterValue {
+  return { kind: "money_rate", amountMinor, currency: CAD, per };
+}
+
 function pct(
   basisPoints: number,
   semantics:
@@ -308,7 +315,7 @@ const metaDecrease = fixture({
     {
       parameterId: "budget_change",
       mode: "DECREASE_BY",
-      value: moneyValue(100_000),
+      value: moneyRateValue(100_000, "week"),
     },
   ],
   sharedIntentId,
@@ -329,7 +336,7 @@ const googleIncrease = fixture({
     {
       parameterId: "budget_change",
       mode: "INCREASE_BY",
-      value: moneyValue(100_000),
+      value: moneyRateValue(100_000, "week"),
     },
   ],
   sharedIntentId,
@@ -347,11 +354,20 @@ export const reallocateMetaToGoogle1000PerWeek = fixture({
     {
       parameterId: "transfer_amount",
       mode: "SET",
-      value: moneyValue(100_000),
+      value: moneyRateValue(100_000, "week"),
     },
   ],
   sharedIntentId,
   components: [metaDecrease, googleIncrease],
+  coordination: {
+    executionPolicy: "all_or_nothing",
+    dependencies: [
+      {
+        componentActionId: googleIncrease.actionId,
+        dependsOnActionIds: [metaDecrease.actionId],
+      },
+    ],
+  },
   cost: { ...costs(), incrementalSpend: known(money(0), "derived") },
   reversibility: reversible("transfer the same amount back"),
 });
