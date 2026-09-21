@@ -5,6 +5,13 @@ import type {
 import type { GeneratedMerchantWorld, MarketingChannel } from "../generation/config.js";
 import { clamp } from "../customer_population/calibration.js";
 import { days } from "./kernel.js";
+import {
+  createInventoryEconomyState,
+  legacyNetAvailableUnits,
+} from "../inventory_dynamics/state.js";
+import type {
+  InventoryEconomyRuntime,
+} from "../inventory_dynamics/types.js";
 
 export type RuntimeLifecycleState =
   | "prospect"
@@ -84,8 +91,14 @@ export interface RuntimeWorldState {
   readonly merchantWorld: GeneratedMerchantWorld;
   readonly latentPopulation: LatentCustomerPopulation;
   readonly customers: Map<string, RuntimeCustomerState>;
+  /**
+   * Legacy Step 4-8 projection. Step 9 authoritative state lives in
+   * inventoryEconomy. Backorders may still appear as negative values here
+   * solely to preserve frozen inherited behavior.
+   */
   readonly inventory: Map<string, number>;
   readonly initialInventory: ReadonlyMap<string, number>;
+  readonly inventoryEconomy: InventoryEconomyRuntime;
   readonly activePromotions: Set<string>;
   readonly interventionValues: Map<string, number | boolean | string>;
 }
@@ -156,12 +169,18 @@ export function createRuntimeWorldState(
     });
   }
 
+  const inventoryEconomy = createInventoryEconomyState(
+    merchantWorld,
+    startMs,
+  );
   const inventory = new Map<string, number>();
   for (const mechanism of merchantWorld.manifest.inventoryMechanisms) {
     inventory.set(
       mechanism.productId,
-      Number(mechanism.initialAvailableUnits) -
-        Number(mechanism.initialReservedUnits),
+      legacyNetAvailableUnits(
+        inventoryEconomy,
+        mechanism.productId,
+      ),
     );
   }
 
@@ -171,6 +190,7 @@ export function createRuntimeWorldState(
     customers,
     inventory,
     initialInventory: new Map(inventory),
+    inventoryEconomy,
     activePromotions: new Set(),
     interventionValues: new Map(),
   };
