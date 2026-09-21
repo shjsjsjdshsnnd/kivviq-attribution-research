@@ -216,6 +216,10 @@ export interface SimulatorInterventionProvenance {
   readonly componentCount: number;
   readonly interventionIndexWithinComponent: number;
   readonly interventionCountWithinComponent: number;
+  readonly membershipSourceRef?: string;
+  readonly membershipBindingRef?: string;
+  readonly membershipBoundary?: "decision_time" | "translation_time" | "effective_time";
+  readonly membershipSnapshotTime?: UtcTimestamp;
 }
 
 export interface SimulatorIntervention {
