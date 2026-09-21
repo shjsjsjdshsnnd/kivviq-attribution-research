@@ -1,0 +1,53 @@
+{
+  "candidate3_v1_feedback_exposure_already_consumed": true,
+  "configuration_fingerprint": "794bb0ec493288a5bd8e8b8098a9688da46a097ab2accc095465dcee2b71ea94",
+  "contract_document_sha256": "6ac76aabc92400eb8241a4efb0c1d100a81420adb56a9d9979896500b1003055",
+  "contract_fingerprints": {
+    "ato_estimand": "bfad931307f76f55176cf624059362581490f1446b9500676ec1c9d43ba3f1d0",
+    "pretreatment_x": "1f74b7719b6087f500ad24bdd51c335ade9587bc8adfc9d82eebe2a528ce2f48",
+    "support_abstention": "9ba0dc7ab2e980ce08b0709a396d08163c75b91aa247a1dfea9349b95deec705",
+    "uncertainty": "c5299f349f2cd68d956ed1c7eab498b1f0e60c69731d248a33c766ed9ffeea2a"
+  },
+  "contract_source_sha256": "88dcec45513861af3e1018950550a389cfc7eb63be76d5b1a4e4c8fe7839513f",
+  "eligible_for_candidate3_v1_second_feedback_exposure": false,
+  "generator_fingerprint": "9c5c8bbfe3d37ee8dcb66bbfc99fb1d1c5c260c5ec4dc56e5fdfd75a67661ad4",
+  "private_parameters_committed_to_git": false,
+  "private_seed_exposed": false,
+  "public_family_manifest": [
+    [
+      "adequate_overlap_recovery",
+      "Adequate overlap and finite-sample information; Candidate 3 should estimate the overlap-population effect."
+    ],
+    [
+      "weak_full_support_overlap_recovery",
+      "Full-population support is weak but an overlap/equipoise population remains measurable; Candidate 3 should estimate ATO without making an ATE claim."
+    ],
+    [
+      "inadequate_overlap_abstention",
+      "Treatment assignment is sufficiently deterministic that Candidate 3 should abstain for inadequate overlap/support."
+    ],
+    [
+      "finite_sample_abstention",
+      "Structural overlap is adequate but realized effective information is intentionally small; Candidate 3 should abstain for finite-sample information."
+    ],
+    [
+      "measurement_provenance_abstention",
+      "Required treatment-time provenance is incomplete or contaminated by post-treatment information; Candidate 3 should abstain rather than use future information."
+    ],
+    [
+      "latent_confounding_non_goal",
+      "Overlap can be adequate while a hidden common cause remains; effect recovery is diagnostic only and Candidate 3 must not claim latent-confounding resolution."
+    ],
+    [
+      "overlap_boundary",
+      "Worlds near preregistered support thresholds test deterministic abstention/estimate boundary behavior."
+    ],
+    [
+      "heterogeneous_overlap_effect",
+      "Treatment effects vary across the observable support region; the target remains the explicitly overlap-weighted population effect."
+    ]
+  ],
+  "repair_scope": "benchmark-design repair only; Candidate 3 v1.0.0 estimator, contracts, hyperparameters and v1 results remain immutable",
+  "status": "SEALED_BENCHMARK_REPAIR_AFTER_V1_DESIGN_FAILURE",
+  "version": "candidate3-holdout-v2"
+}
