@@ -847,6 +847,8 @@ export function receiveInventory(
     timestampMs,
     sourceEventId,
     () => {
+      const hadPhysicalStock =
+        position.onHandUnits > 0;
       position.inboundUnits = Math.max(
         0,
         position.inboundUnits - quantity,
@@ -857,10 +859,12 @@ export function receiveInventory(
       position.realizedArrivalAt =
         new Date(timestampMs).toISOString();
       position.oldestInventoryReceivedAtMs =
-        Math.min(
-          position.oldestInventoryReceivedAtMs,
-          timestampMs,
-        );
+        hadPhysicalStock
+          ? Math.min(
+              position.oldestInventoryReceivedAtMs,
+              timestampMs,
+            )
+          : timestampMs;
     },
   );
 
@@ -893,9 +897,15 @@ export function recordReturnReceived(
     timestampMs,
     sourceEventId,
     () => {
+      const hadPhysicalStock =
+        position.onHandUnits > 0;
       position.onHandUnits += quantity;
       position.quarantinedReturnUnits += quantity;
       position.cumulativeReturnedUnits += quantity;
+      if (!hadPhysicalStock) {
+        position.oldestInventoryReceivedAtMs =
+          timestampMs;
+      }
     },
   );
   return quantity;
