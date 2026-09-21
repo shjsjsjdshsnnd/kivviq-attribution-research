@@ -34,8 +34,8 @@ def main() -> None:
     support = generate_holdout_case(
         _instance(
             "inadequate_overlap_abstention",
-            treatment_intercept=-5.5,
-            observed_selection_strength=5.8,
+            treatment_intercept=-6.0,
+            observed_selection_strength=0.5,
             n_units=900,
         )
     )
