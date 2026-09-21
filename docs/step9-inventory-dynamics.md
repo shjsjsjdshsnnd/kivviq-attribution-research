@@ -41,7 +41,7 @@ For each SKU/location, Step 9 maintains:
 
 Backorders are never represented as negative authoritative inventory.
 
-The old `runtime.inventory` map is retained only as a compatibility projection for the frozen inherited simulation path.
+The old `runtime.inventory` map is retained only as a compatibility projection for the frozen inherited simulation path. Under Step 9 it mirrors non-negative available-to-sell units; explicit backorder obligations never make this projection negative.
 
 ## Clock and event semantics
 
@@ -73,7 +73,7 @@ A reservation:
 3. expires after a declared timeout if checkout does not convert;
 4. becomes committed/sold if purchase succeeds.
 
-Abandonment does not magically release inventory immediately; the declared reservation timeout controls release.
+Abandonment does not magically release inventory immediately; the declared reservation timeout controls release. The simulator default is **20 minutes**, and research callers may override it through the Step 9 commerce policy.
 
 ## Demand truth
 
@@ -126,7 +126,7 @@ Semantics in Step 9:
 - the obligation can be fulfilled only by later available stock;
 - the obligation can be cancelled before fulfillment.
 
-This research step keeps order/revenue recognition at accepted checkout while physical fulfillment remains separately governed by inventory truth. A later step may add working-capital/cash-recognition timing without changing the inventory identity.
+Step 9 uses a declared accrual-style research policy: the order and merchandise revenue are booked at accepted checkout while physical fulfillment remains separately governed by inventory truth. If a backordered unit cancels before fulfillment within the simulation horizon, its merchandise revenue is reversed and its product-level COGS, merchant shipping and fulfillment costs are avoided. Payment fees, order-level variable costs and promotional costs already incurred at booking remain sunk. A later step may add working-capital/cash-recognition timing without changing the inventory identity.
 
 ## Replenishment
 
@@ -150,7 +150,7 @@ There is no generic manually subtracted delay cost.
 
 ## Returns
 
-When Step 9 is enabled, Step 7's product return probabilities feed the same physical return process used by inventory.
+When Step 9 is enabled, Step 7's product return probabilities feed the same physical return process used by inventory. Return sampling at checkout is limited to units that were physically fulfilled at checkout; an accepted but still-unfulfilled backorder cannot generate a fictional merchandise return.
 
 A realized return:
 
@@ -276,7 +276,7 @@ These are not exported from the Operator-safe root API.
 
 The current simulator uses one location, `primary`, but inventory positions have a location id and SKU/optional variant identity so multi-location/variant expansion does not require replacing the inventory state model.
 
-Collections do not own inventory. Collection health is aggregated from underlying SKU positions.
+Collections do not own inventory. Steps 1–8 did not establish authoritative merchant collection membership, so Step 9 aggregates underlying SKU **category** membership as an explicitly labeled synthetic proxy: `collectionSource = "step9_category_proxy"`. It does not pretend category membership is frozen merchant collection truth.
 
 ## Acceptance traps
 

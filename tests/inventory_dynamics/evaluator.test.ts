@@ -22,6 +22,28 @@ describe("Step 9 evaluator diagnostics", () => {
       expect(report.godModeOnly).toBe(true);
       expect(report.rows.length).toBeGreaterThan(0);
       expect(
+        report.collectionHealth.every(
+          (row) =>
+            row.collectionSource ===
+            "step9_category_proxy",
+        ),
+      ).toBe(true);
+      expect(
+        report.bookedRevenueBeforeBackorderCancellationsMinor,
+      ).toBeGreaterThanOrEqual(
+        report.representedRevenueMinor,
+      );
+      expect(
+        report.backorderCancellationEconomics
+          .recognitionPolicy,
+      ).toBe(
+        "book_at_checkout_reverse_cancelled_units_within_horizon",
+      );
+      expect(
+        report.backorderCancellationEconomics
+          .revenueReversalMinor,
+      ).toBeGreaterThanOrEqual(0);
+      expect(
         report.reconciliation.every(
           (row) => row.reconcilesExactly,
         ),

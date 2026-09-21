@@ -183,8 +183,12 @@ export function legacyNetAvailableUnits(
   state: InventoryEconomyRuntime,
   skuId: string,
 ): number {
-  const current = inventorySnapshot(state, skuId);
-  return current.availableToSellUnits - current.backorderedUnits;
+  // Step 9 backorders are explicit obligations, never negative stock.
+  // The compatibility projection therefore mirrors authoritative ATS only.
+  return inventorySnapshot(
+    state,
+    skuId,
+  ).availableToSellUnits;
 }
 
 function assertPosition(position: MutableInventoryPosition): void {

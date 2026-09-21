@@ -96,7 +96,11 @@ export interface StockoutObservedDemandTrapFixture {
 export interface InventoryAdvertisingScaleTrapFixture {
   readonly id: "inventory_advertising_scale";
   readonly evaluation: InventoryDynamicsEvaluationRequest;
-  /** Frozen Step 8 world used only to reproduce the historical platform signal. */
+  /**
+   * Pre-scarcity world used to reproduce the historical platform signal.
+   * It shares the same Step 9 Meta response mechanism as the current scarce
+   * world; only inventory state is changed before the counterfactual.
+   */
   readonly historicalSignalMerchantWorld: GeneratedMerchantWorld;
   readonly productId: string;
   readonly channel: "meta";

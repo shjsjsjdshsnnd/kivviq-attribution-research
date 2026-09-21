@@ -13,6 +13,7 @@ import type {
   SkuEconomicIntelligence,
 } from "../product_economics/types.js";
 import type {
+  BackorderCancellationEconomics,
   InventoryDynamicsEvaluationRequest,
   InventoryDynamicsReport,
   InventoryHealthRow,
@@ -520,6 +521,7 @@ function collectionHealth(
 
   return [...grouped.entries()]
     .map(([collectionId, items]) => ({
+      collectionSource: "step9_category_proxy" as const,
       collectionId,
       skuCount: items.length,
       availableUnits: items.reduce(
@@ -572,6 +574,114 @@ function collectionHealth(
     );
 }
 
+function backorderCancellationEconomics(
+  request: InventoryDynamicsEvaluationRequest,
+  ecommerce: ReturnType<
+    typeof evaluateEcommerceEconomics
+  >,
+): BackorderCancellationEconomics {
+  const inventoryTruth =
+    ecommerce.simulation.godMode.inventory;
+  if (!inventoryTruth) {
+    throw new RangeError(
+      "Step 9 cancellation economics requires inventory god mode",
+    );
+  }
+
+  const orderById = new Map(
+    ecommerce.orders.map(
+      (order) => [order.orderId, order] as const,
+    ),
+  );
+  const weightByCustomer = new Map(
+    request.latentPopulation.customers.map(
+      (customer) =>
+        [
+          customer.customerId,
+          customer.populationWeight,
+        ] as const,
+    ),
+  );
+
+  let cancelledUnits = 0;
+  let representedCancelledUnits = 0;
+  let revenueReversalMinor = 0;
+  let avoidedCogsMinor = 0;
+  let avoidedMerchantShippingCostMinor = 0;
+  let avoidedFulfillmentCostMinor = 0;
+
+  for (const obligation of inventoryTruth.backorders) {
+    const cancelled = Math.max(
+      0,
+      Math.floor(obligation.cancelledUnits),
+    );
+    if (cancelled <= 0) continue;
+
+    const order =
+      orderById.get(obligation.sourceEventId);
+    const line = order?.lines.find(
+      (candidate) =>
+        candidate.productId === obligation.skuId,
+    );
+    if (!order || !line || line.quantity <= 0) {
+      continue;
+    }
+
+    const quantity = Math.min(
+      cancelled,
+      line.quantity,
+    );
+    const weight =
+      weightByCustomer.get(order.customerId) ?? 1;
+    const representedFraction =
+      (quantity / line.quantity) * weight;
+
+    cancelledUnits += quantity;
+    representedCancelledUnits +=
+      quantity * weight;
+    revenueReversalMinor +=
+      line.netSalesBeforeReturnsMinor *
+      representedFraction;
+    avoidedCogsMinor +=
+      line.cogsMinor * representedFraction;
+    avoidedMerchantShippingCostMinor +=
+      line.shippingCostMinor *
+      representedFraction;
+    avoidedFulfillmentCostMinor +=
+      line.fulfillmentCostMinor *
+      representedFraction;
+  }
+
+  const revenueReversal =
+    Math.round(revenueReversalMinor);
+  const avoidedCogs =
+    Math.round(avoidedCogsMinor);
+  const avoidedShipping =
+    Math.round(
+      avoidedMerchantShippingCostMinor,
+    );
+  const avoidedFulfillment =
+    Math.round(avoidedFulfillmentCostMinor);
+
+  return {
+    recognitionPolicy:
+      "book_at_checkout_reverse_cancelled_units_within_horizon",
+    cancelledUnits,
+    representedCancelledUnits,
+    revenueReversalMinor: revenueReversal,
+    avoidedCogsMinor: avoidedCogs,
+    avoidedMerchantShippingCostMinor:
+      avoidedShipping,
+    avoidedFulfillmentCostMinor:
+      avoidedFulfillment,
+    contributionProfitImpactMinor:
+      -revenueReversal +
+      avoidedCogs +
+      avoidedShipping +
+      avoidedFulfillment,
+  };
+}
+
 export function evaluateInventoryDynamics(
   request: InventoryDynamicsEvaluationRequest,
 ): InventoryDynamicsReport {
@@ -613,6 +723,18 @@ export function evaluateInventoryDynamics(
       0,
     );
 
+  const cancellationEconomics =
+    backorderCancellationEconomics(
+      request,
+      ecommerce,
+    );
+  const representedRevenueMinor =
+    ecommerce.waterfall.netRevenueMinor -
+    cancellationEconomics.revenueReversalMinor;
+  const baseContributionProfitMinor =
+    ecommerce.waterfall.contributionProfitMinor +
+    cancellationEconomics.contributionProfitImpactMinor;
+
   return {
     version: INVENTORY_DYNAMICS_VERSION,
     merchantWorldId:
@@ -626,13 +748,15 @@ export function evaluateInventoryDynamics(
     ledger: inventoryTruth.ledger,
     demandTruth: inventoryTruth.demandTruth,
     reconciliation: inventoryTruth.reconciliation,
-    representedRevenueMinor:
+    backorderCancellationEconomics:
+      cancellationEconomics,
+    bookedRevenueBeforeBackorderCancellationsMinor:
       ecommerce.waterfall.netRevenueMinor,
-    baseContributionProfitMinor:
-      ecommerce.waterfall.contributionProfitMinor,
+    representedRevenueMinor,
+    baseContributionProfitMinor,
     inventoryCarryingCostMinor,
     contributionProfitAfterInventoryCarryingMinor:
-      ecommerce.waterfall.contributionProfitMinor -
+      baseContributionProfitMinor -
       inventoryCarryingCostMinor,
     obsolescenceEconomicLossMinor,
     godModeOnly: true,

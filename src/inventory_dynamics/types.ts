@@ -291,6 +291,11 @@ export interface InventoryHealthRow {
 }
 
 export interface CollectionInventoryHealth {
+  /**
+   * Steps 1-8 do not define merchant collection membership. Step 9 therefore
+   * aggregates category membership as an explicit synthetic collection proxy.
+   */
+  readonly collectionSource: "step9_category_proxy";
   readonly collectionId: string;
   readonly skuCount: number;
   readonly availableUnits: number;
@@ -314,6 +319,22 @@ export interface InventoryReturnDispositionSummary {
   readonly restockDelayDays: number;
 }
 
+export interface BackorderCancellationEconomics {
+  readonly recognitionPolicy:
+    "book_at_checkout_reverse_cancelled_units_within_horizon";
+  readonly cancelledUnits: number;
+  readonly representedCancelledUnits: number;
+  readonly revenueReversalMinor: number;
+  readonly avoidedCogsMinor: number;
+  readonly avoidedMerchantShippingCostMinor: number;
+  readonly avoidedFulfillmentCostMinor: number;
+  /**
+   * Payment fees, order-level variable costs and promotional costs already
+   * incurred at booking remain sunk in this Step 9 research policy.
+   */
+  readonly contributionProfitImpactMinor: number;
+}
+
 export interface InventoryDynamicsReport {
   readonly version: typeof INVENTORY_DYNAMICS_VERSION;
   readonly merchantWorldId: string;
@@ -325,6 +346,8 @@ export interface InventoryDynamicsReport {
   readonly ledger: readonly InventoryMovement[];
   readonly demandTruth: readonly InventoryDemandTruthRecord[];
   readonly reconciliation: readonly InventoryReconciliation[];
+  readonly backorderCancellationEconomics: BackorderCancellationEconomics;
+  readonly bookedRevenueBeforeBackorderCancellationsMinor: number;
   readonly representedRevenueMinor: number;
   readonly baseContributionProfitMinor: number;
   readonly inventoryCarryingCostMinor: number;

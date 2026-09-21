@@ -8,6 +8,7 @@ import {
   damageReturnedInventory,
   createInventoryEconomyState,
   finalizeInventoryGodMode,
+  legacyNetAvailableUnits,
   receiveInventory,
   recordReturnReceived,
   releaseReservation,
@@ -122,6 +123,9 @@ describe("Step 9 authoritative inventory state", () => {
     expect(
       state.positions.get(skuId)!.backorderedUnits,
     ).toBe(2);
+    expect(
+      legacyNetAvailableUnits(state, skuId),
+    ).toBe(0);
 
     receiveInventory(
       state,

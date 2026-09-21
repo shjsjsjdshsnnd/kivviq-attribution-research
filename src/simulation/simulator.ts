@@ -1774,10 +1774,31 @@ export function simulateWorld(
                   0.001,
                   0.6,
                 );
+                const backorderedAtCheckout = [
+                  ...runtime.inventoryEconomy.backorders.values(),
+                ]
+                  .filter(
+                    (obligation) =>
+                      obligation.sourceEventId ===
+                        purchase.orderId &&
+                      obligation.skuId ===
+                        line.productId,
+                  )
+                  .reduce(
+                    (sum, obligation) =>
+                      sum + obligation.quantity,
+                    0,
+                  );
+                const physicallyFulfilledAtCheckout =
+                  Math.max(
+                    0,
+                    line.quantity -
+                      backorderedAtCheckout,
+                  );
                 const returnKey =
                   `inventory-return:${purchase.orderId}:line:${lineIndex}`;
                 const returnedUnits = physicalReturnQuantity(
-                  line.quantity,
+                  physicallyFulfilledAtCheckout,
                   returnProbability,
                   randomness,
                   returnKey,
