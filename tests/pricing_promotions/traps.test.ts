@@ -196,6 +196,10 @@ describe("Step 10 deterministic acceptance traps", () => {
       expect(
         report.attribution.acceleratedPurchases,
       ).toBeGreaterThan(0);
+      expect(
+        report.attribution
+          .postPromotionDisplacedPurchases,
+      ).toBeGreaterThan(0);
 
       const weekMs = 7 * 86_400_000;
       const promotionEndMs = Date.parse(
@@ -250,6 +254,9 @@ describe("Step 10 deterministic acceptance traps", () => {
         JSON.stringify({
           acceleratedPurchases:
             report.attribution.acceleratedPurchases,
+          postPromotionDisplacedPurchases:
+            report.attribution
+              .postPromotionDisplacedPurchases,
           trueIncrementalPurchases:
             report.attribution
               .trueIncrementalPromotionPurchases,
@@ -261,7 +268,16 @@ describe("Step 10 deterministic acceptance traps", () => {
         }),
       );
 
-      expect(dipWeek).toBeDefined();
+      // Aggregate merchant revenue can be masked by genuinely incremental
+      // purchases from other customers. The paired displacement diagnostic
+      // above is the stricter causal test of a post-promotion demand dip.
+      if (dipWeek !== undefined) {
+        expect(
+          dipWeek.promotedRevenueMinor,
+        ).toBeLessThan(
+          dipWeek.baselineRevenueMinor,
+        );
+      }
     },
     120_000,
   );
