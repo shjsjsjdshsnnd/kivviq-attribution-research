@@ -1,0 +1,47 @@
+name: Identification Overlap Study
+
+on:
+  push:
+    branches: ["phase2/identification-overlap-study"]
+    paths:
+      - "src/attribution_lab/studies/identification_overlap/**"
+      - "examples/run_identification_overlap_study.py"
+      - "docs/studies/identification_overlap_protocol.md"
+      - "tests/studies/test_identification_overlap.py"
+      - "pyproject.toml"
+
+permissions:
+  contents: write
+
+jobs:
+  study:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+      - run: python -m pip install --upgrade pip
+      - run: python -m pip install -e ".[dev]"
+      - run: python scripts/check_repo_safety.py
+      - run: python scripts/check_phase1_frozen.py
+      - run: pytest tests/studies/test_identification_overlap.py
+      - run: ruff check .
+      - run: mypy
+      - name: Run full identification and overlap study
+        run: python examples/run_identification_overlap_study.py --output study_output/identification_overlap
+      - name: Persist aggregate study outputs
+        shell: bash
+        run: |
+          set -euo pipefail
+          python scripts/check_repo_safety.py
+          git add             study_output/identification_overlap/recoverability_map.json             study_output/identification_overlap/study_report.md
+          git diff --cached --check
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git commit -m "Record identification and overlap study results"
+          git push origin "HEAD:${GITHUB_REF_NAME}"
