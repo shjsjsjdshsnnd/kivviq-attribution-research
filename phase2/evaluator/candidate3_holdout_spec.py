@@ -110,8 +110,15 @@ def _instance_for_family(rng: random.Random, family: str) -> HiddenInstance:
         return HiddenInstance(
             **common,
             n_units=rng.randint(700, 1100),
-            treatment_intercept=_logit(rng.choice([rng.uniform(0.002, 0.012), rng.uniform(0.988, 0.998)])),
-            observed_selection_strength=rng.uniform(5.0, 7.0),
+            treatment_intercept=_logit(
+                rng.choice(
+                    [
+                        rng.uniform(0.003, 0.008),
+                        rng.uniform(0.992, 0.997),
+                    ]
+                )
+            ),
+            observed_selection_strength=rng.uniform(0.0, 0.10),
             baseline_outcome_logit=_logit(rng.uniform(0.04, 0.09)),
             treatment_effect_log_odds=rng.uniform(-0.40, 0.60),
         )
