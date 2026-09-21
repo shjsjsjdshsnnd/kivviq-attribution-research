@@ -12,6 +12,16 @@ import type {
   ReturnDisposition,
 } from "./types.js";
 
+interface PhysicalInventoryReturnTruth {
+  readonly returnId: string;
+  readonly orderId: string;
+  readonly customerId: string;
+  readonly skuId: string;
+  readonly returnedUnits: number;
+  readonly damagedUnits: number;
+  readonly receivedAt: string;
+}
+
 function clamp(value: number, min: number, max: number): number {
   return Math.min(max, Math.max(min, value));
 }
@@ -78,9 +88,127 @@ export function simulateReturnEconomics(
   periodEnd: string,
   simulationSeed: number,
   profilesInput?: ReadonlyMap<string, ProductEconomicProfile>,
+  physicalReturnTruth?: readonly PhysicalInventoryReturnTruth[],
 ): readonly ReturnEconomics[] {
   const profiles =
     profilesInput ?? productEconomicProfileMap(world);
+  if (physicalReturnTruth !== undefined) {
+    const purchaseByOrder = new Map(
+      purchases.map(
+        (purchase) => [purchase.orderId, purchase] as const,
+      ),
+    );
+
+    const returns = physicalReturnTruth
+      .map((truth): ReturnEconomics | undefined => {
+        const purchase =
+          purchaseByOrder.get(truth.orderId);
+        const line = purchase?.lines.find(
+          (candidate) =>
+            candidate.productId === truth.skuId,
+        );
+        const profile = profiles.get(truth.skuId);
+        if (
+          !purchase ||
+          !line ||
+          !profile ||
+          truth.returnedUnits <= 0
+        ) {
+          return undefined;
+        }
+
+        const quantity = Math.min(
+          line.quantity,
+          Math.max(
+            0,
+            Math.floor(truth.returnedUnits),
+          ),
+        );
+        if (quantity <= 0) return undefined;
+
+        const damagedUnits = Math.min(
+          quantity,
+          Math.max(
+            0,
+            Math.floor(truth.damagedUnits),
+          ),
+        );
+        const perUnitRevenue =
+          line.quantity > 0
+            ? Math.round(
+                line.revenueMinor / line.quantity,
+              )
+            : 0;
+        const refundedRevenueMinor =
+          perUnitRevenue * quantity;
+        const grossRecoveredCogs =
+          profile.cogsPerUnitMinor * quantity;
+        const nonRecoverableInventoryCostMinor =
+          profile.cogsPerUnitMinor * damagedUnits;
+        const recoveredCogsMinor = Math.max(
+          0,
+          grossRecoveredCogs -
+            nonRecoverableInventoryCostMinor,
+        );
+        const returnShippingCostMinor =
+          profile.returnShippingCostMinor * quantity;
+        const returnHandlingCostMinor =
+          profile.returnHandlingCostMinor * quantity;
+        const restockingCostMinor =
+          profile.restockingCostMinor * quantity;
+        const incrementalReturnCostsMinor =
+          returnShippingCostMinor +
+          returnHandlingCostMinor +
+          restockingCostMinor;
+
+        const lineEconomics: ReturnLineEconomics = {
+          productId: truth.skuId,
+          quantity,
+          refundedRevenueMinor,
+          recoveredCogsMinor,
+          returnShippingCostMinor,
+          returnHandlingCostMinor,
+          restockingCostMinor,
+          nonRecoverableInventoryCostMinor,
+        };
+
+        return {
+          returnId: truth.returnId,
+          orderId: truth.orderId,
+          customerId: truth.customerId,
+          disposition:
+            quantity < line.quantity
+              ? "partial_refund"
+              : "return_refund",
+          occurredAt: truth.receivedAt,
+          lines: [lineEconomics],
+          refundedRevenueMinor,
+          recoveredCogsMinor,
+          incrementalReturnCostsMinor,
+          contributionProfitImpactMinor:
+            -refundedRevenueMinor +
+            recoveredCogsMinor -
+            incrementalReturnCostsMinor,
+        };
+      })
+      .filter(
+        (
+          value,
+        ): value is ReturnEconomics =>
+          value !== undefined,
+      )
+      .sort(
+        (left, right) =>
+          Date.parse(left.occurredAt) -
+            Date.parse(right.occurredAt) ||
+          left.returnId.localeCompare(
+            right.returnId,
+          ),
+      );
+
+    return returns;
+  }
+
   const randomness = new SharedRandomness(
     simulationSeed,
     `step7-returns:${world.manifest.worldId}`,
