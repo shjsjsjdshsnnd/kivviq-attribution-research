@@ -140,6 +140,34 @@ A SKU with only 17 units remaining shows ~54.67× platform product ROAS, but the
 
 When Product A becomes unavailable, Product B gains ~5,507 weighted selections while Product B structural demand and latent preference both remain unchanged. The system can therefore distinguish substitution-driven observed growth from genuine increased desirability.
 
+### Step 9 — inventory dynamics
+
+Branch: `step9/inventory-dynamics`
+
+Draft PR: #22
+
+Step 9 makes inventory a **dynamic causal economic constraint** instead of a static product attribute.
+
+The authoritative system now separates physical on-hand, sellable, reserved, committed, quarantined returns, damaged, inbound and backordered units; runs reservations/reorders/supplier delays/returns/backorder cancellation through the Step 4 clock; and exactly reconciles every SKU movement.
+
+The hard distinction is:
+
+```
+latent demand
+!= fulfilled demand
+!= observed booked sales
+```
+
+Evaluator-only research adds named days-of-cover bases, low/excess stock, carrying cost, aging/obsolescence value, collection health, true simulated stockout probability, lost-sales/replenishment counterfactuals and inventory-constrained advertising response curves.
+
+Hard Step 9 traps cover:
+
+- stockout-driven observed-demand distortion;
+- attractive platform ROAS with negative inventory-constrained marginal contribution;
+- promotion-driven short-window revenue lift with lower full-horizon contribution.
+
+Step 9 remains opt-in through `enableInventoryDynamics`; the frozen Step 1–8 execution path is unchanged when the flag is off.
+
 ### Research isolation
 
 No private Kivviq, Maison Olive data, real merchant/customer data, production systems, credentials or private implementation details are used.
@@ -163,3 +191,4 @@ No private Kivviq, Maison Olive data, real merchant/customer data, production sy
 - `docs/step7-ecommerce-economics-acceptance.md`
 - `docs/step8-product-economics.md`
 - `docs/step8-product-economics-acceptance.md`
+- `docs/step9-inventory-dynamics.md`
