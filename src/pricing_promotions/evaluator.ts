@@ -255,6 +255,34 @@ export function hydratePricingPromotionScenario(
   }
   validatePriceStateIntervals(states);
 
+  const categoryTendencies =
+    request.scenario
+      .categoryElasticityMultiplierByCategory;
+  if (categoryTendencies !== undefined) {
+    if (
+      request.scenario.categoryElasticitySource !==
+      "step10_explicit_synthetic_tendency"
+    ) {
+      throw new RangeError(
+        "category elasticity tendencies require explicit Step 10 synthetic provenance",
+      );
+    }
+    for (const [categoryId, multiplier] of Object.entries(
+      categoryTendencies,
+    )) {
+      if (
+        categoryId.length === 0 ||
+        !Number.isFinite(multiplier) ||
+        multiplier <= 0 ||
+        multiplier > 5
+      ) {
+        throw new RangeError(
+          "category elasticity multipliers must be finite in (0, 5]",
+        );
+      }
+    }
+  }
+
   for (const promotion of request.scenario.promotions) {
     const start = Date.parse(promotion.start);
     const end = Date.parse(promotion.end);
