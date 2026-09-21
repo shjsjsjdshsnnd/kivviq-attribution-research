@@ -69,6 +69,11 @@ export interface PromotionDefinition {
   readonly end: string;
   readonly percentageOff?: number;
   readonly fixedAmountMinor?: number;
+  /**
+   * Fixed discounts are not assumed to equal percentage discounts. Order
+   * allocation is the default for sitewide/coupon/loyalty credits.
+   */
+  readonly fixedDiscountAllocation?: "order" | "per_eligible_unit";
   readonly minimumSpendMinor?: number;
   readonly freeShippingThresholdMinor?: number;
   readonly bundle?: BundleDefinition;
