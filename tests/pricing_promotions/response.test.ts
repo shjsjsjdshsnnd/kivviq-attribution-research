@@ -186,6 +186,72 @@ describe("Step 10 price response semantics", () => {
     );
   });
 
+  it("supports explicit category-level price-response tendencies without mutating product GroundTruth", () => {
+    const fixture =
+      createMarginDestructionTrapFixture();
+    const base =
+      hydratePricingPromotionScenario(
+        fixture.evaluation,
+      );
+    const customer =
+      fixture.evaluation.latentPopulation.customers[0]!;
+    const state = base.priceStates.find(
+      (candidate) =>
+        candidate.productId === fixture.productAId,
+    )!;
+    const categoryId =
+      fixture.evaluation.merchantWorld.manifest
+        .productDemandMechanisms.find(
+          (candidate) =>
+            candidate.productId ===
+            fixture.productAId,
+        )!.categoryId;
+    const timestamp = Date.parse(
+      fixture.evaluation.periodStart,
+    );
+    const price = Math.round(
+      state.regularPriceMinor * 0.9,
+    );
+
+    const neutral = priceResponseTruth(
+      fixture.evaluation.merchantWorld,
+      base,
+      customer,
+      fixture.productAId,
+      state.regularPriceMinor,
+      price,
+      timestamp,
+    );
+    const categoryAmplified = priceResponseTruth(
+      fixture.evaluation.merchantWorld,
+      {
+        ...base,
+        categoryElasticitySource:
+          "step10_explicit_synthetic_tendency",
+        categoryElasticityMultiplierByCategory: {
+          [categoryId]: 1.6,
+        },
+      },
+      customer,
+      fixture.productAId,
+      state.regularPriceMinor,
+      price,
+      timestamp,
+    );
+
+    expect(
+      neutral.categoryElasticityMultiplier,
+    ).toBe(1);
+    expect(
+      categoryAmplified.categoryElasticityMultiplier,
+    ).toBe(1.6);
+    expect(
+      categoryAmplified.combinedDemandMultiplier,
+    ).toBeGreaterThan(
+      neutral.combinedDemandMultiplier,
+    );
+  });
+
   it("applies sparse declared cross-price effects only to linked targets", () => {
     const world = generateMerchantWorldRecord({
       seed: 211001,
