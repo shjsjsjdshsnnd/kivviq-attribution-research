@@ -339,6 +339,50 @@ function rowFor(
   const inventoryBookValueMinor =
     position.onHandUnits *
     product.cogsPerUnitMinor;
+  const excessPressure =
+    baselineCover === null
+      ? 0
+      : Math.min(
+          1,
+          Math.max(
+            0,
+            (baselineCover - 60) / 180,
+          ),
+        );
+  const agePressure =
+    position.obsolescenceRatePerDay > 0
+      ? Math.min(
+          1,
+          oldestInventoryAgeDays / 180,
+        )
+      : 0;
+  const markdownRiskProbability = Math.min(
+    0.85,
+    Math.max(
+      0,
+      (excessStock ? 0.15 : 0) +
+        excessPressure * 0.45 +
+        agePressure * 0.2,
+    ),
+  );
+  const expectedMarkdownDepth = Math.min(
+    0.35,
+    Math.max(
+      0.05,
+      0.05 +
+        product.discountSensitivity * 0.08,
+    ),
+  );
+  const expectedMarkdownValueDragMinor =
+    Math.max(
+      0,
+      Math.round(
+        position.availableToSellUnits *
+          product.priceMinor *
+          expectedMarkdownDepth *
+          markdownRiskProbability,
+      ),
+    );
   const expectedRecoverableContributionMinor =
     Math.max(
       0,
@@ -348,7 +392,8 @@ function rowFor(
             0,
             product.expectedContributionPerUnitMinor,
           ) *
-          (1 - obsolescenceFraction),
+          (1 - obsolescenceFraction) -
+          expectedMarkdownValueDragMinor,
       ),
     );
 
@@ -403,6 +448,8 @@ function rowFor(
     oldestInventoryAgeDays,
     carryingCostMinor,
     obsolescenceEconomicLossMinor,
+    markdownRiskProbability,
+    expectedMarkdownValueDragMinor,
     inventoryBookValueMinor,
     expectedRecoverableContributionMinor,
   };
@@ -919,21 +966,24 @@ export function evaluateScarceInventoryOpportunityCost(
     );
   }
 
-  const accountingContribution =
+  const factualContribution =
     factual.baseContributionProfitMinor -
     factual.inventoryCarryingCostMinor;
   const counterfactualContribution =
     baseline.baseContributionProfitMinor -
     baseline.inventoryCarryingCostMinor;
+  const marginalAccountingContribution =
+    factualContribution -
+    counterfactualContribution;
 
   return {
     skuId,
     accountingContributionFromInterventionMinor:
-      accountingContribution,
+      marginalAccountingContribution,
     counterfactualContributionWithoutInterventionMinor:
       counterfactualContribution,
     counterfactualOpportunityCostMinor:
       counterfactualContribution -
-      accountingContribution,
+      factualContribution,
   };
 }
