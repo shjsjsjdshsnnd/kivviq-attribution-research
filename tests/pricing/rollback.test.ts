@@ -4,6 +4,7 @@ import {
 } from "../../src/pricing/rollback.js";
 import {
   rollbackTemporaryCollectionX,
+  rollbackTemporarySkuASetExplicit899,
   rollbackTemporarySkuAToPreActionPrice,
 } from "../../src/pricing/fixtures.js";
 
@@ -33,6 +34,44 @@ describe("Step 4 safe pricing rollback", () => {
         },
       },
     });
+  });
+
+  it("distinguishes RESTORE_PRE_ACTION_VALUE from SET_EXPLICIT_VALUE rollback semantics", () => {
+    const restored = evaluatePricingRollbackReadiness(
+      rollbackTemporarySkuAToPreActionPrice,
+      {
+        currentPrice: {
+          kind: "money",
+          amountMinor: 79_900,
+          currency: "CAD" as any,
+        },
+      },
+    );
+    const explicit = evaluatePricingRollbackReadiness(
+      rollbackTemporarySkuASetExplicit899,
+      {
+        currentPrice: {
+          kind: "money",
+          amountMinor: 79_900,
+          currency: "CAD" as any,
+        },
+      },
+    );
+
+    expect(restored.status).toBe("READY");
+    expect(explicit.status).toBe("READY");
+    expect(
+      rollbackTemporarySkuAToPreActionPrice.parameters.kind ===
+        "price_rollback"
+        ? rollbackTemporarySkuAToPreActionPrice.parameters.strategy.kind
+        : null,
+    ).toBe("RESTORE_PRE_ACTION_VALUE");
+    expect(
+      rollbackTemporarySkuASetExplicit899.parameters.kind ===
+        "price_rollback"
+        ? rollbackTemporarySkuASetExplicit899.parameters.strategy.kind
+        : null,
+    ).toBe("SET_EXPLICIT_VALUE");
   });
 
   it("returns CONFLICT instead of overwriting a later legitimate price Action", () => {
