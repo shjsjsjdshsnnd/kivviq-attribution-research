@@ -25,6 +25,7 @@ export interface InventoryAdvertisingScaleTrapFixture {
   readonly productId: string;
   readonly channel: "meta";
   readonly baselineSpendMinor: number;
+  readonly platformCampaignSpendMinor: number;
   readonly spendLevelsMinor: readonly number[];
 }
 
@@ -131,6 +132,8 @@ export function createInventoryAdvertisingScaleTrapFixture(): InventoryAdvertisi
     productId: source.productId,
     channel: "meta",
     baselineSpendMinor,
+    platformCampaignSpendMinor:
+      source.campaignSpendMinor,
     spendLevelsMinor: [
       baselineSpendMinor,
       baselineSpendMinor + 25_000,
