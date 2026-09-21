@@ -1100,18 +1100,34 @@ export function completePurchase(
   }
 
   if (commercePolicy?.enableInventoryDynamics === true) {
+    const purchasedUnitsByProduct = new Map<string, number>();
+    for (const line of lines) {
+      purchasedUnitsByProduct.set(
+        line.productId,
+        (purchasedUnitsByProduct.get(line.productId) ?? 0) +
+          line.quantity,
+      );
+    }
+
     for (const cartLine of customer.cart.lines) {
       const demandIds =
         cartLine.demandTruthIds ??
         (cartLine.demandTruthId === undefined
           ? []
           : [cartLine.demandTruthId]);
+      let purchasedUnits =
+        purchasedUnitsByProduct.get(
+          cartLine.productId,
+        ) ?? 0;
+
       for (const demandId of demandIds) {
+        const purchased = purchasedUnits > 0;
         markInventoryDemandOutcome(
           runtime.inventoryEconomy,
           demandId,
-          "purchased",
+          purchased ? "purchased" : "abandoned",
         );
+        if (purchased) purchasedUnits -= 1;
       }
     }
   }
