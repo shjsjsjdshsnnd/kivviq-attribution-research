@@ -148,7 +148,10 @@ export function createInventoryAdvertisingScaleTrapFixture(): InventoryAdvertisi
     evaluation: {
       merchantWorld: world,
       latentPopulation: source.latentPopulation,
-      simulationSeed: 199002,
+      // Reuse the deterministic seed regime already accepted by the frozen
+      // Step 8 low-inventory ROAS fixture. Step 9 changes inventory economics,
+      // not the historical platform-signal random world.
+      simulationSeed: 1,
       periodStart: "2026-01-01T00:00:00.000Z",
       periodEnd: "2026-04-01T00:00:00.000Z",
       enableInventoryDynamics: true,
