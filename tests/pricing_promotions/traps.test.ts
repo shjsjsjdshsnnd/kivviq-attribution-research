@@ -25,18 +25,20 @@ function row(
   return found;
 }
 
-function revenueAfter(
+function revenueBetween(
   report: ReturnType<
     typeof evaluatePricingPromotionEconomics
   >["factual"],
-  timestamp: string,
+  start: string,
+  end: string,
 ): number {
-  const cutoff = Date.parse(timestamp);
+  const startMs = Date.parse(start);
+  const endMs = Date.parse(end);
   return report.orders
-    .filter(
-      (order) =>
-        Date.parse(order.occurredAt) >= cutoff,
-    )
+    .filter((order) => {
+      const occurredAt = Date.parse(order.occurredAt);
+      return occurredAt >= startMs && occurredAt < endMs;
+    })
     .reduce(
       (sum, order) => sum + order.netRevenueMinor,
       0,
@@ -188,13 +190,19 @@ describe("Step 10 deterministic acceptance traps", () => {
         report.attribution.acceleratedPurchases,
       ).toBeGreaterThan(0);
 
-      const promotedPost = revenueAfter(
+      const dipWindowEnd = new Date(
+        Date.parse(fixture.promotionEnd) +
+          28 * 86_400_000,
+      ).toISOString();
+      const promotedPost = revenueBetween(
         report.factual,
         fixture.promotionEnd,
+        dipWindowEnd,
       );
-      const baselinePost = revenueAfter(
+      const baselinePost = revenueBetween(
         report.noPromotionCounterfactual,
         fixture.promotionEnd,
+        dipWindowEnd,
       );
 
       expect(promotedPost).toBeLessThan(
@@ -209,6 +217,8 @@ describe("Step 10 deterministic acceptance traps", () => {
           trueIncrementalPurchases:
             report.attribution
               .trueIncrementalPromotionPurchases,
+          postPromotionWindowEnd:
+            dipWindowEnd,
           postPromotionRevenueMinor:
             promotedPost,
           baselinePostPromotionRevenueMinor:
