@@ -96,8 +96,11 @@ const FORBIDDEN_ACTION_KEYS = new Set([
   "oracleBestAction",
   "expectedRevenue",
   "expectedProfit",
+  "expectedROAS",
+  "expectedConversions",
   "predictedLift",
   "confidence",
+  "confidenceScore",
   "rank",
   "priority",
   "recommendationScore",
@@ -209,14 +212,19 @@ function validateTarget(
 
   const required: Readonly<Record<string, readonly string[]>> = {
     advertising_channel: ["channelId"],
+    advertising_account: ["channelId", "accountId"],
     campaign: ["channelId", "campaignId"],
+    campaign_group: ["channelId", "campaignGroupId"],
     ad_set: ["channelId", "campaignId", "adSetId"],
+    ad_group: ["channelId", "campaignId", "adGroupId"],
     ad: ["channelId", "campaignId", "adId"],
+    creative: ["channelId", "creativeId"],
     audience: ["audienceId"],
     product: ["productId"],
     sku: ["skuId"],
     category: ["categoryId"],
     collection: ["collectionId"],
+    product_group: ["productGroupId"],
     customer_segment: ["segmentId"],
     funnel_stage: ["funnelId", "stageId"],
     page: ["pageId"],
@@ -366,6 +374,43 @@ function validateScope(
             itemPath + ".campaignIds",
             errors,
             true,
+          );
+        }
+        return;
+      case "paid_media_segment":
+        if (
+          !["prospecting", "retargeting", "brand", "non_brand", "custom"].includes(
+            String(dimension.classification),
+          )
+        ) {
+          add(
+            errors,
+            "INVALID_PAID_MEDIA_CLASSIFICATION",
+            itemPath + ".classification",
+            "unsupported paid-media business classification",
+          );
+        }
+        if (
+          !["merchant_defined", "kivviq_canonical"].includes(
+            String(dimension.taxonomySource),
+          )
+        ) {
+          add(
+            errors,
+            "INVALID_PAID_MEDIA_TAXONOMY_SOURCE",
+            itemPath + ".taxonomySource",
+            "classification source must be explicit",
+          );
+        }
+        if (
+          dimension.segmentId !== undefined &&
+          !nonEmpty(dimension.segmentId)
+        ) {
+          add(
+            errors,
+            "INVALID_PAID_MEDIA_SEGMENT_ID",
+            itemPath + ".segmentId",
+            "segmentId must be non-empty when supplied",
           );
         }
         return;
@@ -646,6 +691,130 @@ function validateOperation(
   );
 }
 
+
+function validatePaidMediaAllocationMember(
+  input: unknown,
+  path: string,
+  errors: ActionValidationIssue[],
+): void {
+  if (!record(input) || !nonEmpty(input.kind)) {
+    add(errors, "INVALID_ALLOCATION_MEMBER", path, "allocation member is required");
+    return;
+  }
+
+  if (input.kind === "strategy") {
+    if (!["prospecting", "retargeting"].includes(String(input.classification))) {
+      add(errors, "INVALID_ALLOCATION_MEMBER", path + ".classification", "invalid strategy");
+    }
+    if (input.segmentId !== undefined && !nonEmpty(input.segmentId)) {
+      add(errors, "INVALID_ALLOCATION_MEMBER", path + ".segmentId", "invalid segmentId");
+    }
+    return;
+  }
+
+  if (input.kind === "traffic_classification") {
+    if (!["brand", "non_brand"].includes(String(input.classification))) {
+      add(errors, "INVALID_ALLOCATION_MEMBER", path + ".classification", "invalid traffic classification");
+    }
+    if (input.segmentId !== undefined && !nonEmpty(input.segmentId)) {
+      add(errors, "INVALID_ALLOCATION_MEMBER", path + ".segmentId", "invalid segmentId");
+    }
+    return;
+  }
+
+  if (input.kind === "target") {
+    validateTarget(input.target, path + ".target", errors);
+    if (input.scope !== undefined) {
+      validateScope(input.scope, path + ".scope", errors);
+    }
+    return;
+  }
+
+  add(errors, "UNKNOWN_ALLOCATION_MEMBER", path + ".kind", "unsupported allocation member");
+}
+
+function validateAllocationShares(
+  input: unknown,
+  path: string,
+  errors: ActionValidationIssue[],
+): void {
+  if (!Array.isArray(input) || input.length < 2) {
+    add(errors, "INVALID_ALLOCATION_SHARES", path, "at least two shares are required");
+    return;
+  }
+
+  const ids = new Set<string>();
+  let total = 0;
+  input.forEach((share: unknown, index: number) => {
+    const sharePath = path + "[" + index + "]";
+    if (!record(share) || !nonEmpty(share.memberId)) {
+      add(errors, "INVALID_ALLOCATION_SHARE", sharePath, "memberId is required");
+      return;
+    }
+    if (ids.has(share.memberId)) {
+      add(errors, "DUPLICATE_ALLOCATION_MEMBER", sharePath + ".memberId", "duplicate memberId");
+    }
+    ids.add(share.memberId);
+
+    if (
+      !Number.isInteger(share.shareBasisPoints) ||
+      Number(share.shareBasisPoints) < 0 ||
+      Number(share.shareBasisPoints) > 10_000
+    ) {
+      add(errors, "INVALID_ALLOCATION_SHARE", sharePath + ".shareBasisPoints", "share must be integer basis points within [0,10000]");
+    } else {
+      total += Number(share.shareBasisPoints);
+    }
+    validatePaidMediaAllocationMember(share.member, sharePath + ".member", errors);
+  });
+
+  if (total !== 10_000) {
+    add(errors, "ALLOCATION_SHARES_MUST_SUM_100_PERCENT", path, "allocation shares must sum exactly to 10000 basis points");
+  }
+}
+
+function validatePaidMediaTransferAmount(
+  input: unknown,
+  path: string,
+  errors: ActionValidationIssue[],
+  decisionTime?: string,
+): void {
+  if (!record(input) || !nonEmpty(input.kind)) {
+    add(errors, "INVALID_TRANSFER_AMOUNT", path, "transfer amount kind is required");
+    return;
+  }
+
+  if (input.kind === "money_rate") {
+    validateScalar(input.value, path + ".value", errors);
+    if (!record(input.value) || input.value.kind !== "money_rate") {
+      add(errors, "TRANSFER_MONEY_RATE_REQUIRED", path + ".value", "money-rate transfer requires money_rate value");
+    }
+    return;
+  }
+
+  if (input.kind === "percentage_of_source") {
+    if (
+      !Number.isInteger(input.basisPoints) ||
+      Number(input.basisPoints) <= 0 ||
+      Number(input.basisPoints) > 10_000
+    ) {
+      add(errors, "INVALID_TRANSFER_PERCENTAGE", path + ".basisPoints", "source share must be within (0,10000]");
+    }
+    validateTarget(input.sourceTarget, path + ".sourceTarget", errors);
+    validateScope(input.sourceScope, path + ".sourceScope", errors);
+    validateReference(
+      input.sourceReference,
+      path + ".sourceReference",
+      errors,
+      decisionTime,
+      "money_rate",
+    );
+    return;
+  }
+
+  add(errors, "UNKNOWN_TRANSFER_AMOUNT_KIND", path + ".kind", "unsupported transfer amount kind");
+}
+
 function validateParameters(
   input: unknown,
   path: string,
@@ -666,6 +835,65 @@ function validateParameters(
         "money_rate",
         decisionTime,
       );
+      return;
+    case "spend_cap_adjustment":
+      validateOperation(
+        input.operation,
+        path + ".operation",
+        errors,
+        "money_rate",
+        decisionTime,
+      );
+      return;
+    case "paid_media_delivery":
+      if (!["PAUSE", "RESUME"].includes(String(input.operation))) {
+        add(errors, "INVALID_PAID_MEDIA_DELIVERY_OPERATION", path + ".operation", "must be PAUSE or RESUME");
+      }
+      return;
+    case "paid_media_allocation":
+      if (!["budget", "spend_cap"].includes(String(input.control))) {
+        add(errors, "INVALID_PAID_MEDIA_CONTROL", path + ".control", "must be budget or spend_cap");
+      }
+      if (input.operation !== "SET") {
+        add(errors, "INVALID_ALLOCATION_OPERATION", path + ".operation", "allocation action must use SET");
+      }
+      if (!record(input.denominator) || input.denominator.kind !== "target_scope") {
+        add(errors, "AMBIGUOUS_ALLOCATION_DENOMINATOR", path + ".denominator", "explicit target_scope denominator is required");
+      } else {
+        if (!["budget", "spend_cap"].includes(String(input.denominator.control))) {
+          add(errors, "INVALID_ALLOCATION_DENOMINATOR_CONTROL", path + ".denominator.control", "invalid control");
+        }
+        validateTarget(input.denominator.target, path + ".denominator.target", errors);
+        validateScope(input.denominator.scope, path + ".denominator.scope", errors);
+      }
+      validateAllocationShares(input.shares, path + ".shares", errors);
+      if (input.baselineShares !== undefined) {
+        validateAllocationShares(input.baselineShares, path + ".baselineShares", errors);
+      }
+      return;
+    case "paid_media_transfer_leg":
+      if (!nonEmpty(input.transferId)) {
+        add(errors, "INVALID_TRANSFER_ID", path + ".transferId", "transferId is required");
+      }
+      if (!["source", "destination"].includes(String(input.role))) {
+        add(errors, "INVALID_TRANSFER_ROLE", path + ".role", "must be source or destination");
+      }
+      if (!["budget", "spend_cap"].includes(String(input.control))) {
+        add(errors, "INVALID_PAID_MEDIA_CONTROL", path + ".control", "must be budget or spend_cap");
+      }
+      if (input.operation !== "DELTA") {
+        add(errors, "INVALID_TRANSFER_OPERATION", path + ".operation", "transfer legs must use DELTA");
+      }
+      if (!["increase", "decrease"].includes(String(input.direction))) {
+        add(errors, "INVALID_TRANSFER_DIRECTION", path + ".direction", "invalid direction");
+      }
+      if (input.role === "source" && input.direction !== "decrease") {
+        add(errors, "TRANSFER_SOURCE_MUST_DECREASE", path + ".direction", "source transfer leg must decrease");
+      }
+      if (input.role === "destination" && input.direction !== "increase") {
+        add(errors, "TRANSFER_DESTINATION_MUST_INCREASE", path + ".direction", "destination transfer leg must increase");
+      }
+      validatePaidMediaTransferAmount(input.amount, path + ".amount", errors, decisionTime);
       return;
     case "price_adjustment":
       validateOperation(
