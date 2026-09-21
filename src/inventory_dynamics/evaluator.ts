@@ -605,20 +605,16 @@ export function inventoryConstrainedResponseCurve(
       return {
         spendMinor,
         unconstrainedContributionProfitMinor:
-          unconstrained
-            .contributionProfitAfterInventoryCarryingMinor,
+          unconstrained.baseContributionProfitMinor,
         inventoryConstrainedContributionProfitMinor:
-          constrained
-            .contributionProfitAfterInventoryCarryingMinor,
+          constrained.baseContributionProfitMinor,
         unconstrainedRevenueMinor:
           unconstrained.representedRevenueMinor,
         inventoryConstrainedRevenueMinor:
           constrained.representedRevenueMinor,
         contributionConstraintCostMinor:
-          unconstrained
-            .contributionProfitAfterInventoryCarryingMinor -
-          constrained
-            .contributionProfitAfterInventoryCarryingMinor,
+          unconstrained.baseContributionProfitMinor -
+          constrained.baseContributionProfitMinor,
       };
     });
 
@@ -655,10 +651,8 @@ export function evaluateLostSalesCounterfactual(
       unconstrained.representedRevenueMinor -
       actual.representedRevenueMinor,
     lostContributionMinor:
-      unconstrained
-        .contributionProfitAfterInventoryCarryingMinor -
-      actual
-        .contributionProfitAfterInventoryCarryingMinor,
+      unconstrained.baseContributionProfitMinor -
+      actual.baseContributionProfitMinor,
     substitutedUnits: actual.rows.reduce(
       (sum, row) =>
         sum + row.substitutedDemandUnits,
