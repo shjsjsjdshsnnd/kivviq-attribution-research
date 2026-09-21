@@ -1,150 +1,319 @@
-# Step 2.1 — Action Ontology
+# Phase 2 — Action Space
+## Step 1 — Canonical Action Ontology
 
-## Purpose
-
-This step defines the canonical language of possible ecommerce interventions before any Opportunity Engine, Digital Twin, optimizer, experiment planner, agent or execution system is allowed to choose among them.
+## Governing principle
 
 **Every Kivviq module must speak the same action language.**
 
-The ontology is model-agnostic and contains no recommendation policy.
+This step defines contracts only. It does not choose, rank, recommend, optimize,
+execute or predict the outcome of actions.
 
-## Architectural boundary
+## Core boundary
 
 The canonical concepts are deliberately separate:
 
-- `Action` — what intervention is possible.
-- `ActionEvaluation` — predicted consequences if an action is performed.
-- `Decision` — whether an action is accepted, rejected or deferred.
+- Action — an immutable definition of a possible business intervention.
+- ActionLifecycleRecord — what later happened to that action.
+- ActionEvaluationReference — a reference to a future evaluation.
+- SimulatorIntervention — the causal manipulation used by a simulator.
+- EligibilityResult — eligible, ineligible or unknown.
 
-An `Action` carries intervention definition, constraints, costs, risk structure, reversibility and measurement requirements, but no conclusion that it is a good idea.
-
-The module is Operator-safe. It does not import GroundTruth, simulator internals, latent customers or Step 8 product-economics evaluator state.
+Action contains no lifecycle state, prediction, confidence, recommendation score,
+rank, success state or God-mode simulator truth.
 
 ## Canonical Action
 
-Every Action contains:
+The Step 1 canonical Action is an AtomicAction. Every action contains:
 
-- identity: action ID, namespaced type, category, revision and description;
-- typed target;
-- structured intervention parameters;
-- timing, scheduling requirements and dependencies;
-- duration semantics;
-- economic cost components with explicit uncertainty;
-- machine-evaluable constraints;
-- reversibility classification, mechanism, cost and delay;
-- seven mandatory core risk dimensions;
-- measurement horizon, metrics and baseline requirements;
-- lifecycle state;
-- optional compound-action and reversal links.
+- stable typed identity: ActionId, ActionType, ActionCategory and schemaVersion;
+- human-readable description, explicitly non-authoritative;
+- discriminated typed target;
+- scope, separate from target;
+- typed parameters;
+- explicit timing and implementation delay;
+- duration and termination semantics;
+- typed implementation-cost dimensions;
+- resource requirements;
+- hard and soft constraints;
+- preconditions;
+- reversibility;
+- risk dimensions;
+- uncertainty dimensions, separate from risk;
+- measurement horizon;
+- primary and guardrail outcome families;
+- descriptive intent;
+- provenance;
+- optional reference to the action being reversed.
 
-## Initial taxonomy
+The TypeScript contract is readonly and assertValidAction recursively freezes
+validated actions at runtime.
 
-The core category registry covers:
+## Identity and schema version
 
-1. paid media;
-2. pricing;
-3. promotions;
-4. merchandising;
-5. inventory;
-6. product;
-7. website/CRO;
-8. email/SMS/CRM;
-9. customer segmentation;
-10. retention;
-11. acquisition;
-12. shipping/fulfillment.
+Descriptions are never identifiers.
 
-The registry is extensible: new namespaced action types and additional constraint properties can be registered without changing the core `Action` shape.
+Core identity is represented by typed ActionId, ActionType, ActionCategoryId and
+ActionSchemaVersion values.
 
-## Targets and parameters
+The supported schema version is exactly 1.0.0. Unsupported versions are rejected.
+No old action is silently reinterpreted. Future migrations must be explicit.
 
-Initial typed targets cover channels, campaigns, ad sets, ads, audiences, products, SKUs, collections, landing pages, price targets, promotions, inventory, email campaigns, email flows, customer segments, merchandising placements and shipping policies.
+## Categories
 
-Parameters support SET, INCREASE_BY, DECREASE_BY, INCREASE_BY_PERCENT, DECREASE_BY_PERCENT, PAUSE, RESUME, APPLY, REMOVE, MOVE_TO and REVERSE.
+The top-level taxonomy includes advertising, pricing, promotion, shipping,
+merchandising, inventory, CRO, lifecycle, customer targeting, experimentation,
+investigation, operational and no-op.
 
-Percentages use integer basis points plus explicit semantics: relative change, absolute share, percentage points, discount rate or margin rate.
+Category names do not implement behavior.
 
-Money uses integer minor units plus an explicit three-letter currency. Periodic budget changes use a dedicated monetary-rate value with an explicit day, week or month denominator, so `CAD 1,000/week` cannot collapse into an unqualified `CAD 1,000`.
+## Target versus scope
 
-## Uncertainty
+ActionTarget identifies what the action operates on: channel, campaign, ad set,
+ad, audience, product, SKU, category, collection, customer segment, funnel stage,
+page, lifecycle program, shipping policy, inventory policy, experiment or
+merchant.
 
-Knowledge-bearing fields support:
+ActionScope is separate and can qualify an action by geography, device, customer
+population, product population, channel subset or time window.
 
-- known;
-- estimated;
-- bounded;
-- unknown;
-- not applicable.
+Example:
 
-Each carries provenance. Unknown implementation cost remains unknown rather than being silently turned into zero.
+- target: Google Ads campaign
+- scope: Canada / mobile / new customers
 
-## Step 8 economics references
+Targets do not accept arbitrary metadata.
 
-The constraint registry includes canonical references for:
+## Parameters and exact operation semantics
 
-- inventory available/sellable units and stock coverage;
-- gross margin;
-- expected contribution per unit;
-- structural demand and desirability;
-- substitutions and complements;
-- return rate;
-- shipping cost;
-- fulfillment cost.
+Authoritative action semantics never use Record<string, unknown>.
 
-These are property references only. The ontology does not import Step 8 God-mode types.
+Typed parameter families include budget, price, promotion, inventory, frequency,
+toggles, merchandising position, shipping, page changes, customer targeting,
+experiments, investigations, no-op and wait/observe.
 
-## Atomic and compound actions
+Numeric mutation is explicit:
 
-Atomic actions represent one intervention against one logical target.
+- SET
+- DELTA
+- MULTIPLY
 
-Compound actions contain validated atomic components. Each component keeps its own action ID plus the parent action ID and shared intent ID. A required coordination contract declares an execution policy (`all_or_nothing`, `ordered` or `best_effort`) and machine-readable dependency edges between component actions.
+Relative operations carry an explicit ReferenceValue: current value at decision
+time, named baseline snapshot, previous period or explicit baseline value.
 
-The budget-reallocation fixture is `all_or_nothing`; the Google increase depends on the paired Meta decrease. The contract additionally requires one decrease, one increase and the same explicit monetary amount, currency and period, preventing downstream systems from treating a transfer as two unrelated spend changes.
+Therefore "increase budget 20%" cannot exist as an unresolved natural-language
+instruction.
 
-## Lifecycle
+Money uses integer minor units with explicit currency. Budget rates carry an
+explicit day, week or month denominator. Percentages use integer basis points.
+Quantity and frequency values carry explicit units.
 
-Supported states:
+## Timing
 
-`PROPOSED`
-`ACCEPTED`
-`REJECTED`
-`SCHEDULED`
-`IMPLEMENTED`
-`ACTIVE`
-`COMPLETED`
-`REVERSED`
-`CANCELLED`
-`FAILED`
+Timing distinguishes decision time, requested start, effective start and
+implementation delay.
 
-Acceptance is explicitly not implementation.
+Known timestamps are UTC ISO-8601 values. Unknown timing is represented
+explicitly with a reason. Runtime validation rejects impossible chronology.
 
-## Fixtures
+The inventory fixture demonstrates a decision made now whose business effect
+begins 45 days later.
 
-The branch includes ten representative fixtures:
+## Duration and termination
 
-1. increase Google Shopping budget by 20%;
-2. pause an underperforming Meta campaign;
-3. reduce a product price by 10%;
-4. run a 15% collection promotion for four days;
-5. increase email frequency;
-6. move a product higher in a collection;
-7. move CAD 1,000/week from Meta prospecting to Google Shopping;
-8. stop advertising a high-ROAS SKU once inventory reaches 17 units or fewer;
-9. increase product advertising only while contribution, margin and inventory remain above floors;
-10. reverse a previously implemented Google Shopping budget increase.
+Supported duration semantics are instantaneous, temporary, persistent, recurring
+and until reversed.
 
-## Validation
+Termination is separate and may be fixed end, fixed duration, condition
+reference, manual reversal or persistent.
 
-Malformed actions fail explicitly. Validation covers target identity, action-type parameter requirements, duration/end-time coherence, currency, percentage semantics, registered constraints, reversibility, risk dimensions, measurement horizons, compound linkage, reallocation balance and ontology compatibility.
+No autonomous condition monitor is implemented here.
+
+## Cost and resources
+
+Action cost is not a single number. The contract separates direct financial cost,
+media spend, implementation cost, engineering cost, operational cost,
+promotional cost and inventory commitment.
+
+Opportunity cost is stored only as a reference for later evaluation and is never
+silently counted as realized accounting expense.
+
+Resource requirements are separate for advertising budget, inventory,
+engineering capacity, creative capacity, email audience, operational capacity
+and testing traffic.
+
+## Constraints and preconditions
+
+Constraints are typed and classified:
+
+- hard — a future eligibility evaluator cannot silently violate them;
+- soft — a preference a future optimizer may trade off.
+
+Preconditions describe what must already be true before an action is meaningful
+or executable.
+
+Runtime validation checks registered property references, operators, units,
+freshness fields and contradictory minimum/maximum bounds. This step does not
+build a Business State engine.
+
+## Eligibility
+
+The ontology defines ActionEligibilityEvaluator.isEligible(action,
+businessState) as a future-compatible interface.
+
+The result is tri-state: eligible, ineligible or unknown.
+
+ActionEligibilityBusinessState declares what an evaluator would need without
+implementing Business State. eligibilityInformationRequirements statically
+extracts hard-constraint and precondition requirements. Soft preferences do not
+become hard eligibility gates.
+
+## Reversibility and reversal
+
+Reversibility is explicit:
+
+- immediately reversible;
+- reversible with delay;
+- partially reversible;
+- effectively irreversible.
+
+A reversible action identifies how to restore the previous target/parameter
+value or references an explicit reversal action ID. Irreversible actions state
+why no reversal exists.
+
+A reversal may reference the original action through reversalOfActionId.
+
+## Lifecycle is not Action
+
+The semantic definition does not mutate from proposed to accepted, started or
+completed.
+
+Those states are represented only by the separate ActionLifecycleRecord
+contract. The original Action remains immutable for later Decision, Execution
+and Outcome Measurement systems.
+
+## Risk versus uncertainty
+
+Risk describes possible downside categories. Action stores structured risk
+dimensions and definitions, not a scalar risk score.
+
+Dimensions include financial downside, inventory exposure, customer experience,
+implementation, irreversibility, measurement uncertainty, operational
+complexity, time to recovery and brand/reputation exposure.
+
+Uncertainty is distinct and covers information gaps about causal effect,
+measurement, demand, implementation or timing.
+
+Action contains no predicted probability, impact estimate or confidence score.
+
+## Measurement horizon and outcomes
+
+Each action declares earliest meaningful evaluation time, primary measurement
+horizon, optional long-term follow-up, primary outcomes and guardrail outcomes.
+
+Outcome families include incremental contribution profit, revenue, orders, new
+customers, repeat customers, conversion, inventory position, customer value,
+retention and return rate.
+
+There is no universal 30-day window.
+
+## Intent and provenance
+
+Intent explains why the action is being considered. It is descriptive and does
+not change execution semantics.
+
+Provenance can identify human, rule-based, diagnosis, opportunity, optimizer,
+experiment-selector or imported/manual origin. Provenance never changes what the
+action means.
+
+## NO_OP, WAIT, INVESTIGATE and RUN_EXPERIMENT
+
+NO_OP / DO_NOTHING is a first-class measurable action, not null.
+
+WAIT / OBSERVE is distinct: intervention is deferred because additional natural
+evidence is expected.
+
+INVESTIGATE changes the information state rather than directly changing business
+economics.
+
+RUN_EXPERIMENT can reference hypothesis, intervention action, control action,
+target population, duration and primary outcome. No Experiment Selector is built.
+
+## Atomic and compound readiness
+
+Step 1 keeps canonical Action atomic.
+
+CompoundAction is a readiness-only grouping contract containing stable component
+action IDs. It intentionally does not define execution policy, dependency
+scheduling, transactionality or optimization.
+
+This is enough to represent a future paired reallocation such as Meta
+-CAD 2,000/week plus Google +CAD 2,000/week without redesigning atomic Action.
+
+## Action to simulator Intervention boundary
+
+Business Action is not simulator Intervention.
+
+translateActionToInterventions(action, referenceState) uses registered typed
+translators. Translation is deterministic and reads structured fields only.
+Natural-language description is never interpreted.
+
+The Step 1 proof includes typed translators for advertising budget adjustment,
+price adjustment and campaign pause.
+
+NO_OP, WAIT and INVESTIGATE produce no causal business manipulation in the
+current simulator boundary.
+
+An unsupported action type fails explicitly until a typed translator is
+registered.
+
+## Information boundary
+
+Action-space modules are included in the repository dependency-cruiser
+Operator-safe boundary. They may not import GroundTruth, generation, latent
+customer population, simulator internals, economic God-mode layers,
+evaluation/oracle modules or product-economics internals.
+
+Runtime validation additionally rejects hidden fields such as
+trueIncrementalROAS, trueResponseCurve, futureDemand, futureStockout,
+counterfactualRevenue and oracleBestAction.
+
+It also rejects predictions, confidence, ranking, recommendation score and
+lifecycle/execution state embedded in Action.
+
+## Semantic equality and fingerprint
+
+Semantic equality intentionally ignores actionId, human-readable description,
+intent, provenance and creation timestamp, risk/uncertainty commentary and
+measurement plan.
+
+It includes authoritative intervention semantics: type/category, target, scope,
+parameters, timing, duration, termination, cost/resource commitments,
+constraints, preconditions, reversibility and reversal reference.
+
+Constraint, scope and resource ordering is canonicalized.
+
+actionFingerprint hashes the canonical semantic projection using deterministic
+FNV-1a 64-bit. It is a reproducibility/deduplication fingerprint, not a security
+primitive.
+
+## Serialization and validation
+
+Canonical serialization recursively sorts object keys before JSON encoding.
+
+Round trip from Action to serialized form and back preserves semantics.
+
+Runtime validation rejects malformed IDs, unsupported schema versions, unknown
+top-level fields, unknown targets, unit mismatches, invalid currency,
+NaN/Infinity, invalid timestamps, negative/inconsistent duration, impossible
+implementation chronology, malformed constraints/preconditions, contradictory
+bounds, reversibility contradictions, malformed outcome horizons and
+God-mode/prediction/ranking/lifecycle leakage.
 
 No silent coercion is performed.
 
-## Versioning
-
-Current ontology: `1.0.0`.
-
-Readers accept compatible `1.x.y` documents and reject an unknown future major version. `Action.version` separately tracks revisions to a specific action definition.
-
 ## Non-scope
 
-This step does not generate recommendations, rank actions, predict outcomes, optimize budgets, choose decisions, execute changes or learn a policy.
+This step does not build an optimizer, recommendation engine, opportunity engine,
+action ranking system, Digital Twin, decision policy, LLM recommendation layer,
+production execution system, Business State engine, Experiment Selector or
+autonomous condition monitor.
