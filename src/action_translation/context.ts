@@ -38,6 +38,10 @@ function record(value: unknown): value is any {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
+function nonEmpty(value: unknown): value is string {
+  return typeof value === "string" && value.trim().length > 0;
+}
+
 function canonicalize(value: unknown): unknown {
   if (Array.isArray(value)) return value.map(canonicalize);
   if (typeof value !== "object" || value === null) return value;
@@ -412,22 +416,23 @@ export function resolvePricingMembership(
     };
   }
 
+  const membership = action.parameters.membership;
   const targetKey = stableKey(action.target);
   const matches = (context.pricingMembershipBindings ?? []).filter(
     (binding) =>
       stableKey(binding.actionTarget) === targetKey &&
-      binding.evaluateAt === action.parameters.membership?.evaluateAt &&
-      (!action.parameters.membership?.bindingRef ||
-        binding.bindingRef === action.parameters.membership.bindingRef),
+      binding.evaluateAt === membership.evaluateAt &&
+      (!membership.bindingRef ||
+        binding.bindingRef === membership.bindingRef),
   );
 
   const ref =
     "pricing-membership:" +
     action.actionId +
     ":" +
-    action.parameters.membership.evaluateAt +
+    membership.evaluateAt +
     ":" +
-    (action.parameters.membership.bindingRef ?? targetKey);
+    (membership.bindingRef ?? targetKey);
 
   if (matches.length === 0) {
     return { status: "missing", ref };
