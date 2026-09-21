@@ -5,3 +5,5 @@ export * from "./core/units.js";
 export * from "./observation/types.js";
 export * from "./observation/operator-boundary.js";
 export * from "./action_ontology/index.js";
+export * from "./simulator_intervention/index.js";
+export * from "./action_translation/index.js";
