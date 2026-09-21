@@ -363,16 +363,21 @@ export function createPullForwardTrapFixture(): PullForwardTrapFixture {
   const promotionEnd =
     "2026-01-22T00:00:00.000Z";
   const end = "2026-04-15T00:00:00.000Z";
-  const value = scenario(
+  const baseScenario = scenario(
     world,
     start,
     promotionEnd,
     0.18,
   );
-  value.promotions[0] = {
-    ...value.promotions[0]!,
-    awarenessProbability: 1,
-    stockpilingEligible: true,
+  const value: PricingPromotionScenario = {
+    ...baseScenario,
+    promotions: baseScenario.promotions.map(
+      (promotion) => ({
+        ...promotion,
+        awarenessProbability: 1,
+        stockpilingEligible: true,
+      }),
+    ),
   };
 
   return {
