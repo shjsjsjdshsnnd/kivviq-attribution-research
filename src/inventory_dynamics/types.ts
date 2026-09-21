@@ -61,6 +61,11 @@ export interface InventorySnapshot {
   readonly reservedUnits: number;
   readonly committedUnits: number;
   readonly damagedUnits: number;
+  /**
+   * Physical returned units awaiting inspection/restock. They are on-hand
+   * but unavailable to sell and distinct from damaged stock.
+   */
+  readonly quarantinedReturnUnits: number;
   readonly inboundUnits: number;
   readonly backorderedUnits: number;
   readonly safetyStockUnits: number;
@@ -121,6 +126,17 @@ export interface InventoryReorder {
   receivedUnits: number;
 }
 
+export interface InventoryReturnTruthRecord {
+  readonly returnId: string;
+  readonly orderId: string;
+  readonly customerId: string;
+  readonly skuId: string;
+  readonly returnedUnits: number;
+  readonly damagedUnits: number;
+  readonly receivedAt: string;
+  readonly restockAt?: string;
+}
+
 export interface InventoryDemandTruthRecord {
   readonly demandId: string;
   readonly customerId: string;
@@ -146,6 +162,7 @@ export interface MutableInventoryPosition {
   reservedUnits: number;
   committedUnits: number;
   damagedUnits: number;
+  quarantinedReturnUnits: number;
   inboundUnits: number;
   backorderedUnits: number;
 
@@ -175,7 +192,7 @@ export interface MutableInventoryPosition {
   readonly obsolescenceRatePerDay: number;
 
   cumulativeReceivedUnits: number;
-  cumulativeSellableReturnsUnits: number;
+  cumulativeReturnedUnits: number;
   cumulativeSoldUnits: number;
   cumulativeWriteOffUnits: number;
   cumulativeExplicitAdjustmentUnits: number;
@@ -190,6 +207,7 @@ export interface InventoryEconomyRuntime {
   readonly reorders: Map<string, InventoryReorder>;
   readonly ledger: InventoryMovement[];
   readonly demandTruth: InventoryDemandTruthRecord[];
+  readonly returnTruth: InventoryReturnTruthRecord[];
   nextMovementOrdinal: number;
 }
 
@@ -197,7 +215,7 @@ export interface InventoryReconciliation {
   readonly skuId: string;
   readonly openingOnHandUnits: number;
   readonly receivedUnits: number;
-  readonly sellableReturnUnits: number;
+  readonly returnedUnits: number;
   readonly explicitAdjustmentUnits: number;
   readonly soldUnits: number;
   readonly writtenOffUnits: number;
@@ -211,6 +229,7 @@ export interface InventoryGodModeTruth {
   readonly positions: readonly InventorySnapshot[];
   readonly ledger: readonly InventoryMovement[];
   readonly demandTruth: readonly InventoryDemandTruthRecord[];
+  readonly returnTruth: readonly InventoryReturnTruthRecord[];
   readonly reservations: readonly InventoryReservation[];
   readonly backorders: readonly BackorderObligation[];
   readonly reorders: readonly InventoryReorder[];
@@ -238,6 +257,7 @@ export interface InventoryHealthRow {
   readonly reservedUnits: number;
   readonly committedUnits: number;
   readonly damagedUnits: number;
+  readonly quarantinedReturnUnits: number;
   readonly inboundUnits: number;
   readonly backorderedUnits: number;
   readonly safetyStockUnits: number;
