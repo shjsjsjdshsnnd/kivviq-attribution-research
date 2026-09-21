@@ -28,6 +28,8 @@ jobs:
         run: npm run architecture
       - name: Typecheck
         run: npm run typecheck
+      - name: Step 10 tests
+        run: npm run test:step10 -- --maxWorkers=1
       - name: Test
         # Step 9+10 counterfactual suites are CPU-heavy. Keep the inherited
         # suite intact and serialize workers to avoid hosted-runner RPC stalls.
