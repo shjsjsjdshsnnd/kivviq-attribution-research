@@ -1052,6 +1052,85 @@ export function promotionReturnMultiplierForProduct(
   );
 }
 
+export function promotionPullForwardOpportunityTimestamp(
+  world: GeneratedMerchantWorld,
+  scenario: PricingPromotionScenario | undefined,
+  customer: PricingCustomerContext,
+  baselineNeedMs: number,
+): number | undefined {
+  if (!scenario) return undefined;
+
+  let latestCandidate: number | undefined;
+
+  for (const promotion of scenario.promotions) {
+    // Before a product has been selected, only a sitewide offer can
+    // legitimately pull a general purchase need forward. Scoped offers are
+    // handled later through product choice and offer resolution.
+    if (promotion.scope.kind !== "sitewide") continue;
+    if (!targetingEligible(promotion, customer)) continue;
+    if (!customerAwareOfPromotion(promotion, customer)) continue;
+
+    const startMs = Date.parse(promotion.start);
+    const endMs = Date.parse(promotion.end);
+    if (
+      !Number.isFinite(startMs) ||
+      !Number.isFinite(endMs) ||
+      endMs <= startMs ||
+      baselineNeedMs <= endMs
+    ) {
+      continue;
+    }
+
+    let depth = promotion.percentageOff ?? 0;
+    if (
+      depth <= 0 &&
+      promotion.fixedAmountMinor !== undefined
+    ) {
+      depth =
+        promotion.fixedAmountMinor /
+        Math.max(1, world.summary.expectedAovMinor);
+    }
+    depth = clamp(depth, 0, 0.8);
+    if (depth <= 0) continue;
+
+    const pullForwardMs =
+      promotionPullForwardDays(customer.source, depth) *
+      86_400_000;
+    if (
+      pullForwardMs <= 0 ||
+      baselineNeedMs - endMs > pullForwardMs
+    ) {
+      continue;
+    }
+
+    // The synthetic customer acts near the end of the sale rather than
+    // exactly at a boundary. The timing is deterministic and customer/offer
+    // specific, so factual and no-promotion replays retain shared randomness.
+    const hoursBeforeEnd =
+      0.5 +
+      stableProbability(
+        "step10-pull-forward|" +
+          customer.source.customerId +
+          "|" +
+          promotion.promotionId,
+      ) *
+        5.5;
+    const candidate = Math.max(
+      startMs,
+      endMs - hoursBeforeEnd * 3_600_000,
+    );
+    if (
+      candidate < baselineNeedMs &&
+      (latestCandidate === undefined ||
+        candidate > latestCandidate)
+    ) {
+      latestCandidate = candidate;
+    }
+  }
+
+  return latestCandidate;
+}
+
 export function promotionTimingDeferralMultiplier(
   world: GeneratedMerchantWorld,
   scenario: PricingPromotionScenario | undefined,
