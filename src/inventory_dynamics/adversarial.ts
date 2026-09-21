@@ -76,7 +76,10 @@ function makeSupplyScarce(
       options.leadTimeDays * 86_400;
     inventory.allowBackorders = false;
     if (inventory.stockoutBehavior === "backorder") {
-      inventory.stockoutBehavior = "substitute";
+      // Do not manufacture a substitute relationship merely to disable
+      // backorders. A SKU without declared substitutes must fall back to
+      // explicit lost demand so the frozen GroundTruth schema remains valid.
+      inventory.stockoutBehavior = "lost_demand";
     }
     delete inventory.replenishmentEverySeconds;
   }
