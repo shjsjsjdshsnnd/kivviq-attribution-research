@@ -19,14 +19,18 @@ import {
   reserveCheckoutInventory,
 } from "./commerce.js";
 import {
+  damageReturnedInventory,
   dispatchReorder,
   finalizeInventoryGodMode,
   legacyNetAvailableUnits,
   markReorderDelayed,
   placeReorder,
   receiveInventory,
+  recordInventoryReturnTruth,
+  recordReturnReceived,
   releaseReservation,
   reorderQuantity,
+  restockReturnedInventory,
   setAvailableInventoryAdjustment,
   shouldReorder,
 } from "../inventory_dynamics/state.js";
@@ -137,6 +141,22 @@ interface InventoryReorderCheckPayload {
 interface SupplierShipmentPayload {
   readonly reorderId: string;
   readonly productId: string;
+}
+
+interface InventoryReturnReceivedPayload {
+  readonly returnId: string;
+  readonly orderId: string;
+  readonly customerId: string;
+  readonly productId: string;
+  readonly returnedUnits: number;
+  readonly damagedUnits: number;
+  readonly restockAtMs: number;
+}
+
+interface InventoryReturnRestockedPayload {
+  readonly returnId: string;
+  readonly productId: string;
+  readonly sellableUnits: number;
 }
 
 const DEFAULT_MAX_EVENTS = 500_000;
@@ -536,6 +556,46 @@ function applyInventoryOverride(
       );
     }
   }
+}
+
+function physicalReturnQuantity(
+  quantity: number,
+  probability: number,
+  randomness: SharedRandomness,
+  key: string,
+): number {
+  let returned = 0;
+  for (let unit = 0; unit < quantity; unit += 1) {
+    if (
+      randomness.bool(
+        `${key}:unit:${unit}`,
+        clamp(probability, 0, 0.75),
+      )
+    ) {
+      returned += 1;
+    }
+  }
+  return returned;
+}
+
+function damagedReturnQuantity(
+  quantity: number,
+  probability: number,
+  randomness: SharedRandomness,
+  key: string,
+): number {
+  let damaged = 0;
+  for (let unit = 0; unit < quantity; unit += 1) {
+    if (
+      randomness.bool(
+        `${key}:damage:${unit}`,
+        clamp(probability, 0, 1),
+      )
+    ) {
+      damaged += 1;
+    }
+  }
+  return damaged;
 }
 
 function realizedSupplierLeadMs(
