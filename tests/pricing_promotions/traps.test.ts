@@ -193,32 +193,6 @@ describe("Step 10 deterministic acceptance traps", () => {
           fixture.evaluation,
         );
 
-      console.info(
-        "STEP10_PULL_FORWARD_DIAGNOSTIC",
-        JSON.stringify({
-          attribution: report.attribution,
-          factualOrders: report.factual.orders.map(
-            (order) => ({
-              customerId: order.customerId,
-              occurredAt: order.occurredAt,
-              products: order.lines.map(
-                (line) => line.productId,
-              ),
-            }),
-          ),
-          baselineOrders:
-            report.noPromotionCounterfactual.orders.map(
-              (order) => ({
-                customerId: order.customerId,
-                occurredAt: order.occurredAt,
-                products: order.lines.map(
-                  (line) => line.productId,
-                ),
-              }),
-            ),
-        }),
-      );
-
       expect(
         report.attribution.acceleratedPurchases,
       ).toBeGreaterThan(0);
