@@ -17,7 +17,8 @@
     "test:step6": "vitest run tests/cross_channel --reporter=verbose",
     "test:step7": "vitest run tests/ecommerce_economics --reporter=verbose",
     "test:step8": "vitest run tests/product_economics --reporter=verbose",
-    "test:action-ontology": "vitest run tests/action_ontology --reporter=verbose"
+    "test:action-ontology": "vitest run tests/action_ontology --reporter=verbose",
+    "test:action-translation": "vitest run tests/action_translation tests/simulator_intervention --reporter=verbose"
   },
   "exports": {
     ".": "./dist/index.js",
@@ -30,7 +31,9 @@
     "./cross-channel": "./dist/cross_channel/index.js",
     "./ecommerce-economics": "./dist/ecommerce_economics/index.js",
     "./product-economics": "./dist/product_economics/index.js",
-    "./action-ontology": "./dist/action_ontology/index.js"
+    "./action-ontology": "./dist/action_ontology/index.js",
+    "./simulator-intervention": "./dist/simulator_intervention/index.js",
+    "./action-translation": "./dist/action_translation/index.js"
   },
   "devDependencies": {
     "typescript": "^5.9.2",
