@@ -617,12 +617,27 @@ function promotionAttribution(
 
     const candidates =
       baselineByCustomer.get(order.customerId) ?? [];
-    const sameProduct = candidates
-      .filter((candidate) =>
-        [...treatmentProducts].some((productId) =>
-          candidate.productIds.has(productId),
-        ),
+    const productMatched = candidates.filter((candidate) =>
+      [...treatmentProducts].some((productId) =>
+        candidate.productIds.has(productId),
+      ),
+    );
+    // Pull-forward is directional: a promoted purchase is accelerated only
+    // when the same customer buys an overlapping product later in the
+    // no-promotion replay. Choosing the nearest baseline order by absolute
+    // time can incorrectly pair a treated purchase to an earlier baseline
+    // order and erase real acceleration.
+    const futureSameProduct = productMatched
+      .filter(
+        (candidate) =>
+          candidate.occurredAtMs - orderMs > 12 * HOUR_MS,
       )
+      .sort(
+        (left, right) =>
+          left.occurredAtMs - right.occurredAtMs,
+      )[0];
+    const sameProduct = productMatched
+      .slice()
       .sort(
         (left, right) =>
           Math.abs(left.occurredAtMs - orderMs) -
@@ -646,10 +661,7 @@ function promotionAttribution(
       switchedProductPurchases += weight;
       discountCostOnSwitchedPurchasesMinor +=
         weightedDiscount;
-    } else if (
-      sameProduct.occurredAtMs - orderMs >
-      12 * HOUR_MS
-    ) {
+    } else if (futureSameProduct !== undefined) {
       acceleratedPurchases += weight;
       discountCostOnAcceleratedPurchasesMinor +=
         weightedDiscount;
