@@ -2,6 +2,7 @@ import type { Intervention } from "../ground_truth/interventions.js";
 import type { GeneratedMerchantWorld, MarketingChannel } from "../generation/config.js";
 import type { LatentCustomerPopulation } from "../customer_population/types.js";
 import type { RuntimeLifecycleState } from "./state.js";
+import type { InventoryGodModeTruth } from "../inventory_dynamics/types.js";
 
 export type ObservableJourneyEventKind =
   | "impression"
@@ -165,6 +166,11 @@ export interface GodModeSimulationTruth {
   readonly interactionEffects: readonly InteractionCausalTruthRecord[];
   readonly purchaseTruth: readonly PurchaseCausalTruth[];
   readonly customerFinalStates: readonly CustomerFinalStateSummary[];
+  /**
+   * Step 9 evaluator-only inventory truth. It is deliberately nested under
+   * godMode and is never exported by the Operator-safe root API.
+   */
+  readonly inventory: InventoryGodModeTruth;
 }
 
 export interface PlatformStyleChannelMetric {
@@ -211,6 +217,12 @@ export interface SimulationCommercePolicy {
   readonly enableProductRelationships?: boolean;
   readonly enableEnhancedBasketEconomics?: boolean;
   readonly executeInventoryLifecycle?: boolean;
+  /**
+   * Opt-in Step 9 semantics. Default false preserves frozen Step 1-8
+   * deterministic behavior and acceptance outputs.
+   */
+  readonly enableInventoryDynamics?: boolean;
+  readonly inventoryReservationTimeoutMinutes?: number;
 }
 
 export interface SimulateWorldRequest {
