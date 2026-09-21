@@ -31,6 +31,13 @@ export interface PromotionAttributionDiagnostics {
   readonly promotionRedemptionPurchases: number;
   readonly trueIncrementalPromotionPurchases: number;
   readonly acceleratedPurchases: number;
+  /**
+   * Accelerated treatment purchases whose paired no-promotion purchase occurs
+   * after the active promotion and has no contemporaneous same-product
+   * treatment purchase. This is evaluator-only evidence of displaced future
+   * demand, even when other incremental demand masks an aggregate weekly dip.
+   */
+  readonly postPromotionDisplacedPurchases: number;
   readonly wouldHavePurchasedAnyway: number;
   readonly switchedProductPurchases: number;
   readonly discountCostOnIncrementalPurchasesMinor: number;
