@@ -223,6 +223,20 @@ export interface SimulationCommercePolicy {
    */
   readonly enableInventoryDynamics?: boolean;
   readonly inventoryReservationTimeoutMinutes?: number;
+  /**
+   * Step 9 physical-return parameters are supplied by the Step 7 economic
+   * profiles so inventory and return accounting use the same product truth.
+   */
+  readonly inventoryReturnProfiles?: Readonly<
+    Record<
+      string,
+      {
+        readonly returnProbability: number;
+        readonly nonRecoverableValueRate: number;
+        readonly oversized: boolean;
+      }
+    >
+  >;
 }
 
 export interface SimulateWorldRequest {
