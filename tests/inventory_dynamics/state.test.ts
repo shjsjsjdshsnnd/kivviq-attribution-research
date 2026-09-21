@@ -199,7 +199,9 @@ describe("Step 9 authoritative inventory state", () => {
     expect(cancelled).toBe(2);
     const position = state.positions.get(skuId)!;
     expect(position.onHandUnits).toBe(0);
-    expect(position.availableToSellUnits ?? 0).toBe(0);
+    expect(
+      availableToSellUnits(state, skuId),
+    ).toBe(0);
     expect(position.backorderedUnits).toBe(1);
     expect(
       state.backorders.get("cancel-b1")
