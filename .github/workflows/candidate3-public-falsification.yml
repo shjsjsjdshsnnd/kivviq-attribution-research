@@ -4,6 +4,7 @@ on:
   push:
     branches: ["phase2/candidate3-ato-estimator"]
     paths:
+      - ".github/workflows/candidate3-public-falsification.yml"
       - "phase2/candidates/candidate3/PUBLIC_FALSIFICATION_PROTOCOL.json"
       - "phase2/candidates/candidate3/public_falsification_worlds.py"
       - "phase2/candidates/candidate3/run_public_falsification.py"
