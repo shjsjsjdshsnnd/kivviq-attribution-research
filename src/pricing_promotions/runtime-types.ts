@@ -129,6 +129,17 @@ export interface PricingPromotionScenario {
   readonly productFamilyMembership?: Readonly<Record<string, readonly string[]>>;
   readonly collectionSource?: "step10_explicit_synthetic_membership";
   readonly productFamilySource?: "step10_explicit_synthetic_membership";
+  /**
+   * Optional category tendency layered on top of each product's frozen
+   * own-price elasticity. 1 is neutral; values above/below 1 magnify/dampen
+   * the log-demand response. This is Step 10 synthetic scenario state, not a
+   * mutation of frozen GroundTruth.
+   */
+  readonly categoryElasticityMultiplierByCategory?: Readonly<
+    Record<string, number>
+  >;
+  readonly categoryElasticitySource?:
+    "step10_explicit_synthetic_tendency";
 }
 
 export interface PriceResponseTruth {
@@ -137,6 +148,7 @@ export interface PriceResponseTruth {
   readonly effectivePriceMinor: number;
   readonly relativePriceChange: number;
   readonly merchantElasticity: number;
+  readonly categoryElasticityMultiplier: number;
   readonly customerElasticityMultiplier: number;
   readonly nonlinearDemandMultiplier: number;
   readonly crossPriceDemandMultiplier: number;
