@@ -1,0 +1,107 @@
+name: Candidate 3 Sealed Holdout One Shot
+
+on:
+  push:
+    branches: ["phase2/candidate3-holdout-v1-evaluator"]
+    paths:
+      - ".github/workflows/candidate3-holdout-one-shot.yml"
+
+permissions:
+  contents: write
+
+concurrency:
+  group: candidate3-holdout-v1-one-shot
+  cancel-in-progress: false
+
+jobs:
+  evaluate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - name: Checkout evaluator
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Checkout frozen candidate
+        uses: actions/checkout@v4
+        with:
+          ref: phase2/candidate3-ato-estimator
+          path: candidate
+          fetch-depth: 0
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - run: python -m pip install --upgrade pip
+      - run: python -m pip install -e ".[dev]"
+      - run: python -m pip install -e candidate
+
+      - name: Pre-exposure repository checks
+        run: |
+          python scripts/check_repo_safety.py
+          python scripts/check_phase1_frozen.py
+
+      - name: Pre-exposure evaluator self-test
+        run: python phase2/evaluator/test_candidate3_holdout_evaluator.py
+
+      - name: Pre-exposure static validation
+        run: |
+          ruff check             phase2/evaluator/candidate3_holdout_evaluator.py             phase2/evaluator/test_candidate3_holdout_evaluator.py             phase2/evaluator/consume_candidate3_holdout.py             phase2/evaluator/run_candidate3_sealed_holdout.py             phase2/evaluator/record_candidate3_holdout_result.py
+          mypy --ignore-missing-imports             phase2/evaluator/candidate3_holdout_evaluator.py             phase2/evaluator/consume_candidate3_holdout.py             phase2/evaluator/run_candidate3_sealed_holdout.py             phase2/evaluator/record_candidate3_holdout_result.py
+
+      - name: Consume Candidate 3 feedback exposure
+        run: |
+          python phase2/evaluator/consume_candidate3_holdout.py             --candidate-root candidate
+
+      - name: Persist irreversible exposure consumption
+        working-directory: candidate
+        shell: bash
+        run: |
+          set -euo pipefail
+          git add             phase2/candidates/candidate3/research_state/research-ledger.jsonl             phase2/candidates/candidate3/holdout_exposure_state.json
+          git diff --cached --check
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git commit -m "Consume Candidate 3 sealed holdout exposure"
+          git push origin "HEAD:phase2/candidate3-ato-estimator"
+
+      - name: Restore evaluator-only private seal
+        id: restore-seal
+        uses: actions/cache/restore@v4
+        with:
+          path: /tmp/candidate3-holdout/candidate3-holdout-v1.seal.json
+          key: candidate3-holdout-v1-${{ hashFiles('phase2/evaluator/candidate3_holdout_spec.py', 'phase2/evaluator/candidate3_frozen_contracts.json') }}
+          fail-on-cache-miss: true
+
+      - name: Assert private seal exists
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -f /tmp/candidate3-holdout/candidate3-holdout-v1.seal.json
+
+      - name: Run one sealed Candidate 3 evaluation
+        run: |
+          python phase2/evaluator/run_candidate3_sealed_holdout.py             --candidate-root candidate             --seal /tmp/candidate3-holdout/candidate3-holdout-v1.seal.json             --scoring phase2/evaluator/candidate3_holdout_scoring.json             --output candidate/phase2/candidates/candidate3/sealed_holdout_results.json
+
+      - name: Freeze sealed result in research ledger
+        run: |
+          python phase2/evaluator/record_candidate3_holdout_result.py             --candidate-root candidate             --result candidate/phase2/candidates/candidate3/sealed_holdout_results.json
+
+      - name: Verify result contains no private holdout material
+        working-directory: candidate
+        run: python scripts/check_repo_safety.py
+
+      - name: Persist frozen sealed result
+        working-directory: candidate
+        shell: bash
+        run: |
+          set -euo pipefail
+          git add             phase2/candidates/candidate3/sealed_holdout_results.json             phase2/candidates/candidate3/candidate3_final.json             phase2/candidates/candidate3/candidate3_report.md             phase2/candidates/candidate3/research_state/research-ledger.jsonl
+          git diff --cached --check
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git commit -m "Record Candidate 3 sealed holdout result"
+          git push origin "HEAD:phase2/candidate3-ato-estimator"
