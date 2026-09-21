@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { assertValidAction } from "../../src/action_ontology/validation.js";
+import { assertValidAction, validateAction } from "../../src/action_ontology/validation.js";
 import {
   paidMediaReallocationFingerprint,
   validatePaidMediaReallocation,
