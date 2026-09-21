@@ -820,6 +820,88 @@ export function simulateWorld(
       continue;
     }
 
+    if (event.kind === "inventory_return_received") {
+      const payload =
+        event.payload as InventoryReturnReceivedPayload;
+      if (request.commercePolicy?.enableInventoryDynamics === true) {
+        recordReturnReceived(
+          runtime.inventoryEconomy,
+          payload.productId,
+          payload.returnedUnits,
+          event.timestampMs,
+          event.id,
+        );
+        damageReturnedInventory(
+          runtime.inventoryEconomy,
+          payload.productId,
+          payload.damagedUnits,
+          event.timestampMs,
+          event.id + ":damage",
+        );
+        recordInventoryReturnTruth(
+          runtime.inventoryEconomy,
+          {
+            returnId: payload.returnId,
+            orderId: payload.orderId,
+            customerId: payload.customerId,
+            skuId: payload.productId,
+            returnedUnits: payload.returnedUnits,
+            damagedUnits: payload.damagedUnits,
+            receivedAtMs: event.timestampMs,
+            restockAtMs: payload.restockAtMs,
+          },
+        );
+
+        const sellableUnits =
+          payload.returnedUnits -
+          payload.damagedUnits;
+        if (sellableUnits > 0) {
+          schedule<InventoryReturnRestockedPayload>({
+            id: `inventory-return-restocked:${payload.returnId}`,
+            kind: "inventory_return_restocked",
+            timestampMs: payload.restockAtMs,
+            priority: 7,
+            payload: {
+              returnId: payload.returnId,
+              productId: payload.productId,
+              sellableUnits,
+            },
+          });
+        }
+
+        runtime.inventory.set(
+          payload.productId,
+          legacyNetAvailableUnits(
+            runtime.inventoryEconomy,
+            payload.productId,
+          ),
+        );
+      }
+      continue;
+    }
+
+    if (event.kind === "inventory_return_restocked") {
+      const payload =
+        event.payload as InventoryReturnRestockedPayload;
+      if (request.commercePolicy?.enableInventoryDynamics === true) {
+        restockReturnedInventory(
+          runtime.inventoryEconomy,
+          payload.productId,
+          payload.sellableUnits,
+          event.timestampMs,
+          event.id,
+        );
+        runtime.inventory.set(
+          payload.productId,
+          legacyNetAvailableUnits(
+            runtime.inventoryEconomy,
+            payload.productId,
+          ),
+        );
+      }
+      continue;
+    }
+
     if (event.kind === "inventory_reorder_check") {
       const payload =
         event.payload as InventoryReorderCheckPayload;
@@ -1557,6 +1639,125 @@ export function simulateWorld(
               ordinal + 1,
             );
             purchases.push(purchase);
+
+            if (
+              request.commercePolicy?.enableInventoryDynamics === true &&
+              request.commercePolicy.inventoryReturnProfiles !== undefined
+            ) {
+              for (
+                let lineIndex = 0;
+                lineIndex < purchase.lines.length;
+                lineIndex += 1
+              ) {
+                const line = purchase.lines[lineIndex]!;
+                const profile =
+                  request.commercePolicy.inventoryReturnProfiles[
+                    line.productId
+                  ];
+                if (!profile) continue;
+
+                const customerMultiplier = clamp(
+                  0.8 +
+                    customer.source.promotionSensitivityMultiplier *
+                      0.12 +
+                    customer.source.priceSensitivityMultiplier *
+                      0.05 -
+                    customer.brandAffinity * 0.08,
+                  0.55,
+                  1.55,
+                );
+                const promotionMultiplier =
+                  line.discountMinor > 0
+                    ? 1 +
+                      customer.source.promotionSensitivityMultiplier *
+                        0.08
+                    : 1;
+                const returnProbability = clamp(
+                  profile.returnProbability *
+                    customerMultiplier *
+                    promotionMultiplier,
+                  0.001,
+                  0.6,
+                );
+                const returnKey =
+                  `inventory-return:${purchase.orderId}:line:${lineIndex}`;
+                const returnedUnits = physicalReturnQuantity(
+                  line.quantity,
+                  returnProbability,
+                  randomness,
+                  returnKey,
+                );
+                if (returnedUnits <= 0) continue;
+
+                const baselineReturnDays =
+                  profile.oversized
+                    ? 12 +
+                      randomness.uniform(
+                        `${returnKey}:delay-base`,
+                      ) *
+                        30
+                    : 3 +
+                      randomness.uniform(
+                        `${returnKey}:delay-base`,
+                      ) *
+                        28;
+                const returnDelayMs = days(
+                  Math.max(
+                    1,
+                    baselineReturnDays *
+                      Math.exp(
+                        randomness.normal(
+                          `${returnKey}:delay-noise`,
+                          0,
+                          0.24,
+                        ),
+                      ),
+                  ),
+                );
+                const returnAtMs =
+                  event.timestampMs + returnDelayMs;
+                const restockDelayDays =
+                  profile.oversized
+                    ? 3 +
+                      randomness.uniform(
+                        `${returnKey}:restock-delay`,
+                      ) *
+                        6
+                    : 1 +
+                      randomness.uniform(
+                        `${returnKey}:restock-delay`,
+                      ) *
+                        3;
+                const restockAtMs =
+                  returnAtMs + days(restockDelayDays);
+                const damagedUnits =
+                  damagedReturnQuantity(
+                    returnedUnits,
+                    profile.nonRecoverableValueRate,
+                    randomness,
+                    returnKey,
+                  );
+                const returnId =
+                  `return:${purchase.orderId}:${lineIndex}`;
+
+                schedule<InventoryReturnReceivedPayload>({
+                  id: `inventory-return-received:${returnId}`,
+                  kind: "inventory_return_received",
+                  timestampMs: returnAtMs,
+                  priority: 7,
+                  payload: {
+                    returnId,
+                    orderId: purchase.orderId,
+                    customerId: purchase.customerId,
+                    productId: line.productId,
+                    returnedUnits,
+                    damagedUnits,
+                    restockAtMs,
+                  },
+                });
+              }
+            }
+
             observableEvents.push({
               eventId: `purchase:${orderId}`,
               eventType: "purchase",
