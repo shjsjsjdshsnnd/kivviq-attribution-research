@@ -1,0 +1,35 @@
+{
+  "protocol_version": "candidate3-evaluation-v1",
+  "effect_scored_families": [
+    "adequate_overlap_recovery",
+    "weak_full_support_overlap_recovery",
+    "heterogeneous_overlap_effect"
+  ],
+  "exact_abstention_families": {
+    "inadequate_overlap_abstention": "ABSTAIN_INADEQUATE_SUPPORT",
+    "finite_sample_abstention": "ABSTAIN_INADEQUATE_FINITE_SAMPLE",
+    "measurement_provenance_abstention": "ABSTAIN_PRETREATMENT_INVALID"
+  },
+  "ato_targeting_families": [
+    "weak_full_support_overlap_recovery",
+    "heterogeneous_overlap_effect"
+  ],
+  "overlap_boundary_requires_oracle_decision_match": true,
+  "latent_confounding_family": "latent_confounding_non_goal",
+  "gates": {
+    "effect_estimation_decision_accuracy": 1.0,
+    "abstention_reason_accuracy": 1.0,
+    "ato_targeting_accuracy": 1.0,
+    "mean_absolute_ato_error_lte": 0.04,
+    "max_absolute_ato_error_lte": 0.08,
+    "interval_coverage_minimum": 2,
+    "interval_coverage_denominator": 3,
+    "bootstrap_requested_exactly": 400,
+    "bootstrap_valid_fraction_gte": 0.95,
+    "full_population_ate_must_be_null": true,
+    "latent_confounding_disclaimer_required": true
+  },
+  "design_failure_outcome": "INCONCLUSIVE",
+  "candidate_gate_failure_outcome": "REJECT",
+  "all_gates_pass_outcome": "SURVIVE"
+}
