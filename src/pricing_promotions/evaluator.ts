@@ -791,8 +791,48 @@ function promotionAttribution(
     // simultaneously change product choice. Therefore displacement is paired
     // at the customer-order level; product switching remains the fallback
     // classification when timing itself was not displaced.
-    const futureDisplacedBaseline =
+    const activePromotionEndMs =
       activePromotions.length === 0
+        ? undefined
+        : Math.max(
+            ...activePromotions.map((promotion) =>
+              Date.parse(promotion.end),
+            ),
+          );
+    const postPromotionBaselineCandidate =
+      activePromotionEndMs === undefined ||
+      !Number.isFinite(activePromotionEndMs)
+        ? undefined
+        : candidates
+            .filter(
+              (candidate) =>
+                candidate.occurredAtMs >=
+                  activePromotionEndMs &&
+                candidate.occurredAtMs - orderMs >
+                  12 * HOUR_MS,
+            )
+            .filter((candidate) => {
+              const candidateHasTreatmentPurchaseNearby =
+                factualCustomerOrders.some(
+                  (factualCandidate) =>
+                    factualCandidate.orderId !==
+                      order.orderId &&
+                    Math.abs(
+                      factualCandidate.occurredAtMs -
+                        candidate.occurredAtMs,
+                    ) <=
+                      72 * HOUR_MS,
+                );
+              return !candidateHasTreatmentPurchaseNearby;
+            })
+            .sort(
+              (left, right) =>
+                left.occurredAtMs -
+                right.occurredAtMs,
+            )[0];
+    const futureDisplacedBaseline =
+      postPromotionBaselineCandidate ??
+      (activePromotions.length === 0
         ? undefined
         : candidates
             .filter(
@@ -818,7 +858,7 @@ function promotionAttribution(
               (left, right) =>
                 left.occurredAtMs -
                 right.occurredAtMs,
-            )[0];
+            )[0]);
     const sameProduct = productMatched
       .slice()
       .sort(
@@ -873,12 +913,8 @@ function promotionAttribution(
       futureDisplacedBaseline !== undefined
     ) {
       acceleratedPurchases += weight;
-      const activePromotionEndMs = Math.max(
-        ...activePromotions.map((promotion) =>
-          Date.parse(promotion.end),
-        ),
-      );
       if (
+        activePromotionEndMs !== undefined &&
         Number.isFinite(activePromotionEndMs) &&
         futureDisplacedBaseline.occurredAtMs >=
           activePromotionEndMs
