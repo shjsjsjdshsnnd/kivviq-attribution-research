@@ -138,6 +138,68 @@ function validatePriceState(
   }
 }
 
+function validatePriceStateIntervals(
+  states: readonly AuthoritativePriceState[],
+): void {
+  const grouped = new Map<
+    string,
+    Array<{
+      readonly state: AuthoritativePriceState;
+      readonly start: number;
+      readonly end: number;
+    }>
+  >();
+
+  for (const state of states) {
+    const start =
+      state.effectiveStart === undefined
+        ? Number.NEGATIVE_INFINITY
+        : Date.parse(state.effectiveStart);
+    const end =
+      state.effectiveEnd === undefined
+        ? Number.POSITIVE_INFINITY
+        : Date.parse(state.effectiveEnd);
+    if (!Number.isFinite(start) && start !== Number.NEGATIVE_INFINITY) {
+      throw new RangeError(
+        "price-state effectiveStart must be a valid timestamp",
+      );
+    }
+    if (!Number.isFinite(end) && end !== Number.POSITIVE_INFINITY) {
+      throw new RangeError(
+        "price-state effectiveEnd must be a valid timestamp",
+      );
+    }
+    if (end <= start) {
+      throw new RangeError(
+        "price-state effective interval must have positive duration",
+      );
+    }
+
+    const key =
+      state.productId + "::" + (state.variantId ?? "");
+    const list = grouped.get(key) ?? [];
+    list.push({ state, start, end });
+    grouped.set(key, list);
+  }
+
+  for (const [key, intervals] of grouped) {
+    intervals.sort(
+      (left, right) =>
+        left.start - right.start ||
+        left.end - right.end,
+    );
+    for (let index = 1; index < intervals.length; index += 1) {
+      const previous = intervals[index - 1]!;
+      const current = intervals[index]!;
+      if (current.start < previous.end) {
+        throw new RangeError(
+          "overlapping authoritative price states for " + key,
+        );
+      }
+    }
+  }
+}
+
 function baselinePriceState(
   productId: string,
   priceMinor: number,
@@ -190,6 +252,7 @@ export function hydratePricingPromotionScenario(
       );
     }
   }
+  validatePriceStateIntervals(states);
 
   for (const promotion of request.scenario.promotions) {
     const start = Date.parse(promotion.start);
