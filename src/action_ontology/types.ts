@@ -34,9 +34,20 @@ export type ActionCategory = CoreActionCategory | ActionCategoryId;
 export type ActionTarget =
   | { readonly kind: "advertising_channel"; readonly channelId: string }
   | {
+      readonly kind: "advertising_account";
+      readonly channelId: string;
+      readonly accountId: string;
+    }
+  | {
       readonly kind: "campaign";
       readonly channelId: string;
       readonly campaignId: string;
+    }
+  | {
+      readonly kind: "campaign_group";
+      readonly channelId: string;
+      readonly campaignGroupId: string;
+      readonly accountId?: string;
     }
   | {
       readonly kind: "ad_set";
@@ -45,11 +56,24 @@ export type ActionTarget =
       readonly adSetId: string;
     }
   | {
+      readonly kind: "ad_group";
+      readonly channelId: string;
+      readonly campaignId: string;
+      readonly adGroupId: string;
+    }
+  | {
       readonly kind: "ad";
       readonly channelId: string;
       readonly campaignId: string;
       readonly adSetId?: string;
+      readonly adGroupId?: string;
       readonly adId: string;
+    }
+  | {
+      readonly kind: "creative";
+      readonly channelId: string;
+      readonly creativeId: string;
+      readonly campaignId?: string;
     }
   | { readonly kind: "audience"; readonly audienceId: string }
   | { readonly kind: "product"; readonly productId: string }
@@ -60,6 +84,12 @@ export type ActionTarget =
     }
   | { readonly kind: "category"; readonly categoryId: string }
   | { readonly kind: "collection"; readonly collectionId: string }
+  | {
+      readonly kind: "product_group";
+      readonly productGroupId: string;
+      readonly collectionId?: string;
+      readonly categoryId?: string;
+    }
   | { readonly kind: "customer_segment"; readonly segmentId: string }
   | {
       readonly kind: "funnel_stage";
@@ -97,6 +127,17 @@ export type ScopeDimension =
       readonly kind: "channel_subset";
       readonly channelIds: readonly string[];
       readonly campaignIds?: readonly string[];
+    }
+  | {
+      readonly kind: "paid_media_segment";
+      readonly classification:
+        | "prospecting"
+        | "retargeting"
+        | "brand"
+        | "non_brand"
+        | "custom";
+      readonly segmentId?: string;
+      readonly taxonomySource: "merchant_defined" | "kivviq_canonical";
     }
   | {
       readonly kind: "time_window";
@@ -200,10 +241,80 @@ export type ValueOperation<T extends ScalarValue> =
       readonly reference: ReferenceValue;
     };
 
+export type PaidMediaControl = "budget" | "spend_cap";
+
+export type PaidMediaAllocationMember =
+  | {
+      readonly kind: "strategy";
+      readonly classification: "prospecting" | "retargeting";
+      readonly segmentId?: string;
+    }
+  | {
+      readonly kind: "traffic_classification";
+      readonly classification: "brand" | "non_brand";
+      readonly segmentId?: string;
+    }
+  | {
+      readonly kind: "target";
+      readonly target: ActionTarget;
+      readonly scope?: ActionScope;
+    };
+
+export interface PaidMediaAllocationShare {
+  readonly memberId: string;
+  readonly member: PaidMediaAllocationMember;
+  readonly shareBasisPoints: number;
+}
+
+export interface PaidMediaAllocationDenominator {
+  readonly kind: "target_scope";
+  readonly control: PaidMediaControl;
+  readonly target: ActionTarget;
+  readonly scope: ActionScope;
+}
+
+export type PaidMediaTransferAmount =
+  | {
+      readonly kind: "money_rate";
+      readonly value: MonetaryRateValue;
+    }
+  | {
+      readonly kind: "percentage_of_source";
+      readonly basisPoints: number;
+      readonly sourceTarget: ActionTarget;
+      readonly sourceScope: ActionScope;
+      readonly sourceReference: ReferenceValue;
+    };
+
 export type ActionParameters =
   | {
       readonly kind: "budget_adjustment";
       readonly operation: ValueOperation<MonetaryRateValue>;
+    }
+  | {
+      readonly kind: "spend_cap_adjustment";
+      readonly operation: ValueOperation<MonetaryRateValue>;
+    }
+  | {
+      readonly kind: "paid_media_delivery";
+      readonly operation: "PAUSE" | "RESUME";
+    }
+  | {
+      readonly kind: "paid_media_allocation";
+      readonly control: PaidMediaControl;
+      readonly operation: "SET";
+      readonly denominator: PaidMediaAllocationDenominator;
+      readonly shares: readonly PaidMediaAllocationShare[];
+      readonly baselineShares?: readonly PaidMediaAllocationShare[];
+    }
+  | {
+      readonly kind: "paid_media_transfer_leg";
+      readonly transferId: string;
+      readonly role: "source" | "destination";
+      readonly control: PaidMediaControl;
+      readonly operation: "DELTA";
+      readonly direction: "decrease" | "increase";
+      readonly amount: PaidMediaTransferAmount;
     }
   | {
       readonly kind: "price_adjustment";
