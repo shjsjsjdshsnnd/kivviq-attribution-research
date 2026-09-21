@@ -786,10 +786,15 @@ function promotionAttribution(
     // order and erase real acceleration.
     const factualCustomerOrders =
       factualByCustomer.get(order.customerId) ?? [];
-    const futureSameProduct =
+    // Pull-forward is fundamentally a purchase-timing effect. The later
+    // no-promotion order may contain a different SKU because the promotion can
+    // simultaneously change product choice. Therefore displacement is paired
+    // at the customer-order level; product switching remains the fallback
+    // classification when timing itself was not displaced.
+    const futureDisplacedBaseline =
       activePromotions.length === 0
         ? undefined
-        : productMatched
+        : candidates
             .filter(
               (candidate) =>
                 candidate.occurredAtMs - orderMs >
@@ -805,13 +810,7 @@ function promotionAttribution(
                       factualCandidate.occurredAtMs -
                         candidate.occurredAtMs,
                     ) <=
-                      72 * HOUR_MS &&
-                    [...candidate.productIds].some(
-                      (productId) =>
-                        factualCandidate.productIds.has(
-                          productId,
-                        ),
-                    ),
+                      72 * HOUR_MS,
                 );
               return !candidateHasTreatmentPurchaseNearby;
             })
@@ -870,12 +869,9 @@ function promotionAttribution(
       trueIncrementalPromotionPurchases += weight;
       discountCostOnIncrementalPurchasesMinor +=
         weightedDiscount;
-    } else if (!sameProduct) {
-      switchedProductPurchases += weight;
-      discountCostOnSwitchedPurchasesMinor +=
-        weightedDiscount;
-      matchedBaseline = anyBaseline;
-    } else if (futureSameProduct !== undefined) {
+    } else if (
+      futureDisplacedBaseline !== undefined
+    ) {
       acceleratedPurchases += weight;
       const activePromotionEndMs = Math.max(
         ...activePromotions.map((promotion) =>
@@ -884,14 +880,19 @@ function promotionAttribution(
       );
       if (
         Number.isFinite(activePromotionEndMs) &&
-        futureSameProduct.occurredAtMs >=
+        futureDisplacedBaseline.occurredAtMs >=
           activePromotionEndMs
       ) {
         postPromotionDisplacedPurchases += weight;
       }
       discountCostOnAcceleratedPurchasesMinor +=
         weightedDiscount;
-      matchedBaseline = futureSameProduct;
+      matchedBaseline = futureDisplacedBaseline;
+    } else if (!sameProduct) {
+      switchedProductPurchases += weight;
+      discountCostOnSwitchedPurchasesMinor +=
+        weightedDiscount;
+      matchedBaseline = anyBaseline;
     } else {
       wouldHavePurchasedAnyway += weight;
       discountCostOnWouldHavePurchasedAnywayMinor +=
