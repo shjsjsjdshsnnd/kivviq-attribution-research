@@ -162,7 +162,6 @@ export interface ResolvedPromotionEffect {
   readonly freeShipping: boolean;
   readonly freeShippingThresholdMinor?: number;
   readonly promotionUtilityMultiplier: number;
-  readonly channelResponseMultiplier: number;
   readonly returnProbabilityMultiplier: number;
   readonly stockpilingMultiplier: number;
   readonly habituationMultiplier: number;
