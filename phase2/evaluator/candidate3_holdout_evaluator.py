@@ -91,12 +91,13 @@ def _oracle_diagnostics(
 
 
 def _expected_design_decision(diagnostics: SupportDiagnostics) -> str:
-    return candidate3_decision(
+    decision = candidate3_decision(
         pretreatment_valid=True,
         diagnostics=diagnostics,
         support_contract=build_support_abstention_contract(),
         uncertainty_contract=build_uncertainty_contract(),
-    ).value
+    )
+    return str(decision.value)
 
 
 def generate_holdout_case(instance: dict[str, Any]) -> GeneratedHoldoutCase:
@@ -171,6 +172,7 @@ def generate_holdout_case(instance: dict[str, Any]) -> GeneratedHoldoutCase:
             rng.random()
             < float(instance["post_treatment_contamination_fraction"])
         )
+        source_times: tuple[datetime, ...]
         if contaminated:
             source_times = (decision_time + timedelta(minutes=3),)
             provenance_invalid = True
@@ -243,7 +245,7 @@ def generate_holdout_case(instance: dict[str, Any]) -> GeneratedHoldoutCase:
         for propensity in observed_propensities
     ]
     denominator = sum(overlap_weights)
-    ato = (
+    ato: float | None = (
         sum(
             weight * effect
             for weight, effect in zip(overlap_weights, effects, strict=True)
@@ -252,7 +254,7 @@ def generate_holdout_case(instance: dict[str, Any]) -> GeneratedHoldoutCase:
         if denominator > 0.0
         else None
     )
-    ate = sum(effects) / len(effects)
+    ate: float | None = sum(effects) / len(effects)
 
     expected_by_family = {
         "adequate_overlap_recovery": Candidate3Decision.ESTIMATE_ATO.value,
