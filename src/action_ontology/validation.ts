@@ -110,7 +110,7 @@ const FORBIDDEN_ACTION_KEYS = new Set([
   "success",
 ]);
 
-function record(value: unknown): value is Record<string, unknown> {
+function record(value: unknown): value is any {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
