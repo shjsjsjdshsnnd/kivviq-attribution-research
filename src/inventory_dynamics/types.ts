@@ -150,6 +150,8 @@ export interface InventoryDemandTruthRecord {
   readonly expectedReplenishmentAt?: string;
   readonly sourceEventId: string;
   commerceOutcome: InventoryCommerceOutcome;
+  physicallyFulfilledUnits: number;
+  fulfilledAt?: string;
 }
 
 export interface MutableInventoryPosition {
