@@ -44,7 +44,14 @@ jobs:
           assert hashlib.sha256(Path("phase2/candidates/candidate3/CONTRACTS.md").read_bytes()).hexdigest()==p["contract_document_sha256"]
           PY
       - name: Run Candidate 3 development
-        run: python phase2/candidates/candidate3/run_development.py
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [ -f phase2/candidates/candidate3/FREEZE_REQUESTED ] || [ -f phase2/candidates/candidate3/FROZEN_IMPLEMENTATION.json ]; then
+            echo "Candidate 3 development is locked; development rerun skipped."
+            exit 0
+          fi
+          python phase2/candidates/candidate3/run_development.py
       - name: Persist development record
         shell: bash
         run: |
@@ -52,6 +59,10 @@ jobs:
           python scripts/check_repo_safety.py
           git add phase2/candidates/candidate3/development_results.json
           git diff --cached --check
+          if git diff --cached --quiet; then
+            echo "Development result unchanged."
+            exit 0
+          fi
           if git diff --cached --quiet; then
             echo "Development result unchanged."
             exit 0

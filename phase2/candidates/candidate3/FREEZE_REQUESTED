@@ -1,0 +1,13 @@
+Candidate 3 development is locked before implementation freeze.
+
+Selected strictly from DEVELOPMENT:
+- estimator: logistic propensity + overlap weighting
+- propensity L2: 0.1
+- bootstrap contract: 400 full-pipeline refits
+
+Development behavior:
+- abstention calibration: 1.0
+- estimate decision accuracy: 1.0
+- ATO-targeting failures: 0
+
+No sealed holdout, Candidate 1/2 holdout, or frozen public falsification result was used for tuning.
