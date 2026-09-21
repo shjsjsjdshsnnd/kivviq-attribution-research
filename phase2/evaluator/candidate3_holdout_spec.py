@@ -1,5 +1,9 @@
 from __future__ import annotations
 
+# mypy: disable-error-code="arg-type"
+
+# ruff: noqa: I001
+
 import hashlib
 import json
 import math
@@ -9,7 +13,7 @@ from dataclasses import dataclass, asdict
 from pathlib import Path
 from typing import Any
 
-HOLDOUT_VERSION = "candidate3-holdout-v1"
+HOLDOUT_VERSION = "candidate3-holdout-v2"
 
 PUBLIC_FAMILIES = (
     (
@@ -107,9 +111,16 @@ def _instance_for_family(rng: random.Random, family: str) -> HiddenInstance:
     if family == "inadequate_overlap_abstention":
         return HiddenInstance(
             **common,
-            n_units=rng.randint(450, 800),
-            treatment_intercept=_logit(rng.choice([rng.uniform(0.01, 0.05), rng.uniform(0.95, 0.99)])),
-            observed_selection_strength=rng.uniform(2.8, 4.0),
+            n_units=rng.randint(700, 1100),
+            treatment_intercept=_logit(
+                rng.choice(
+                    [
+                        rng.uniform(0.003, 0.008),
+                        rng.uniform(0.992, 0.997),
+                    ]
+                )
+            ),
+            observed_selection_strength=rng.uniform(0.0, 0.10),
             baseline_outcome_logit=_logit(rng.uniform(0.04, 0.09)),
             treatment_effect_log_odds=rng.uniform(-0.40, 0.60),
         )
@@ -216,5 +227,11 @@ def create_private_seal(
         "public_family_manifest": list(PUBLIC_FAMILIES),
         "private_seed_exposed": False,
         "private_parameters_committed_to_git": False,
-        "status": "SEALED_AFTER_CONTRACT_FREEZE_BEFORE_ESTIMATOR_IMPLEMENTATION",
+        "candidate3_v1_feedback_exposure_already_consumed": True,
+        "eligible_for_candidate3_v1_second_feedback_exposure": False,
+        "repair_scope": (
+            "benchmark-design repair only; Candidate 3 v1.0.0 estimator, "
+            "contracts, hyperparameters and v1 results remain immutable"
+        ),
+        "status": "SEALED_BENCHMARK_REPAIR_AFTER_V1_DESIGN_FAILURE",
     }

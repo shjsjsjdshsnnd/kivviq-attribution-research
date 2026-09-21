@@ -1,0 +1,33 @@
+{
+  "candidate_identity": {
+    "candidate_id": "candidate3-overlap-ato",
+    "candidate_version": "1.0.0",
+    "combined_code_fingerprint": "1a611d8777bc502ed4912b1fd98f7dae5009c834f3fa5e8a6dde5e0fdaac3522",
+    "contract_manifest_fingerprint": "f760212ad3066bb266650fc0c7737f999a8f0c455d89f18a8c30526c2cbc983c",
+    "lineage_fingerprint": "1571c29726e79154c2d9bc9016909ab7ab04540fe24cf63a62e0f46b66288620"
+  },
+  "candidate_level": {
+    "outcome": "INCONCLUSIVE",
+    "reason": "REQUIRED_HOLDOUT_BENCHMARK_INVALID",
+    "retrospective_survive_from_family_evidence": "PROHIBITED"
+  },
+  "benchmark_validity": {
+    "candidate3-holdout-v1": "INVALID_FOR_COMPLETE_CANDIDATE3_GATE",
+    "candidate3-holdout-v2": "VALIDATED_UNUSED"
+  },
+  "family_level_evidence": {
+    "candidate3-holdout-v1": {
+      "aggregation_into_candidate_outcome": "PROHIBITED",
+      "status": "IMMUTABLE_VALID_FAMILY_OBSERVATIONS"
+    }
+  },
+  "prohibition": {
+    "error_code": "EVALUATION_PROHIBITED_PRIOR_EXPOSURE",
+    "holdout_version": "candidate3-holdout-v2",
+    "match_on": [
+      "lineage_fingerprint",
+      "combined_code_fingerprint",
+      "contract_manifest_fingerprint"
+    ]
+  }
+}

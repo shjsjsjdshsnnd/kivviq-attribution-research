@@ -1,0 +1,134 @@
+name: Candidate 3 Holdout v2 Design Seal
+
+on:
+  push:
+    branches: ["phase2/candidate3-holdout-v2-design"]
+    paths:
+      - ".github/workflows/candidate3-holdout-v2-seal.yml"
+      - "phase2/evaluator/candidate3_holdout_spec.py"
+      - "phase2/evaluator/candidate3_holdout_evaluator.py"
+      - "phase2/evaluator/seal_candidate3_holdout.py"
+      - "phase2/evaluator/validate_candidate3_holdout_v2.py"
+      - "phase2/evaluator/candidate3_frozen_contracts.json"
+      - "phase2/evaluator/candidate3-research-state.json"
+      - "phase2/evaluator/CANDIDATE3_HOLDOUT_V2.md"
+      - "src/attribution_lab/phase2_evaluator/exposure.py"
+      - "tests/phase2/test_exposure.py"
+
+permissions:
+  contents: write
+
+jobs:
+  seal_and_validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Checkout evaluator
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Checkout frozen Candidate 3 only for input schema and exposure history
+        uses: actions/checkout@v4
+        with:
+          ref: phase2/candidate3-ato-estimator
+          path: candidate
+          fetch-depth: 0
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - run: python -m pip install --upgrade pip
+      - run: python -m pip install -e ".[dev]"
+      - run: python -m pip install -e candidate
+
+      - run: python scripts/check_repo_safety.py
+      - run: python scripts/check_phase1_frozen.py
+
+      - name: Verify Candidate 3 v1 evidence is immutable and v2 is prohibited
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          from attribution_lab.phase2_evaluator.exposure import (
+              EVALUATION_PROHIBITED_PRIOR_EXPOSURE,
+              EvaluationProhibitedPriorExposure,
+              assert_candidate3_v2_evaluation_permitted,
+          )
+          freeze = json.loads(Path("candidate/phase2/candidates/candidate3/FROZEN_IMPLEMENTATION.json").read_text())
+          exposure = json.loads(Path("candidate/phase2/candidates/candidate3/holdout_exposure_state.json").read_text())
+          final = json.loads(Path("candidate/phase2/candidates/candidate3/candidate3_final.json").read_text())
+          assert freeze["candidate_id"] == "candidate3-overlap-ato"
+          assert freeze["candidate_version"] == "1.0.0"
+          assert freeze["combined_code_fingerprint"] == "1a611d8777bc502ed4912b1fd98f7dae5009c834f3fa5e8a6dde5e0fdaac3522"
+          assert freeze["contract_manifest_sha256"] == "f760212ad3066bb266650fc0c7737f999a8f0c455d89f18a8c30526c2cbc983c"
+          assert freeze["hyperparameters"]["propensity_l2"] == 0.1
+          assert freeze["hyperparameters"]["bootstrap_replicates"] == 400
+          assert exposure["feedback_bearing_exposure_count"] == 1
+          assert exposure["holdout_version"] == "candidate3-holdout-v1"
+          assert exposure["state"] == "CONSUMED"
+          assert final["final_outcome"] == "INCONCLUSIVE"
+          assert final["result_digest"] == "dec97f94f4532bc666cc0f9e730fca6baf60cfc81b1210c916430bbe3f5cc030"
+          expected_hashes = {
+              "FROZEN_IMPLEMENTATION.json": "b97f9df79f5323b667612d39a97c59d5fd1c4d8627147b77633e0fcf4dfaf6b1",
+              "holdout_exposure_state.json": "0bfe42facb617ec1eb0339b5c25d0dfdfb2483f61602fd626d750442d3134e8f",
+              "candidate3_final.json": "a54c45d7b8ad4c9a47a6c25e780c63c14bd354241f7e54b46680149ccd4310a3",
+              "sealed_holdout_results.json": "dec97f94f4532bc666cc0f9e730fca6baf60cfc81b1210c916430bbe3f5cc030",
+              "candidate3_report.md": "f903fc4f689127273f5eaf0d5f0ef0b7d03e6cc490692254fa2da0a79d66e530",
+              "research_state/research-ledger.jsonl": "2ee377b302766ac127d5030ad0c2b5e09c9a2c9b798b4ab1b46017f179ab03ff",
+          }
+          import hashlib
+          root = Path("candidate/phase2/candidates/candidate3")
+          for relative_path, expected_hash in expected_hashes.items():
+              actual_hash = hashlib.sha256((root / relative_path).read_bytes()).hexdigest()
+              assert actual_hash == expected_hash, relative_path
+          try:
+              assert_candidate3_v2_evaluation_permitted(
+                  candidate_id="renamed-candidate3",
+                  candidate_version="99.0.0",
+                  lineage_fingerprint=freeze["lineage_fingerprint"],
+                  combined_code_fingerprint=freeze["combined_code_fingerprint"],
+                  contract_manifest_fingerprint=freeze["contract_manifest_sha256"],
+                  holdout_version="candidate3-holdout-v2",
+              )
+          except EvaluationProhibitedPriorExposure as error:
+              assert str(error) == EVALUATION_PROHIBITED_PRIOR_EXPOSURE
+          else:
+              raise AssertionError("Candidate 3 v1 lineage was not prohibited from v2")
+          PY
+
+      - name: Instantiate fresh private v2 seal
+        run: |
+          python phase2/evaluator/seal_candidate3_holdout.py             --contracts phase2/evaluator/candidate3_frozen_contracts.json             --seal-out /tmp/candidate3-holdout-v2/candidate3-holdout-v2.seal.json             --metadata-out phase2/evaluator/candidate3-holdout-v2.public.json
+
+      - name: Validate actual instantiated v2 design before sealing
+        run: |
+          python phase2/evaluator/validate_candidate3_holdout_v2.py             --seal /tmp/candidate3-holdout-v2/candidate3-holdout-v2.seal.json             --candidate-root candidate             --metadata phase2/evaluator/candidate3-holdout-v2.public.json
+
+      - name: Static validation
+        run: |
+          python -m pytest tests/phase2/test_exposure.py
+          ruff check             phase2/evaluator/candidate3_holdout_spec.py             phase2/evaluator/candidate3_holdout_evaluator.py             phase2/evaluator/seal_candidate3_holdout.py             phase2/evaluator/validate_candidate3_holdout_v2.py
+          mypy --ignore-missing-imports             phase2/evaluator/candidate3_holdout_spec.py             phase2/evaluator/candidate3_holdout_evaluator.py             phase2/evaluator/seal_candidate3_holdout.py             phase2/evaluator/validate_candidate3_holdout_v2.py
+
+      - name: Save validated evaluator-only v2 seal
+        uses: actions/cache/save@v4
+        with:
+          path: /tmp/candidate3-holdout-v2/candidate3-holdout-v2.seal.json
+          key: candidate3-holdout-v2-${{ hashFiles('phase2/evaluator/candidate3_holdout_spec.py', 'phase2/evaluator/candidate3_frozen_contracts.json') }}
+
+      - name: Persist public v2 metadata only
+        shell: bash
+        run: |
+          set -euo pipefail
+          python scripts/check_repo_safety.py
+          git add phase2/evaluator/candidate3-holdout-v2.public.json
+          git diff --cached --check
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git commit -m "Record validated Candidate 3 holdout v2 metadata"
+          git push origin "HEAD:${GITHUB_REF_NAME}"
