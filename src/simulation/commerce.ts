@@ -27,6 +27,16 @@ import type {
   RealizedPurchase,
   SimulationCommercePolicy,
 } from "./types.js";
+import {
+  anyPromotionActive,
+  effectiveFreeShippingThreshold,
+  promotionChannelResponseMultiplier,
+  promotionTimingDeferralMultiplier,
+  resolveCartLinePricing,
+  resolveCartShippingTerms,
+  resolveProductOffer as resolveStep10ProductOffer,
+  type PricingCustomerContext,
+} from "../pricing_promotions/runtime.js";
 
 export interface ProductOffer {
   readonly productId: string;
@@ -41,6 +51,18 @@ export interface ProductOffer {
 
 const clamp = (value: number, min: number, max: number): number =>
   Math.min(max, Math.max(min, value));
+
+function pricingCustomerContext(
+  customer: RuntimeCustomerState,
+): PricingCustomerContext {
+  return {
+    source: customer.source,
+    purchaseCount: customer.purchaseCount,
+    lifecycle: customer.lifecycle,
+    need: customer.need,
+    brandAffinity: customer.brandAffinity,
+  };
+}
 
 function productRank(
   world: GeneratedMerchantWorld,
@@ -111,7 +133,21 @@ export function promotionState(
   intervention: SimulationInterventionState,
   timestampMs: number,
   randomness: SharedRandomness,
+  commercePolicy?: SimulationCommercePolicy,
 ): { readonly active: boolean; readonly discountRate: number } {
+  if (commercePolicy?.pricingPromotionScenario !== undefined) {
+    const active = anyPromotionActive(
+      commercePolicy.pricingPromotionScenario,
+      timestampMs,
+    );
+    return {
+      active,
+      discountRate: active
+        ? clamp(world.summary.expectedDiscountRate, 0, 0.9)
+        : 0,
+    };
+  }
+
   if (intervention.promotionActive !== undefined) {
     return {
       active: intervention.promotionActive,
@@ -166,6 +202,39 @@ export function offerForProduct(
 ): ProductOffer {
   const world = runtime.merchantWorld;
   const baselinePrice = baselineProductPriceMinor(world, productId);
+
+  if (commercePolicy?.pricingPromotionScenario !== undefined) {
+    const context = pricingCustomerContext(customer);
+    const resolved = resolveStep10ProductOffer(
+      world,
+      commercePolicy.pricingPromotionScenario,
+      context,
+      productId,
+      timestampMs,
+      baselinePrice,
+    );
+    return {
+      productId,
+      unitPriceMinor: resolved.listPriceMinor,
+      discountMinor: resolved.discountMinor,
+      finalPriceMinor: resolved.effectivePriceMinor,
+      availableUnits:
+        commercePolicy.enableInventoryDynamics === true
+          ? step9AvailableToSellUnits(
+              runtime.inventoryEconomy,
+              productId,
+            )
+          : Math.max(
+              0,
+              runtime.inventory.get(productId) ?? 0,
+            ),
+      priceUtilityMultiplier:
+        resolved.priceResponse.combinedDemandMultiplier,
+      promotionUtilityMultiplier:
+        resolved.promotion.promotionUtilityMultiplier,
+    };
+  }
+
   const unitPriceMinor =
     intervention.priceOverrideMinor ?? baselinePrice;
 
@@ -174,6 +243,7 @@ export function offerForProduct(
     intervention,
     timestampMs,
     randomness,
+    commercePolicy,
   );
   const discountMinor = promotion.active
     ? Math.round(unitPriceMinor * promotion.discountRate)
@@ -815,6 +885,7 @@ export function checkoutPurchaseProbability(
   randomness: SharedRandomness,
   interactionLift = 0,
   commercePolicy?: SimulationCommercePolicy,
+  source?: RealizedPurchase["source"],
 ): number {
   refreshLatentCustomerState(customer, timestampMs);
   const memory = totalMemoryLift(customer);
@@ -823,6 +894,7 @@ export function checkoutPurchaseProbability(
     intervention,
     timestampMs,
     randomness,
+    commercePolicy,
   );
 
   const checkoutMechanism =
@@ -857,7 +929,12 @@ export function checkoutPurchaseProbability(
   );
 
   const threshold =
-    commercePolicy?.freeShippingThresholdMinor;
+    effectiveFreeShippingThreshold(
+      commercePolicy?.pricingPromotionScenario,
+      pricingCustomerContext(customer),
+      timestampMs,
+      commercePolicy?.freeShippingThresholdMinor,
+    );
   const shippingCharge =
     commercePolicy?.customerShippingChargeMinor ?? 0;
   const shippingFriction =
@@ -874,20 +951,29 @@ export function checkoutPurchaseProbability(
         )
       : 0;
 
+  const channelResponse =
+    promotionChannelResponseMultiplier(
+      commercePolicy?.pricingPromotionScenario,
+      pricingCustomerContext(customer),
+      timestampMs,
+      source,
+    );
+
   const probability =
-    base *
-    (0.35 + customer.intent * 0.65) *
-    (0.45 + customer.need * 0.55) *
-    (1 + Number(deviceEffect)) *
-    (1 - valueFriction) *
-    (1 - shippingFriction) *
-    (promotion.active
-      ? 1 +
-        0.18 *
-          customer.source.promotionSensitivityMultiplier
-      : 1) +
-    memory.purchaseProbability +
-    interactionLift;
+    (base *
+      (0.35 + customer.intent * 0.65) *
+      (0.45 + customer.need * 0.55) *
+      (1 + Number(deviceEffect)) *
+      (1 - valueFriction) *
+      (1 - shippingFriction) *
+      (promotion.active
+        ? 1 +
+          0.18 *
+            customer.source.promotionSensitivityMultiplier
+        : 1) +
+      memory.purchaseProbability +
+      interactionLift) *
+    channelResponse;
 
   return clamp(probability, 0.005, 0.98);
 }
@@ -918,6 +1004,25 @@ export function completePurchase(
   if (!customer.cart || customer.cart.lines.length === 0) return undefined;
 
   const lines: PurchaseLine[] = [];
+  const step10CartPricing =
+    commercePolicy?.pricingPromotionScenario === undefined
+      ? undefined
+      : new Map(
+          resolveCartLinePricing(
+            runtime.merchantWorld,
+            commercePolicy.pricingPromotionScenario,
+            pricingCustomerContext(customer),
+            timestampMs,
+            customer.cart.lines.map((line) => ({
+              productId: line.productId,
+              quantity: line.quantity,
+              fallbackBasePriceMinor: baselineProductPriceMinor(
+                runtime.merchantWorld,
+                line.productId,
+              ),
+            })),
+          ).map((line) => [line.productId, line] as const),
+        );
 
   for (const cartLine of customer.cart.lines) {
     const available =
@@ -959,14 +1064,25 @@ export function completePurchase(
       : Math.min(cartLine.quantity, available);
     if (quantity <= 0) continue;
 
-    const gross = offer.unitPriceMinor * quantity;
-    const discount = offer.discountMinor * quantity;
+    const step10Line = step10CartPricing?.get(
+      cartLine.productId,
+    );
+    const unitPriceMinor =
+      step10Line?.listPriceMinor ?? offer.unitPriceMinor;
+    const effectiveUnitPriceMinor =
+      step10Line?.effectiveUnitPriceMinor ??
+      offer.finalPriceMinor;
+    const gross = unitPriceMinor * quantity;
+    const discount = Math.max(
+      0,
+      gross - effectiveUnitPriceMinor * quantity,
+    );
     const revenue = Math.max(0, gross - discount);
 
     lines.push({
       productId: cartLine.productId,
       quantity,
-      unitPriceMinor: offer.unitPriceMinor,
+      unitPriceMinor,
       discountMinor: discount,
       revenueMinor: revenue,
       estimatedCogsMinor: Math.round(
@@ -975,6 +1091,13 @@ export function completePurchase(
       fulfillmentMinor: Math.round(
         revenue * runtime.merchantWorld.summary.fulfillmentRate,
       ),
+      ...(step10Line === undefined
+        ? {}
+        : {
+            promotionIds: step10Line.promotionIds,
+            returnProbabilityMultiplier:
+              step10Line.returnProbabilityMultiplier,
+          }),
     });
   }
 
@@ -1133,8 +1256,27 @@ export function completePurchase(
   }
 
   const repeatPurchase = customer.purchaseCount > 0;
+  const shippingTerms = resolveCartShippingTerms(
+    commercePolicy?.pricingPromotionScenario,
+    pricingCustomerContext(customer),
+    timestampMs,
+    netRevenueMinor,
+    commercePolicy?.freeShippingThresholdMinor,
+  );
+  const timingDeferral =
+    promotionTimingDeferralMultiplier(
+      runtime.merchantWorld,
+      commercePolicy?.pricingPromotionScenario,
+      pricingCustomerContext(customer),
+      timestampMs,
+      lines.map((line) => line.productId),
+    );
   delete customer.cart;
-  transitionAfterPurchase(customer, timestampMs);
+  transitionAfterPurchase(
+    customer,
+    timestampMs,
+    timingDeferral,
+  );
 
   return {
     orderId,
@@ -1153,5 +1295,17 @@ export function completePurchase(
     allocatedMarketingSpendMinor: allocatedMarketing,
     contributionProfitMinor,
     repeatPurchase,
+    ...(shippingTerms.customerShippingChargeOverrideMinor === undefined
+      ? {}
+      : {
+          customerShippingChargeOverrideMinor:
+            shippingTerms.customerShippingChargeOverrideMinor,
+        }),
+    ...(shippingTerms.qualifyingPromotionIds.length === 0
+      ? {}
+      : {
+          freeShippingPromotionIds:
+            shippingTerms.qualifyingPromotionIds,
+        }),
   };
 }
