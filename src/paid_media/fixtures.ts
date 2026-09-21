@@ -326,6 +326,30 @@ export const metaCampaignAtoB500PerDay = bundle(
   [metaCampaignADown500Day, metaCampaignBUp500Day],
 );
 
+const metaRetargetingDown1000Week = paidMediaAction({
+  actionIdValue: "action_pm_meta_retargeting_down_1000_week",
+  actionTypeValue: "advertising.adjust_budget",
+  description: "Decrease Meta retargeting budget by CAD 1,000/week.",
+  target: { kind: "advertising_channel", channelId: "meta_ads" },
+  scope: segmentScope("retargeting", "meta:retargeting"),
+  parameters: budgetDelta("decrease", 100_000, "week", 250_000),
+});
+
+const metaProspectingUp1000Week = paidMediaAction({
+  actionIdValue: "action_pm_meta_prospecting_up_1000_week",
+  actionTypeValue: "advertising.adjust_budget",
+  description: "Increase Meta prospecting budget by CAD 1,000/week.",
+  target: { kind: "advertising_channel", channelId: "meta_ads" },
+  scope: segmentScope("prospecting", "meta:prospecting"),
+  parameters: budgetDelta("increase", 100_000, "week", 500_000),
+});
+
+export const metaRetargetingToProspecting1000PerWeek = bundle(
+  "action_pm_reallocate_meta_retargeting_prospecting_1000_week",
+  "Move CAD 1,000/week from Meta retargeting to Meta prospecting.",
+  [metaRetargetingDown1000Week, metaProspectingUp1000Week],
+);
+
 export const metaProspectingRetargeting75_25 = paidMediaAction({
   actionIdValue: "action_pm_meta_allocation_75_25",
   actionTypeValue: "advertising.set_allocation",
