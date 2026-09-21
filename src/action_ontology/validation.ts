@@ -990,6 +990,176 @@ function validatePaidMediaTransferAmount(
   add(errors, "UNKNOWN_TRANSFER_AMOUNT_KIND", path + ".kind", "unsupported transfer amount kind");
 }
 
+
+function validatePricingMembership(
+  input: unknown,
+  path: string,
+  errors: ActionValidationIssue[],
+): void {
+  if (!record(input)) {
+    add(errors, "INVALID_PRICING_MEMBERSHIP", path, "membership semantics are required");
+    return;
+  }
+  if (
+    !["decision_time", "translation_time", "effective_time"].includes(
+      String(input.evaluateAt),
+    )
+  ) {
+    add(
+      errors,
+      "INVALID_PRICING_MEMBERSHIP_BOUNDARY",
+      path + ".evaluateAt",
+      "must be decision_time, translation_time or effective_time",
+    );
+  }
+  if (input.bindingRef !== undefined && !nonEmpty(input.bindingRef)) {
+    add(
+      errors,
+      "INVALID_PRICING_MEMBERSHIP_BINDING_REF",
+      path + ".bindingRef",
+      "bindingRef must be non-empty when supplied",
+    );
+  }
+}
+
+function validatePriceOperation(
+  input: unknown,
+  path: string,
+  errors: ActionValidationIssue[],
+  decisionTime?: string,
+): void {
+  validateOperation(input, path, errors, "money", decisionTime);
+  if (!record(input)) return;
+
+  if (
+    input.kind === "DELTA" &&
+    record(input.amount) &&
+    input.amount.kind === "money" &&
+    record(input.reference) &&
+    input.reference.kind === "explicit_baseline" &&
+    record(input.reference.value) &&
+    input.reference.value.kind === "money"
+  ) {
+    if (input.amount.currency !== input.reference.value.currency) {
+      add(
+        errors,
+        "PRICE_CURRENCY_MISMATCH",
+        path,
+        "price DELTA amount and explicit baseline must use the same currency",
+      );
+    }
+    if (
+      input.direction === "decrease" &&
+      Number.isInteger(input.amount.amountMinor) &&
+      Number.isInteger(input.reference.value.amountMinor) &&
+      Number(input.amount.amountMinor) > Number(input.reference.value.amountMinor)
+    ) {
+      add(
+        errors,
+        "PRICE_WOULD_BECOME_NEGATIVE",
+        path,
+        "price decrease cannot exceed the explicit baseline price",
+      );
+    }
+  }
+}
+
+function validatePriceRollbackStrategy(
+  input: unknown,
+  path: string,
+  errors: ActionValidationIssue[],
+  decisionTime?: string,
+): void {
+  if (!record(input) || !nonEmpty(input.kind)) {
+    add(errors, "INVALID_PRICE_ROLLBACK_STRATEGY", path, "rollback strategy is required");
+    return;
+  }
+
+  if (input.kind === "RESTORE_PRE_ACTION_VALUE") {
+    validateReference(
+      input.preActionPrice,
+      path + ".preActionPrice",
+      errors,
+      decisionTime,
+      "money",
+    );
+    return;
+  }
+
+  if (input.kind === "SET_EXPLICIT_VALUE") {
+    validateMoney(input.value, path + ".value", errors);
+    return;
+  }
+
+  add(
+    errors,
+    "UNKNOWN_PRICE_ROLLBACK_STRATEGY",
+    path + ".kind",
+    "rollback must use RESTORE_PRE_ACTION_VALUE or SET_EXPLICIT_VALUE",
+  );
+}
+
+function validatePriceRollbackConflictGuard(
+  input: unknown,
+  path: string,
+  errors: ActionValidationIssue[],
+  originalActionId?: string,
+): void {
+  if (!record(input) || input.kind !== "REQUIRE_CURRENT_MATCHES_ACTION_OUTPUT") {
+    add(
+      errors,
+      "INVALID_PRICE_ROLLBACK_CONFLICT_GUARD",
+      path,
+      "safe rollback requires REQUIRE_CURRENT_MATCHES_ACTION_OUTPUT",
+    );
+    return;
+  }
+  if (!nonEmpty(input.sourceActionId)) {
+    add(errors, "INVALID_ROLLBACK_SOURCE_ACTION", path + ".sourceActionId", "required");
+  } else if (originalActionId && input.sourceActionId !== originalActionId) {
+    add(
+      errors,
+      "ROLLBACK_SOURCE_ACTION_MISMATCH",
+      path + ".sourceActionId",
+      "conflict guard must reference the original pricing Action",
+    );
+  }
+  validateMoney(
+    input.expectedCurrentPrice,
+    path + ".expectedCurrentPrice",
+    errors,
+  );
+}
+
+function validatePriceRollbackParameters(
+  input: unknown,
+  path: string,
+  errors: ActionValidationIssue[],
+  decisionTime?: string,
+): void {
+  if (!record(input)) {
+    add(errors, "INVALID_PRICE_ROLLBACK", path, "rollback parameters are required");
+    return;
+  }
+  if (!nonEmpty(input.originalActionId)) {
+    add(errors, "INVALID_ROLLBACK_ORIGINAL_ACTION", path + ".originalActionId", "required");
+  }
+  validatePriceRollbackStrategy(
+    input.strategy,
+    path + ".strategy",
+    errors,
+    decisionTime,
+  );
+  validatePriceRollbackConflictGuard(
+    input.conflictGuard,
+    path + ".conflictGuard",
+    errors,
+    typeof input.originalActionId === "string"
+      ? input.originalActionId
+      : undefined,
+  );
+}
+
 function validateParameters(
   input: unknown,
   path: string,
@@ -1071,11 +1241,25 @@ function validateParameters(
       validatePaidMediaTransferAmount(input.amount, path + ".amount", errors, decisionTime);
       return;
     case "price_adjustment":
-      validateOperation(
+      validatePriceOperation(
         input.operation,
         path + ".operation",
         errors,
-        "money",
+        decisionTime,
+      );
+      if (input.membership !== undefined) {
+        validatePricingMembership(
+          input.membership,
+          path + ".membership",
+          errors,
+        );
+      }
+      return;
+    case "price_rollback":
+      validatePriceRollbackParameters(
+        input,
+        path,
+        errors,
         decisionTime,
       );
       return;
