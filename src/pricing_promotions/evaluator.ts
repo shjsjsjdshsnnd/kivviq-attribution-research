@@ -645,7 +645,7 @@ interface ComparableOrder {
   readonly productIds: ReadonlySet<string>;
 }
 
-function baselineOrdersByCustomer(
+function comparableOrdersByCustomer(
   report: EcommerceEconomicReport,
 ): ReadonlyMap<string, readonly ComparableOrder[]> {
   const map = new Map<string, ComparableOrder[]>();
@@ -683,7 +683,9 @@ function promotionAttribution(
     ),
   );
   const baselineByCustomer =
-    baselineOrdersByCustomer(baseline);
+    comparableOrdersByCustomer(baseline);
+  const factualByCustomer =
+    comparableOrdersByCustomer(factual);
   const purchaseByOrderId = new Map(
     factual.simulation.purchases.map(
       (purchase) => [purchase.orderId, purchase] as const,
@@ -697,6 +699,7 @@ function promotionAttribution(
   let promotionRedemptionPurchases = 0;
   let trueIncrementalPromotionPurchases = 0;
   let acceleratedPurchases = 0;
+  let postPromotionDisplacedPurchases = 0;
   let wouldHavePurchasedAnyway = 0;
   let switchedProductPurchases = 0;
   let discountCostOnIncrementalPurchasesMinor = 0;
@@ -781,15 +784,42 @@ function promotionAttribution(
     // no-promotion replay. Choosing the nearest baseline order by absolute
     // time can incorrectly pair a treated purchase to an earlier baseline
     // order and erase real acceleration.
-    const futureSameProduct = productMatched
-      .filter(
-        (candidate) =>
-          candidate.occurredAtMs - orderMs > 12 * HOUR_MS,
-      )
-      .sort(
-        (left, right) =>
-          left.occurredAtMs - right.occurredAtMs,
-      )[0];
+    const factualCustomerOrders =
+      factualByCustomer.get(order.customerId) ?? [];
+    const futureSameProduct =
+      activePromotions.length === 0
+        ? undefined
+        : productMatched
+            .filter(
+              (candidate) =>
+                candidate.occurredAtMs - orderMs >
+                12 * HOUR_MS,
+            )
+            .filter((candidate) => {
+              const candidateHasTreatmentPurchaseNearby =
+                factualCustomerOrders.some(
+                  (factualCandidate) =>
+                    factualCandidate.orderId !==
+                      order.orderId &&
+                    Math.abs(
+                      factualCandidate.occurredAtMs -
+                        candidate.occurredAtMs,
+                    ) <=
+                      72 * HOUR_MS &&
+                    [...candidate.productIds].some(
+                      (productId) =>
+                        factualCandidate.productIds.has(
+                          productId,
+                        ),
+                    ),
+                );
+              return !candidateHasTreatmentPurchaseNearby;
+            })
+            .sort(
+              (left, right) =>
+                left.occurredAtMs -
+                right.occurredAtMs,
+            )[0];
     const sameProduct = productMatched
       .slice()
       .sort(
@@ -847,6 +877,18 @@ function promotionAttribution(
       matchedBaseline = anyBaseline;
     } else if (futureSameProduct !== undefined) {
       acceleratedPurchases += weight;
+      const activePromotionEndMs = Math.max(
+        ...activePromotions.map((promotion) =>
+          Date.parse(promotion.end),
+        ),
+      );
+      if (
+        Number.isFinite(activePromotionEndMs) &&
+        futureSameProduct.occurredAtMs >=
+          activePromotionEndMs
+      ) {
+        postPromotionDisplacedPurchases += weight;
+      }
       discountCostOnAcceleratedPurchasesMinor +=
         weightedDiscount;
       matchedBaseline = futureSameProduct;
@@ -867,6 +909,7 @@ function promotionAttribution(
     promotionRedemptionPurchases,
     trueIncrementalPromotionPurchases,
     acceleratedPurchases,
+    postPromotionDisplacedPurchases,
     wouldHavePurchasedAnyway,
     switchedProductPurchases,
     discountCostOnIncrementalPurchasesMinor:
