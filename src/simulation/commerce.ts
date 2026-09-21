@@ -11,6 +11,17 @@ import {
   totalMemoryLift,
   transitionAfterPurchase,
 } from "./state.js";
+import {
+  availableToSellUnits as step9AvailableToSellUnits,
+  commitAndSellReservations,
+  createBackorder,
+  legacyNetAvailableUnits,
+  markInventoryDemandOutcome,
+  recordInventoryDemand,
+  reserveInventory,
+  reservationQuantity,
+  sellAvailableInventory,
+} from "../inventory_dynamics/state.js";
 import type {
   PurchaseLine,
   RealizedPurchase,
@@ -25,6 +36,7 @@ export interface ProductOffer {
   readonly availableUnits: number;
   readonly priceUtilityMultiplier: number;
   readonly promotionUtilityMultiplier: number;
+  readonly demandTruthId?: string;
 }
 
 const clamp = (value: number, min: number, max: number): number =>
