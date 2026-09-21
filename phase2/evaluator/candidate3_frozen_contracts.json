@@ -1,0 +1,18 @@
+{
+  "candidate_id": "candidate3-overlap-ato",
+  "candidate_version": "1.0.0",
+  "contract_document_sha256": "6ac76aabc92400eb8241a4efb0c1d100a81420adb56a9d9979896500b1003055",
+  "contract_fingerprints": {
+    "ato_estimand": "bfad931307f76f55176cf624059362581490f1446b9500676ec1c9d43ba3f1d0",
+    "pretreatment_x": "1f74b7719b6087f500ad24bdd51c335ade9587bc8adfc9d82eebe2a528ce2f48",
+    "support_abstention": "9ba0dc7ab2e980ce08b0709a396d08163c75b91aa247a1dfea9349b95deec705",
+    "uncertainty": "c5299f349f2cd68d956ed1c7eab498b1f0e60c69731d248a33c766ed9ffeea2a"
+  },
+  "contract_source_sha256": "88dcec45513861af3e1018950550a389cfc7eb63be76d5b1a4e4c8fe7839513f",
+  "estimator_implemented": false,
+  "harness_reference": "3616d00c0855a0d3d9dcb8dbf578a3e68c26f9fa",
+  "holdout_instantiated": false,
+  "identification_overlap_study_reference": "cfdf9cc1c71e28366fe1c4b27968cf11e2faa14a",
+  "phase1_reference": "1d92f4d2d5fd89de261127b8ed4bdcced6f18fdf",
+  "status": "CONTRACTS_FROZEN_BEFORE_HOLDOUT_SEAL"
+}
