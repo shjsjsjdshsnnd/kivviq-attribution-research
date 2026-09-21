@@ -806,6 +806,15 @@ export function resolveCartLinePricing(
           }
         }
       }
+      for (const line of lines) {
+        if (
+          discountedIds.has(line.productId) &&
+          line.promotionIds.includes(promotion.promotionId)
+        ) {
+          line.returnProbabilityMultiplier *=
+            promotion.returnProbabilityMultiplier ?? 1;
+        }
+      }
       continue;
     }
 
@@ -836,15 +845,15 @@ export function resolveCartLinePricing(
       promotion.fixedAmountMinor ?? 0,
     );
     for (const line of lines) {
-      if (
-        eligibleIds.has(line.productId) &&
-        !line.promotionIds.includes(promotion.promotionId)
-      ) {
+      if (!eligibleIds.has(line.productId)) continue;
+      if (!line.promotionIds.includes(promotion.promotionId)) {
         line.promotionIds = [
           ...line.promotionIds,
           promotion.promotionId,
         ];
       }
+      line.returnProbabilityMultiplier *=
+        promotion.returnProbabilityMultiplier ?? 1;
     }
   }
 
