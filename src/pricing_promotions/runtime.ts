@@ -933,6 +933,78 @@ export function resolveCartShippingTerms(
   };
 }
 
+export interface BundleAttachmentOpportunity {
+  readonly promotionId: string;
+  readonly productId: string;
+  readonly probability: number;
+}
+
+export function bundleAttachmentOpportunity(
+  scenario: PricingPromotionScenario | undefined,
+  customer: PricingCustomerContext,
+  timestampMs: number,
+  cartProductIds: readonly string[],
+): BundleAttachmentOpportunity | undefined {
+  if (!scenario) return undefined;
+  const present = new Set(cartProductIds);
+  const candidates: BundleAttachmentOpportunity[] = [];
+
+  for (const promotion of scenario.promotions) {
+    if (
+      promotion.mechanic !== "bundle" ||
+      promotion.bundle === undefined ||
+      !isActive(promotion.start, promotion.end, timestampMs) ||
+      !targetingEligible(promotion, customer) ||
+      !customerAwareOfPromotion(promotion, customer)
+    ) {
+      continue;
+    }
+
+    const required = promotion.bundle.requiredProductIds;
+    const presentRequired = required.filter((productId) =>
+      present.has(productId),
+    );
+    const missing = required.filter(
+      (productId) => !present.has(productId),
+    );
+    if (
+      presentRequired.length === 0 ||
+      missing.length !== 1
+    ) {
+      continue;
+    }
+
+    const depth =
+      promotion.bundle.percentageOff ??
+      (promotion.bundle.fixedAmountMinor !== undefined
+        ? 0.1
+        : 0);
+    const probability = clamp(
+      0.04 +
+        customer.source.promotionSensitivityMultiplier *
+          Math.max(0.02, depth) *
+          1.45 +
+        customer.source.latentFactors.dealOrientation * 0.08 +
+        customer.source.complementAffinity * 0.06,
+      0.03,
+      0.78,
+    );
+
+    candidates.push({
+      promotionId: promotion.promotionId,
+      productId: missing[0]!,
+      probability,
+    });
+  }
+
+  return candidates.sort(
+    (left, right) =>
+      right.probability - left.probability ||
+      left.promotionId.localeCompare(right.promotionId) ||
+      left.productId.localeCompare(right.productId),
+  )[0];
+}
+
 export function promotionChannelResponseMultiplier(
   scenario: PricingPromotionScenario | undefined,
   customer: PricingCustomerContext,
