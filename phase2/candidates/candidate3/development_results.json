@@ -1,0 +1,619 @@
+{
+  "bootstrap_replicates_per_full_estimate": 400,
+  "candidate1_holdout_used": false,
+  "candidate2_holdout_used": false,
+  "candidate_id": "candidate3-overlap-ato",
+  "candidate_version": "1.0.0",
+  "contract_reference": "60173ae35c29983a238eb3c5a98f3c0e94f2d234",
+  "estimator_family": "logistic propensity + overlap weighting",
+  "frozen_phase1_used_for_tuning": false,
+  "full_population_ate_estimated": false,
+  "full_uncertainty_validation": [
+    {
+      "actual_decision": "ESTIMATE_ATO",
+      "ate_truth": 0.033526920293721924,
+      "ato_truth": 0.033030883154227045,
+      "bootstrap_requested": 400,
+      "bootstrap_valid": 400,
+      "estimate": -0.028930158556497144,
+      "expected_decision": "ESTIMATE_ATO",
+      "interval_lower": -0.0632186633428708,
+      "interval_upper": 0.011276625367929283,
+      "provenance_valid": true,
+      "support_diagnostics": {
+        "central_overlap_fraction": 1.0,
+        "control_count": 282,
+        "control_overlap_ess": 261.37565768385747,
+        "interval_width": 0.07449528871080008,
+        "normalized_overlap_mass": 0.9092760508364924,
+        "outcome_events": 51,
+        "total_overlap_ess": 563.751151533806,
+        "treated_count": 338,
+        "treated_overlap_ess": 305.86481695162774,
+        "valid_bootstrap_fraction": 1.0
+      },
+      "world_id": "c3-dev-adequate-overlap"
+    },
+    {
+      "actual_decision": "ESTIMATE_ATO",
+      "ate_truth": 0.047410115263703964,
+      "ato_truth": 0.057637819549183705,
+      "bootstrap_requested": 400,
+      "bootstrap_valid": 400,
+      "estimate": 0.09639197680988332,
+      "expected_decision": "ESTIMATE_ATO",
+      "interval_lower": 0.057987070361346774,
+      "interval_upper": 0.1409424313773717,
+      "provenance_valid": true,
+      "support_diagnostics": {
+        "central_overlap_fraction": 0.7133333333333334,
+        "control_count": 605,
+        "control_overlap_ess": 321.58724588240545,
+        "interval_width": 0.08295536101602492,
+        "normalized_overlap_mass": 0.5854194665419888,
+        "outcome_events": 83,
+        "total_overlap_ess": 526.8784598688685,
+        "treated_count": 295,
+        "treated_overlap_ess": 223.09936665781464,
+        "valid_bootstrap_fraction": 1.0
+      },
+      "world_id": "c3-dev-weak-full-support"
+    },
+    {
+      "actual_decision": "ESTIMATE_ATO",
+      "ate_truth": 0.030101616726441762,
+      "ato_truth": 0.03792114495170621,
+      "bootstrap_requested": 400,
+      "bootstrap_valid": 400,
+      "estimate": 0.005824690539131316,
+      "expected_decision": "ABSTAIN_INADEQUATE_SUPPORT",
+      "interval_lower": -0.06942616745822904,
+      "interval_upper": 0.07636092195929568,
+      "provenance_valid": true,
+      "support_diagnostics": {
+        "central_overlap_fraction": 0.4246153846153846,
+        "control_count": 487,
+        "control_overlap_ess": 148.2744996939386,
+        "interval_width": 0.14578708941752472,
+        "normalized_overlap_mass": 0.3734047988935972,
+        "outcome_events": 59,
+        "total_overlap_ess": 242.72979452734873,
+        "treated_count": 163,
+        "treated_overlap_ess": 102.72233155848338,
+        "valid_bootstrap_fraction": 1.0
+      },
+      "world_id": "c3-dev-inadequate-support"
+    },
+    {
+      "actual_decision": "ABSTAIN_INADEQUATE_FINITE_SAMPLE",
+      "ate_truth": 0.020263704217468616,
+      "ato_truth": 0.019898797503168916,
+      "bootstrap_requested": 400,
+      "bootstrap_valid": 0,
+      "estimate": null,
+      "expected_decision": "ABSTAIN_INADEQUATE_FINITE_SAMPLE",
+      "interval_lower": null,
+      "interval_upper": null,
+      "provenance_valid": true,
+      "support_diagnostics": {
+        "central_overlap_fraction": 1.0,
+        "control_count": 28,
+        "control_overlap_ess": 26.011959666276944,
+        "interval_width": null,
+        "normalized_overlap_mass": 0.887512002355874,
+        "outcome_events": 4,
+        "total_overlap_ess": 57.71991021634687,
+        "treated_count": 37,
+        "treated_overlap_ess": 32.40826919661025,
+        "valid_bootstrap_fraction": null
+      },
+      "world_id": "c3-dev-finite-sample"
+    },
+    {
+      "actual_decision": "ABSTAIN_PRETREATMENT_INVALID",
+      "ate_truth": 0.033322393898262324,
+      "ato_truth": 0.03290373481482156,
+      "bootstrap_requested": 400,
+      "bootstrap_valid": 0,
+      "estimate": null,
+      "expected_decision": "ABSTAIN_PRETREATMENT_INVALID",
+      "interval_lower": null,
+      "interval_upper": null,
+      "provenance_valid": false,
+      "support_diagnostics": null,
+      "world_id": "c3-dev-invalid-provenance"
+    },
+    {
+      "actual_decision": "ESTIMATE_ATO",
+      "ate_truth": 0.05346382159675911,
+      "ato_truth": 0.03890804505708967,
+      "bootstrap_requested": 400,
+      "bootstrap_valid": 400,
+      "estimate": 0.031469448690870164,
+      "expected_decision": "ESTIMATE_ATO",
+      "interval_lower": 0.003113002232380395,
+      "interval_upper": 0.05797646528339434,
+      "provenance_valid": true,
+      "support_diagnostics": {
+        "central_overlap_fraction": 0.9960526315789474,
+        "control_count": 327,
+        "control_overlap_ess": 302.9779479684775,
+        "interval_width": 0.054863463051013944,
+        "normalized_overlap_mass": 0.8821755670474222,
+        "outcome_events": 65,
+        "total_overlap_ess": 670.4535287475254,
+        "treated_count": 433,
+        "treated_overlap_ess": 375.15843451212703,
+        "valid_bootstrap_fraction": 1.0
+      },
+      "world_id": "c3-dev-heterogeneous-overlap"
+    },
+    {
+      "actual_decision": "ESTIMATE_ATO",
+      "ate_truth": 0.03609801999385761,
+      "ato_truth": 0.033001007514399446,
+      "bootstrap_requested": 400,
+      "bootstrap_valid": 400,
+      "estimate": 0.13260738720448803,
+      "expected_decision": "ESTIMATE_ATO",
+      "interval_lower": 0.09495385990051418,
+      "interval_upper": 0.17273634461048445,
+      "provenance_valid": true,
+      "support_diagnostics": {
+        "central_overlap_fraction": 1.0,
+        "control_count": 416,
+        "control_overlap_ess": 401.9531202208936,
+        "interval_width": 0.07778248470997028,
+        "normalized_overlap_mass": 0.9621966058604352,
+        "outcome_events": 129,
+        "total_overlap_ess": 817.8671375357166,
+        "treated_count": 434,
+        "treated_overlap_ess": 416.16075166082373,
+        "valid_bootstrap_fraction": 1.0
+      },
+      "world_id": "c3-dev-latent-confounding-nongoal"
+    }
+  ],
+  "grid": [
+    {
+      "behavior_failures": 1,
+      "mean_ato_error_on_estimated_scored_worlds": 0.035062562437554554,
+      "propensity_l2": 0.1,
+      "records": [
+        {
+          "absolute_ato_error": 0.06196104171072419,
+          "actual_decision": "ESTIMATE_ATO",
+          "ate_truth": 0.033526920293721924,
+          "ato_truth": 0.033030883154227045,
+          "behavior_ok": true,
+          "estimate": -0.028930158556497144,
+          "expected_decision": "ESTIMATE_ATO",
+          "scored_for_hyperparameter_selection": true,
+          "support_diagnostics": {
+            "central_overlap_fraction": 1.0,
+            "control_count": 282,
+            "control_overlap_ess": 261.37565768385747,
+            "normalized_overlap_mass": 0.9092760508364924,
+            "outcome_events": 51,
+            "total_overlap_ess": 563.751151533806,
+            "treated_count": 338,
+            "treated_overlap_ess": 305.86481695162774
+          },
+          "world_id": "c3-dev-adequate-overlap"
+        },
+        {
+          "absolute_ato_error": 0.03875415726069961,
+          "actual_decision": "ESTIMATE_ATO",
+          "ate_truth": 0.047410115263703964,
+          "ato_truth": 0.057637819549183705,
+          "behavior_ok": true,
+          "estimate": 0.09639197680988332,
+          "expected_decision": "ESTIMATE_ATO",
+          "scored_for_hyperparameter_selection": true,
+          "support_diagnostics": {
+            "central_overlap_fraction": 0.7133333333333334,
+            "control_count": 605,
+            "control_overlap_ess": 321.58724588240545,
+            "normalized_overlap_mass": 0.5854194665419888,
+            "outcome_events": 83,
+            "total_overlap_ess": 526.8784598688685,
+            "treated_count": 295,
+            "treated_overlap_ess": 223.09936665781464
+          },
+          "world_id": "c3-dev-weak-full-support"
+        },
+        {
+          "absolute_ato_error": 0.032096454412574894,
+          "actual_decision": "ESTIMATE_ATO",
+          "ate_truth": 0.030101616726441762,
+          "ato_truth": 0.03792114495170621,
+          "behavior_ok": false,
+          "estimate": 0.005824690539131316,
+          "expected_decision": "ABSTAIN_INADEQUATE_SUPPORT",
+          "scored_for_hyperparameter_selection": true,
+          "support_diagnostics": {
+            "central_overlap_fraction": 0.4246153846153846,
+            "control_count": 487,
+            "control_overlap_ess": 148.2744996939386,
+            "normalized_overlap_mass": 0.3734047988935972,
+            "outcome_events": 59,
+            "total_overlap_ess": 242.72979452734873,
+            "treated_count": 163,
+            "treated_overlap_ess": 102.72233155848338
+          },
+          "world_id": "c3-dev-inadequate-support"
+        },
+        {
+          "absolute_ato_error": null,
+          "actual_decision": "ABSTAIN_INADEQUATE_FINITE_SAMPLE",
+          "ate_truth": 0.020263704217468616,
+          "ato_truth": 0.019898797503168916,
+          "behavior_ok": true,
+          "estimate": null,
+          "expected_decision": "ABSTAIN_INADEQUATE_FINITE_SAMPLE",
+          "scored_for_hyperparameter_selection": true,
+          "support_diagnostics": {
+            "central_overlap_fraction": 1.0,
+            "control_count": 28,
+            "control_overlap_ess": 26.011959666276944,
+            "normalized_overlap_mass": 0.887512002355874,
+            "outcome_events": 4,
+            "total_overlap_ess": 57.71991021634687,
+            "treated_count": 37,
+            "treated_overlap_ess": 32.40826919661025
+          },
+          "world_id": "c3-dev-finite-sample"
+        },
+        {
+          "absolute_ato_error": null,
+          "actual_decision": "ABSTAIN_PRETREATMENT_INVALID",
+          "ate_truth": 0.033322393898262324,
+          "ato_truth": 0.03290373481482156,
+          "behavior_ok": true,
+          "estimate": null,
+          "expected_decision": "ABSTAIN_PRETREATMENT_INVALID",
+          "scored_for_hyperparameter_selection": true,
+          "support_diagnostics": null,
+          "world_id": "c3-dev-invalid-provenance"
+        },
+        {
+          "absolute_ato_error": 0.007438596366219505,
+          "actual_decision": "ESTIMATE_ATO",
+          "ate_truth": 0.05346382159675911,
+          "ato_truth": 0.03890804505708967,
+          "behavior_ok": true,
+          "estimate": 0.031469448690870164,
+          "expected_decision": "ESTIMATE_ATO",
+          "scored_for_hyperparameter_selection": true,
+          "support_diagnostics": {
+            "central_overlap_fraction": 0.9960526315789474,
+            "control_count": 327,
+            "control_overlap_ess": 302.9779479684775,
+            "normalized_overlap_mass": 0.8821755670474222,
+            "outcome_events": 65,
+            "total_overlap_ess": 670.4535287475254,
+            "treated_count": 433,
+            "treated_overlap_ess": 375.15843451212703
+          },
+          "world_id": "c3-dev-heterogeneous-overlap"
+        },
+        {
+          "absolute_ato_error": null,
+          "actual_decision": "ESTIMATE_ATO",
+          "ate_truth": 0.03609801999385761,
+          "ato_truth": 0.033001007514399446,
+          "behavior_ok": true,
+          "estimate": 0.13260738720448803,
+          "expected_decision": "ESTIMATE_ATO",
+          "scored_for_hyperparameter_selection": false,
+          "support_diagnostics": {
+            "central_overlap_fraction": 1.0,
+            "control_count": 416,
+            "control_overlap_ess": 401.9531202208936,
+            "normalized_overlap_mass": 0.9621966058604352,
+            "outcome_events": 129,
+            "total_overlap_ess": 817.8671375357166,
+            "treated_count": 434,
+            "treated_overlap_ess": 416.16075166082373
+          },
+          "world_id": "c3-dev-latent-confounding-nongoal"
+        }
+      ]
+    },
+    {
+      "behavior_failures": 1,
+      "mean_ato_error_on_estimated_scored_worlds": 0.03541378871697409,
+      "propensity_l2": 1.0,
+      "records": [
+        {
+          "absolute_ato_error": 0.061765219493124184,
+          "actual_decision": "ESTIMATE_ATO",
+          "ate_truth": 0.033526920293721924,
+          "ato_truth": 0.033030883154227045,
+          "behavior_ok": true,
+          "estimate": -0.02873433633889714,
+          "expected_decision": "ESTIMATE_ATO",
+          "scored_for_hyperparameter_selection": true,
+          "support_diagnostics": {
+            "central_overlap_fraction": 1.0,
+            "control_count": 282,
+            "control_overlap_ess": 262.01495314211303,
+            "normalized_overlap_mass": 0.9113328728011904,
+            "outcome_events": 51,
+            "total_overlap_ess": 565.0270725664908,
+            "treated_count": 338,
+            "treated_overlap_ess": 306.49173375273324
+          },
+          "world_id": "c3-dev-adequate-overlap"
+        },
+        {
+          "absolute_ato_error": 0.040264452143413024,
+          "actual_decision": "ESTIMATE_ATO",
+          "ate_truth": 0.047410115263703964,
+          "ato_truth": 0.057637819549183705,
+          "behavior_ok": true,
+          "estimate": 0.09790227169259673,
+          "expected_decision": "ESTIMATE_ATO",
+          "scored_for_hyperparameter_selection": true,
+          "support_diagnostics": {
+            "central_overlap_fraction": 0.72,
+            "control_count": 605,
+            "control_overlap_ess": 325.4228335922026,
+            "normalized_overlap_mass": 0.5911122100307848,
+            "outcome_events": 83,
+            "total_overlap_ess": 532.00647579707,
+            "treated_count": 295,
+            "treated_overlap_ess": 224.93239007526518
+          },
+          "world_id": "c3-dev-weak-full-support"
+        },
+        {
+          "absolute_ato_error": 0.03254975099755495,
+          "actual_decision": "ESTIMATE_ATO",
+          "ate_truth": 0.030101616726441762,
+          "ato_truth": 0.03792114495170621,
+          "behavior_ok": false,
+          "estimate": 0.00537139395415126,
+          "expected_decision": "ABSTAIN_INADEQUATE_SUPPORT",
+          "scored_for_hyperparameter_selection": true,
+          "support_diagnostics": {
+            "central_overlap_fraction": 0.44769230769230767,
+            "control_count": 487,
+            "control_overlap_ess": 156.18061034445878,
+            "normalized_overlap_mass": 0.3889997929539761,
+            "outcome_events": 59,
+            "total_overlap_ess": 253.0282917746469,
+            "treated_count": 163,
+            "treated_overlap_ess": 106.31889978889562
+          },
+          "world_id": "c3-dev-inadequate-support"
+        },
+        {
+          "absolute_ato_error": null,
+          "actual_decision": "ABSTAIN_INADEQUATE_FINITE_SAMPLE",
+          "ate_truth": 0.020263704217468616,
+          "ato_truth": 0.019898797503168916,
+          "behavior_ok": true,
+          "estimate": null,
+          "expected_decision": "ABSTAIN_INADEQUATE_FINITE_SAMPLE",
+          "scored_for_hyperparameter_selection": true,
+          "support_diagnostics": {
+            "central_overlap_fraction": 1.0,
+            "control_count": 28,
+            "control_overlap_ess": 27.072436647200654,
+            "normalized_overlap_mass": 0.9369209306538597,
+            "outcome_events": 4,
+            "total_overlap_ess": 60.921955462134314,
+            "treated_count": 37,
+            "treated_overlap_ess": 34.81914061100565
+          },
+          "world_id": "c3-dev-finite-sample"
+        },
+        {
+          "absolute_ato_error": null,
+          "actual_decision": "ABSTAIN_PRETREATMENT_INVALID",
+          "ate_truth": 0.033322393898262324,
+          "ato_truth": 0.03290373481482156,
+          "behavior_ok": true,
+          "estimate": null,
+          "expected_decision": "ABSTAIN_PRETREATMENT_INVALID",
+          "scored_for_hyperparameter_selection": true,
+          "support_diagnostics": null,
+          "world_id": "c3-dev-invalid-provenance"
+        },
+        {
+          "absolute_ato_error": 0.007075732233804213,
+          "actual_decision": "ESTIMATE_ATO",
+          "ate_truth": 0.05346382159675911,
+          "ato_truth": 0.03890804505708967,
+          "behavior_ok": true,
+          "estimate": 0.031832312823285455,
+          "expected_decision": "ESTIMATE_ATO",
+          "scored_for_hyperparameter_selection": true,
+          "support_diagnostics": {
+            "central_overlap_fraction": 0.9960526315789474,
+            "control_count": 327,
+            "control_overlap_ess": 303.61425113780655,
+            "normalized_overlap_mass": 0.885236470183321,
+            "outcome_events": 65,
+            "total_overlap_ess": 672.7822332405146,
+            "treated_count": 433,
+            "treated_overlap_ess": 377.1013248962453
+          },
+          "world_id": "c3-dev-heterogeneous-overlap"
+        },
+        {
+          "absolute_ato_error": null,
+          "actual_decision": "ESTIMATE_ATO",
+          "ate_truth": 0.03609801999385761,
+          "ato_truth": 0.033001007514399446,
+          "behavior_ok": true,
+          "estimate": 0.13254466667234555,
+          "expected_decision": "ESTIMATE_ATO",
+          "scored_for_hyperparameter_selection": false,
+          "support_diagnostics": {
+            "central_overlap_fraction": 1.0,
+            "control_count": 416,
+            "control_overlap_ess": 402.6572903861698,
+            "normalized_overlap_mass": 0.9640068174475843,
+            "outcome_events": 129,
+            "total_overlap_ess": 819.4067082993473,
+            "treated_count": 434,
+            "treated_overlap_ess": 417.00040681955016
+          },
+          "world_id": "c3-dev-latent-confounding-nongoal"
+        }
+      ]
+    },
+    {
+      "behavior_failures": 1,
+      "mean_ato_error_on_estimated_scored_worlds": 0.03535411650916212,
+      "propensity_l2": 5.0,
+      "records": [
+        {
+          "absolute_ato_error": 0.06080017490380915,
+          "actual_decision": "ESTIMATE_ATO",
+          "ate_truth": 0.033526920293721924,
+          "ato_truth": 0.033030883154227045,
+          "behavior_ok": true,
+          "estimate": -0.027769291749582106,
+          "expected_decision": "ESTIMATE_ATO",
+          "scored_for_hyperparameter_selection": true,
+          "support_diagnostics": {
+            "central_overlap_fraction": 1.0,
+            "control_count": 282,
+            "control_overlap_ess": 263.90503565409125,
+            "normalized_overlap_mass": 0.9181383774501052,
+            "outcome_events": 51,
+            "total_overlap_ess": 569.2572714648303,
+            "treated_count": 338,
+            "treated_overlap_ess": 308.88431135087603
+          },
+          "world_id": "c3-dev-adequate-overlap"
+        },
+        {
+          "absolute_ato_error": 0.04439704442124505,
+          "actual_decision": "ESTIMATE_ATO",
+          "ate_truth": 0.047410115263703964,
+          "ato_truth": 0.057637819549183705,
+          "behavior_ok": true,
+          "estimate": 0.10203486397042875,
+          "expected_decision": "ESTIMATE_ATO",
+          "scored_for_hyperparameter_selection": true,
+          "support_diagnostics": {
+            "central_overlap_fraction": 0.7422222222222222,
+            "control_count": 605,
+            "control_overlap_ess": 339.7919336517669,
+            "normalized_overlap_mass": 0.6109016024124746,
+            "outcome_events": 83,
+            "total_overlap_ess": 549.9929477156385,
+            "treated_count": 295,
+            "treated_overlap_ess": 230.95525247032572
+          },
+          "world_id": "c3-dev-weak-full-support"
+        },
+        {
+          "absolute_ato_error": 0.030299593999282816,
+          "actual_decision": "ESTIMATE_ATO",
+          "ate_truth": 0.030101616726441762,
+          "ato_truth": 0.03792114495170621,
+          "behavior_ok": false,
+          "estimate": 0.007621550952423395,
+          "expected_decision": "ABSTAIN_INADEQUATE_SUPPORT",
+          "scored_for_hyperparameter_selection": true,
+          "support_diagnostics": {
+            "central_overlap_fraction": 0.5123076923076924,
+            "control_count": 487,
+            "control_overlap_ess": 183.74529298103323,
+            "normalized_overlap_mass": 0.4361560062792929,
+            "outcome_events": 59,
+            "total_overlap_ess": 285.13052261176415,
+            "treated_count": 163,
+            "treated_overlap_ess": 116.46396753059705
+          },
+          "world_id": "c3-dev-inadequate-support"
+        },
+        {
+          "absolute_ato_error": null,
+          "actual_decision": "ABSTAIN_INADEQUATE_FINITE_SAMPLE",
+          "ate_truth": 0.020263704217468616,
+          "ato_truth": 0.019898797503168916,
+          "behavior_ok": true,
+          "estimate": null,
+          "expected_decision": "ABSTAIN_INADEQUATE_FINITE_SAMPLE",
+          "scored_for_hyperparameter_selection": true,
+          "support_diagnostics": {
+            "central_overlap_fraction": 1.0,
+            "control_count": 28,
+            "control_overlap_ess": 27.417199367217123,
+            "normalized_overlap_mass": 0.9537984639648908,
+            "outcome_events": 4,
+            "total_overlap_ess": 62.00683020695832,
+            "treated_count": 37,
+            "treated_overlap_ess": 35.668977249119614
+          },
+          "world_id": "c3-dev-finite-sample"
+        },
+        {
+          "absolute_ato_error": null,
+          "actual_decision": "ABSTAIN_PRETREATMENT_INVALID",
+          "ate_truth": 0.033322393898262324,
+          "ato_truth": 0.03290373481482156,
+          "behavior_ok": true,
+          "estimate": null,
+          "expected_decision": "ABSTAIN_PRETREATMENT_INVALID",
+          "scored_for_hyperparameter_selection": true,
+          "support_diagnostics": null,
+          "world_id": "c3-dev-invalid-provenance"
+        },
+        {
+          "absolute_ato_error": 0.005919652712311471,
+          "actual_decision": "ESTIMATE_ATO",
+          "ate_truth": 0.05346382159675911,
+          "ato_truth": 0.03890804505708967,
+          "behavior_ok": true,
+          "estimate": 0.0329883923447782,
+          "expected_decision": "ESTIMATE_ATO",
+          "scored_for_hyperparameter_selection": true,
+          "support_diagnostics": {
+            "central_overlap_fraction": 0.9986842105263158,
+            "control_count": 327,
+            "control_overlap_ess": 305.24768221724156,
+            "normalized_overlap_mass": 0.8926062671018543,
+            "outcome_events": 65,
+            "total_overlap_ess": 678.3973355928063,
+            "treated_count": 433,
+            "treated_overlap_ess": 381.6471355497331
+          },
+          "world_id": "c3-dev-heterogeneous-overlap"
+        },
+        {
+          "absolute_ato_error": null,
+          "actual_decision": "ESTIMATE_ATO",
+          "ate_truth": 0.03609801999385761,
+          "ato_truth": 0.033001007514399446,
+          "behavior_ok": true,
+          "estimate": 0.13276098733261432,
+          "expected_decision": "ESTIMATE_ATO",
+          "scored_for_hyperparameter_selection": false,
+          "support_diagnostics": {
+            "central_overlap_fraction": 1.0,
+            "control_count": 416,
+            "control_overlap_ess": 404.2089216170125,
+            "normalized_overlap_mass": 0.9680206844069816,
+            "outcome_events": 129,
+            "total_overlap_ess": 822.8229679300648,
+            "treated_count": 434,
+            "treated_overlap_ess": 418.8753867332544
+          },
+          "world_id": "c3-dev-latent-confounding-nongoal"
+        }
+      ]
+    }
+  ],
+  "holdout_used_for_tuning": false,
+  "holdout_version": "candidate3-holdout-v1",
+  "selected_propensity_l2": 0.1,
+  "selection_rule": "minimize preregistered behavior failures first, then mean ATO error on scored estimate worlds; exact ties choose stronger L2",
+  "stage": "DEVELOPMENT"
+}
