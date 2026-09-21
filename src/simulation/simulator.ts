@@ -14,8 +14,22 @@ import type { Intervention } from "../ground_truth/interventions.js";
 import {
   checkoutPurchaseProbability,
   completePurchase,
+  markCartInventoryDemandAbandoned,
   promotionState,
+  reserveCheckoutInventory,
 } from "./commerce.js";
+import {
+  dispatchReorder,
+  finalizeInventoryGodMode,
+  legacyNetAvailableUnits,
+  markReorderDelayed,
+  placeReorder,
+  receiveInventory,
+  releaseReservation,
+  reorderQuantity,
+  setAvailableInventoryAdjustment,
+  shouldReorder,
+} from "../inventory_dynamics/state.js";
 import {
   applyExposureLatentEffect,
   naturalVisitOpportunities,
@@ -107,6 +121,22 @@ interface InventoryReplenishmentPayload {
   readonly units: number;
   readonly cadenceMs?: number;
   readonly ordinal: number;
+  readonly reorderId?: string;
+}
+
+interface InventoryReservationExpiryPayload {
+  readonly reservationId: string;
+  readonly productId: string;
+}
+
+interface InventoryReorderCheckPayload {
+  readonly productId: string;
+  readonly ordinal: number;
+}
+
+interface SupplierShipmentPayload {
+  readonly reorderId: string;
+  readonly productId: string;
 }
 
 const DEFAULT_MAX_EVENTS = 500_000;
@@ -484,11 +514,77 @@ function applyInventoryOverride(
   );
   if (state.inventoryOverrideUnits === undefined) return;
   for (const productId of runtime.inventory.keys()) {
-    runtime.inventory.set(
-      productId,
-      state.inventoryOverrideUnits,
-    );
+    if (request.commercePolicy?.enableInventoryDynamics === true) {
+      setAvailableInventoryAdjustment(
+        runtime.inventoryEconomy,
+        productId,
+        state.inventoryOverrideUnits,
+        timestampMs,
+        "inventory-intervention",
+      );
+      runtime.inventory.set(
+        productId,
+        legacyNetAvailableUnits(
+          runtime.inventoryEconomy,
+          productId,
+        ),
+      );
+    } else {
+      runtime.inventory.set(
+        productId,
+        state.inventoryOverrideUnits,
+      );
+    }
   }
+}
+
+function realizedSupplierLeadMs(
+  request: SimulateWorldRequest,
+  productId: string,
+  expectedLeadMs: number,
+  placedAtMs: number,
+  randomness: SharedRandomness,
+): number {
+  const inventory = request.merchantWorld.manifest.inventoryMechanisms.find(
+    (candidate) => candidate.productId === productId,
+  );
+  const profile = request.merchantWorld.summary.inventoryProfile;
+  const volatility =
+    profile === "long_lead_time"
+      ? 0.32
+      : profile === "stockout_prone"
+        ? 0.26
+        : profile === "replenishment_friendly"
+          ? 0.1
+          : 0.18;
+  let factor = Math.max(
+    0.55,
+    1 +
+      randomness.normal(
+        `inventory-lead:${productId}:${placedAtMs}`,
+        0,
+        volatility,
+      ),
+  );
+
+  for (const shock of request.merchantWorld.manifest.externalShocks) {
+    if (shock.kind !== "supplier_disruption") continue;
+    const start = Date.parse(shock.start);
+    const end =
+      start + Number(shock.durationSeconds) * 1_000;
+    if (placedAtMs < start || placedAtMs >= end) continue;
+    const effect = shock.mechanism.effect;
+    if (effect.scale === "relative") {
+      factor *= Math.max(0.1, 1 + effect.value);
+    } else if (effect.scale === "multiplicative") {
+      factor *= Math.max(0.1, effect.value);
+    }
+  }
+
+  const declared =
+    Number(inventory?.supplierLeadTimeSeconds ?? 0) * 1_000;
+  const baseline = Math.max(expectedLeadMs, declared);
+  return Math.max(hours(1), baseline * factor);
 }
 
 export function simulateWorld(
