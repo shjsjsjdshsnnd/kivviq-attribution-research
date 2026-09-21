@@ -233,7 +233,8 @@ export function simulateReturnEconomics(
       if (!profile) continue;
 
       const promotionMultiplier =
-        line.discountMinor > 0
+        line.returnProbabilityMultiplier ??
+        (line.discountMinor > 0
           ? 1 +
             Math.max(
               0,
@@ -243,7 +244,7 @@ export function simulateReturnEconomics(
               )?.promotionSensitivityMultiplier ?? 1,
             ) *
               0.08
-          : 1;
+          : 1);
 
       const probability = clamp(
         profile.returnProbability *
