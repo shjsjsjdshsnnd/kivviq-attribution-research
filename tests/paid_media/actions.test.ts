@@ -311,6 +311,43 @@ describe("Step 3 paid-media canonical Actions", () => {
     });
   });
 
+  it("accepts provider-independent account/group/creative/product-group targets where appropriate", () => {
+    const campaignGroup = clone(setPinterestBudget300PerDay);
+    campaignGroup.target = {
+      kind: "campaign_group",
+      channelId: "pinterest_ads",
+      accountId: "pinterest:account:synthetic",
+      campaignGroupId: "portfolio:prospecting",
+    };
+    expect(validateAction(campaignGroup).ok).toBe(true);
+
+    const adGroup = clone(setPinterestBudget300PerDay);
+    adGroup.target = {
+      kind: "ad_group",
+      channelId: "google_ads",
+      campaignId: "google_campaign_b",
+      adGroupId: "google_ad_group_b1",
+    };
+    expect(validateAction(adGroup).ok).toBe(true);
+
+    const productGroup = clone(setPinterestBudget300PerDay);
+    productGroup.target = {
+      kind: "product_group",
+      productGroupId: "product_group:dining_chairs",
+      categoryId: "category:dining_chairs",
+    };
+    expect(validateAction(productGroup).ok).toBe(true);
+
+    const creative = clone(pauseMetaCampaignA);
+    creative.target = {
+      kind: "creative",
+      channelId: "meta_ads",
+      campaignId: "meta_campaign_a",
+      creativeId: "creative:a1",
+    };
+    expect(validateAction(creative).ok).toBe(true);
+  });
+
   it("keeps provider identity in targets, not provider-specific Action types", () => {
     const actions = [
       increaseGoogleShoppingBudget20,
