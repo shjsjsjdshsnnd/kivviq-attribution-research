@@ -142,6 +142,52 @@ describe("Step 3 paid-media reallocations", () => {
     }
   });
 
+  it("rejects missing source or destination legs", () => {
+    const missingSource = clone(metaToGoogle2000PerWeek);
+    missingSource.components = [missingSource.components[1]];
+    missingSource.compoundAction.componentActionIds = [
+      missingSource.components[0].actionId,
+    ];
+    const first = validatePaidMediaReallocation(missingSource);
+    expect(first.ok).toBe(false);
+    if (!first.ok) {
+      expect(
+        first.errors.some(
+          (issue) => issue.code === "REALLOCATION_MISSING_SOURCE",
+        ),
+      ).toBe(true);
+    }
+
+    const missingDestination = clone(metaToGoogle2000PerWeek);
+    missingDestination.components = [missingDestination.components[0]];
+    missingDestination.compoundAction.componentActionIds = [
+      missingDestination.components[0].actionId,
+    ];
+    const second = validatePaidMediaReallocation(missingDestination);
+    expect(second.ok).toBe(false);
+    if (!second.ok) {
+      expect(
+        second.errors.some(
+          (issue) => issue.code === "REALLOCATION_MISSING_DESTINATION",
+        ),
+      ).toBe(true);
+    }
+  });
+
+  it("rejects a transfer leg whose role and DELTA direction disagree", () => {
+    const invalid = clone(pinterestToMetaTenPercent);
+    invalid.components[0].parameters.direction = "increase";
+    const componentResult = validateAction(invalid.components[0]);
+    expect(componentResult.ok).toBe(false);
+    if (!componentResult.ok) {
+      expect(
+        componentResult.errors.some(
+          (issue) => issue.code === "TRANSFER_SOURCE_MUST_DECREASE",
+        ),
+      ).toBe(true);
+    }
+  });
+
   it("fingerprints materially different coordinated media decisions differently", () => {
     const fingerprints = new Set([
       paidMediaReallocationFingerprint(metaToGoogle2000PerWeek),
