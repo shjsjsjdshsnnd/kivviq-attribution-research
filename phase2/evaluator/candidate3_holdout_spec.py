@@ -89,7 +89,7 @@ def _instance_for_family(rng: random.Random, family: str) -> HiddenInstance:
     )
 
     if family == "adequate_overlap_recovery":
-        return HiddenInstance(
+        return HiddenInstance(  # type: ignore[arg-type]
             **common,
             n_units=rng.randint(500, 900),
             treatment_intercept=_logit(rng.uniform(0.40, 0.60)),
@@ -98,7 +98,7 @@ def _instance_for_family(rng: random.Random, family: str) -> HiddenInstance:
             treatment_effect_log_odds=rng.uniform(-0.45, 0.65),
         )
     if family == "weak_full_support_overlap_recovery":
-        return HiddenInstance(
+        return HiddenInstance(  # type: ignore[arg-type]
             **common,
             n_units=rng.randint(650, 1000),
             treatment_intercept=_logit(rng.choice([rng.uniform(0.08, 0.18), rng.uniform(0.82, 0.92)])),
@@ -107,7 +107,7 @@ def _instance_for_family(rng: random.Random, family: str) -> HiddenInstance:
             treatment_effect_log_odds=rng.uniform(-0.50, 0.70),
         )
     if family == "inadequate_overlap_abstention":
-        return HiddenInstance(
+        return HiddenInstance(  # type: ignore[arg-type]
             **common,
             n_units=rng.randint(700, 1100),
             treatment_intercept=_logit(
@@ -123,7 +123,7 @@ def _instance_for_family(rng: random.Random, family: str) -> HiddenInstance:
             treatment_effect_log_odds=rng.uniform(-0.40, 0.60),
         )
     if family == "finite_sample_abstention":
-        return HiddenInstance(
+        return HiddenInstance(  # type: ignore[arg-type]
             **common,
             n_units=rng.randint(55, 95),
             treatment_intercept=_logit(rng.uniform(0.40, 0.60)),
@@ -132,7 +132,7 @@ def _instance_for_family(rng: random.Random, family: str) -> HiddenInstance:
             treatment_effect_log_odds=rng.uniform(-0.50, 0.70),
         )
     if family == "measurement_provenance_abstention":
-        return HiddenInstance(
+        return HiddenInstance(  # type: ignore[arg-type]
             **{**common,
                "decision_time_missing_fraction": rng.uniform(0.12, 0.28),
                "post_treatment_contamination_fraction": rng.uniform(0.10, 0.25)},
@@ -143,7 +143,7 @@ def _instance_for_family(rng: random.Random, family: str) -> HiddenInstance:
             treatment_effect_log_odds=rng.uniform(-0.45, 0.65),
         )
     if family == "latent_confounding_non_goal":
-        return HiddenInstance(
+        return HiddenInstance(  # type: ignore[arg-type]
             **{**common,
                "latent_selection_strength": rng.uniform(1.0, 1.8),
                "latent_outcome_strength": rng.uniform(1.0, 1.8)},
@@ -154,7 +154,7 @@ def _instance_for_family(rng: random.Random, family: str) -> HiddenInstance:
             treatment_effect_log_odds=rng.uniform(-0.45, 0.65),
         )
     if family == "overlap_boundary":
-        return HiddenInstance(
+        return HiddenInstance(  # type: ignore[arg-type]
             **common,
             n_units=rng.randint(220, 450),
             treatment_intercept=_logit(rng.choice([rng.uniform(0.15, 0.25), rng.uniform(0.75, 0.85)])),
@@ -163,7 +163,7 @@ def _instance_for_family(rng: random.Random, family: str) -> HiddenInstance:
             treatment_effect_log_odds=rng.uniform(-0.45, 0.65),
         )
     if family == "heterogeneous_overlap_effect":
-        return HiddenInstance(
+        return HiddenInstance(  # type: ignore[arg-type]
             **{**common, "effect_heterogeneity": rng.uniform(0.35, 0.75)},
             n_units=rng.randint(650, 1000),
             treatment_intercept=_logit(rng.uniform(0.35, 0.65)),
