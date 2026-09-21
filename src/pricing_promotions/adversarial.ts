@@ -134,6 +134,25 @@ function overrideFor(
   };
 }
 
+function pricingCurrency(
+  world: GeneratedMerchantWorld,
+): PricingPromotionScenario["currency"] {
+  const currency = String(
+    world.manifest.marginEconomics.currency,
+  );
+  if (
+    currency !== "CAD" &&
+    currency !== "USD" &&
+    currency !== "GBP" &&
+    currency !== "EUR"
+  ) {
+    throw new RangeError(
+      "Step 10 synthetic fixture requires a supported pricing currency",
+    );
+  }
+  return currency;
+}
+
 function scenario(
   world: GeneratedMerchantWorld,
   start: string,
@@ -142,7 +161,7 @@ function scenario(
 ): PricingPromotionScenario {
   return {
     version: PRICING_PROMOTIONS_VERSION,
-    currency: world.manifest.marginEconomics.currency,
+    currency: pricingCurrency(world),
     priceStates: [],
     promotions:
       depth <= 0
