@@ -1,0 +1,61 @@
+name: Candidate 3 Implementation Freeze
+
+on:
+  push:
+    branches: ["phase2/candidate3-ato-estimator"]
+    paths:
+      - "src/phase2_candidate3_estimator/model.py"
+      - "phase2/candidates/candidate3/freeze_implementation.py"
+      - "phase2/candidates/candidate3/holdout_public_metadata.json"
+      - "tests/candidate3/test_candidate3_freeze.py"
+
+permissions:
+  contents: write
+
+jobs:
+  freeze:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+      - run: python -m pip install --upgrade pip
+      - run: python -m pip install -e ".[dev]"
+      - run: python scripts/check_repo_safety.py
+      - run: python scripts/check_phase1_frozen.py
+      - run: pytest tests/candidate3 tests/candidate3_contracts
+      - run: ruff check .
+      - run: mypy
+      - name: Verify frozen contract hashes
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import hashlib, json
+          from pathlib import Path
+          p=json.loads(Path("phase2/candidates/candidate3/FROZEN_CONTRACTS.json").read_text())
+          assert hashlib.sha256(Path("src/phase2_candidate3_contracts/contracts.py").read_bytes()).hexdigest()==p["contract_source_sha256"]
+          assert hashlib.sha256(Path("phase2/candidates/candidate3/CONTRACTS.md").read_bytes()).hexdigest()==p["contract_document_sha256"]
+          PY
+      - name: Freeze Candidate 3 implementation
+        run: python phase2/candidates/candidate3/freeze_implementation.py
+      - name: Persist frozen implementation manifest
+        shell: bash
+        run: |
+          set -euo pipefail
+          python scripts/check_repo_safety.py
+          git add phase2/candidates/candidate3/FROZEN_IMPLEMENTATION.json
+          git diff --cached --check
+          if git diff --cached --quiet; then
+            echo "Implementation manifest unchanged."
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git commit -m "Freeze Candidate 3 implementation before public falsification"
+          git push origin "HEAD:${GITHUB_REF_NAME}"

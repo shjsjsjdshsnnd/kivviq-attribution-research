@@ -22,7 +22,7 @@ from phase2_candidate3_contracts.contracts import (
 )
 from phase2_candidate3_estimator.input import Candidate3Case, PreparedCase, prepare_case
 
-PROPENSITY_L2 = 1.0
+PROPENSITY_L2 = 0.1
 MAX_ITERATIONS = 80
 CONVERGENCE_TOLERANCE = 1e-8
 BOOTSTRAP_REPLICATES = 400
