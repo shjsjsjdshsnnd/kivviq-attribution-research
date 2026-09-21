@@ -3,7 +3,6 @@ export * from "./identity.js";
 export * from "./registry.js";
 export * from "./validation.js";
 export * from "./eligibility.js";
-export * from "./intervention.js";
 export * from "./serialization.js";
 export * from "./semantics.js";
 export * from "./fixtures.js";
