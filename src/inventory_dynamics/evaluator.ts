@@ -98,8 +98,15 @@ function sumDemand(
     | "merchant_exit",
 ): number {
   let total = 0;
+  const inventoryTruth =
+    report.simulation.godMode.inventory;
+  if (!inventoryTruth) {
+    throw new RangeError(
+      "Step 9 evaluation requires inventory god mode",
+    );
+  }
 
-  for (const demand of report.simulation.godMode.inventory.demandTruth) {
+  for (const demand of inventoryTruth.demandTruth) {
     const weightedUnits =
       demand.requestedUnits * demand.representedWeight;
 
@@ -165,7 +172,13 @@ function rowFor(
   >,
   product: SkuEconomicIntelligence,
 ): InventoryHealthRow {
-  const truth = report.simulation.godMode.inventory;
+  const truth =
+    report.simulation.godMode.inventory;
+  if (!truth) {
+    throw new RangeError(
+      "Step 9 evaluation requires inventory god mode",
+    );
+  }
   const position = truth.positions.find(
     (candidate) =>
       candidate.skuId === product.productId,
@@ -525,6 +538,14 @@ export function evaluateInventoryDynamics(
       left.skuId.localeCompare(right.skuId),
     );
 
+  const inventoryTruth =
+    ecommerce.simulation.godMode.inventory;
+  if (!inventoryTruth) {
+    throw new RangeError(
+      "Step 9 evaluation requires inventory god mode",
+    );
+  }
+
   const inventoryCarryingCostMinor =
     rows.reduce(
       (sum, row) =>
@@ -549,14 +570,9 @@ export function evaluateInventoryDynamics(
     collectionHealth: collectionHealth(rows),
     returnDispositions:
       returnDispositions(ecommerce),
-    ledger:
-      ecommerce.simulation.godMode.inventory.ledger,
-    demandTruth:
-      ecommerce.simulation.godMode.inventory
-        .demandTruth,
-    reconciliation:
-      ecommerce.simulation.godMode.inventory
-        .reconciliation,
+    ledger: inventoryTruth.ledger,
+    demandTruth: inventoryTruth.demandTruth,
+    reconciliation: inventoryTruth.reconciliation,
     representedRevenueMinor:
       ecommerce.waterfall.netRevenueMinor,
     baseContributionProfitMinor:
