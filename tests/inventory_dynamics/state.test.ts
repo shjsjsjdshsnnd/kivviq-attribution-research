@@ -226,8 +226,12 @@ describe("Step 9 authoritative inventory state", () => {
       Date.parse("2026-01-01T00:00:00.000Z");
     const state =
       createInventoryEconomyState(world, startMs);
+    const openingPosition =
+      state.positions.get(skuId)!;
     const opening =
-      state.positions.get(skuId)!.onHandUnits;
+      openingPosition.onHandUnits;
+    const openingReserved =
+      openingPosition.reservedUnits;
 
     reserveInventory(state, {
       reservationId: "r1",
@@ -250,7 +254,9 @@ describe("Step 9 authoritative inventory state", () => {
     expect(sold).toBe(1);
     const position = state.positions.get(skuId)!;
     expect(position.onHandUnits).toBe(opening - 1);
-    expect(position.reservedUnits).toBe(0);
+    expect(position.reservedUnits).toBe(
+      openingReserved,
+    );
     expect(position.committedUnits).toBe(0);
     expect(position.cumulativeSoldUnits).toBe(1);
 
