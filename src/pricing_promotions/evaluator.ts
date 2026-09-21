@@ -720,7 +720,7 @@ function promotionAttribution(
       purchasesDuringPromotion += weight;
     }
 
-    const exposed =
+    const messageAware =
       customer !== undefined &&
       activePromotions.some((promotion) => {
         const ctx = customerContext(customer);
@@ -736,9 +736,6 @@ function promotionAttribution(
           )
         );
       });
-    if (exposed) {
-      promotionExposedPurchases += weight;
-    }
 
     const purchase = purchaseByOrderId.get(order.orderId);
     const redeemed =
@@ -746,6 +743,13 @@ function promotionAttribution(
       (purchase?.lines.some(
         (line) => (line.promotionIds?.length ?? 0) > 0,
       ) ?? false);
+    // A realized automatic sale/credit necessarily exposes the purchaser to
+    // the offer even if they were not previously aware through a promotional
+    // message. This keeps "exposed" distinct from message awareness while
+    // preserving redemption as the stricter realized-offer subset.
+    if (messageAware || redeemed) {
+      promotionExposedPurchases += weight;
+    }
     if (redeemed) {
       promotionRedemptionPurchases += weight;
     }
