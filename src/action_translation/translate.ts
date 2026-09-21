@@ -1,5 +1,5 @@
 import {
-  ACTION_SCHEMA_VERSION,
+  SUPPORTED_ACTION_SCHEMA_VERSIONS,
   type Action,
   type CompoundAction,
 } from "../action_ontology/types.js";
@@ -159,7 +159,7 @@ function validateResolvedCompound(
   const compound = input.compoundAction as CompoundAction;
   if (
     compound.kind !== "compound_action" ||
-    compound.schemaVersion !== ACTION_SCHEMA_VERSION ||
+    !SUPPORTED_ACTION_SCHEMA_VERSIONS.includes(compound.schemaVersion as never) ||
     typeof compound.compoundActionId !== "string" ||
     !Array.isArray(compound.componentActionIds) ||
     compound.componentActionIds.length < 2
