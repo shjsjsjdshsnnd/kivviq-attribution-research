@@ -141,6 +141,90 @@ describe("Step 10 evaluator invariants", () => {
   );
 
   it(
+    "price increases can improve contribution for a weakly elastic SKU and hurt it for a highly elastic SKU",
+    () => {
+      const fixture =
+        createMarginDestructionTrapFixture();
+      const highElasticity =
+        evaluatePriceResponseCurve(
+          fixture.evaluation,
+          fixture.productAId,
+          [0, 0.1],
+        );
+      const lowElasticity =
+        evaluatePriceResponseCurve(
+          fixture.evaluation,
+          fixture.productBId,
+          [0, 0.1],
+        );
+
+      expect(
+        highElasticity[1]!
+          .targetProductRepresentedUnits,
+      ).toBeLessThan(
+        highElasticity[0]!
+          .targetProductRepresentedUnits,
+      );
+      expect(
+        lowElasticity[1]!
+          .targetProductRepresentedUnits,
+      ).toBeLessThan(
+        lowElasticity[0]!
+          .targetProductRepresentedUnits,
+      );
+      expect(
+        highElasticity[1]!.contributionProfitMinor,
+      ).toBeLessThan(
+        highElasticity[0]!.contributionProfitMinor,
+      );
+      expect(
+        lowElasticity[1]!.contributionProfitMinor,
+      ).toBeGreaterThan(
+        lowElasticity[0]!.contributionProfitMinor,
+      );
+    },
+    240_000,
+  );
+
+  it("rejects overlapping authoritative price states for the same SKU/variant", () => {
+    const fixture =
+      createMarginDestructionTrapFixture();
+    const hydrated =
+      hydratePricingPromotionScenario(
+        fixture.evaluation,
+      );
+    const base = hydrated.priceStates.find(
+      (state) =>
+        state.productId === fixture.productAId,
+    )!;
+
+    expect(() =>
+      hydratePricingPromotionScenario({
+        ...fixture.evaluation,
+        scenario: {
+          ...hydrated,
+          priceStates: [
+            {
+              ...base,
+              effectiveStart:
+                fixture.evaluation.periodStart,
+              effectiveEnd:
+                "2026-03-01T00:00:00.000Z",
+            },
+            {
+              ...base,
+              effectiveStart:
+                "2026-02-01T00:00:00.000Z",
+              effectiveEnd:
+                fixture.evaluation.periodEnd,
+            },
+          ],
+        },
+      }),
+    ).toThrow(/overlapping authoritative price states/);
+  });
+
+  it(
     "clearance counterfactual includes carrying cost and obsolescence rather than immediate margin only",
     () => {
       const fixture =
