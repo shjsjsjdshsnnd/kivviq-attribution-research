@@ -796,9 +796,15 @@ export function effectiveFreeShippingThreshold(
         targetingEligible(promotion, customer) &&
         customerAwareOfPromotion(promotion, customer),
     )
-    .map((promotion) => promotion.freeShippingThresholdMinor!);
+    .sort(
+      (left, right) =>
+        Date.parse(right.start) - Date.parse(left.start) ||
+        left.promotionId.localeCompare(right.promotionId),
+    );
   if (thresholds.length === 0) return baselineThresholdMinor;
-  return Math.min(...thresholds);
+  // A threshold intervention replaces the prior threshold. This explicitly
+  // supports both $100 -> $125 and $150 -> $100 counterfactuals.
+  return thresholds[0]!.freeShippingThresholdMinor!;
 }
 
 export function resolveCartShippingTerms(
