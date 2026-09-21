@@ -4,8 +4,13 @@ import type {
   UtcTimestamp,
 } from "../core/units.js";
 
-export const ACTION_SCHEMA_VERSION = "1.0.0" as const;
-export type ActionSchemaVersion = typeof ACTION_SCHEMA_VERSION;
+export const ACTION_SCHEMA_VERSION = "1.1.0" as const;
+export const SUPPORTED_ACTION_SCHEMA_VERSIONS = [
+  "1.0.0",
+  ACTION_SCHEMA_VERSION,
+] as const;
+export type ActionSchemaVersion =
+  (typeof SUPPORTED_ACTION_SCHEMA_VERSIONS)[number];
 
 export type ActionId = Brand<string, "ActionId">;
 export type ActionType = Brand<string, "ActionType">;
