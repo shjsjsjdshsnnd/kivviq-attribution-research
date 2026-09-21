@@ -289,9 +289,30 @@ export function priceResponseTruth(
       candidate.sourceProductId === productId &&
       candidate.targetProductId === productId,
   );
-  const merchantDemandMultiplier = mechanism
+  const productDemandMultiplier = mechanism
     ? mechanismDemandMultiplier(mechanism, priceRatio)
     : Math.pow(clamp(priceRatio, 0.05, 20), -1);
+  const categoryId =
+    world.manifest.productDemandMechanisms.find(
+      (candidate) =>
+        candidate.productId === productId,
+    )?.categoryId;
+  const categoryElasticityMultiplier = clamp(
+    categoryId === undefined
+      ? 1
+      : scenario
+          .categoryElasticityMultiplierByCategory?.[
+            categoryId
+          ] ?? 1,
+    0.1,
+    5,
+  );
+  // Category tendency operates on log demand so neutral price response remains
+  // exactly neutral and positive demand is preserved.
+  const merchantDemandMultiplier = Math.exp(
+    Math.log(Math.max(0.02, productDemandMultiplier)) *
+      categoryElasticityMultiplier,
+  );
   const customerMultiplier =
     customerPriceElasticityMultiplier(
       customer,
@@ -337,10 +358,12 @@ export function priceResponseTruth(
     baselinePriceMinor,
     effectivePriceMinor,
     relativePriceChange,
-    merchantElasticity: impliedElasticity(
-      mechanism,
-      relativePriceChange,
-    ),
+    merchantElasticity:
+      impliedElasticity(
+        mechanism,
+        relativePriceChange,
+      ) * categoryElasticityMultiplier,
+    categoryElasticityMultiplier,
     customerElasticityMultiplier: customerMultiplier,
     nonlinearDemandMultiplier,
     crossPriceDemandMultiplier: crossMultiplier,
