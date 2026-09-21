@@ -2302,6 +2302,165 @@ function contractFor(
   );
 }
 
+
+function canonicalRuntimeKey(value: unknown): string {
+  if (Array.isArray(value)) {
+    return "[" + value.map(canonicalRuntimeKey).join(",") + "]";
+  }
+  if (!record(value)) return JSON.stringify(value);
+  return (
+    "{" +
+    Object.keys(value)
+      .sort()
+      .map((key) => JSON.stringify(key) + ":" + canonicalRuntimeKey(value[key]))
+      .join(",") +
+    "}"
+  );
+}
+
+function validatePricingActionSemantics(
+  input: any,
+  errors: ActionValidationIssue[],
+): void {
+  if (
+    input.actionType !== "pricing.adjust_price" &&
+    input.actionType !== "pricing.rollback_price"
+  ) {
+    return;
+  }
+
+  if (
+    !record(input.target) ||
+    !["sku", "product", "category", "collection"].includes(
+      String(input.target.kind),
+    )
+  ) {
+    add(
+      errors,
+      "INVALID_PRICING_TARGET",
+      "target.kind",
+      "pricing Actions must target SKU, product, category or collection",
+    );
+    return;
+  }
+
+  if (input.actionType === "pricing.adjust_price") {
+    if (!record(input.parameters) || input.parameters.kind !== "price_adjustment") {
+      return;
+    }
+
+    if (
+      input.schemaVersion === "1.2.0" &&
+      ["product", "category", "collection"].includes(String(input.target.kind))
+    ) {
+      if (input.parameters.membership === undefined) {
+        add(
+          errors,
+          "MISSING_PRICING_MEMBERSHIP_SEMANTICS",
+          "parameters.membership",
+          "product/category/collection pricing requires an explicit membership evaluation boundary",
+        );
+      }
+    }
+
+    if (
+      input.schemaVersion === "1.2.0" &&
+      input.target.kind === "sku" &&
+      input.parameters.membership !== undefined
+    ) {
+      add(
+        errors,
+        "SKU_PRICING_MEMBERSHIP_NOT_APPLICABLE",
+        "parameters.membership",
+        "SKU pricing does not require membership expansion semantics",
+      );
+    }
+
+    const temporary = record(input.duration) && input.duration.kind === "temporary";
+    if (temporary) {
+      if (
+        !record(input.reversibility) ||
+        !record(input.reversibility.pricingRollback) ||
+        input.reversibility.pricingRollback.available !== true
+      ) {
+        add(
+          errors,
+          "TEMPORARY_PRICE_REQUIRES_SAFE_ROLLBACK",
+          "reversibility.pricingRollback",
+          "temporary pricing requires an available conflict-protected rollback contract",
+        );
+      }
+    }
+
+    if (
+      record(input.reversibility) &&
+      record(input.reversibility.pricingRollback) &&
+      input.reversibility.pricingRollback.available === true
+    ) {
+      const rollback = input.reversibility.pricingRollback;
+      if (
+        canonicalRuntimeKey(rollback.target) !== canonicalRuntimeKey(input.target)
+      ) {
+        add(
+          errors,
+          "PRICING_ROLLBACK_TARGET_MISMATCH",
+          "reversibility.pricingRollback.target",
+          "rollback target must match the pricing Action target",
+        );
+      }
+      if (
+        record(rollback.conflictGuard) &&
+        rollback.conflictGuard.sourceActionId !== input.actionId
+      ) {
+        add(
+          errors,
+          "PRICING_ROLLBACK_SOURCE_MISMATCH",
+          "reversibility.pricingRollback.conflictGuard.sourceActionId",
+          "rollback conflict guard must reference this pricing Action",
+        );
+      }
+      if (
+        record(rollback.trigger) &&
+        rollback.trigger.kind === "AT" &&
+        record(input.timing) &&
+        record(input.timing.effectiveStart) &&
+        input.timing.effectiveStart.kind === "known" &&
+        typeof rollback.trigger.at === "string" &&
+        Date.parse(rollback.trigger.at) <
+          Date.parse(input.timing.effectiveStart.at)
+      ) {
+        add(
+          errors,
+          "ROLLBACK_BEFORE_PRICE_EFFECTIVE_TIME",
+          "reversibility.pricingRollback.trigger.at",
+          "rollback cannot occur before the price Action becomes effective",
+        );
+      }
+    }
+  }
+
+  if (input.actionType === "pricing.rollback_price") {
+    if (!record(input.parameters) || input.parameters.kind !== "price_rollback") {
+      return;
+    }
+    if (!nonEmpty(input.reversalOfActionId)) {
+      add(
+        errors,
+        "PRICING_ROLLBACK_REQUIRES_REVERSAL_REFERENCE",
+        "reversalOfActionId",
+        "rollback Action must reference the original pricing Action",
+      );
+    } else if (input.reversalOfActionId !== input.parameters.originalActionId) {
+      add(
+        errors,
+        "PRICING_ROLLBACK_ORIGINAL_ACTION_MISMATCH",
+        "reversalOfActionId",
+        "rollback Action references must identify the same original pricing Action",
+      );
+    }
+  }
+}
+
 function deepFreeze<T>(value: T): T {
   if (typeof value !== "object" || value === null || Object.isFrozen(value)) return value;
   Object.freeze(value);
@@ -2452,6 +2611,7 @@ export function validateAction(
   validateMeasurement(input.measurement, "measurement", errors);
   validateIntent(input.intent, "intent", errors);
   validateProvenance(input.provenance, "provenance", errors);
+  validatePricingActionSemantics(input, errors);
 
   if (input.reversalOfActionId !== undefined) {
     if (!nonEmpty(input.reversalOfActionId)) {
