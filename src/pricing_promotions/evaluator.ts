@@ -1005,6 +1005,12 @@ export function evaluatePriceResponseCurve(
     const report = evaluateEcommerceEconomics(
       ecommerceRequest(request, scenario),
     );
+    const targetProduct = productEconomics(
+      request,
+      report,
+    ).find(
+      (row) => row.productId === productId,
+    );
     return {
       relativePriceChange,
       priceMinor,
@@ -1026,6 +1032,12 @@ export function evaluatePriceResponseCurve(
         report.waterfall.grossProfitMinor,
       contributionProfitMinor:
         report.waterfall.contributionProfitMinor,
+      targetProductGrossRevenueMinor:
+        targetProduct?.grossRevenueMinor ?? 0,
+      targetProductGrossProfitMinor:
+        targetProduct?.allocatedGrossProfitMinor ?? 0,
+      targetProductContributionProfitMinor:
+        targetProduct?.allocatedContributionProfitMinor ?? 0,
     };
   });
 }
