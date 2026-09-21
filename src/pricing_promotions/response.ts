@@ -121,15 +121,39 @@ function impliedElasticity(
   return demandChange / relativePriceChange;
 }
 
+export interface DynamicPriceState {
+  /**
+   * Runtime purchase need at the instant of the offer. This is distinct from
+   * the Step 3 customer's initial currentPurchaseNeed.
+   */
+  readonly need?: number;
+  /**
+   * Runtime brand affinity at the instant of the offer. Purchases, inactivity
+   * and other causal state transitions may change it over the simulation.
+   */
+  readonly brandAffinity?: number;
+}
+
 export function customerPriceElasticityMultiplier(
   customer: LatentCustomer,
+  dynamicState?: DynamicPriceState,
 ): number {
+  const currentNeed = clamp(
+    dynamicState?.need ?? customer.currentPurchaseNeed,
+    0,
+    1,
+  );
+  const currentBrandAffinity = clamp(
+    dynamicState?.brandAffinity ?? customer.brandAffinity,
+    0,
+    1,
+  );
   const urgencyResistance =
     1 - 0.34 * clamp(customer.latentFactors.purchaseUrgency, 0, 1);
   const needResistance =
-    1 - 0.2 * clamp(customer.currentPurchaseNeed, 0, 1);
+    1 - 0.2 * currentNeed;
   const brandResistance =
-    1 - 0.28 * clamp(customer.brandAffinity, 0, 1);
+    1 - 0.28 * currentBrandAffinity;
   const dealAmplifier =
     0.78 + 0.48 * clamp(customer.latentFactors.dealOrientation, 0, 1);
 
@@ -148,17 +172,30 @@ export function customerReservationPriceMultiplier(
   customer: LatentCustomer,
   productId: string,
   priceRatio: number,
+  dynamicState?: DynamicPriceState,
 ): number {
+  const currentNeed = clamp(
+    dynamicState?.need ?? customer.currentPurchaseNeed,
+    0,
+    1,
+  );
+  const currentBrandAffinity = clamp(
+    dynamicState?.brandAffinity ?? customer.brandAffinity,
+    0,
+    1,
+  );
   // A stable customer/product reservation-price frontier adds threshold-like
-  // behavior without exposing any future outcome to the Operator.
+  // behavior without exposing any future outcome to the Operator. Dynamic
+  // need/affinity shift willingness-to-pay over time without mutating the
+  // customer's stable reservation-price identity.
   const threshold =
     0.82 +
     unitHash(
       `step10-reservation|${customer.customerId}|${productId}`,
     ) *
       0.56 +
-    customer.brandAffinity * 0.12 +
-    customer.currentPurchaseNeed * 0.08 -
+    currentBrandAffinity * 0.12 +
+    currentNeed * 0.08 -
     customer.latentFactors.dealOrientation * 0.08;
 
   const slope =
@@ -241,6 +278,7 @@ export function priceResponseTruth(
   baselinePriceMinor: number,
   effectivePriceMinor: number,
   timestampMs: number,
+  dynamicState?: DynamicPriceState,
 ): PriceResponseTruth {
   const priceRatio =
     effectivePriceMinor / Math.max(1, baselinePriceMinor);
@@ -255,7 +293,10 @@ export function priceResponseTruth(
     ? mechanismDemandMultiplier(mechanism, priceRatio)
     : Math.pow(clamp(priceRatio, 0.05, 20), -1);
   const customerMultiplier =
-    customerPriceElasticityMultiplier(customer);
+    customerPriceElasticityMultiplier(
+      customer,
+      dynamicState,
+    );
 
   // Customer heterogeneity acts on log demand so a merchant-level response
   // of exactly 1 stays exactly 1 and response remains positive.
@@ -268,6 +309,7 @@ export function priceResponseTruth(
       customer,
       productId,
       priceRatio,
+      dynamicState,
     );
   const crossMultiplier = crossPriceDemandMultiplier(
     world,
