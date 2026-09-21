@@ -194,8 +194,12 @@ describe("Step 10 deterministic acceptance traps", () => {
       const promotionEndMs = Date.parse(
         fixture.promotionEnd,
       );
+      // Pull-forward distance is customer-specific and can span much of a
+      // replenishment interval. Search the declared post-sale observation
+      // horizon rather than assuming the displaced purchase must occur within
+      // four weeks.
       const postPromotionWeeks = Array.from(
-        { length: 4 },
+        { length: 11 },
         (_, index) => {
           const start = new Date(
             promotionEndMs + index * weekMs,
