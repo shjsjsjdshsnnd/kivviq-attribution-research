@@ -2,12 +2,14 @@ import { describe, expect, it } from "vitest";
 import { assertValidAction, validateAction } from "../../src/action_ontology/validation.js";
 import {
   paidMediaReallocationFingerprint,
+  serializePaidMediaReallocation,
   validatePaidMediaReallocation,
 } from "../../src/paid_media/reallocation.js";
 import {
   googleBrandToNonBrand300PerDay,
   googleNonBrandCampaignXtoY20Percent,
   metaCampaignAtoB500PerDay,
+  metaRetargetingToProspecting1000PerWeek,
   metaToGoogle2000PerWeek,
   pinterestToMetaTenPercent,
   rugsToLighting1000PerWeek,
@@ -25,6 +27,9 @@ describe("Step 3 paid-media reallocations", () => {
     expect(validatePaidMediaReallocation(metaCampaignAtoB500PerDay).ok).toBe(
       true,
     );
+    expect(
+      validatePaidMediaReallocation(metaRetargetingToProspecting1000PerWeek).ok,
+    ).toBe(true);
     expect(
       validatePaidMediaReallocation(googleBrandToNonBrand300PerDay).ok,
     ).toBe(true);
@@ -188,13 +193,50 @@ describe("Step 3 paid-media reallocations", () => {
     }
   });
 
+  it("rejects coordinated legs with mismatched timing", () => {
+    const invalid = clone(metaToGoogle2000PerWeek);
+    const destination = invalid.components[1];
+    destination.timing = {
+      ...destination.timing,
+      requestedStart: {
+        kind: "known",
+        at: "2026-09-21T14:00:00Z",
+      },
+      effectiveStart: {
+        kind: "known",
+        at: "2026-09-21T14:00:00Z",
+      },
+    };
+    invalid.components[1] = assertValidAction(destination);
+
+    const result = validatePaidMediaReallocation(invalid);
+    expect(result.ok).toBe(false);
+    if (!result.ok) {
+      expect(
+        result.errors.some(
+          (issue) => issue.code === "REALLOCATION_TIMING_MISMATCH",
+        ),
+      ).toBe(true);
+    }
+  });
+
+  it("canonically serializes coordinated media decisions deterministically", () => {
+    expect(serializePaidMediaReallocation(metaToGoogle2000PerWeek)).toBe(
+      serializePaidMediaReallocation(metaToGoogle2000PerWeek),
+    );
+    expect(serializePaidMediaReallocation(metaToGoogle2000PerWeek)).not.toBe(
+      serializePaidMediaReallocation(metaCampaignAtoB500PerDay),
+    );
+  });
+
   it("fingerprints materially different coordinated media decisions differently", () => {
     const fingerprints = new Set([
       paidMediaReallocationFingerprint(metaToGoogle2000PerWeek),
       paidMediaReallocationFingerprint(metaCampaignAtoB500PerDay),
+      paidMediaReallocationFingerprint(metaRetargetingToProspecting1000PerWeek),
       paidMediaReallocationFingerprint(googleBrandToNonBrand300PerDay),
       paidMediaReallocationFingerprint(pinterestToMetaTenPercent),
     ]);
-    expect(fingerprints.size).toBe(4);
+    expect(fingerprints.size).toBe(5);
   });
 });
