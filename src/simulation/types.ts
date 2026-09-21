@@ -170,7 +170,7 @@ export interface GodModeSimulationTruth {
    * Step 9 evaluator-only inventory truth. It is deliberately nested under
    * godMode and is never exported by the Operator-safe root API.
    */
-  readonly inventory: InventoryGodModeTruth;
+  readonly inventory?: InventoryGodModeTruth;
 }
 
 export interface PlatformStyleChannelMetric {
