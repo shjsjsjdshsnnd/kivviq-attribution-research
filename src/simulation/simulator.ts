@@ -1889,7 +1889,27 @@ export function simulateWorld(
                 repeat: true,
               },
             });
-          }
+          } else if (
+            request.commercePolicy?.enableInventoryDynamics === true
+          ) {
+            markCartInventoryDemandAbandoned(
+              runtime,
+              customer,
+            );
+            observableEvents.push({
+              eventId: `checkout-abandon-inventory:${session.sessionId}:${session.step}`,
+              eventType: "checkout_abandon",
+              occurredAt: new Date(
+                event.timestampMs,
+              ).toISOString(),
+              anonymousSubjectId:
+                customer.customerId,
+              sessionId: session.sessionId,
+              source: session.source,
+              device: session.device,
+            });
+            session.ended = true;
+            session.currentPage = "ended";
         } else {
           if (request.commercePolicy?.enableInventoryDynamics === true) {
             markCartInventoryDemandAbandoned(
