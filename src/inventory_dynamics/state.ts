@@ -148,6 +148,13 @@ function snapshot(
     ...(position.realizedArrivalAt === undefined
       ? {}
       : { realizedArrivalAt: position.realizedArrivalAt }),
+    oldestInventoryReceivedAt: new Date(
+      position.oldestInventoryReceivedAtMs,
+    ).toISOString(),
+    carryingCostRatePerCogsValuePerDay:
+      position.carryingCostRatePerCogsValuePerDay,
+    obsolescenceRatePerDay:
+      position.obsolescenceRatePerDay,
   };
 }
 
