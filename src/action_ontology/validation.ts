@@ -1236,6 +1236,14 @@ export function validateAction(
   const actionType =
     typeof input.actionType === "string" ? input.actionType : "";
   const contract = contractFor(actionType, options);
+  if (!contract && actionType.length > 0) {
+    add(
+      errors,
+      "UNREGISTERED_ACTION_TYPE",
+      "actionType",
+      `action type ${actionType} must have an explicit ActionTypeContract`,
+    );
+  }
   if (contract) {
     if (input.actionCategory !== contract.category) {
       add(
