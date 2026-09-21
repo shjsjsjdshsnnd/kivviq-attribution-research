@@ -474,6 +474,9 @@ export function evaluateEcommerceEconomics(
       enableProductRelationships: true,
       enableEnhancedBasketEconomics: true,
       executeInventoryLifecycle: true,
+      ...(request.enableInventoryDynamics === true
+        ? { enableInventoryDynamics: true }
+        : {}),
     },
     ...(request.simulationConfig === undefined
       ? {}
