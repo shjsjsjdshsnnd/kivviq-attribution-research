@@ -220,6 +220,53 @@ describe("Step 2.1 Action validation", () => {
     expect(validateAction(recurring).ok).toBe(true);
   });
 
+  it("requires an explicit period for monetary rates", () => {
+    const invalid = clone(reallocateMetaToGoogle1000PerWeek) as any;
+    delete invalid.components[0].parameters[0].value.per;
+
+    const result = validateAction(invalid);
+    expect(result.ok).toBe(false);
+    if (!result.ok) {
+      expect(
+        result.errors.some(
+          (error) =>
+            error.code === "COMPONENT_INVALID_MONEY_RATE_PERIOD" ||
+            error.code === "INVALID_MONEY_RATE_PERIOD",
+        ),
+      ).toBe(true);
+    }
+  });
+
+  it("requires compound coordination and valid component dependencies", () => {
+    const missingCoordination = clone(reallocateMetaToGoogle1000PerWeek) as any;
+    delete missingCoordination.coordination;
+
+    const missingResult = validateAction(missingCoordination);
+    expect(missingResult.ok).toBe(false);
+    if (!missingResult.ok) {
+      expect(
+        missingResult.errors.some(
+          (error) => error.code === "MISSING_COMPOUND_COORDINATION",
+        ),
+      ).toBe(true);
+    }
+
+    const badDependency = clone(reallocateMetaToGoogle1000PerWeek) as any;
+    badDependency.coordination.dependencies[0].dependsOnActionIds = [
+      "act:not-a-component",
+    ];
+
+    const dependencyResult = validateAction(badDependency);
+    expect(dependencyResult.ok).toBe(false);
+    if (!dependencyResult.ok) {
+      expect(
+        dependencyResult.errors.some(
+          (error) => error.code === "UNKNOWN_COMPONENT_DEPENDENCY_TARGET",
+        ),
+      ).toBe(true);
+    }
+  });
+
   it("rejects unbalanced compound budget reallocations", () => {
     const invalid = clone(reallocateMetaToGoogle1000PerWeek) as any;
     invalid.components[1].parameters[0].value.amountMinor = 90_000;
