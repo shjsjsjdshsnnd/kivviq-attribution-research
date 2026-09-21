@@ -1421,6 +1421,38 @@ export function simulateWorld(
             inventoryAvailabilityRatio(runtime),
           interventionState,
         };
+        if (request.commercePolicy?.enableInventoryDynamics === true) {
+          const timeoutMinutes =
+            request.commercePolicy.inventoryReservationTimeoutMinutes ??
+            20;
+          const reservationIds = reserveCheckoutInventory(
+            runtime,
+            customer,
+            session.sessionId,
+            event.timestampMs,
+            timeoutMinutes,
+          );
+          for (const reservationId of reservationIds) {
+            const reservation =
+              runtime.inventoryEconomy.reservations.get(
+                reservationId,
+              );
+            if (!reservation) continue;
+            schedule<InventoryReservationExpiryPayload>({
+              id: `inventory-reservation-expired:${reservationId}`,
+              kind: "inventory_reservation_expired",
+              timestampMs: Date.parse(
+                reservation.expiresAt,
+              ),
+              priority: 6,
+              payload: {
+                reservationId,
+                productId: reservation.skuId,
+              },
+            });
+          }
+        }
+
         const purchaseProbability =
           checkoutPurchaseProbability(
             runtime,
@@ -1507,6 +1539,12 @@ export function simulateWorld(
             });
           }
         } else {
+          if (request.commercePolicy?.enableInventoryDynamics === true) {
+            markCartInventoryDemandAbandoned(
+              runtime,
+              customer,
+            );
+          }
           observableEvents.push({
             eventId: `checkout-abandon:${session.sessionId}:${session.step}`,
             eventType: "checkout_abandon",
@@ -1677,6 +1715,9 @@ export function simulateWorld(
     },
     godMode: {
       exposureEffects: exposureTruth,
+      inventory: finalizeInventoryGodMode(
+        runtime.inventoryEconomy,
+      ),
       interactionEffects: interactionTruth,
       purchaseTruth,
       customerFinalStates: [...runtime.customers.values()].map(
