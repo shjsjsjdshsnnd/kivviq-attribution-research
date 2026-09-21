@@ -4,6 +4,8 @@ import type {
   ActionId,
   ActionTarget,
   CompoundAction,
+  MonetaryValue,
+  PricingMembershipBoundary,
   ReferenceValue,
   ScalarValue,
 } from "../action_ontology/types.js";
@@ -12,8 +14,12 @@ import type {
   SimulatorTarget,
 } from "../simulator_intervention/types.js";
 
-export const ACTION_TRANSLATION_VERSION = "1.0.0" as const;
-export const TRANSLATION_CONTEXT_SCHEMA_VERSION = "1.0.0" as const;
+export const ACTION_TRANSLATION_VERSION = "1.1.0" as const;
+export const TRANSLATION_CONTEXT_SCHEMA_VERSION = "1.1.0" as const;
+export const SUPPORTED_TRANSLATION_CONTEXT_SCHEMA_VERSIONS = [
+  "1.0.0",
+  TRANSLATION_CONTEXT_SCHEMA_VERSION,
+] as const;
 
 export const SIMULATOR_CAPABILITIES = [
   "campaign_budget",
@@ -38,12 +44,33 @@ export interface TranslationReferenceBinding {
   readonly sourceRef: string;
 }
 
+
+export interface PricingMembershipMemberBinding {
+  readonly skuTarget: Extract<ActionTarget, { readonly kind: "sku" }>;
+  readonly simulatorTarget: Extract<SimulatorTarget, { readonly kind: "sku" }>;
+  readonly priceAtBoundary: MonetaryValue;
+  readonly priceSourceRef: string;
+}
+
+export interface PricingMembershipBinding {
+  readonly actionTarget:
+    | Extract<ActionTarget, { readonly kind: "product" }>
+    | Extract<ActionTarget, { readonly kind: "category" }>
+    | Extract<ActionTarget, { readonly kind: "collection" }>;
+  readonly evaluateAt: PricingMembershipBoundary;
+  readonly bindingRef: string;
+  readonly snapshotTime: UtcTimestamp;
+  readonly sourceRef: string;
+  readonly members: readonly PricingMembershipMemberBinding[];
+}
+
 export interface TranslationContext {
   readonly schemaVersion: typeof TRANSLATION_CONTEXT_SCHEMA_VERSION;
   readonly simulatorClock: UtcTimestamp;
   readonly capabilities: readonly SimulatorCapability[];
   readonly entityMappings: readonly TranslationEntityMapping[];
   readonly referenceBindings: readonly TranslationReferenceBinding[];
+  readonly pricingMembershipBindings?: readonly PricingMembershipBinding[];
 }
 
 export interface ResolvedCompoundBusinessAction {
