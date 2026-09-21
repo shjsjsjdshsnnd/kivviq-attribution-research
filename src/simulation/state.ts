@@ -428,7 +428,7 @@ export function transitionAfterPurchase(
     days(
       intervalDays *
         0.35 *
-        clamp(needDeferralMultiplier, 1, 4.5),
+        clamp(needDeferralMultiplier, 1, 8),
     );
   customer.lastActivityMs = nowMs;
 }
