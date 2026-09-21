@@ -234,8 +234,6 @@ describe("Step 10 deterministic acceptance traps", () => {
               right.baselineRevenueMinor),
         )[0];
 
-      expect(dipWeek).toBeDefined();
-
       console.info(
         "STEP10_PULL_FORWARD_TRAP",
         JSON.stringify({
@@ -251,6 +249,8 @@ describe("Step 10 deterministic acceptance traps", () => {
               .incrementalContributionProfitMinor,
         }),
       );
+
+      expect(dipWeek).toBeDefined();
     },
     120_000,
   );
