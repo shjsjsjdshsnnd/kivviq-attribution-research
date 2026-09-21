@@ -46,13 +46,17 @@ export interface ProductOffer {
   readonly availableUnits: number;
   readonly priceUtilityMultiplier: number;
   readonly promotionUtilityMultiplier: number;
+  /**
+   * Step 10 only. Values above 1 permit replenishment-category stockpiling.
+   */
+  readonly stockpilingMultiplier?: number;
   readonly demandTruthId?: string;
 }
 
 const clamp = (value: number, min: number, max: number): number =>
   Math.min(max, Math.max(min, value));
 
-function pricingCustomerContext(
+export function pricingCustomerContext(
   customer: RuntimeCustomerState,
 ): PricingCustomerContext {
   return {
@@ -232,6 +236,8 @@ export function offerForProduct(
         resolved.priceResponse.combinedDemandMultiplier,
       promotionUtilityMultiplier:
         resolved.promotion.promotionUtilityMultiplier,
+      stockpilingMultiplier:
+        resolved.promotion.stockpilingMultiplier,
     };
   }
 
