@@ -146,6 +146,8 @@ Branch: `step9/inventory-dynamics`
 
 Draft PR: #22
 
+Validated implementation head: `642e32ab67e98d293c66a82adcde01757c65f6cc`
+
 Step 9 makes inventory a **dynamic causal economic constraint** instead of a static product attribute.
 
 The authoritative system now separates physical on-hand, sellable, reserved, committed, quarantined returns, damaged, inbound and backordered units; runs reservations/reorders/supplier delays/returns/backorder cancellation through the Step 4 clock; and exactly reconciles every SKU movement.
@@ -192,3 +194,4 @@ No private Kivviq, Maison Olive data, real merchant/customer data, production sy
 - `docs/step8-product-economics.md`
 - `docs/step8-product-economics-acceptance.md`
 - `docs/step9-inventory-dynamics.md`
+- `docs/step9-inventory-dynamics-acceptance.md`
