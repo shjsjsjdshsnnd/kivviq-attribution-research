@@ -8,6 +8,9 @@ on:
       - "phase2/evaluator/candidate3_holdout_scoring.json"
       - "phase2/evaluator/candidate3_holdout_evaluator.py"
       - "phase2/evaluator/test_candidate3_holdout_evaluator.py"
+      - "phase2/evaluator/consume_candidate3_holdout.py"
+      - "phase2/evaluator/run_candidate3_sealed_holdout.py"
+      - "phase2/evaluator/record_candidate3_holdout_result.py"
 
 permissions:
   contents: read
@@ -34,5 +37,5 @@ jobs:
       - run: python scripts/check_repo_safety.py
       - run: python scripts/check_phase1_frozen.py
       - run: python phase2/evaluator/test_candidate3_holdout_evaluator.py
-      - run: ruff check phase2/evaluator/candidate3_holdout_evaluator.py phase2/evaluator/test_candidate3_holdout_evaluator.py
-      - run: mypy --ignore-missing-imports phase2/evaluator/candidate3_holdout_evaluator.py
+      - run: ruff check phase2/evaluator/candidate3_holdout_evaluator.py phase2/evaluator/test_candidate3_holdout_evaluator.py phase2/evaluator/consume_candidate3_holdout.py phase2/evaluator/run_candidate3_sealed_holdout.py phase2/evaluator/record_candidate3_holdout_result.py
+      - run: mypy --ignore-missing-imports phase2/evaluator/candidate3_holdout_evaluator.py phase2/evaluator/consume_candidate3_holdout.py phase2/evaluator/run_candidate3_sealed_holdout.py phase2/evaluator/record_candidate3_holdout_result.py
