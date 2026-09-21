@@ -304,6 +304,128 @@ describe("Step 10 promotion mechanics", () => {
     expect(repeat.discountMinor).toBeGreaterThan(0);
   });
 
+
+  it("free-shipping threshold replacement supports both upward and downward interventions", () => {
+    const fixture =
+      createMarginDestructionTrapFixture();
+    const customer = context(fixture);
+    const timestamp = Date.parse(
+      fixture.evaluation.periodStart,
+    );
+
+    const higher = scenarioWith(fixture, [
+      {
+        promotionId: "threshold-up",
+        mechanic: "free_shipping_threshold",
+        scope: { kind: "sitewide" },
+        start: fixture.evaluation.periodStart,
+        end: fixture.evaluation.periodEnd,
+        freeShippingThresholdMinor: 12_500,
+        awarenessProbability: 1,
+      },
+    ]);
+    const lower = scenarioWith(fixture, [
+      {
+        promotionId: "threshold-down",
+        mechanic: "free_shipping_threshold",
+        scope: { kind: "sitewide" },
+        start: fixture.evaluation.periodStart,
+        end: fixture.evaluation.periodEnd,
+        freeShippingThresholdMinor: 8_000,
+        awarenessProbability: 1,
+      },
+    ]);
+
+    expect(
+      resolveCartShippingTerms(
+        higher,
+        customer,
+        timestamp,
+        11_000,
+        10_000,
+      ).freeShipping,
+    ).toBe(false);
+    expect(
+      resolveCartShippingTerms(
+        lower,
+        customer,
+        timestamp,
+        9_000,
+        15_000,
+      ).freeShipping,
+    ).toBe(true);
+  });
+
+  it("coupon minimum spend and redemption rules gate the realized discount", () => {
+    const fixture =
+      createMarginDestructionTrapFixture();
+    const hydrated =
+      hydratePricingPromotionScenario(
+        fixture.evaluation,
+      );
+    const state = hydrated.priceStates.find(
+      (candidate) =>
+        candidate.productId === fixture.productAId,
+    )!;
+    const minimumSpend =
+      state.regularPriceMinor + 1;
+    const scenario = scenarioWith(fixture, [
+      {
+        promotionId: "coupon-20",
+        mechanic: "coupon",
+        scope: {
+          kind: "sku_set",
+          productIds: [fixture.productAId],
+        },
+        start: fixture.evaluation.periodStart,
+        end: fixture.evaluation.periodEnd,
+        percentageOff: 0.2,
+        minimumSpendMinor: minimumSpend,
+        awarenessProbability: 1,
+        redemptionProbability: 1,
+      },
+    ]);
+    const customer = context(fixture);
+    const timestamp = Date.parse(
+      fixture.evaluation.periodStart,
+    );
+
+    const below = resolveCartLinePricing(
+      fixture.evaluation.merchantWorld,
+      scenario,
+      customer,
+      timestamp,
+      [
+        {
+          productId: fixture.productAId,
+          quantity: 1,
+          fallbackBasePriceMinor:
+            state.regularPriceMinor,
+        },
+      ],
+    );
+    const above = resolveCartLinePricing(
+      fixture.evaluation.merchantWorld,
+      scenario,
+      customer,
+      timestamp,
+      [
+        {
+          productId: fixture.productAId,
+          quantity: 2,
+          fallbackBasePriceMinor:
+            state.regularPriceMinor,
+        },
+      ],
+    );
+
+    expect(below[0]!.discountMinor).toBe(0);
+    expect(above[0]!.discountMinor).toBeGreaterThan(0);
+    expect(
+      above[0]!.promotionIds,
+    ).toContain("coupon-20");
+  });
+
   it("explicit collection membership scopes an offer without inventing frozen collection truth", () => {
     const fixture =
       createMarginDestructionTrapFixture();
