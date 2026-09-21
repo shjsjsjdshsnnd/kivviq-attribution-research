@@ -4,15 +4,13 @@ from datetime import UTC, datetime, timedelta
 
 import pytest
 
-from phase2_candidate3_contracts.contracts import Candidate3Decision
+from phase2_candidate3_contracts.contracts import Candidate3Decision, TreatmentOpportunity
 from phase2_candidate3_estimator.input import (
     Candidate3Case,
     Candidate3FeatureValue,
     Candidate3Unit,
 )
 from phase2_candidate3_estimator.model import point_estimate_for_development
-
-from phase2_candidate3_contracts.contracts import TreatmentOpportunity
 
 
 def _unit(index: int, *, treated: bool, future: bool = False) -> Candidate3Unit:
