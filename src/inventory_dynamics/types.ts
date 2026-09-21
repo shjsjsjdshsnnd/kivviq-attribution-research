@@ -178,6 +178,7 @@ export interface MutableInventoryPosition {
   cumulativeSellableReturnsUnits: number;
   cumulativeSoldUnits: number;
   cumulativeWriteOffUnits: number;
+  cumulativeExplicitAdjustmentUnits: number;
   stockoutStartedAtMs?: number;
 }
 
@@ -197,6 +198,7 @@ export interface InventoryReconciliation {
   readonly openingOnHandUnits: number;
   readonly receivedUnits: number;
   readonly sellableReturnUnits: number;
+  readonly explicitAdjustmentUnits: number;
   readonly soldUnits: number;
   readonly writtenOffUnits: number;
   readonly expectedClosingOnHandUnits: number;
