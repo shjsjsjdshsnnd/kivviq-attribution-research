@@ -624,15 +624,19 @@ function realizedSupplierLeadMs(
         : profile === "replenishment_friendly"
           ? 0.1
           : 0.18;
-  let factor = Math.max(
-    0.55,
-    1 +
-      randomness.normal(
-        `inventory-lead:${productId}:${placedAtMs}`,
-        0,
-        volatility,
-      ),
-  );
+  const stochasticLeadTime =
+    request.merchantWorld.summary.complexity !== "normal";
+  let factor = stochasticLeadTime
+    ? Math.max(
+        0.55,
+        1 +
+          randomness.normal(
+            `inventory-lead:${productId}:${placedAtMs}`,
+            0,
+            volatility,
+          ),
+      )
+    : 1;
 
   for (const shock of request.merchantWorld.manifest.externalShocks) {
     if (shock.kind !== "supplier_disruption") continue;
