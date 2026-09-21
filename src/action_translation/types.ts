@@ -14,7 +14,7 @@ import type {
   SimulatorTarget,
 } from "../simulator_intervention/types.js";
 
-export const ACTION_TRANSLATION_VERSION = "1.1.0" as const;
+export const ACTION_TRANSLATION_VERSION = "1.0.0" as const;
 export const TRANSLATION_CONTEXT_SCHEMA_VERSION = "1.1.0" as const;
 export const SUPPORTED_TRANSLATION_CONTEXT_SCHEMA_VERSIONS = [
   "1.0.0",
