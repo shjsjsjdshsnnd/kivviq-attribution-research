@@ -411,6 +411,7 @@ export function createInventoryEconomyState(
       cumulativeSellableReturnsUnits: 0,
       cumulativeSoldUnits: 0,
       cumulativeWriteOffUnits: 0,
+      cumulativeExplicitAdjustmentUnits: 0,
       ...(onHand - reserved <= 0
         ? { stockoutStartedAtMs: startMs }
         : {}),
@@ -1013,12 +1014,15 @@ export function setAvailableInventoryAdjustment(
     timestampMs,
     sourceEventId,
     () => {
+      const beforeOnHand = position.onHandUnits;
       position.onHandUnits = Math.max(
         position.reservedUnits +
           position.committedUnits +
           position.damagedUnits,
         position.onHandUnits + delta,
       );
+      position.cumulativeExplicitAdjustmentUnits +=
+        position.onHandUnits - beforeOnHand;
     },
   );
 }
@@ -1265,7 +1269,8 @@ export function reconciliationFor(
   const expectedClosing =
     position.openingOnHandUnits +
     position.cumulativeReceivedUnits +
-    position.cumulativeSellableReturnsUnits -
+    position.cumulativeSellableReturnsUnits +
+    position.cumulativeExplicitAdjustmentUnits -
     position.cumulativeSoldUnits -
     position.cumulativeWriteOffUnits;
 
@@ -1275,6 +1280,8 @@ export function reconciliationFor(
     receivedUnits: position.cumulativeReceivedUnits,
     sellableReturnUnits:
       position.cumulativeSellableReturnsUnits,
+    explicitAdjustmentUnits:
+      position.cumulativeExplicitAdjustmentUnits,
     soldUnits: position.cumulativeSoldUnits,
     writtenOffUnits: position.cumulativeWriteOffUnits,
     expectedClosingOnHandUnits: expectedClosing,
