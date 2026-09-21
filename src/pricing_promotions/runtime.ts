@@ -567,8 +567,12 @@ export function resolveProductOffer(
       },
     ),
     promotion: {
-      promotionIds: awareApplicable.map(
-        (promotion) => promotion.promotionId,
+      // IDs here mean a product-price promotion was actually realized
+      // on this offer. Awareness/exposure is evaluated separately. Cart-level
+      // mechanics (minimum-spend credits, bundles) add their IDs only after
+      // their qualification conditions are satisfied.
+      promotionIds: applied.map(
+        (entry) => entry.promotion.promotionId,
       ),
       priceDiscountMinorPerUnit: totalDiscountMinor,
       freeShipping: awareApplicable.some(
