@@ -310,7 +310,15 @@ export interface PricingMembershipSemantics {
 export type PriceRollbackStrategy =
   | {
       readonly kind: "RESTORE_PRE_ACTION_VALUE";
-      readonly preActionPrice: ReferenceValue;
+      readonly source:
+        | {
+            readonly kind: "single_price";
+            readonly preActionPrice: ReferenceValue;
+          }
+        | {
+            readonly kind: "membership_snapshot";
+            readonly bindingRef: string;
+          };
     }
   | {
       readonly kind: "SET_EXPLICIT_VALUE";
@@ -320,7 +328,15 @@ export type PriceRollbackStrategy =
 export interface PriceRollbackConflictGuard {
   readonly kind: "REQUIRE_CURRENT_MATCHES_ACTION_OUTPUT";
   readonly sourceActionId: ActionId;
-  readonly expectedCurrentPrice: MonetaryValue;
+  readonly expected:
+    | {
+        readonly kind: "single_price";
+        readonly price: MonetaryValue;
+      }
+    | {
+        readonly kind: "membership_state";
+        readonly stateRef: string;
+      };
 }
 
 export type PricingRollbackTrigger =
