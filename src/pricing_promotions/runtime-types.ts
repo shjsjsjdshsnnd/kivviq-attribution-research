@@ -113,7 +113,6 @@ export interface MajorPromotionEvent {
    */
   readonly baselineDemandMultiplier: number;
   readonly marketingCompetitionMultiplier?: number;
-  readonly postEventNeedDeferralDays?: number;
 }
 
 export interface PricingPromotionScenario {
