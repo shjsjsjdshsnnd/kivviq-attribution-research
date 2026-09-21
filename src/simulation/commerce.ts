@@ -724,6 +724,62 @@ export function addToPersistentCart(
   return cart;
 }
 
+export function reserveCheckoutInventory(
+  runtime: RuntimeWorldState,
+  customer: RuntimeCustomerState,
+  sessionId: string,
+  timestampMs: number,
+  timeoutMinutes = 20,
+): readonly string[] {
+  if (!customer.cart) return [];
+  const timeoutMs =
+    Math.max(1, timeoutMinutes) * 60_000;
+  const reservationIds: string[] = [];
+
+  for (let index = 0; index < customer.cart.lines.length; index += 1) {
+    const line = customer.cart.lines[index]!;
+    const reservationId =
+      `inventory-reservation:${sessionId}:${line.productId}:${index}`;
+    const reservation = reserveInventory(
+      runtime.inventoryEconomy,
+      {
+        reservationId,
+        skuId: line.productId,
+        customerId: customer.customerId,
+        requestedUnits: line.quantity,
+        timestampMs,
+        expiresAtMs: timestampMs + timeoutMs,
+        sourceEventId: sessionId,
+      },
+    );
+    if (reservation) {
+      reservationIds.push(reservation.reservationId);
+      runtime.inventory.set(
+        line.productId,
+        legacyNetAvailableUnits(
+          runtime.inventoryEconomy,
+          line.productId,
+        ),
+      );
+    }
+  }
+
+  return reservationIds;
+}
+
+export function markCartInventoryDemandAbandoned(
+  runtime: RuntimeWorldState,
+  customer: RuntimeCustomerState,
+): void {
+  for (const line of customer.cart?.lines ?? []) {
+    markInventoryDemandOutcome(
+      runtime.inventoryEconomy,
+      line.demandTruthId,
+      "abandoned",
+    );
+  }
+}
+
 export function checkoutPurchaseProbability(
   runtime: RuntimeWorldState,
   customer: RuntimeCustomerState,
