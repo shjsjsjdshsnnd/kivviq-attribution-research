@@ -6,7 +6,7 @@ module.exports = {
         "Operator-facing modules must never depend on GroundTruth, generation, latent customers, simulation, advertising economics, cross-channel interactions, ecommerce economics, product economics, evaluator/oracle, or other God-mode internals.",
       severity: "error",
       from: {
-        path: "^(src/(observation|operator|operator_safe|action_ontology|action_translation|simulator_intervention)(/|$)|src/index\\.ts$)",
+        path: "^(src/(observation|operator|operator_safe|action_ontology|action_translation|simulator_intervention|paid_media)(/|$)|src/index\\.ts$)",
       },
       to: {
         path: "^src/(ground_truth|generation|customer_population|simulation|advertising_economics|cross_channel|ecommerce_economics|product_economics|evaluation|oracle|god_mode)(/|$)",
@@ -34,6 +34,18 @@ module.exports = {
       },
       to: {
         path: "^src/action_ontology(/|$)",
+      },
+    },
+    {
+      name: "paid-media-business-language-cannot-depend-on-simulator",
+      comment:
+        "Paid-media business Actions may depend on canonical Action contracts but not translation adapters or simulator-specific contracts.",
+      severity: "error",
+      from: {
+        path: "^src/paid_media(/|$)",
+      },
+      to: {
+        path: "^src/(action_translation|simulator_intervention|simulation)(/|$)",
       },
     },
     {
