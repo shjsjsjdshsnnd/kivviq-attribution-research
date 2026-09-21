@@ -413,6 +413,14 @@ export function createPullForwardTrapFixture(): PullForwardTrapFixture {
         value,
         {},
       ),
+      // A denser explicit synthetic cohort makes the post-promotion
+      // replenishment gap observable without changing any causal parameter.
+      // Weights still reconcile to the same represented population.
+      latentPopulation: population(
+        world,
+        210103,
+        500,
+      ),
       periodEnd: end,
     },
   };
