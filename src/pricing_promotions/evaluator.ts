@@ -339,6 +339,28 @@ function representedUnits(
   );
 }
 
+function representedUnitsForProduct(
+  request: PricingPromotionEvaluationRequest,
+  report: EcommerceEconomicReport,
+  productId: string,
+): number {
+  const weights = customerWeightMap(request);
+  return report.orders.reduce(
+    (sum, order) =>
+      sum +
+      order.lines.reduce(
+        (lineSum, line) =>
+          line.productId === productId
+            ? lineSum +
+              line.quantity *
+                (weights.get(order.customerId) ?? 1)
+            : lineSum,
+        0,
+      ),
+    0,
+  );
+}
+
 function representedPhysicalInventoryConsumption(
   report: EcommerceEconomicReport,
 ): number {
@@ -962,6 +984,12 @@ export function evaluatePriceResponseCurve(
         request,
         report,
       ),
+      targetProductRepresentedUnits:
+        representedUnitsForProduct(
+          request,
+          report,
+          productId,
+        ),
       representedOrders:
         report.simulation.totals.representedOrders,
       grossRevenueMinor:
