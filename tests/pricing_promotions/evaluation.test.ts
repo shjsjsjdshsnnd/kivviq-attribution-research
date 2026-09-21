@@ -238,14 +238,18 @@ describe("Step 10 evaluator invariants", () => {
           .targetProductRepresentedUnits,
       );
       expect(
-        highElasticity[1]!.contributionProfitMinor,
+        highElasticity[1]!
+          .targetProductContributionProfitMinor,
       ).toBeLessThan(
-        highElasticity[0]!.contributionProfitMinor,
+        highElasticity[0]!
+          .targetProductContributionProfitMinor,
       );
       expect(
-        lowElasticity[1]!.contributionProfitMinor,
+        lowElasticity[1]!
+          .targetProductContributionProfitMinor,
       ).toBeGreaterThan(
-        lowElasticity[0]!.contributionProfitMinor,
+        lowElasticity[0]!
+          .targetProductContributionProfitMinor,
       );
     },
     240_000,
