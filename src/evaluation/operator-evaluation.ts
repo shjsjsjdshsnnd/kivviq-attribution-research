@@ -185,7 +185,7 @@ function assertDecisionOutput(
     "operator decision output must contain exactly the actions field",
   );
   requireCondition(
-    Array.isArray(record.actions),
+    Array.isArray(record["actions"]),
     "operator decision output actions must be an array",
   );
 }
