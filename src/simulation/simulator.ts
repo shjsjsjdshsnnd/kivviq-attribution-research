@@ -16,6 +16,7 @@ import {
   completePurchase,
   markCartInventoryDemandAbandoned,
   pricingCustomerContext,
+  retentionCustomerContext,
   promotionState,
   reserveCheckoutInventory,
 } from "./commerce.js";
@@ -50,6 +51,13 @@ import {
   marketingCompetitionMultiplier,
   promotionPullForwardOpportunityTimestamp,
 } from "../pricing_promotions/runtime.js";
+import {
+  lifecycleMarketingMultipliers,
+  lifecycleThresholds,
+  repeatPurchaseHazardMultiplier,
+  returnExperienceAffinityDelta,
+  validateRetentionLtvScenario,
+} from "../retention_ltv/runtime.js";
 import {
   days,
   hours,
@@ -304,13 +312,25 @@ function needStrength(
 }
 
 function nextNeedDelayMs(
+  request: SimulateWorldRequest,
   customer: RuntimeCustomerState,
   randomness: SharedRandomness,
   cycle: number,
 ): number {
+  const retentionHazard =
+    request.commercePolicy?.retentionScenario ===
+      undefined ||
+    customer.purchaseCount <= 0
+      ? 1
+      : repeatPurchaseHazardMultiplier(
+          request.merchantWorld,
+          request.commercePolicy.retentionScenario,
+          retentionCustomerContext(customer),
+        );
   const annualHazard = Math.max(
     0.05,
-    customer.source.annualPurchaseHazard,
+    customer.source.annualPurchaseHazard *
+      Math.max(0.05, retentionHazard),
   );
   const ratePerMs =
     annualHazard / (365 * 86_400_000);
@@ -321,7 +341,16 @@ function nextNeedDelayMs(
   );
 
   const intervalAnchor = days(
-    Math.max(4, customer.source.expectedPurchaseIntervalDays),
+    Math.max(
+      4,
+      customer.source.expectedPurchaseIntervalDays /
+        Math.max(
+          0.35,
+          Math.sqrt(
+            Math.max(0.05, retentionHazard),
+          ),
+        ),
+    ),
   );
   const blended =
     exponential * 0.55 +
@@ -692,10 +721,21 @@ export function simulateWorld(
     `${WORLD_SIMULATOR_VERSION}:${request.merchantWorld.manifest.worldId}`,
   );
   const queue = new SimulationEventQueue();
+  if (
+    request.commercePolicy?.retentionScenario !==
+    undefined
+  ) {
+    validateRetentionLtvScenario(
+      request.commercePolicy.retentionScenario,
+    );
+  }
+
   const runtime = createRuntimeWorldState(
     request.merchantWorld,
     request.latentPopulation,
     clock.startMs,
+    request.commercePolicy?.retentionScenario !==
+      undefined,
   );
   const interactionNetwork = compileCrossChannelNetwork(
     request.merchantWorld,
@@ -934,6 +974,7 @@ export function simulateWorld(
           ) *
           hours(18)
         : nextNeedDelayMs(
+            request,
             customer,
             randomness,
             0,
@@ -1074,6 +1115,27 @@ export function simulateWorld(
             payload.productId,
           ),
         );
+
+        if (
+          request.commercePolicy?.retentionScenario !==
+          undefined
+        ) {
+          const returnedCustomer =
+            runtime.customers.get(
+              payload.customerId,
+            );
+          if (returnedCustomer) {
+            returnedCustomer.brandAffinity = clamp(
+              returnedCustomer.brandAffinity +
+                returnExperienceAffinityDelta(
+                  request.commercePolicy
+                    .retentionScenario,
+                ),
+              0,
+              1,
+            );
+          }
+        }
       }
       continue;
     }
@@ -1464,6 +1526,7 @@ export function simulateWorld(
       const nextNeedMs =
         event.timestampMs +
         nextNeedDelayMs(
+          request,
           customer,
           randomness,
           nextCycle,
@@ -1550,7 +1613,31 @@ export function simulateWorld(
       const natural = naturalVisitOpportunities(
         customer,
         crossModifiers,
-      );
+      ).map((opportunity) => {
+        if (
+          request.commercePolicy?.retentionScenario ===
+            undefined ||
+          opportunity.channel === undefined
+        ) {
+          return opportunity;
+        }
+        const multiplier =
+          lifecycleMarketingMultipliers(
+            request.commercePolicy
+              .retentionScenario,
+            retentionCustomerContext(customer),
+            event.timestampMs,
+            opportunity.channel,
+          ).opportunity;
+        return {
+          ...opportunity,
+          probability: clamp(
+            opportunity.probability * multiplier,
+            0,
+            0.99,
+          ),
+        };
+      });
       for (const opportunity of natural) {
         const key = `${customer.customerId}:natural:${payload.cycle}:${payload.ordinal}:${opportunity.source}`;
         if (
@@ -1623,12 +1710,24 @@ export function simulateWorld(
             customer,
             channel,
             interventionState,
-            paidExposureOpportunityMultiplier(
+            (paidExposureOpportunityMultiplier(
               interactionNetwork,
               customer,
               channel,
               interactionContext,
-            ) /
+            ) *
+              (request.commercePolicy
+                ?.retentionScenario === undefined
+                ? 1
+                : lifecycleMarketingMultipliers(
+                    request.commercePolicy
+                      .retentionScenario,
+                    retentionCustomerContext(
+                      customer,
+                    ),
+                    event.timestampMs,
+                    channel,
+                  ).opportunity)) /
               marketingCompetitionMultiplier(
                 request.commercePolicy?.pricingPromotionScenario,
                 event.timestampMs,
@@ -1705,7 +1804,17 @@ export function simulateWorld(
           customer,
           payload.channel,
           interactionContext,
-        );
+        ) *
+        (request.commercePolicy
+          ?.retentionScenario === undefined
+          ? 1
+          : lifecycleMarketingMultipliers(
+              request.commercePolicy
+                .retentionScenario,
+              retentionCustomerContext(customer),
+              event.timestampMs,
+              payload.channel,
+            ).causalResponse);
 
       const recorded = recordMarketingExposure(
         request.merchantWorld,
@@ -2090,9 +2199,32 @@ export function simulateWorld(
             session.ended = true;
             session.currentPage = "ended";
 
-            const repeatDelay =
+            const retentionScenario =
+              request.commercePolicy
+                ?.retentionScenario;
+            const repeatHazard =
+              retentionScenario === undefined
+                ? 1
+                : repeatPurchaseHazardMultiplier(
+                    request.merchantWorld,
+                    retentionScenario,
+                    retentionCustomerContext(
+                      customer,
+                    ),
+                  );
+            let repeatDelay =
               days(
-                customer.source.expectedPurchaseIntervalDays *
+                (customer.source
+                  .expectedPurchaseIntervalDays /
+                  Math.max(
+                    0.35,
+                    Math.sqrt(
+                      Math.max(
+                        0.05,
+                        repeatHazard,
+                      ),
+                    ),
+                  )) *
                   Math.exp(
                     randomness.normal(
                       `${customer.customerId}:repeat-delay:${ordinal}`,
@@ -2101,20 +2233,84 @@ export function simulateWorld(
                     ),
                   ),
               );
+            let scheduleRepeat = true;
 
-            schedule<NeedPayload>({
-              id: `repeat-need:${customer.customerId}:${ordinal + 1}`,
-              kind: "repeat_need",
-              timestampMs:
-                event.timestampMs +
-                Math.max(days(2), repeatDelay),
-              priority: 10,
-              customerId: customer.customerId,
-              payload: {
-                cycle: 10_000 + ordinal + 1,
-                repeat: true,
-              },
-            });
+            if (
+              retentionScenario?.subscription !==
+                undefined &&
+              request.merchantWorld.summary
+                .businessModel === "subscription"
+            ) {
+              const subscription =
+                retentionScenario.subscription;
+              const cancellationProbability =
+                clamp(
+                  subscription
+                    .cancellationProbabilityPerRenewal *
+                    (1.2 -
+                      customer.source
+                        .repeatPropensity *
+                        0.45),
+                  0,
+                  1,
+                );
+              if (
+                randomness.bool(
+                  `${customer.customerId}:subscription-cancel:${ordinal}`,
+                  cancellationProbability,
+                )
+              ) {
+                customer.lifecycle = "churned";
+                customer.churned = true;
+                customer.retention.trueChurnState =
+                  "permanent_churned";
+                scheduleRepeat = false;
+              } else {
+                if (
+                  randomness.bool(
+                    `${customer.customerId}:subscription-skip:${ordinal}`,
+                    subscription
+                      .skipProbabilityPerRenewal ??
+                      0,
+                  )
+                ) {
+                  repeatDelay *= 2;
+                }
+                if (
+                  randomness.bool(
+                    `${customer.customerId}:subscription-failed-renewal:${ordinal}`,
+                    subscription
+                      .failedRenewalProbability ??
+                      0,
+                  )
+                ) {
+                  repeatDelay += days(
+                    subscription
+                      .failedRenewalRetryDays ??
+                      7,
+                  );
+                }
+              }
+            }
+
+            if (scheduleRepeat) {
+              schedule<NeedPayload>({
+                id: `repeat-need:${customer.customerId}:${ordinal + 1}`,
+                kind: "repeat_need",
+                timestampMs:
+                  event.timestampMs +
+                  Math.max(
+                    days(2),
+                    repeatDelay,
+                  ),
+                priority: 10,
+                customerId: customer.customerId,
+                payload: {
+                  cycle: 10_000 + ordinal + 1,
+                  repeat: true,
+                },
+              });
+            }
           } else if (
             request.commercePolicy?.enableInventoryDynamics === true
           ) {
@@ -2231,6 +2427,14 @@ export function simulateWorld(
       transitionLifecycleForInactivity(
         customer,
         event.timestampMs,
+        request.commercePolicy
+          ?.retentionScenario === undefined
+          ? undefined
+          : lifecycleThresholds(
+              request.merchantWorld,
+              request.commercePolicy
+                .retentionScenario,
+            ),
       );
 
       if (!customer.churned) {
@@ -2347,6 +2551,41 @@ export function simulateWorld(
             value: memory.value,
           })),
           churned: customer.churned,
+          ...(request.commercePolicy
+            ?.retentionScenario === undefined
+            ? {}
+            : {
+                retention: {
+                  finalBrandAffinity:
+                    customer.brandAffinity,
+                  repeatHazardQualityMultiplier:
+                    customer.retention
+                      .repeatHazardQualityMultiplier,
+                  promotionDependenceShift:
+                    customer.retention
+                      .promotionDependenceShift,
+                  trueChurnState:
+                    customer.retention
+                      .trueChurnState,
+                  reactivationCount:
+                    customer.retention
+                      .reactivationCount,
+                  ownedProductQuantities:
+                    Object.fromEntries(
+                      customer.retention
+                        .ownedProductQuantities,
+                    ),
+                  categoryFamiliarity:
+                    Object.fromEntries(
+                      customer.retention
+                        .categoryFamiliarity,
+                    ),
+                  causalAcquisitionChannels: [
+                    ...customer.retention
+                      .causalAcquisitionChannels,
+                  ].sort(),
+                },
+              }),
         }),
       ),
     },

@@ -19,6 +19,7 @@ export type RuntimeLifecycleState =
   | "first_time_buyer"
   | "active_customer"
   | "repeat_customer"
+  | "loyal_customer"
   | "lapsing"
   | "dormant"
   | "churned"
@@ -69,6 +70,20 @@ export interface PersistentCart {
   expiresAtMs: number;
 }
 
+export interface RuntimeRetentionState {
+  enabled: boolean;
+  repeatHazardQualityMultiplier: number;
+  promotionDependenceShift: number;
+  trueChurnState:
+    | "active"
+    | "latent_churned"
+    | "permanent_churned";
+  reactivationCount: number;
+  readonly ownedProductQuantities: Map<string, number>;
+  readonly categoryFamiliarity: Map<string, number>;
+  readonly causalAcquisitionChannels: Set<MarketingChannel>;
+}
+
 export interface RuntimeCustomerState {
   readonly customerId: string;
   readonly populationWeight: number;
@@ -86,6 +101,7 @@ export interface RuntimeCustomerState {
   lastActivityMs: number;
   nextNeedEligibleMs: number;
   churned: boolean;
+  readonly retention: RuntimeRetentionState;
 
   channelMemory: Map<MarketingChannel, ChannelMemory>;
   interactionMemory: Map<string, InteractionMemoryState>;
@@ -130,6 +146,7 @@ export function createRuntimeWorldState(
   merchantWorld: GeneratedMerchantWorld,
   latentPopulation: LatentCustomerPopulation,
   startMs: number,
+  retentionEnabled = false,
 ): RuntimeWorldState {
   if (latentPopulation.merchantWorldId !== merchantWorld.manifest.worldId) {
     throw new RangeError(
@@ -160,6 +177,16 @@ export function createRuntimeWorldState(
       lastActivityMs: startMs,
       nextNeedEligibleMs: startMs,
       churned: false,
+      retention: {
+        enabled: retentionEnabled,
+        repeatHazardQualityMultiplier: 1,
+        promotionDependenceShift: 0,
+        trueChurnState: "active",
+        reactivationCount: 0,
+        ownedProductQuantities: new Map(),
+        categoryFamiliarity: new Map(),
+        causalAcquisitionChannels: new Set(),
+      },
       channelMemory: new Map(),
       interactionMemory: new Map(),
       futureAudience: {
@@ -353,6 +380,18 @@ export function markNeedFormation(
   );
   if (customer.lifecycle === "prospect") {
     customer.lifecycle = "engaged_prospect";
+  } else if (
+    customer.retention.enabled &&
+    (customer.lifecycle === "lapsing" ||
+      customer.lifecycle === "dormant" ||
+      (customer.lifecycle === "churned" &&
+        customer.retention.trueChurnState !==
+          "permanent_churned"))
+  ) {
+    customer.lifecycle = "active_customer";
+    customer.churned = false;
+    customer.retention.trueChurnState = "active";
+    customer.retention.reactivationCount += 1;
   }
   customer.lastActivityMs = nowMs;
 }
@@ -397,27 +436,96 @@ export function applyMarketingMemory(
   refreshLatentCustomerState(customer, nowMs);
 }
 
+export interface RetentionPurchaseTransitionOptions {
+  readonly brandAffinityDelta: number;
+  readonly repeatHazardQualityMultiplier: number;
+  readonly promotionDependenceDelta: number;
+  readonly loyalPurchaseThreshold: number;
+  readonly productQuantities: Readonly<Record<string, number>>;
+  readonly productCategories: Readonly<Record<string, string>>;
+  readonly causalAcquisitionChannels: readonly MarketingChannel[];
+}
+
 export function transitionAfterPurchase(
   customer: RuntimeCustomerState,
   nowMs: number,
   needDeferralMultiplier = 1,
+  retention?: RetentionPurchaseTransitionOptions,
 ): void {
   customer.purchaseCount += 1;
   customer.lastPurchaseMs = nowMs;
   customer.need = 0.02;
   customer.intent = clamp(customer.intent * 0.22, 0, 1);
   customer.consideration = clamp(customer.consideration * 0.25, 0, 1);
-  customer.brandAffinity = clamp(
-    customer.brandAffinity +
-      0.02 * (1 - customer.brandAffinity),
-    0,
-    1,
-  );
+
+  if (retention === undefined) {
+    customer.brandAffinity = clamp(
+      customer.brandAffinity +
+        0.02 * (1 - customer.brandAffinity),
+      0,
+      1,
+    );
+  } else {
+    customer.brandAffinity = clamp(
+      customer.brandAffinity +
+        retention.brandAffinityDelta,
+      0,
+      1,
+    );
+    customer.retention.repeatHazardQualityMultiplier =
+      clamp(
+        retention.repeatHazardQualityMultiplier,
+        0.05,
+        8,
+      );
+    customer.retention.promotionDependenceShift =
+      clamp(
+        customer.retention.promotionDependenceShift +
+          retention.promotionDependenceDelta,
+        -2,
+        3,
+      );
+    for (const [productId, quantity] of Object.entries(
+      retention.productQuantities,
+    )) {
+      customer.retention.ownedProductQuantities.set(
+        productId,
+        (customer.retention.ownedProductQuantities.get(
+          productId,
+        ) ?? 0) + quantity,
+      );
+      const categoryId =
+        retention.productCategories[productId];
+      if (categoryId !== undefined) {
+        customer.retention.categoryFamiliarity.set(
+          categoryId,
+          Math.min(
+            6,
+            (customer.retention.categoryFamiliarity.get(
+              categoryId,
+            ) ?? 0) +
+              Math.max(0.25, quantity * 0.5),
+          ),
+        );
+      }
+    }
+    for (const channel of retention.causalAcquisitionChannels) {
+      customer.retention.causalAcquisitionChannels.add(
+        channel,
+      );
+    }
+    customer.retention.trueChurnState = "active";
+    customer.churned = false;
+  }
 
   customer.lifecycle =
     customer.purchaseCount <= 1
       ? "first_time_buyer"
-      : "repeat_customer";
+      : retention !== undefined &&
+          customer.purchaseCount >=
+            retention.loyalPurchaseThreshold
+        ? "loyal_customer"
+        : "repeat_customer";
 
   const intervalDays = Math.max(
     3,
@@ -433,34 +541,101 @@ export function transitionAfterPurchase(
   customer.lastActivityMs = nowMs;
 }
 
+export interface RetentionLifecycleTransitionOptions {
+  readonly lapseAfterIntervals: number;
+  readonly dormantAfterIntervals: number;
+  readonly latentChurnAfterIntervals: number;
+  readonly permanentChurnAfterIntervals: number | null;
+}
+
 export function transitionLifecycleForInactivity(
   customer: RuntimeCustomerState,
   nowMs: number,
+  retention?: RetentionLifecycleTransitionOptions,
 ): void {
   if (customer.churned) return;
-  const sinceActivity = nowMs - customer.lastActivityMs;
+
+  if (retention === undefined) {
+    const sinceActivity = nowMs - customer.lastActivityMs;
+    const interval = days(
+      Math.max(7, customer.source.expectedPurchaseIntervalDays),
+    );
+
+    if (customer.purchaseCount > 0) {
+      if (sinceActivity > interval * 4.5) {
+        customer.lifecycle = "dormant";
+      } else if (sinceActivity > interval * 2.2) {
+        customer.lifecycle = "lapsing";
+      } else if (customer.purchaseCount > 1) {
+        customer.lifecycle = "repeat_customer";
+      } else {
+        customer.lifecycle = "active_customer";
+      }
+    }
+
+    if (
+      sinceActivity > interval * 8 &&
+      customer.source.repeatPropensity < 0.35
+    ) {
+      customer.lifecycle = "churned";
+      customer.churned = true;
+    }
+    return;
+  }
+
+  if (customer.purchaseCount <= 0) return;
+
+  const referenceMs =
+    customer.lastPurchaseMs ?? customer.lastActivityMs;
+  const sincePurchase = Math.max(
+    0,
+    nowMs - referenceMs,
+  );
   const interval = days(
     Math.max(7, customer.source.expectedPurchaseIntervalDays),
   );
-
-  if (customer.purchaseCount > 0) {
-    if (sinceActivity > interval * 4.5) {
-      customer.lifecycle = "dormant";
-    } else if (sinceActivity > interval * 2.2) {
-      customer.lifecycle = "lapsing";
-    } else if (customer.purchaseCount > 1) {
-      customer.lifecycle = "repeat_customer";
-    } else {
-      customer.lifecycle = "active_customer";
-    }
-  }
+  const elapsedIntervals =
+    sincePurchase / Math.max(1, interval);
 
   if (
-    sinceActivity > interval * 8 &&
-    customer.source.repeatPropensity < 0.35
+    retention.permanentChurnAfterIntervals !== null &&
+    elapsedIntervals >=
+      retention.permanentChurnAfterIntervals
   ) {
     customer.lifecycle = "churned";
     customer.churned = true;
+    customer.retention.trueChurnState =
+      "permanent_churned";
+    return;
+  }
+
+  if (
+    elapsedIntervals >=
+      retention.latentChurnAfterIntervals
+  ) {
+    customer.lifecycle = "dormant";
+    customer.retention.trueChurnState =
+      "latent_churned";
+    return;
+  }
+
+  customer.retention.trueChurnState = "active";
+  if (
+    elapsedIntervals >=
+    retention.dormantAfterIntervals
+  ) {
+    customer.lifecycle = "dormant";
+  } else if (
+    elapsedIntervals >=
+    retention.lapseAfterIntervals
+  ) {
+    customer.lifecycle = "lapsing";
+  } else if (customer.purchaseCount >= 4) {
+    customer.lifecycle = "loyal_customer";
+  } else if (customer.purchaseCount > 1) {
+    customer.lifecycle = "repeat_customer";
+  } else {
+    customer.lifecycle = "active_customer";
   }
 }
 

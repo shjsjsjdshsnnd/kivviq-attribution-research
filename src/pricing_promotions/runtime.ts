@@ -44,6 +44,22 @@ export interface PricingCustomerContext {
   readonly lifecycle: string;
   readonly need: number;
   readonly brandAffinity: number;
+  /**
+   * Step 11 can evolve promotion dependence after realized purchases. Omitted
+   * on the frozen Step 1-10 path, where this is exactly zero.
+   */
+  readonly promotionDependenceShift?: number;
+}
+
+function effectivePromotionSensitivity(
+  customer: PricingCustomerContext,
+): number {
+  return clamp(
+    customer.source.promotionSensitivityMultiplier +
+      (customer.promotionDependenceShift ?? 0),
+    0.05,
+    5,
+  );
 }
 
 export interface CartPricingInputLine {
@@ -199,7 +215,7 @@ function couponRedeemed(
             (0.58 +
               customer.source.latentFactors.dealOrientation *
                 0.52 +
-              customer.source.promotionSensitivityMultiplier *
+              effectivePromotionSensitivity(customer) *
                 0.18),
           0,
           1,
@@ -1010,7 +1026,7 @@ export function bundleAttachmentOpportunity(
         : 0);
     const probability = clamp(
       0.04 +
-        customer.source.promotionSensitivityMultiplier *
+        effectivePromotionSensitivity(customer) *
           Math.max(0.02, depth) *
           1.45 +
         customer.source.latentFactors.dealOrientation * 0.08 +

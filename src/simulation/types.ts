@@ -4,6 +4,10 @@ import type { LatentCustomerPopulation } from "../customer_population/types.js";
 import type { RuntimeLifecycleState } from "./state.js";
 import type { InventoryGodModeTruth } from "../inventory_dynamics/types.js";
 import type { PricingPromotionScenario } from "../pricing_promotions/runtime-types.js";
+import type {
+  RetentionLtvScenario,
+  RetentionRuntimeGodModeState,
+} from "../retention_ltv/runtime-types.js";
 
 export type ObservableJourneyEventKind =
   | "impression"
@@ -145,6 +149,11 @@ export interface CustomerFinalStateSummary {
     readonly value: number;
   }[];
   readonly churned: boolean;
+  /**
+   * Step 11 evaluator-only longitudinal customer state. Omitted when the
+   * retention sidecar is disabled.
+   */
+  readonly retention?: RetentionRuntimeGodModeState;
 }
 
 export interface InteractionCausalTruthRecord {
@@ -240,6 +249,11 @@ export interface SimulationCommercePolicy {
    * frozen GroundTruth schema and is never exposed through the Operator root.
    */
   readonly pricingPromotionScenario?: PricingPromotionScenario;
+  /**
+   * Opt-in Step 11 longitudinal retention/LTV sidecar. Omitted preserves the
+   * frozen Step 1-10 simulation path.
+   */
+  readonly retentionScenario?: RetentionLtvScenario;
   /**
    * Step 9 physical-return parameters are supplied by the Step 7 economic
    * profiles so inventory and return accounting use the same product truth.
