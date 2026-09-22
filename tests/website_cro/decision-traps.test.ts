@@ -165,17 +165,6 @@ function channelDeviceCorrelatedPopulation(
   };
 }
 
-function metric(
-  result: SimulationResult,
-  channel: "meta" | "google_search",
-) {
-  const value = result.platformMetrics.find(
-    (candidate) => candidate.channel === channel,
-  );
-  expect(value).toBeDefined();
-  return value!;
-}
-
 describe("Step 12 causal decision traps", () => {
   it(
     "isolates a dated mobile checkout regression despite a simultaneous marketing-mix intervention",
@@ -449,22 +438,31 @@ describe("Step 12 causal decision traps", () => {
         },
       });
 
-      const metaHealthy = metric(healthy, "meta");
-      const metaBroken = metric(broken, "meta");
-      const googleHealthy = metric(
-        healthy,
-        "google_search",
-      );
-      const googleBroken = metric(
-        broken,
-        "google_search",
-      );
+      const healthyDiagnostics =
+        funnelDiagnostics(healthy, population);
+      const brokenDiagnostics =
+        funnelDiagnostics(broken, population);
+      const rate = (
+        diagnostics: ReturnType<
+          typeof funnelDiagnostics
+        >,
+        channel: "meta" | "google_search",
+      ) => {
+        const row = diagnostics.byChannel.find(
+          (candidate) =>
+            candidate.dimension === channel,
+        );
+        expect(row).toBeDefined();
+        expect(row!.pdpToAtcRate).not.toBeNull();
+        return row!.pdpToAtcRate!;
+      };
+
       const metaDrop =
-        metaHealthy.observedPurchaseRateAfterTouch -
-        metaBroken.observedPurchaseRateAfterTouch;
+        rate(healthyDiagnostics, "meta") -
+        rate(brokenDiagnostics, "meta");
       const googleDrop =
-        googleHealthy.observedPurchaseRateAfterTouch -
-        googleBroken.observedPurchaseRateAfterTouch;
+        rate(healthyDiagnostics, "google_search") -
+        rate(brokenDiagnostics, "google_search");
 
       expect(metaDrop).toBeGreaterThan(0);
       expect(metaDrop).toBeGreaterThan(googleDrop);
