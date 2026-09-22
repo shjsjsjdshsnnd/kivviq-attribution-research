@@ -113,12 +113,12 @@ describe("Step 12 website runtime", () => {
       ...base,
       interventions: [
         {
-          variable: "website.pdp.mobile.latency_ms",
+          variable: "website.pdp.mobile.latency_seconds",
           operation: "set",
           value: {
             kind: "number",
-            value: 1_100,
-            unit: "milliseconds",
+            value: 1.1,
+            unit: "seconds",
           },
           effectiveAt: "2026-02-01T00:00:00.000Z",
           population: { devices: ["mobile"] },
