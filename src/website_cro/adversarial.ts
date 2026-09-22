@@ -1,3 +1,4 @@
+import type { Intervention } from "../ground_truth/interventions.js";
 import type {
   DevicePerformance,
   PagePerformance,
@@ -351,3 +352,73 @@ export function weakPdpInformationScenario(
     ],
   };
 }
+
+
+export const FIX_SLOW_MOBILE_PDP: Intervention = {
+  variable: "website.pdp.mobile.latency_seconds",
+  operation: "set",
+  value: {
+    kind: "number",
+    value: 1,
+    unit: "seconds",
+  },
+  population: { devices: ["mobile"] },
+};
+
+export const FIX_SEARCH_RELEVANCE: Intervention = {
+  variable: "website.search.relevance",
+  operation: "set",
+  value: {
+    kind: "number",
+    value: 0.96,
+    unit: "dimensionless",
+  },
+};
+
+export const FIX_COLLECTION_RANKING: Intervention = {
+  variable: "website.collection.ranking_quality",
+  operation: "set",
+  value: {
+    kind: "number",
+    value: 0.96,
+    unit: "dimensionless",
+  },
+};
+
+export const FIX_COUPON_FUNCTIONALITY: Intervention = {
+  variable: "website.cart.coupon_reliability",
+  operation: "set",
+  value: {
+    kind: "number",
+    value: 0.998,
+    unit: "dimensionless",
+  },
+};
+
+export const FIX_CHECKOUT_DEFECT: Intervention = {
+  variable: "website.checkout.fix_defect",
+  operation: "set",
+  value: {
+    kind: "boolean",
+    value: true,
+  },
+};
+
+export const CLARIFY_SHIPPING_EARLIER: Intervention = {
+  variable: "website.checkout.shipping_cost_visibility",
+  operation: "set",
+  value: {
+    kind: "category",
+    value: "cart",
+  },
+};
+
+export const IMPROVE_PDP_IMAGERY: Intervention = {
+  variable: "website.pdp.imagery_quality",
+  operation: "set",
+  value: {
+    kind: "number",
+    value: 0.96,
+    unit: "dimensionless",
+  },
+};
