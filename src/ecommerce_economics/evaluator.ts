@@ -480,6 +480,12 @@ export function evaluateEcommerceEconomics(
             pricingPromotionScenario:
               request.pricingPromotionScenario,
           }),
+      ...(request.retentionScenario === undefined
+        ? {}
+        : {
+            retentionScenario:
+              request.retentionScenario,
+          }),
       ...(request.enableInventoryDynamics === true
         ? {
             enableInventoryDynamics: true,
