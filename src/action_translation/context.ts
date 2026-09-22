@@ -42,6 +42,14 @@ const FORBIDDEN_CONTEXT_KEYS = new Set([
   "predictedCrossSellRate",
   "predictedUpsellRate",
   "expectedCTR",
+  "forecastDemand",
+  "predictedStockoutDate",
+  "predictedSellThrough",
+  "predictedSupplierDelay",
+  "futureSales",
+  "futureReturns",
+  "futureRealizedSupplierDelay",
+  "counterfactualInventory",
 ]);
 
 function record(value: unknown): value is any {
@@ -365,6 +373,147 @@ function validateMerchandisingSurfaceDefinitions(
   return { ok: true };
 }
 
+
+function validateInventoryStateBindings(
+  input: unknown,
+):
+  | { readonly ok: true }
+  | { readonly ok: false; readonly message: string } {
+  if (input === undefined) return { ok: true };
+  if (!Array.isArray(input)) {
+    return {
+      ok: false,
+      message: "inventoryStateBindings must be an array",
+    };
+  }
+
+  const identities = new Set<string>();
+  for (const binding of input) {
+    if (
+      !record(binding) ||
+      !record(binding.target) ||
+      !["sku", "product", "inventory_policy"].includes(
+        String(binding.target.kind),
+      ) ||
+      !nonEmpty(binding.sourceRef)
+    ) {
+      return {
+        ok: false,
+        message: "inventory state binding is malformed",
+      };
+    }
+
+    const integerFields = [
+      "onHandUnits",
+      "availableToSellUnits",
+      "reservedUnits",
+      "safetyStockUnits",
+      "reorderPointUnits",
+      "currentReorderQuantity",
+      "openPurchaseOrderUnits",
+      "supplierAvailableUnits",
+      "warehouseAvailableCapacityUnits",
+    ];
+    if (
+      integerFields.some(
+        (field) =>
+          binding[field] !== undefined &&
+          (!Number.isInteger(binding[field]) ||
+            Number(binding[field]) < 0),
+      )
+    ) {
+      return {
+        ok: false,
+        message: "inventory state unit fields must be non-negative integers",
+      };
+    }
+
+    if (
+      binding.currentPlannedReorderAt !== undefined &&
+      (typeof binding.currentPlannedReorderAt !== "string" ||
+        !binding.currentPlannedReorderAt.endsWith("Z") ||
+        !Number.isFinite(Date.parse(binding.currentPlannedReorderAt)))
+    ) {
+      return {
+        ok: false,
+        message: "current planned reorder timestamp is invalid",
+      };
+    }
+
+    if (
+      binding.inventoryLocationId !== undefined &&
+      !nonEmpty(binding.inventoryLocationId)
+    ) {
+      return {
+        ok: false,
+        message: "inventoryLocationId must be non-empty when supplied",
+      };
+    }
+    if (
+      binding.supplierRelationshipId !== undefined &&
+      !nonEmpty(binding.supplierRelationshipId)
+    ) {
+      return {
+        ok: false,
+        message: "supplierRelationshipId must be non-empty when supplied",
+      };
+    }
+
+    if (binding.supplierConstraints !== undefined) {
+      if (!record(binding.supplierConstraints)) {
+        return {
+          ok: false,
+          message: "supplierConstraints must be an object",
+        };
+      }
+      for (const field of [
+        "minimumOrderQuantity",
+        "orderMultiple",
+        "maximumSupplierQuantity",
+      ]) {
+        if (
+          binding.supplierConstraints[field] !== undefined &&
+          (!Number.isInteger(binding.supplierConstraints[field]) ||
+            Number(binding.supplierConstraints[field]) <= 0)
+        ) {
+          return {
+            ok: false,
+            message: "supplier constraint values must be positive integers",
+          };
+        }
+      }
+    }
+
+    if (binding.leadTimeAssumption !== undefined) {
+      if (
+        !record(binding.leadTimeAssumption) ||
+        !Number.isInteger(binding.leadTimeAssumption.durationSeconds) ||
+        Number(binding.leadTimeAssumption.durationSeconds) <= 0 ||
+        !nonEmpty(binding.leadTimeAssumption.sourceRef)
+      ) {
+        return {
+          ok: false,
+          message: "leadTimeAssumption is malformed",
+        };
+      }
+    }
+
+    const key = stableKey({
+      target: binding.target,
+      inventoryLocationId: binding.inventoryLocationId,
+      supplierRelationshipId: binding.supplierRelationshipId,
+    });
+    if (identities.has(key)) {
+      return {
+        ok: false,
+        message: "inventory state bindings must be unique by target/location/supplier",
+      };
+    }
+    identities.add(key);
+  }
+  return { ok: true };
+}
+
 export type TranslationContextValidationResult =
   | {
       readonly ok: true;
@@ -468,6 +617,25 @@ export function validateTranslationContext(
     };
   }
 
+
+  if (
+    (input.schemaVersion === "1.0.0" ||
+      input.schemaVersion === "1.1.0" ||
+      input.schemaVersion === "1.2.0" ||
+      input.schemaVersion === "1.3.0") &&
+    input.inventoryStateBindings !== undefined
+  ) {
+    return {
+      ok: false,
+      failure: {
+        status: "MISSING_CONTEXT",
+        code: "TRANSLATION_CONTEXT_FEATURE_REQUIRES_1_4",
+        message:
+          "inventoryStateBindings require TranslationContext schema 1.4.0.",
+      },
+    };
+  }
+
   if (
     typeof input.simulatorClock !== "string" ||
     !input.simulatorClock.endsWith("Z") ||
@@ -553,6 +721,20 @@ export function validateTranslationContext(
         status: "MISSING_CONTEXT",
         code: "MALFORMED_MERCHANDISING_SURFACE_CONTEXT",
         message: merchandisingSurfaceValidation.message,
+      },
+    };
+  }
+
+  const inventoryStateValidation = validateInventoryStateBindings(
+    input.inventoryStateBindings,
+  );
+  if (!inventoryStateValidation.ok) {
+    return {
+      ok: false,
+      failure: {
+        status: "MISSING_CONTEXT",
+        code: "MALFORMED_INVENTORY_STATE_CONTEXT",
+        message: inventoryStateValidation.message,
       },
     };
   }
@@ -801,6 +983,42 @@ export function resolveMerchandisingRankingSnapshot(
     (snapshot) => snapshot.bindingRef === bindingRef,
   );
   const ref = "merchandising-ranking:" + bindingRef;
+  if (matches.length === 0) return { status: "missing", ref };
+  if (matches.length > 1) return { status: "ambiguous", ref };
+  return { status: "resolved", binding: matches[0]! };
+}
+
+
+export type InventoryStateResolution =
+  | {
+      readonly status: "resolved";
+      readonly binding: NonNullable<
+        TranslationContext["inventoryStateBindings"]
+      >[number];
+    }
+  | { readonly status: "missing"; readonly ref: string }
+  | { readonly status: "ambiguous"; readonly ref: string };
+
+export function resolveInventoryState(
+  context: TranslationContext,
+  target: ActionTarget,
+  inventoryLocationId?: string,
+  supplierRelationshipId?: string,
+): InventoryStateResolution {
+  const key = stableKey({
+    target,
+    inventoryLocationId,
+    supplierRelationshipId,
+  });
+  const matches = (context.inventoryStateBindings ?? []).filter(
+    (binding) =>
+      stableKey({
+        target: binding.target,
+        inventoryLocationId: binding.inventoryLocationId,
+        supplierRelationshipId: binding.supplierRelationshipId,
+      }) === key,
+  );
+  const ref = "inventory-state:" + key;
   if (matches.length === 0) return { status: "missing", ref };
   if (matches.length > 1) return { status: "ambiguous", ref };
   return { status: "resolved", binding: matches[0]! };
