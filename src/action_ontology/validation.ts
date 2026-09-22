@@ -62,6 +62,7 @@ const CATEGORY_PATTERN = /^[a-z][a-z0-9_]*$/;
 const CURRENCY_PATTERN = /^[A-Z]{3}$/;
 const ISO_UTC_PATTERN = /Z$/;
 const PROMOTION_ID_PATTERN = /^promo_[A-Za-z0-9._:-]+$/;
+const SHIPPING_OFFER_ID_PATTERN = /^shipoffer_[A-Za-z0-9._:-]+$/;
 
 const TOP_LEVEL_FIELDS = new Set([
   "kind",
@@ -109,6 +110,14 @@ const FORBIDDEN_ACTION_KEYS = new Set([
   "predictedLift",
   "predictedRedemptions",
   "predictedAOV",
+  "expectedConversionLift",
+  "expectedAOV",
+  "expectedOrders",
+  "expectedShippingCost",
+  "predictedDemand",
+  "predictedAbandonmentReduction",
+  "futureCartValue",
+  "futureShippingCost",
   "confidence",
   "confidenceScore",
   "rank",
@@ -256,6 +265,26 @@ const ACTION_SCHEMA_1_3_ACTION_TYPES = new Set([
   "promotion.start",
   "promotion.stop",
   "promotion.modify",
+]);
+
+const ACTION_SCHEMA_1_4_TARGET_KINDS = new Set([
+  "shipping_offer",
+]);
+
+const ACTION_SCHEMA_1_4_PARAMETER_KINDS = new Set([
+  "shipping_offer_set",
+  "shipping_offer_modify",
+  "shipping_offer_stop",
+  "shipping_policy_adjustment",
+  "shipping_policy_rollback",
+]);
+
+const ACTION_SCHEMA_1_4_ACTION_TYPES = new Set([
+  "shipping.set_offer",
+  "shipping.modify_offer",
+  "shipping.stop_offer",
+  "shipping.adjust_policy",
+  "shipping.rollback_policy",
 ]);
 
 function validateSchemaFeatureCompatibility(
@@ -437,6 +466,38 @@ function validateSchemaFeatureCompatibility(
       );
     }
   }
+
+  if (
+    schemaVersion === "1.0.0" ||
+    schemaVersion === "1.1.0" ||
+    schemaVersion === "1.2.0" ||
+    schemaVersion === "1.3.0"
+  ) {
+    if (
+      record(input.target) &&
+      ACTION_SCHEMA_1_4_TARGET_KINDS.has(String(input.target.kind))
+    ) {
+      add(errors,"SCHEMA_FEATURE_REQUIRES_1_4","target.kind","this shipping target kind requires Action schema 1.4.0");
+    }
+    if (
+      record(input.parameters) &&
+      ACTION_SCHEMA_1_4_PARAMETER_KINDS.has(String(input.parameters.kind))
+    ) {
+      add(errors,"SCHEMA_FEATURE_REQUIRES_1_4","parameters.kind","this shipping parameter kind requires Action schema 1.4.0");
+    }
+    if (
+      typeof input.actionType === "string" &&
+      ACTION_SCHEMA_1_4_ACTION_TYPES.has(input.actionType)
+    ) {
+      add(errors,"SCHEMA_FEATURE_REQUIRES_1_4","actionType","this shipping Action type requires Action schema 1.4.0");
+    }
+    if (
+      record(input.reversibility) &&
+      input.reversibility.shippingRollback !== undefined
+    ) {
+      add(errors,"SCHEMA_FEATURE_REQUIRES_1_4","reversibility.shippingRollback","shipping rollback semantics require Action schema 1.4.0");
+    }
+  }
 }
 
 function validateTarget(
@@ -471,6 +532,7 @@ function validateTarget(
     page: ["pageId"],
     lifecycle_program: ["programId"],
     shipping_policy: ["shippingPolicyId"],
+    shipping_offer: ["shippingOfferId"],
     inventory_policy: ["inventoryPolicyId"],
     experiment: ["experimentId"],
     promotion: ["promotionId"],
