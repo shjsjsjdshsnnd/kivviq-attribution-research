@@ -220,6 +220,7 @@ export interface AcquisitionChannelCounterfactual {
   readonly counterfactualSpendMinor: number;
   readonly incrementalSpendMinor: number;
   readonly incrementalFirstOrders: number;
+  readonly incrementalFirstOrderCacMinor: number | null;
   readonly incrementalFirstOrderContributionMinor: number;
   readonly incrementalLongTermContributionBeforeAcquisitionCostMinor: number;
   readonly incrementalLongTermContributionAfterAcquisitionCostMinor: number;
