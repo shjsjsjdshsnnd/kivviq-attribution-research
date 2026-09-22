@@ -65,6 +65,7 @@ const PROMOTION_ID_PATTERN = /^promo_[A-Za-z0-9._:-]+$/;
 const SHIPPING_OFFER_ID_PATTERN = /^shipoffer_[A-Za-z0-9._:-]+$/;
 const MERCHANDISING_PLACEMENT_ID_PATTERN = /^merchplace_[A-Za-z0-9._:-]+$/;
 const MERCHANDISING_RELATIONSHIP_ID_PATTERN = /^merchrel_[A-Za-z0-9._:-]+$/;
+const CRO_EXPERIENCE_ID_PATTERN = /^croexp_[A-Za-z0-9._:-]+$/;
 
 const TOP_LEVEL_FIELDS = new Set([
   "kind",
@@ -4912,6 +4913,28 @@ function validateReversibility(
       validateInventoryRollbackGuard(input.inventoryRollback.conflictGuard,path+".inventoryRollback.conflictGuard",errors);
     }
   }
+
+  if (input.croRollback !== undefined) {
+    if (!record(input.croRollback) || typeof input.croRollback.available !== "boolean") {
+      add(errors,"INVALID_CRO_ROLLBACK_CONTRACT",path+".croRollback","available must be explicit");
+    } else if (input.croRollback.available === false) {
+      if (!nonEmpty(input.croRollback.reason)) {
+        add(errors,"INVALID_CRO_ROLLBACK_REASON",path+".croRollback.reason","reason is required");
+      }
+    } else {
+      validateCroRollbackStrategy(input.croRollback.strategy,path+".croRollback.strategy",errors);
+      if (!record(input.croRollback.trigger) || !nonEmpty(input.croRollback.trigger.kind)) {
+        add(errors,"INVALID_CRO_ROLLBACK_TRIGGER",path+".croRollback.trigger","trigger is required");
+      } else if (input.croRollback.trigger.kind === "AT") {
+        validateTimestamp(input.croRollback.trigger.at,path+".croRollback.trigger.at",errors);
+      } else if (input.croRollback.trigger.kind !== "ON_TERMINATION") {
+        add(errors,"INVALID_CRO_ROLLBACK_TRIGGER",path+".croRollback.trigger.kind","unsupported trigger");
+      }
+      validateNonNegativeInteger(input.croRollback.delaySeconds,path+".croRollback.delaySeconds",errors);
+      validateKnownOrUnknown(input.croRollback.cost,path+".croRollback.cost",errors,(v,p)=>validateMoney(v,p,errors));
+      validateCroRollbackGuard(input.croRollback.conflictGuard,path+".croRollback.conflictGuard",errors);
+    }
+  }
 }
 
 function validateRiskDimensions(
@@ -5794,6 +5817,156 @@ function validateInventoryActionSemantics(
   }
 }
 
+
+function validateCroActionSemantics(
+  input: any,
+  errors: ActionValidationIssue[],
+): void {
+  const croTypes = new Set([
+    "cro.modify_experience",
+    "cro.add_element",
+    "cro.remove_element",
+    "cro.reorder_elements",
+    "cro.modify_interaction",
+    "cro.modify_navigation",
+    "cro.modify_search",
+    "cro.modify_checkout",
+    "cro.rollback_experience",
+  ]);
+  if (!croTypes.has(String(input.actionType))) return;
+
+  if (
+    !record(input.target) ||
+    input.target.kind !== "cro_experience" ||
+    !nonEmpty(input.target.experienceId) ||
+    !CRO_EXPERIENCE_ID_PATTERN.test(input.target.experienceId)
+  ) {
+    add(
+      errors,
+      "CRO_ACTION_REQUIRES_EXPERIENCE_TARGET",
+      "target",
+      "CRO Actions require stable croexp_* experience target",
+    );
+  }
+
+  if (input.actionType === "cro.rollback_experience") {
+    if (!record(input.parameters) || input.parameters.kind !== "cro_rollback") return;
+    if (!nonEmpty(input.reversalOfActionId)) {
+      add(errors,"CRO_ROLLBACK_REQUIRES_REVERSAL_REFERENCE","reversalOfActionId","rollback must reference original CRO Action");
+    } else if (input.reversalOfActionId !== input.parameters.originalActionId) {
+      add(errors,"CRO_ROLLBACK_ORIGINAL_ACTION_MISMATCH","reversalOfActionId","rollback references must identify the same original CRO Action");
+    }
+    if (!record(input.duration) || input.duration.kind !== "instantaneous") {
+      add(errors,"CRO_ROLLBACK_MUST_BE_INSTANTANEOUS","duration","CRO rollback is an instantaneous experience-state change");
+    }
+    return;
+  }
+
+  if (!record(input.parameters) || input.parameters.kind !== "cro_intervention") return;
+
+  const expected: Readonly<Record<string, readonly string[]>> = {
+    "cro.modify_experience": ["MODIFY_PRESENTATION","MODIFY_PERFORMANCE"],
+    "cro.add_element": ["ADD"],
+    "cro.remove_element": ["REMOVE"],
+    "cro.reorder_elements": ["REORDER"],
+    "cro.modify_interaction": ["MODIFY_INTERACTION"],
+    "cro.modify_navigation": ["MODIFY_NAVIGATION"],
+    "cro.modify_search": ["MODIFY_SEARCH"],
+    "cro.modify_checkout": ["MODIFY_CHECKOUT"],
+  };
+  if (!expected[String(input.actionType)]?.includes(String(input.parameters.intervention))) {
+    add(
+      errors,
+      "CRO_ACTION_INTERVENTION_MISMATCH",
+      "parameters.intervention",
+      "intervention kind does not match CRO action type",
+    );
+  }
+
+  if (
+    input.actionType === "cro.modify_navigation" &&
+    record(input.parameters.component) &&
+    input.parameters.component.component !== "NAVIGATION"
+  ) {
+    add(errors,"CRO_NAVIGATION_COMPONENT_MISMATCH","parameters.component","navigation Action must target NAVIGATION");
+  }
+  if (
+    input.actionType === "cro.modify_search" &&
+    input.parameters.surface !== "SITE_SEARCH"
+  ) {
+    add(errors,"CRO_SEARCH_SURFACE_MISMATCH","parameters.surface","search CRO Action requires SITE_SEARCH surface");
+  }
+  if (
+    input.actionType === "cro.modify_checkout" &&
+    input.parameters.surface !== "CHECKOUT"
+  ) {
+    add(errors,"CRO_CHECKOUT_SURFACE_MISMATCH","parameters.surface","checkout CRO Action requires CHECKOUT surface");
+  }
+
+  if (
+    input.parameters.intervention === "MODIFY_PERFORMANCE" &&
+    (!Array.isArray(input.parameters.modifiableDimensions) ||
+      !input.parameters.modifiableDimensions.some((dimension: unknown) =>
+        ["LOAD_PERFORMANCE","INTERACTION_LATENCY","IMAGE_LOADING"].includes(String(dimension)),
+      ))
+  ) {
+    add(
+      errors,
+      "CRO_PERFORMANCE_DIMENSION_REQUIRED",
+      "parameters.modifiableDimensions",
+      "performance intervention requires a technical performance dimension",
+    );
+  }
+
+  const temporary =
+    record(input.duration) && input.duration.kind === "temporary";
+  if (
+    temporary &&
+    (!record(input.reversibility) ||
+      !record(input.reversibility.croRollback) ||
+      input.reversibility.croRollback.available !== true)
+  ) {
+    add(
+      errors,
+      "TEMPORARY_CRO_REQUIRES_SAFE_ROLLBACK",
+      "reversibility.croRollback",
+      "temporary CRO intervention requires conflict-protected rollback",
+    );
+  }
+  if (
+    record(input.reversibility) &&
+    record(input.reversibility.croRollback) &&
+    input.reversibility.croRollback.available === true &&
+    record(input.reversibility.croRollback.conflictGuard) &&
+    input.reversibility.croRollback.conflictGuard.sourceActionId !==
+      input.actionId
+  ) {
+    add(
+      errors,
+      "CRO_ROLLBACK_SOURCE_MISMATCH",
+      "reversibility.croRollback.conflictGuard.sourceActionId",
+      "CRO rollback must reference this intervention Action",
+    );
+  }
+
+  if (
+    record(input.reversibility) &&
+    (
+      input.reversibility.pricingRollback !== undefined ||
+      input.reversibility.shippingRollback !== undefined ||
+      input.reversibility.merchandisingRollback !== undefined ||
+      input.reversibility.inventoryRollback !== undefined
+    )
+  ) {
+    add(
+      errors,
+      "CRO_CANNOT_USE_OTHER_FAMILY_ROLLBACK",
+      "reversibility",
+      "CRO Actions must use CRO rollback semantics only",
+    );
+  }
+}
+
 function deepFreeze<T>(value: T): T {
   if (typeof value !== "object" || value === null || Object.isFrozen(value)) return value;
   Object.freeze(value);
@@ -5949,6 +6122,7 @@ export function validateAction(
   validateShippingActionSemantics(input, errors);
   validateMerchandisingActionSemantics(input, errors);
   validateInventoryActionSemantics(input, errors);
+  validateCroActionSemantics(input, errors);
 
   if (input.reversalOfActionId !== undefined) {
     if (!nonEmpty(input.reversalOfActionId)) {
