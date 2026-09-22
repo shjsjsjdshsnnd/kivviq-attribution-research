@@ -4,13 +4,14 @@ import type {
   UtcTimestamp,
 } from "../core/units.js";
 
-export const ACTION_SCHEMA_VERSION = "1.5.0" as const;
+export const ACTION_SCHEMA_VERSION = "1.6.0" as const;
 export const SUPPORTED_ACTION_SCHEMA_VERSIONS = [
   "1.0.0",
   "1.1.0",
   "1.2.0",
   "1.3.0",
   "1.4.0",
+  "1.5.0",
   ACTION_SCHEMA_VERSION,
 ] as const;
 export type ActionSchemaVersion =
@@ -112,6 +113,9 @@ export type ActionTarget =
   | { readonly kind: "shipping_policy"; readonly shippingPolicyId: string }
   | { readonly kind: "shipping_offer"; readonly shippingOfferId: string }
   | { readonly kind: "inventory_policy"; readonly inventoryPolicyId: string }
+  | { readonly kind: "inventory_location"; readonly inventoryLocationId: string }
+  | { readonly kind: "supplier_relationship"; readonly supplierRelationshipId: string }
+  | { readonly kind: "inventory_set"; readonly inventorySetId: string }
   | { readonly kind: "experiment"; readonly experimentId: string }
   | { readonly kind: "promotion"; readonly promotionId: string }
   | { readonly kind: "merchandising_placement"; readonly placementId: string }
@@ -862,6 +866,168 @@ export type MerchandisingRollbackContract =
       readonly conflictGuard: MerchandisingRollbackConflictGuard;
     };
 
+
+export type InventoryAvailabilityConcept =
+  | "ON_HAND"
+  | "AVAILABLE_TO_SELL"
+  | "RESERVED"
+  | "SAFETY_STOCK";
+
+export type InventoryMembershipSemantics = {
+  readonly evaluateAt: MembershipEvaluationBoundary;
+  readonly bindingRef?: string;
+};
+
+export interface InventoryLeadTimeAssumption {
+  readonly durationSeconds: number;
+  readonly sourceRef: string;
+}
+
+export interface InventorySupplierConstraints {
+  readonly minimumOrderQuantity?: number;
+  readonly orderMultiple?: number;
+  readonly maximumSupplierQuantity?: number;
+}
+
+export interface InventoryProcurementEconomics {
+  readonly unitProcurementCost?: MonetaryValue;
+  readonly freightCost?: MonetaryValue;
+  readonly fixedOrderCost?: MonetaryValue;
+  readonly minimumOrderValue?: MonetaryValue;
+}
+
+export interface InventoryReorderDefinition {
+  readonly sku: Extract<ActionTarget,{readonly kind:"sku"}>;
+  readonly quantity: number;
+  readonly supplierRelationshipId?: string;
+  readonly destinationLocationId?: string;
+  readonly orderPlacementTime: UtcTimestamp;
+  readonly requestedDeliveryDate?: UtcTimestamp;
+  readonly leadTimeAssumption?: InventoryLeadTimeAssumption;
+  readonly expectedArrivalAt?: UtcTimestamp;
+  readonly supplierConstraints?: InventorySupplierConstraints;
+  readonly procurementEconomics?: InventoryProcurementEconomics;
+}
+
+export type InventoryTimingReference =
+  | {
+      readonly kind:"current_planned_reorder_at_decision";
+      readonly decisionTime:UtcTimestamp;
+    }
+  | {
+      readonly kind:"explicit_planned_reorder";
+      readonly at:UtcTimestamp;
+    }
+  | {
+      readonly kind:"baseline_snapshot";
+      readonly baselineId:string;
+    };
+
+export type InventoryTimingOperation =
+  | { readonly kind:"SET_DATE"; readonly at: UtcTimestamp }
+  | {
+      readonly kind:"DELTA_DAYS";
+      readonly direction:"earlier"|"later";
+      readonly days:number;
+      readonly baseline: InventoryTimingReference;
+    }
+  | {
+      readonly kind:"INVENTORY_TRIGGER";
+      readonly availabilityConcept: InventoryAvailabilityConcept;
+      readonly operator:"LTE"|"LT"|"EQ";
+      readonly units:number;
+    };
+
+export type InventoryProtectionMode =
+  | {
+      readonly kind:"RESERVE_QUANTITY";
+      readonly quantity:number;
+      readonly fromConcept:"AVAILABLE_TO_SELL";
+      readonly toConcept:"RESERVED";
+    }
+  | {
+      readonly kind:"PROTECT_UNTIL_CONDITION";
+      readonly availabilityConcept: InventoryAvailabilityConcept;
+      readonly minimumUnits:number;
+    };
+
+export type InventoryBackorderPolicy =
+  | { readonly kind:"ALLOW" }
+  | { readonly kind:"DISALLOW" }
+  | { readonly kind:"ALLOW_WITH_LIMIT"; readonly maxBackorderedUnits:number }
+  | { readonly kind:"ALLOW_UNTIL_DATE"; readonly until:UtcTimestamp };
+
+export type InventoryStrategyTarget =
+  | Extract<ActionTarget,{readonly kind:"sku"}>
+  | Extract<ActionTarget,{readonly kind:"product"}>
+  | Extract<ActionTarget,{readonly kind:"category"}>
+  | Extract<ActionTarget,{readonly kind:"collection"}>
+  | Extract<ActionTarget,{readonly kind:"inventory_set"}>;
+
+export type InventoryAccelerationTermination =
+  | {
+      readonly kind:"INVENTORY_AT_OR_BELOW";
+      readonly availabilityConcept: InventoryAvailabilityConcept;
+      readonly units:number;
+    }
+  | { readonly kind:"AT_DATE"; readonly at:UtcTimestamp }
+  | { readonly kind:"CONDITION_REF"; readonly conditionRef:string };
+
+export type InventoryPolicyValue =
+  | {
+      readonly kind:"SAFETY_STOCK";
+      readonly operation:ValueOperation<QuantityValue>;
+      readonly inventoryLocationId?:string;
+    }
+  | {
+      readonly kind:"REORDER_POINT";
+      readonly operation:ValueOperation<QuantityValue>;
+      readonly inventoryLocationId?:string;
+    };
+
+export type InventoryRollbackValue =
+  | ScalarValue
+  | {
+      readonly kind:"backorder_policy";
+      readonly policy:InventoryBackorderPolicy;
+    };
+
+export type InventoryRollbackReference =
+  | ReferenceValue
+  | {
+      readonly kind:"inventory_policy_snapshot";
+      readonly baselineId:string;
+    };
+
+export type InventoryRollbackStrategy =
+  | {
+      readonly kind:"RESTORE_PRE_ACTION_VALUE";
+      readonly preActionValue:InventoryRollbackReference;
+    }
+  | {
+      readonly kind:"SET_EXPLICIT_VALUE";
+      readonly value:InventoryRollbackValue;
+    };
+
+export interface InventoryRollbackConflictGuard {
+  readonly kind:"REQUIRE_CURRENT_MATCHES_ACTION_OUTPUT";
+  readonly sourceActionId:ActionId;
+  readonly expectedValue:InventoryRollbackValue;
+}
+
+export type InventoryRollbackContract =
+  | { readonly available:false; readonly reason:string }
+  | {
+      readonly available:true;
+      readonly strategy:InventoryRollbackStrategy;
+      readonly trigger:
+        | {readonly kind:"ON_TERMINATION"}
+        | {readonly kind:"AT";readonly at:UtcTimestamp};
+      readonly delaySeconds:number;
+      readonly cost:KnownOrUnknown<MonetaryValue>;
+      readonly conflictGuard:InventoryRollbackConflictGuard;
+    };
+
 export type ActionParameters =
   | {
       readonly kind: "budget_adjustment";
@@ -929,6 +1095,61 @@ export type ActionParameters =
   | {
       readonly kind: "inventory";
       readonly operation: ValueOperation<QuantityValue>;
+    }
+  | {
+      readonly kind:"inventory_reorder";
+      readonly reorder:InventoryReorderDefinition;
+    }
+  | {
+      readonly kind:"inventory_reorder_quantity";
+      readonly operation:ValueOperation<QuantityValue>;
+      readonly supplierConstraints?:InventorySupplierConstraints;
+    }
+  | {
+      readonly kind:"inventory_reorder_timing";
+      readonly operation:InventoryTimingOperation;
+      readonly leadTimeAssumption?:InventoryLeadTimeAssumption;
+    }
+  | {
+      readonly kind:"inventory_policy_control";
+      readonly policy:InventoryPolicyValue;
+    }
+  | {
+      readonly kind:"inventory_protection";
+      readonly mode:InventoryProtectionMode;
+      readonly inventoryLocationId?:string;
+      readonly coordinatedActionIds?:readonly ActionId[];
+    }
+  | {
+      readonly kind:"inventory_backorder_policy";
+      readonly policy:InventoryBackorderPolicy;
+      readonly customerPromiseRef?:string;
+      readonly geographicScopeRef?:string;
+    }
+  | {
+      readonly kind:"inventory_clearance";
+      readonly target:InventoryStrategyTarget;
+      readonly reasonCode:string;
+      readonly membership?:InventoryMembershipSemantics;
+      readonly coordinatedActionIds?:readonly ActionId[];
+    }
+  | {
+      readonly kind:"inventory_acceleration";
+      readonly target:InventoryStrategyTarget;
+      readonly availabilityConcept:InventoryAvailabilityConcept;
+      readonly startingCondition:{
+        readonly operator:"GT"|"GTE";
+        readonly units:number;
+      };
+      readonly termination:InventoryAccelerationTermination;
+      readonly membership?:InventoryMembershipSemantics;
+      readonly coordinatedActionIds?:readonly ActionId[];
+    }
+  | {
+      readonly kind:"inventory_policy_rollback";
+      readonly originalActionId:ActionId;
+      readonly strategy:InventoryRollbackStrategy;
+      readonly conflictGuard:InventoryRollbackConflictGuard;
     }
   | {
       readonly kind: "frequency_adjustment";
@@ -1246,6 +1467,7 @@ export interface ActionReversibility {
   readonly pricingRollback?: PricingRollbackContract;
   readonly shippingRollback?: ShippingRollbackContract;
   readonly merchandisingRollback?: MerchandisingRollbackContract;
+  readonly inventoryRollback?: InventoryRollbackContract;
 }
 
 export const RISK_DIMENSIONS = [

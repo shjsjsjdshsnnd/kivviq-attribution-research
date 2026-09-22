@@ -122,6 +122,16 @@ const FORBIDDEN_ACTION_KEYS = new Set([
   "predictedPurchaseProbability",
   "predictedCrossSellRate",
   "predictedUpsellRate",
+  "forecastDemand",
+  "predictedStockoutDate",
+  "predictedSellThrough",
+  "expectedMargin",
+  "predictedSupplierDelay",
+  "futureSales",
+  "futureReturns",
+  "futureRealizedSupplierDelay",
+  "actualReceiptAt",
+  "counterfactualInventory",
   "futureConversion",
   "futureInventory",
   "futureRevenue",
@@ -320,6 +330,37 @@ const ACTION_SCHEMA_1_5_ACTION_TYPES = new Set([
   "merchandising.remove_placement",
   "merchandising.remove_relationship",
   "merchandising.rollback_rank",
+]);
+
+const ACTION_SCHEMA_1_6_TARGET_KINDS = new Set([
+  "inventory_location",
+  "supplier_relationship",
+  "inventory_set",
+]);
+
+const ACTION_SCHEMA_1_6_PARAMETER_KINDS = new Set([
+  "inventory_reorder",
+  "inventory_reorder_quantity",
+  "inventory_reorder_timing",
+  "inventory_policy_control",
+  "inventory_protection",
+  "inventory_backorder_policy",
+  "inventory_clearance",
+  "inventory_acceleration",
+  "inventory_policy_rollback",
+]);
+
+const ACTION_SCHEMA_1_6_ACTION_TYPES = new Set([
+  "inventory.reorder",
+  "inventory.adjust_reorder_quantity",
+  "inventory.adjust_reorder_timing",
+  "inventory.set_safety_stock",
+  "inventory.set_reorder_point",
+  "inventory.protect_inventory",
+  "inventory.set_backorder_policy",
+  "inventory.clearance",
+  "inventory.accelerate_excess_stock",
+  "inventory.rollback_policy",
 ]);
 
 function validateSchemaFeatureCompatibility(
@@ -566,6 +607,40 @@ function validateSchemaFeatureCompatibility(
       add(errors,"SCHEMA_FEATURE_REQUIRES_1_5","reversibility.merchandisingRollback","merchandising rollback semantics require Action schema 1.5.0");
     }
   }
+
+  if (
+    schemaVersion === "1.0.0" ||
+    schemaVersion === "1.1.0" ||
+    schemaVersion === "1.2.0" ||
+    schemaVersion === "1.3.0" ||
+    schemaVersion === "1.4.0" ||
+    schemaVersion === "1.5.0"
+  ) {
+    if (
+      record(input.target) &&
+      ACTION_SCHEMA_1_6_TARGET_KINDS.has(String(input.target.kind))
+    ) {
+      add(errors,"SCHEMA_FEATURE_REQUIRES_1_6","target.kind","this inventory target kind requires Action schema 1.6.0");
+    }
+    if (
+      record(input.parameters) &&
+      ACTION_SCHEMA_1_6_PARAMETER_KINDS.has(String(input.parameters.kind))
+    ) {
+      add(errors,"SCHEMA_FEATURE_REQUIRES_1_6","parameters.kind","this inventory parameter kind requires Action schema 1.6.0");
+    }
+    if (
+      typeof input.actionType === "string" &&
+      ACTION_SCHEMA_1_6_ACTION_TYPES.has(input.actionType)
+    ) {
+      add(errors,"SCHEMA_FEATURE_REQUIRES_1_6","actionType","this inventory Action type requires Action schema 1.6.0");
+    }
+    if (
+      record(input.reversibility) &&
+      input.reversibility.inventoryRollback !== undefined
+    ) {
+      add(errors,"SCHEMA_FEATURE_REQUIRES_1_6","reversibility.inventoryRollback","inventory rollback semantics require Action schema 1.6.0");
+    }
+  }
 }
 
 function validateTarget(
@@ -602,6 +677,9 @@ function validateTarget(
     shipping_policy: ["shippingPolicyId"],
     shipping_offer: ["shippingOfferId"],
     inventory_policy: ["inventoryPolicyId"],
+    inventory_location: ["inventoryLocationId"],
+    supplier_relationship: ["supplierRelationshipId"],
+    inventory_set: ["inventorySetId"],
     experiment: ["experimentId"],
     promotion: ["promotionId"],
     merchandising_placement: ["placementId"],
@@ -2552,6 +2630,933 @@ function validateMerchandisingParameters(
   }
 }
 
+
+function validateInventoryUnitQuantity(
+  input: unknown,
+  path: string,
+  errors: ActionValidationIssue[],
+  requirePositive = false,
+): void {
+  if (!record(input) || input.kind !== "quantity") {
+    add(errors, "INVALID_INVENTORY_QUANTITY", path, "inventory quantity value is required");
+    return;
+  }
+  if (input.unit !== "units") {
+    add(errors, "INVALID_INVENTORY_QUANTITY_UNIT", path + ".unit", "inventory quantities must use units");
+  }
+  if (
+    !Number.isInteger(input.value) ||
+    Number(input.value) < 0 ||
+    (requirePositive && Number(input.value) <= 0)
+  ) {
+    add(
+      errors,
+      "INVALID_INVENTORY_UNIT_COUNT",
+      path + ".value",
+      requirePositive
+        ? "inventory quantity must be a positive integer"
+        : "inventory quantity must be a non-negative integer",
+    );
+  }
+}
+
+function validateInventoryQuantityOperation(
+  input: unknown,
+  path: string,
+  errors: ActionValidationIssue[],
+  decisionTime?: string,
+): void {
+  validateOperation(input, path, errors, "quantity", decisionTime);
+  if (!record(input)) return;
+
+  if (input.kind === "SET") {
+    validateInventoryUnitQuantity(input.value, path + ".value", errors);
+    return;
+  }
+  if (input.kind === "DELTA") {
+    validateInventoryUnitQuantity(input.amount, path + ".amount", errors);
+    if (
+      record(input.reference) &&
+      input.reference.kind === "explicit_baseline"
+    ) {
+      validateInventoryUnitQuantity(
+        input.reference.value,
+        path + ".reference.value",
+        errors,
+      );
+      if (
+        input.direction === "decrease" &&
+        record(input.amount) &&
+        record(input.reference.value) &&
+        Number.isInteger(input.amount.value) &&
+        Number.isInteger(input.reference.value.value) &&
+        Number(input.amount.value) > Number(input.reference.value.value)
+      ) {
+        add(
+          errors,
+          "INVENTORY_QUANTITY_WOULD_BECOME_NEGATIVE",
+          path,
+          "inventory policy DELTA decrease cannot exceed explicit baseline",
+        );
+      }
+    }
+    return;
+  }
+  if (
+    input.kind === "MULTIPLY" &&
+    record(input.reference) &&
+    input.reference.kind === "explicit_baseline"
+  ) {
+    validateInventoryUnitQuantity(
+      input.reference.value,
+      path + ".reference.value",
+      errors,
+    );
+    if (
+      record(input.reference.value) &&
+      Number.isInteger(input.reference.value.value) &&
+      finite(input.factor) &&
+      !Number.isInteger(
+        Number(input.reference.value.value) * Number(input.factor),
+      )
+    ) {
+      add(
+        errors,
+        "INVENTORY_MULTIPLY_RESULT_NOT_WHOLE_UNITS",
+        path,
+        "inventory unit policy must resolve to whole units when explicit baseline is supplied",
+      );
+    }
+  }
+}
+
+function validateInventoryMembership(
+  input: unknown,
+  path: string,
+  errors: ActionValidationIssue[],
+): void {
+  if (!record(input)) {
+    add(errors, "INVALID_INVENTORY_MEMBERSHIP", path, "membership semantics are required");
+    return;
+  }
+  if (
+    !["decision_time", "translation_time", "effective_time"].includes(
+      String(input.evaluateAt),
+    )
+  ) {
+    add(
+      errors,
+      "INVALID_INVENTORY_MEMBERSHIP_BOUNDARY",
+      path + ".evaluateAt",
+      "must be decision_time, translation_time or effective_time",
+    );
+  }
+  if (input.bindingRef !== undefined && !nonEmpty(input.bindingRef)) {
+    add(
+      errors,
+      "INVALID_INVENTORY_MEMBERSHIP_BINDING",
+      path + ".bindingRef",
+      "bindingRef must be non-empty when supplied",
+    );
+  }
+}
+
+function validateInventoryLeadTime(
+  input: unknown,
+  path: string,
+  errors: ActionValidationIssue[],
+): void {
+  if (!record(input)) {
+    add(errors, "INVALID_INVENTORY_LEAD_TIME", path, "lead-time assumption object is required");
+    return;
+  }
+  validatePositiveInteger(
+    input.durationSeconds,
+    path + ".durationSeconds",
+    errors,
+  );
+  if (!nonEmpty(input.sourceRef)) {
+    add(errors, "INVALID_INVENTORY_LEAD_TIME_SOURCE", path + ".sourceRef", "sourceRef is required");
+  }
+}
+
+function validateInventorySupplierConstraints(
+  input: unknown,
+  path: string,
+  errors: ActionValidationIssue[],
+): void {
+  if (!record(input)) {
+    add(errors, "INVALID_SUPPLIER_CONSTRAINTS", path, "supplier constraints must be an object");
+    return;
+  }
+  for (const field of [
+    "minimumOrderQuantity",
+    "orderMultiple",
+    "maximumSupplierQuantity",
+  ]) {
+    if (input[field] !== undefined) {
+      validatePositiveInteger(input[field], path + "." + field, errors);
+    }
+  }
+  if (
+    Number.isInteger(input.minimumOrderQuantity) &&
+    Number.isInteger(input.maximumSupplierQuantity) &&
+    Number(input.minimumOrderQuantity) > Number(input.maximumSupplierQuantity)
+  ) {
+    add(
+      errors,
+      "SUPPLIER_MINIMUM_EXCEEDS_MAXIMUM",
+      path,
+      "minimum order quantity cannot exceed maximum supplier quantity",
+    );
+  }
+}
+
+function validateInventoryProcurementEconomics(
+  input: unknown,
+  path: string,
+  errors: ActionValidationIssue[],
+): void {
+  if (!record(input)) {
+    add(errors, "INVALID_PROCUREMENT_ECONOMICS", path, "procurement economics must be an object");
+    return;
+  }
+  const monies: unknown[] = [];
+  for (const field of [
+    "unitProcurementCost",
+    "freightCost",
+    "fixedOrderCost",
+    "minimumOrderValue",
+  ]) {
+    if (input[field] !== undefined) {
+      validateMoney(input[field], path + "." + field, errors);
+      monies.push(input[field]);
+    }
+  }
+  const currencies = new Set(
+    monies
+      .filter(record)
+      .map((value) => String(value.currency ?? "")),
+  );
+  if (currencies.size > 1) {
+    add(
+      errors,
+      "PROCUREMENT_CURRENCY_MISMATCH",
+      path,
+      "known procurement costs must use one explicit currency",
+    );
+  }
+}
+
+function validateReorderQuantityAgainstSupplier(
+  quantity: unknown,
+  constraints: unknown,
+  path: string,
+  errors: ActionValidationIssue[],
+): void {
+  if (!Number.isInteger(quantity) || !record(constraints)) return;
+  const q = Number(quantity);
+
+  if (
+    Number.isInteger(constraints.minimumOrderQuantity) &&
+    q < Number(constraints.minimumOrderQuantity)
+  ) {
+    add(
+      errors,
+      "REORDER_BELOW_MINIMUM_ORDER_QUANTITY",
+      path,
+      "reorder quantity is below supplier minimum",
+    );
+  }
+  if (
+    Number.isInteger(constraints.maximumSupplierQuantity) &&
+    q > Number(constraints.maximumSupplierQuantity)
+  ) {
+    add(
+      errors,
+      "REORDER_EXCEEDS_SUPPLIER_MAXIMUM",
+      path,
+      "reorder quantity exceeds supplier maximum",
+    );
+  }
+  if (
+    Number.isInteger(constraints.orderMultiple) &&
+    q % Number(constraints.orderMultiple) !== 0
+  ) {
+    add(
+      errors,
+      "REORDER_NOT_VALID_ORDER_MULTIPLE",
+      path,
+      "reorder quantity does not satisfy supplier order multiple; it is not silently rounded",
+    );
+  }
+}
+
+function validateInventoryReorder(
+  input: unknown,
+  path: string,
+  errors: ActionValidationIssue[],
+): void {
+  if (!record(input)) {
+    add(errors, "INVALID_INVENTORY_REORDER", path, "reorder definition is required");
+    return;
+  }
+  validateTarget(input.sku, path + ".sku", errors);
+  if (record(input.sku) && input.sku.kind !== "sku") {
+    add(errors, "REORDER_REQUIRES_SKU", path + ".sku.kind", "physical reorder must resolve to SKU");
+  }
+  validatePositiveInteger(input.quantity, path + ".quantity", errors);
+
+  if (
+    input.supplierRelationshipId !== undefined &&
+    !nonEmpty(input.supplierRelationshipId)
+  ) {
+    add(errors, "INVALID_SUPPLIER_RELATIONSHIP_ID", path + ".supplierRelationshipId", "must be non-empty");
+  }
+  if (
+    input.destinationLocationId !== undefined &&
+    !nonEmpty(input.destinationLocationId)
+  ) {
+    add(errors, "INVALID_INVENTORY_LOCATION_ID", path + ".destinationLocationId", "must be non-empty");
+  }
+
+  validateTimestamp(
+    input.orderPlacementTime,
+    path + ".orderPlacementTime",
+    errors,
+  );
+  if (input.requestedDeliveryDate !== undefined) {
+    validateTimestamp(
+      input.requestedDeliveryDate,
+      path + ".requestedDeliveryDate",
+      errors,
+    );
+    if (
+      typeof input.orderPlacementTime === "string" &&
+      typeof input.requestedDeliveryDate === "string" &&
+      Number.isFinite(Date.parse(input.orderPlacementTime)) &&
+      Number.isFinite(Date.parse(input.requestedDeliveryDate)) &&
+      Date.parse(input.requestedDeliveryDate) <
+        Date.parse(input.orderPlacementTime)
+    ) {
+      add(
+        errors,
+        "REQUESTED_DELIVERY_BEFORE_ORDER",
+        path + ".requestedDeliveryDate",
+        "requested delivery cannot precede order placement",
+      );
+    }
+  }
+
+  if (input.leadTimeAssumption !== undefined) {
+    validateInventoryLeadTime(
+      input.leadTimeAssumption,
+      path + ".leadTimeAssumption",
+      errors,
+    );
+  }
+
+  if (input.expectedArrivalAt !== undefined) {
+    validateTimestamp(
+      input.expectedArrivalAt,
+      path + ".expectedArrivalAt",
+      errors,
+    );
+    if (
+      typeof input.orderPlacementTime === "string" &&
+      typeof input.expectedArrivalAt === "string" &&
+      Number.isFinite(Date.parse(input.orderPlacementTime)) &&
+      Number.isFinite(Date.parse(input.expectedArrivalAt)) &&
+      Date.parse(input.expectedArrivalAt) <
+        Date.parse(input.orderPlacementTime)
+    ) {
+      add(
+        errors,
+        "EXPECTED_ARRIVAL_BEFORE_ORDER",
+        path + ".expectedArrivalAt",
+        "expected arrival cannot precede order placement",
+      );
+    }
+    if (input.leadTimeAssumption === undefined) {
+      add(
+        errors,
+        "EXPECTED_ARRIVAL_REQUIRES_LEAD_TIME_ASSUMPTION",
+        path + ".expectedArrivalAt",
+        "expected arrival must be grounded in a known decision-time lead-time assumption",
+      );
+    } else if (
+      record(input.leadTimeAssumption) &&
+      Number.isInteger(input.leadTimeAssumption.durationSeconds) &&
+      typeof input.orderPlacementTime === "string" &&
+      typeof input.expectedArrivalAt === "string" &&
+      Number.isFinite(Date.parse(input.orderPlacementTime)) &&
+      Number.isFinite(Date.parse(input.expectedArrivalAt))
+    ) {
+      const assumed =
+        Date.parse(input.orderPlacementTime) +
+        Number(input.leadTimeAssumption.durationSeconds) * 1000;
+      if (Date.parse(input.expectedArrivalAt) !== assumed) {
+        add(
+          errors,
+          "EXPECTED_ARRIVAL_LEAD_TIME_MISMATCH",
+          path + ".expectedArrivalAt",
+          "expected arrival must equal order placement plus the stated known lead-time assumption",
+        );
+      }
+    }
+  }
+
+  if (input.supplierConstraints !== undefined) {
+    validateInventorySupplierConstraints(
+      input.supplierConstraints,
+      path + ".supplierConstraints",
+      errors,
+    );
+    validateReorderQuantityAgainstSupplier(
+      input.quantity,
+      input.supplierConstraints,
+      path + ".quantity",
+      errors,
+    );
+  }
+  if (input.procurementEconomics !== undefined) {
+    validateInventoryProcurementEconomics(
+      input.procurementEconomics,
+      path + ".procurementEconomics",
+      errors,
+    );
+    if (
+      record(input.procurementEconomics) &&
+      record(input.procurementEconomics.unitProcurementCost) &&
+      record(input.procurementEconomics.minimumOrderValue) &&
+      input.procurementEconomics.unitProcurementCost.currency ===
+        input.procurementEconomics.minimumOrderValue.currency &&
+      Number.isInteger(input.procurementEconomics.unitProcurementCost.amountMinor) &&
+      Number.isInteger(input.procurementEconomics.minimumOrderValue.amountMinor) &&
+      Number.isInteger(input.quantity) &&
+      Number(input.quantity) *
+          Number(input.procurementEconomics.unitProcurementCost.amountMinor) <
+        Number(input.procurementEconomics.minimumOrderValue.amountMinor)
+    ) {
+      add(
+        errors,
+        "REORDER_BELOW_MINIMUM_ORDER_VALUE",
+        path + ".procurementEconomics.minimumOrderValue",
+        "known unit procurement value does not satisfy the supplier minimum order value",
+      );
+    }
+  }
+}
+
+function validateInventoryTimingReference(
+  input: unknown,
+  path: string,
+  errors: ActionValidationIssue[],
+  decisionTime?: string,
+): void {
+  if (!record(input) || !nonEmpty(input.kind)) {
+    add(errors, "INVALID_INVENTORY_TIMING_REFERENCE", path, "timing reference kind is required");
+    return;
+  }
+  if (input.kind === "current_planned_reorder_at_decision") {
+    validateTimestamp(input.decisionTime, path + ".decisionTime", errors);
+    if (
+      decisionTime &&
+      typeof input.decisionTime === "string" &&
+      input.decisionTime !== decisionTime
+    ) {
+      add(
+        errors,
+        "INVENTORY_TIMING_DECISION_TIME_MISMATCH",
+        path + ".decisionTime",
+        "current planned reorder reference must use Action decision time",
+      );
+    }
+    return;
+  }
+  if (input.kind === "explicit_planned_reorder") {
+    validateTimestamp(input.at, path + ".at", errors);
+    return;
+  }
+  if (input.kind === "baseline_snapshot") {
+    if (!nonEmpty(input.baselineId)) {
+      add(errors, "INVALID_BASELINE_ID", path + ".baselineId", "required");
+    }
+    return;
+  }
+  add(errors, "UNKNOWN_INVENTORY_TIMING_REFERENCE", path + ".kind", "unsupported timing reference");
+}
+
+function validateInventoryTimingOperation(
+  input: unknown,
+  path: string,
+  errors: ActionValidationIssue[],
+  decisionTime?: string,
+): void {
+  if (!record(input) || !nonEmpty(input.kind)) {
+    add(errors, "INVALID_INVENTORY_TIMING_OPERATION", path, "timing operation is required");
+    return;
+  }
+  if (input.kind === "SET_DATE") {
+    validateTimestamp(input.at, path + ".at", errors);
+    return;
+  }
+  if (input.kind === "DELTA_DAYS") {
+    if (!["earlier", "later"].includes(String(input.direction))) {
+      add(errors, "INVALID_REORDER_TIMING_DIRECTION", path + ".direction", "must be earlier or later");
+    }
+    validatePositiveInteger(input.days, path + ".days", errors);
+    validateInventoryTimingReference(
+      input.baseline,
+      path + ".baseline",
+      errors,
+      decisionTime,
+    );
+    return;
+  }
+  if (input.kind === "INVENTORY_TRIGGER") {
+    if (
+      !["ON_HAND", "AVAILABLE_TO_SELL", "RESERVED", "SAFETY_STOCK"].includes(
+        String(input.availabilityConcept),
+      )
+    ) {
+      add(errors, "INVALID_INVENTORY_AVAILABILITY_CONCEPT", path + ".availabilityConcept", "unsupported concept");
+    }
+    if (!["LTE", "LT", "EQ"].includes(String(input.operator))) {
+      add(errors, "INVALID_INVENTORY_TRIGGER_OPERATOR", path + ".operator", "must be LTE, LT or EQ");
+    }
+    validateNonNegativeInteger(input.units, path + ".units", errors);
+    return;
+  }
+  add(errors, "UNKNOWN_INVENTORY_TIMING_OPERATION", path + ".kind", "unsupported timing operation");
+}
+
+function validateInventoryPolicyControl(
+  input: unknown,
+  path: string,
+  errors: ActionValidationIssue[],
+  decisionTime?: string,
+): void {
+  if (!record(input) || !["SAFETY_STOCK", "REORDER_POINT"].includes(String(input.kind))) {
+    add(errors, "INVALID_INVENTORY_POLICY_CONTROL", path, "policy must be SAFETY_STOCK or REORDER_POINT");
+    return;
+  }
+  validateInventoryQuantityOperation(
+    input.operation,
+    path + ".operation",
+    errors,
+    decisionTime,
+  );
+  if (
+    input.inventoryLocationId !== undefined &&
+    !nonEmpty(input.inventoryLocationId)
+  ) {
+    add(errors, "INVALID_INVENTORY_LOCATION_ID", path + ".inventoryLocationId", "must be non-empty");
+  }
+}
+
+function validateInventoryProtection(
+  input: unknown,
+  path: string,
+  errors: ActionValidationIssue[],
+): void {
+  if (!record(input) || !nonEmpty(input.kind)) {
+    add(errors, "INVALID_INVENTORY_PROTECTION", path, "protection mode is required");
+    return;
+  }
+  if (input.kind === "RESERVE_QUANTITY") {
+    validatePositiveInteger(input.quantity, path + ".quantity", errors);
+    if (input.fromConcept !== "AVAILABLE_TO_SELL" || input.toConcept !== "RESERVED") {
+      add(
+        errors,
+        "INVALID_INVENTORY_RESERVATION_CONCEPTS",
+        path,
+        "reservation must move availability from AVAILABLE_TO_SELL to RESERVED without changing ON_HAND",
+      );
+    }
+    return;
+  }
+  if (input.kind === "PROTECT_UNTIL_CONDITION") {
+    if (
+      !["ON_HAND", "AVAILABLE_TO_SELL", "RESERVED", "SAFETY_STOCK"].includes(
+        String(input.availabilityConcept),
+      )
+    ) {
+      add(errors, "INVALID_INVENTORY_AVAILABILITY_CONCEPT", path + ".availabilityConcept", "unsupported concept");
+    }
+    validateNonNegativeInteger(input.minimumUnits, path + ".minimumUnits", errors);
+    return;
+  }
+  add(errors, "UNKNOWN_INVENTORY_PROTECTION", path + ".kind", "unsupported protection mode");
+}
+
+function validateInventoryBackorderPolicy(
+  input: unknown,
+  path: string,
+  errors: ActionValidationIssue[],
+): void {
+  if (!record(input) || !nonEmpty(input.kind)) {
+    add(errors, "INVALID_BACKORDER_POLICY", path, "backorder policy is required");
+    return;
+  }
+  if (["ALLOW", "DISALLOW"].includes(String(input.kind))) return;
+  if (input.kind === "ALLOW_WITH_LIMIT") {
+    validateNonNegativeInteger(
+      input.maxBackorderedUnits,
+      path + ".maxBackorderedUnits",
+      errors,
+    );
+    return;
+  }
+  if (input.kind === "ALLOW_UNTIL_DATE") {
+    validateTimestamp(input.until, path + ".until", errors);
+    return;
+  }
+  add(errors, "UNKNOWN_BACKORDER_POLICY", path + ".kind", "unsupported backorder policy");
+}
+
+function validateInventoryStrategyTarget(
+  input: unknown,
+  path: string,
+  errors: ActionValidationIssue[],
+): void {
+  validateTarget(input, path, errors);
+  if (
+    record(input) &&
+    !["sku", "product", "category", "collection", "inventory_set"].includes(
+      String(input.kind),
+    )
+  ) {
+    add(errors, "INVALID_INVENTORY_STRATEGY_TARGET", path + ".kind", "strategy target must be SKU, product, category, collection or inventory_set");
+  }
+}
+
+function validateInventoryCoordinatedActionIds(
+  input: unknown,
+  path: string,
+  errors: ActionValidationIssue[],
+): void {
+  if (input === undefined) return;
+  if (
+    !Array.isArray(input) ||
+    input.length === 0 ||
+    input.some((value) => !nonEmpty(value)) ||
+    new Set(input).size !== input.length
+  ) {
+    add(
+      errors,
+      "INVALID_INVENTORY_COORDINATED_ACTION_IDS",
+      path,
+      "coordinated Action IDs must be a non-empty unique array when supplied",
+    );
+  }
+}
+
+function validateInventoryRollbackValue(
+  input: unknown,
+  path: string,
+  errors: ActionValidationIssue[],
+): void {
+  if (record(input) && input.kind === "backorder_policy") {
+    validateInventoryBackorderPolicy(
+      input.policy,
+      path + ".policy",
+      errors,
+    );
+    return;
+  }
+  validateScalar(input, path, errors);
+}
+
+function validateInventoryRollbackReference(
+  input: unknown,
+  path: string,
+  errors: ActionValidationIssue[],
+  decisionTime?: string,
+): void {
+  if (record(input) && input.kind === "inventory_policy_snapshot") {
+    if (!nonEmpty(input.baselineId)) {
+      add(errors, "INVALID_INVENTORY_POLICY_SNAPSHOT", path + ".baselineId", "baselineId is required");
+    }
+    return;
+  }
+  validateReference(input,path,errors,decisionTime);
+}
+
+function validateInventoryRollbackStrategy(
+  input: unknown,
+  path: string,
+  errors: ActionValidationIssue[],
+  decisionTime?: string,
+): void {
+  if (!record(input) || !nonEmpty(input.kind)) {
+    add(errors, "INVALID_INVENTORY_ROLLBACK_STRATEGY", path, "strategy is required");
+    return;
+  }
+  if (input.kind === "RESTORE_PRE_ACTION_VALUE") {
+    validateInventoryRollbackReference(
+      input.preActionValue,
+      path + ".preActionValue",
+      errors,
+      decisionTime,
+    );
+    return;
+  }
+  if (input.kind === "SET_EXPLICIT_VALUE") {
+    validateInventoryRollbackValue(input.value, path + ".value", errors);
+    return;
+  }
+  add(errors, "UNKNOWN_INVENTORY_ROLLBACK_STRATEGY", path + ".kind", "unsupported rollback strategy");
+}
+
+function validateInventoryRollbackGuard(
+  input: unknown,
+  path: string,
+  errors: ActionValidationIssue[],
+  originalActionId?: string,
+): void {
+  if (!record(input) || input.kind !== "REQUIRE_CURRENT_MATCHES_ACTION_OUTPUT") {
+    add(errors, "INVALID_INVENTORY_ROLLBACK_GUARD", path, "conflict guard is required");
+    return;
+  }
+  if (!nonEmpty(input.sourceActionId)) {
+    add(errors, "INVALID_INVENTORY_ROLLBACK_SOURCE", path + ".sourceActionId", "required");
+  } else if (originalActionId && input.sourceActionId !== originalActionId) {
+    add(errors, "INVENTORY_ROLLBACK_SOURCE_MISMATCH", path + ".sourceActionId", "must reference original inventory policy Action");
+  }
+  validateInventoryRollbackValue(input.expectedValue, path + ".expectedValue", errors);
+}
+
+function validateInventoryParameters(
+  input: unknown,
+  path: string,
+  errors: ActionValidationIssue[],
+  decisionTime?: string,
+): void {
+  if (!record(input)) {
+    add(errors, "INVALID_INVENTORY_PARAMETERS", path, "inventory parameters are required");
+    return;
+  }
+
+  if (input.kind === "inventory_reorder") {
+    validateInventoryReorder(input.reorder, path + ".reorder", errors);
+    return;
+  }
+
+  if (input.kind === "inventory_reorder_quantity") {
+    validateInventoryQuantityOperation(
+      input.operation,
+      path + ".operation",
+      errors,
+      decisionTime,
+    );
+    if (input.supplierConstraints !== undefined) {
+      validateInventorySupplierConstraints(
+        input.supplierConstraints,
+        path + ".supplierConstraints",
+        errors,
+      );
+      if (
+        record(input.operation) &&
+        input.operation.kind === "SET" &&
+        record(input.operation.value)
+      ) {
+        validateReorderQuantityAgainstSupplier(
+          input.operation.value.value,
+          input.supplierConstraints,
+          path + ".operation.value",
+          errors,
+        );
+      }
+    }
+    return;
+  }
+
+  if (input.kind === "inventory_reorder_timing") {
+    validateInventoryTimingOperation(
+      input.operation,
+      path + ".operation",
+      errors,
+      decisionTime,
+    );
+    if (input.leadTimeAssumption !== undefined) {
+      validateInventoryLeadTime(
+        input.leadTimeAssumption,
+        path + ".leadTimeAssumption",
+        errors,
+      );
+    }
+    return;
+  }
+
+  if (input.kind === "inventory_policy_control") {
+    validateInventoryPolicyControl(
+      input.policy,
+      path + ".policy",
+      errors,
+      decisionTime,
+    );
+    return;
+  }
+
+  if (input.kind === "inventory_protection") {
+    validateInventoryProtection(input.mode, path + ".mode", errors);
+    if (
+      input.inventoryLocationId !== undefined &&
+      !nonEmpty(input.inventoryLocationId)
+    ) {
+      add(errors, "INVALID_INVENTORY_LOCATION_ID", path + ".inventoryLocationId", "must be non-empty");
+    }
+    validateInventoryCoordinatedActionIds(
+      input.coordinatedActionIds,
+      path + ".coordinatedActionIds",
+      errors,
+    );
+    return;
+  }
+
+  if (input.kind === "inventory_backorder_policy") {
+    validateInventoryBackorderPolicy(
+      input.policy,
+      path + ".policy",
+      errors,
+    );
+    if (
+      input.customerPromiseRef !== undefined &&
+      !nonEmpty(input.customerPromiseRef)
+    ) {
+      add(errors, "INVALID_BACKORDER_CUSTOMER_PROMISE_REF", path + ".customerPromiseRef", "must be non-empty");
+    }
+    if (
+      input.geographicScopeRef !== undefined &&
+      !nonEmpty(input.geographicScopeRef)
+    ) {
+      add(errors, "INVALID_BACKORDER_GEOGRAPHIC_SCOPE_REF", path + ".geographicScopeRef", "must be non-empty");
+    }
+    return;
+  }
+
+  if (input.kind === "inventory_clearance") {
+    validateInventoryStrategyTarget(
+      input.target,
+      path + ".target",
+      errors,
+    );
+    if (!nonEmpty(input.reasonCode)) {
+      add(errors, "INVALID_CLEARANCE_REASON", path + ".reasonCode", "reasonCode is required");
+    }
+    if (
+      record(input.target) &&
+      ["category", "collection"].includes(String(input.target.kind)) &&
+      input.membership === undefined
+    ) {
+      add(errors, "MISSING_INVENTORY_MEMBERSHIP_SEMANTICS", path + ".membership", "category/collection clearance requires explicit membership boundary");
+    }
+    if (input.membership !== undefined) {
+      validateInventoryMembership(input.membership, path + ".membership", errors);
+    }
+    validateInventoryCoordinatedActionIds(
+      input.coordinatedActionIds,
+      path + ".coordinatedActionIds",
+      errors,
+    );
+    return;
+  }
+
+  if (input.kind === "inventory_acceleration") {
+    validateInventoryStrategyTarget(
+      input.target,
+      path + ".target",
+      errors,
+    );
+    if (
+      !["ON_HAND", "AVAILABLE_TO_SELL", "RESERVED", "SAFETY_STOCK"].includes(
+        String(input.availabilityConcept),
+      )
+    ) {
+      add(errors, "INVALID_INVENTORY_AVAILABILITY_CONCEPT", path + ".availabilityConcept", "unsupported concept");
+    }
+    if (!record(input.startingCondition)) {
+      add(errors, "INVALID_INVENTORY_ACCELERATION_START", path + ".startingCondition", "starting condition is required");
+    } else {
+      if (!["GT", "GTE"].includes(String(input.startingCondition.operator))) {
+        add(errors, "INVALID_INVENTORY_ACCELERATION_OPERATOR", path + ".startingCondition.operator", "must be GT or GTE");
+      }
+      validateNonNegativeInteger(
+        input.startingCondition.units,
+        path + ".startingCondition.units",
+        errors,
+      );
+    }
+    if (!record(input.termination) || !nonEmpty(input.termination.kind)) {
+      add(errors, "INVALID_INVENTORY_ACCELERATION_TERMINATION", path + ".termination", "termination is required");
+    } else if (input.termination.kind === "INVENTORY_AT_OR_BELOW") {
+      if (
+        !["ON_HAND", "AVAILABLE_TO_SELL", "RESERVED", "SAFETY_STOCK"].includes(
+          String(input.termination.availabilityConcept),
+        )
+      ) {
+        add(errors, "INVALID_INVENTORY_AVAILABILITY_CONCEPT", path + ".termination.availabilityConcept", "unsupported concept");
+      }
+      validateNonNegativeInteger(
+        input.termination.units,
+        path + ".termination.units",
+        errors,
+      );
+    } else if (input.termination.kind === "AT_DATE") {
+      validateTimestamp(
+        input.termination.at,
+        path + ".termination.at",
+        errors,
+      );
+    } else if (input.termination.kind === "CONDITION_REF") {
+      if (!nonEmpty(input.termination.conditionRef)) {
+        add(errors, "INVALID_INVENTORY_ACCELERATION_CONDITION_REF", path + ".termination.conditionRef", "conditionRef is required");
+      }
+    } else {
+      add(errors, "UNKNOWN_INVENTORY_ACCELERATION_TERMINATION", path + ".termination.kind", "unsupported termination");
+    }
+
+    if (
+      record(input.target) &&
+      ["category", "collection"].includes(String(input.target.kind)) &&
+      input.membership === undefined
+    ) {
+      add(errors, "MISSING_INVENTORY_MEMBERSHIP_SEMANTICS", path + ".membership", "category/collection acceleration requires explicit membership boundary");
+    }
+    if (input.membership !== undefined) {
+      validateInventoryMembership(input.membership, path + ".membership", errors);
+    }
+    validateInventoryCoordinatedActionIds(
+      input.coordinatedActionIds,
+      path + ".coordinatedActionIds",
+      errors,
+    );
+    return;
+  }
+
+  if (input.kind === "inventory_policy_rollback") {
+    if (!nonEmpty(input.originalActionId)) {
+      add(errors, "INVALID_INVENTORY_ROLLBACK_ORIGINAL", path + ".originalActionId", "required");
+    }
+    validateInventoryRollbackStrategy(
+      input.strategy,
+      path + ".strategy",
+      errors,
+      decisionTime,
+    );
+    validateInventoryRollbackGuard(
+      input.conflictGuard,
+      path + ".conflictGuard",
+      errors,
+      typeof input.originalActionId === "string"
+        ? input.originalActionId
+        : undefined,
+    );
+    return;
+  }
+}
+
 function validateParameters(
   input: unknown,
   path: string,
@@ -2680,6 +3685,17 @@ function validateParameters(
         "quantity",
         decisionTime,
       );
+      return;
+    case "inventory_reorder":
+    case "inventory_reorder_quantity":
+    case "inventory_reorder_timing":
+    case "inventory_policy_control":
+    case "inventory_protection":
+    case "inventory_backorder_policy":
+    case "inventory_clearance":
+    case "inventory_acceleration":
+    case "inventory_policy_rollback":
+      validateInventoryParameters(input,path,errors,decisionTime);
       return;
     case "frequency_adjustment":
       validateOperation(
@@ -3563,6 +4579,28 @@ function validateReversibility(
       validateMerchandisingRollbackGuard(input.merchandisingRollback.conflictGuard,path+".merchandisingRollback.conflictGuard",errors);
     }
   }
+
+  if (input.inventoryRollback !== undefined) {
+    if (!record(input.inventoryRollback) || typeof input.inventoryRollback.available !== "boolean") {
+      add(errors,"INVALID_INVENTORY_ROLLBACK_CONTRACT",path+".inventoryRollback","available must be explicit");
+    } else if (input.inventoryRollback.available === false) {
+      if (!nonEmpty(input.inventoryRollback.reason)) {
+        add(errors,"INVALID_INVENTORY_ROLLBACK_REASON",path+".inventoryRollback.reason","reason is required");
+      }
+    } else {
+      validateInventoryRollbackStrategy(input.inventoryRollback.strategy,path+".inventoryRollback.strategy",errors);
+      if (!record(input.inventoryRollback.trigger) || !nonEmpty(input.inventoryRollback.trigger.kind)) {
+        add(errors,"INVALID_INVENTORY_ROLLBACK_TRIGGER",path+".inventoryRollback.trigger","trigger is required");
+      } else if (input.inventoryRollback.trigger.kind === "AT") {
+        validateTimestamp(input.inventoryRollback.trigger.at,path+".inventoryRollback.trigger.at",errors);
+      } else if (input.inventoryRollback.trigger.kind !== "ON_TERMINATION") {
+        add(errors,"INVALID_INVENTORY_ROLLBACK_TRIGGER",path+".inventoryRollback.trigger.kind","unsupported trigger");
+      }
+      validateNonNegativeInteger(input.inventoryRollback.delaySeconds,path+".inventoryRollback.delaySeconds",errors);
+      validateKnownOrUnknown(input.inventoryRollback.cost,path+".inventoryRollback.cost",errors,(v,p)=>validateMoney(v,p,errors));
+      validateInventoryRollbackGuard(input.inventoryRollback.conflictGuard,path+".inventoryRollback.conflictGuard",errors);
+    }
+  }
 }
 
 function validateRiskDimensions(
@@ -4270,6 +5308,181 @@ function validateMerchandisingActionSemantics(
   }
 }
 
+
+function validateInventoryActionSemantics(
+  input: any,
+  errors: ActionValidationIssue[],
+): void {
+  if (input.actionType === "inventory.reorder") {
+    if (!record(input.target) || input.target.kind !== "sku") {
+      add(errors,"INVENTORY_REORDER_REQUIRES_SKU_TARGET","target.kind","reorder must target a physical SKU");
+    }
+    if (
+      record(input.parameters) &&
+      input.parameters.kind === "inventory_reorder" &&
+      record(input.parameters.reorder)
+    ) {
+      if (
+        canonicalRuntimeKey(input.parameters.reorder.sku) !==
+        canonicalRuntimeKey(input.target)
+      ) {
+        add(errors,"INVENTORY_REORDER_SKU_TARGET_MISMATCH","parameters.reorder.sku","reorder SKU must match Action target");
+      }
+      if (
+        record(input.timing) &&
+        record(input.timing.effectiveStart) &&
+        input.timing.effectiveStart.kind === "known" &&
+        typeof input.parameters.reorder.orderPlacementTime === "string" &&
+        input.timing.effectiveStart.at !==
+          input.parameters.reorder.orderPlacementTime
+      ) {
+        add(errors,"INVENTORY_ORDER_TIME_MISMATCH","parameters.reorder.orderPlacementTime","order placement time must match Action effective start");
+      }
+    }
+    if (!record(input.duration) || input.duration.kind !== "instantaneous") {
+      add(errors,"INVENTORY_REORDER_MUST_BE_INSTANTANEOUS_DECISION","duration","reorder Action represents order placement, not future receipt");
+    }
+  }
+
+  if (input.actionType === "inventory.set_safety_stock") {
+    if (
+      !record(input.parameters) ||
+      input.parameters.kind !== "inventory_policy_control" ||
+      !record(input.parameters.policy) ||
+      input.parameters.policy.kind !== "SAFETY_STOCK"
+    ) {
+      add(errors,"INVENTORY_POLICY_TYPE_MISMATCH","parameters.policy.kind","set_safety_stock requires SAFETY_STOCK policy");
+    }
+  }
+
+  if (input.actionType === "inventory.set_reorder_point") {
+    if (
+      !record(input.parameters) ||
+      input.parameters.kind !== "inventory_policy_control" ||
+      !record(input.parameters.policy) ||
+      input.parameters.policy.kind !== "REORDER_POINT"
+    ) {
+      add(errors,"INVENTORY_POLICY_TYPE_MISMATCH","parameters.policy.kind","set_reorder_point requires REORDER_POINT policy");
+    }
+  }
+
+  const rollbackPolicyActions = [
+    "inventory.set_safety_stock",
+    "inventory.set_reorder_point",
+    "inventory.set_backorder_policy",
+  ];
+  if (rollbackPolicyActions.includes(String(input.actionType))) {
+    const temporary =
+      record(input.duration) && input.duration.kind === "temporary";
+    if (
+      temporary &&
+      (!record(input.reversibility) ||
+        !record(input.reversibility.inventoryRollback) ||
+        input.reversibility.inventoryRollback.available !== true)
+    ) {
+      add(
+        errors,
+        "TEMPORARY_INVENTORY_POLICY_REQUIRES_SAFE_ROLLBACK",
+        "reversibility.inventoryRollback",
+        "temporary inventory policy change requires conflict-safe rollback",
+      );
+    }
+    if (
+      record(input.reversibility) &&
+      record(input.reversibility.inventoryRollback) &&
+      input.reversibility.inventoryRollback.available === true &&
+      record(input.reversibility.inventoryRollback.conflictGuard) &&
+      input.reversibility.inventoryRollback.conflictGuard.sourceActionId !==
+        input.actionId
+    ) {
+      add(
+        errors,
+        "INVENTORY_ROLLBACK_SOURCE_MISMATCH",
+        "reversibility.inventoryRollback.conflictGuard.sourceActionId",
+        "inventory rollback must reference this policy Action",
+      );
+    }
+  }
+
+  if (
+    (input.actionType === "inventory.clearance" ||
+      input.actionType === "inventory.accelerate_excess_stock") &&
+    record(input.parameters) &&
+    canonicalRuntimeKey(input.parameters.target) !==
+      canonicalRuntimeKey(input.target)
+  ) {
+    add(
+      errors,
+      "INVENTORY_STRATEGY_TARGET_MISMATCH",
+      "parameters.target",
+      "inventory strategy target must match Action target",
+    );
+  }
+
+  if (
+    input.actionType === "inventory.protect_inventory" &&
+    record(input.parameters) &&
+    input.parameters.kind === "inventory_protection" &&
+    Array.isArray(input.parameters.coordinatedActionIds) &&
+    input.parameters.coordinatedActionIds.includes(input.actionId)
+  ) {
+    add(
+      errors,
+      "INVENTORY_COORDINATION_SELF_REFERENCE",
+      "parameters.coordinatedActionIds",
+      "inventory strategy cannot coordinate itself",
+    );
+  }
+
+  if (
+    (input.actionType === "inventory.clearance" ||
+      input.actionType === "inventory.accelerate_excess_stock") &&
+    record(input.parameters) &&
+    Array.isArray(input.parameters.coordinatedActionIds) &&
+    input.parameters.coordinatedActionIds.includes(input.actionId)
+  ) {
+    add(
+      errors,
+      "INVENTORY_COORDINATION_SELF_REFERENCE",
+      "parameters.coordinatedActionIds",
+      "inventory strategy cannot coordinate itself",
+    );
+  }
+
+  if (input.actionType === "inventory.rollback_policy") {
+    if (
+      !record(input.parameters) ||
+      input.parameters.kind !== "inventory_policy_rollback"
+    ) return;
+
+    if (!nonEmpty(input.reversalOfActionId)) {
+      add(
+        errors,
+        "INVENTORY_ROLLBACK_REQUIRES_REVERSAL_REFERENCE",
+        "reversalOfActionId",
+        "rollback Action must reference original inventory policy Action",
+      );
+    } else if (
+      input.reversalOfActionId !== input.parameters.originalActionId
+    ) {
+      add(
+        errors,
+        "INVENTORY_ROLLBACK_ORIGINAL_ACTION_MISMATCH",
+        "reversalOfActionId",
+        "rollback references must identify the same original inventory Action",
+      );
+    }
+    if (!record(input.duration) || input.duration.kind !== "instantaneous") {
+      add(
+        errors,
+        "INVENTORY_ROLLBACK_MUST_BE_INSTANTANEOUS",
+        "duration",
+        "inventory rollback is an instantaneous policy state change",
+      );
+    }
+  }
+}
+
 function deepFreeze<T>(value: T): T {
   if (typeof value !== "object" || value === null || Object.isFrozen(value)) return value;
   Object.freeze(value);
@@ -4424,6 +5637,7 @@ export function validateAction(
   validatePromotionActionSemantics(input, errors);
   validateShippingActionSemantics(input, errors);
   validateMerchandisingActionSemantics(input, errors);
+  validateInventoryActionSemantics(input, errors);
 
   if (input.reversalOfActionId !== undefined) {
     if (!nonEmpty(input.reversalOfActionId)) {

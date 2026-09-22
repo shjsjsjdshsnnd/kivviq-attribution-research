@@ -5,6 +5,9 @@ import type {
   ActionTarget,
   CompoundAction,
   MonetaryValue,
+  InventoryBackorderPolicy,
+  InventoryLeadTimeAssumption,
+  InventorySupplierConstraints,
   MembershipEvaluationBoundary,
   MerchandisingEntityTarget,
   MerchandisingSurface,
@@ -18,11 +21,12 @@ import type {
 } from "../simulator_intervention/types.js";
 
 export const ACTION_TRANSLATION_VERSION = "1.0.0" as const;
-export const TRANSLATION_CONTEXT_SCHEMA_VERSION = "1.3.0" as const;
+export const TRANSLATION_CONTEXT_SCHEMA_VERSION = "1.4.0" as const;
 export const SUPPORTED_TRANSLATION_CONTEXT_SCHEMA_VERSIONS = [
   "1.0.0",
   "1.1.0",
   "1.2.0",
+  "1.3.0",
   TRANSLATION_CONTEXT_SCHEMA_VERSION,
 ] as const;
 
@@ -109,6 +113,30 @@ export interface MerchandisingSurfaceDefinitionBinding {
   readonly namedSlotIds?: readonly string[];
 }
 
+
+export interface InventoryTranslationStateBinding {
+  readonly target:
+    | Extract<ActionTarget,{readonly kind:"sku"}>
+    | Extract<ActionTarget,{readonly kind:"product"}>
+    | Extract<ActionTarget,{readonly kind:"inventory_policy"}>;
+  readonly inventoryLocationId?: string;
+  readonly supplierRelationshipId?: string;
+  readonly onHandUnits?: number;
+  readonly availableToSellUnits?: number;
+  readonly reservedUnits?: number;
+  readonly safetyStockUnits?: number;
+  readonly reorderPointUnits?: number;
+  readonly currentReorderQuantity?: number;
+  readonly currentPlannedReorderAt?: UtcTimestamp;
+  readonly backorderPolicy?: InventoryBackorderPolicy;
+  readonly openPurchaseOrderUnits?: number;
+  readonly supplierAvailableUnits?: number;
+  readonly warehouseAvailableCapacityUnits?: number;
+  readonly supplierConstraints?: InventorySupplierConstraints;
+  readonly leadTimeAssumption?: InventoryLeadTimeAssumption;
+  readonly sourceRef: string;
+}
+
 export interface TranslationContext {
   readonly schemaVersion:
     (typeof SUPPORTED_TRANSLATION_CONTEXT_SCHEMA_VERSIONS)[number];
@@ -120,6 +148,7 @@ export interface TranslationContext {
   readonly promotionMembershipBindings?: readonly PromotionMembershipBinding[];
   readonly merchandisingRankingSnapshots?: readonly MerchandisingRankingSnapshotBinding[];
   readonly merchandisingSurfaceDefinitions?: readonly MerchandisingSurfaceDefinitionBinding[];
+  readonly inventoryStateBindings?: readonly InventoryTranslationStateBinding[];
 }
 
 export interface ResolvedCompoundBusinessAction {

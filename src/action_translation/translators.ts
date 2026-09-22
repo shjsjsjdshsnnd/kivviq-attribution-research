@@ -828,6 +828,61 @@ function unsupportedRigorousMerchandisingTranslator(
   };
 }
 
+
+function unsupportedInventoryTranslator(
+  actionType:
+    | "inventory.reorder"
+    | "inventory.adjust_reorder_quantity"
+    | "inventory.adjust_reorder_timing"
+    | "inventory.set_safety_stock"
+    | "inventory.set_reorder_point"
+    | "inventory.protect_inventory"
+    | "inventory.set_backorder_policy"
+    | "inventory.clearance"
+    | "inventory.accelerate_excess_stock"
+    | "inventory.rollback_policy",
+): ActionTranslator {
+  const strategy =
+    actionType === "inventory.clearance" ||
+    actionType === "inventory.accelerate_excess_stock";
+  const protection = actionType === "inventory.protect_inventory";
+  const policy =
+    actionType === "inventory.adjust_reorder_quantity" ||
+    actionType === "inventory.adjust_reorder_timing" ||
+    actionType === "inventory.set_safety_stock" ||
+    actionType === "inventory.set_reorder_point" ||
+    actionType === "inventory.set_backorder_policy" ||
+    actionType === "inventory.rollback_policy";
+
+  return {
+    actionType,
+    translatorId:
+      "translator." +
+      actionType.replace(".", "_") +
+      "_boundary.v1",
+    translationVersion: ACTION_TRANSLATION_VERSION,
+    supportedTargetKinds:
+      actionType === "inventory.reorder"
+        ? ["sku"]
+        : strategy
+          ? ["sku", "product", "category", "collection", "inventory_set"]
+          : protection
+            ? ["sku", "product", "category", "collection", "inventory_set", "inventory_location"]
+            : policy
+              ? ["sku", "product", "inventory_policy"]
+              : ["sku"],
+    translate(action) {
+      return {
+        status: "UNSUPPORTED_SIMULATOR_CAPABILITY",
+        actionId: action.actionId,
+        code: "INVENTORY_CAPABILITY_UNSUPPORTED_BY_SIMULATOR",
+        message:
+          "Current simulator has no semantically correct outstanding-purchase-order/receipt, safety-stock, reservation, backorder, clearance or inventory-strategy intervention. Reorders are not translated into immediate on-hand inventory mutations.",
+      };
+    },
+  };
+}
+
 const merchandisingTranslator: ActionTranslator = {
   actionType: "merchandising.move_product",
   translatorId: "translator.merchandising_position.v1",
@@ -942,6 +997,16 @@ export const CORE_ACTION_TRANSLATORS: readonly ActionTranslator[] = Object.freez
   unsupportedRigorousMerchandisingTranslator("merchandising.remove_placement"),
   unsupportedRigorousMerchandisingTranslator("merchandising.remove_relationship"),
   unsupportedRigorousMerchandisingTranslator("merchandising.rollback_rank"),
+  unsupportedInventoryTranslator("inventory.reorder"),
+  unsupportedInventoryTranslator("inventory.adjust_reorder_quantity"),
+  unsupportedInventoryTranslator("inventory.adjust_reorder_timing"),
+  unsupportedInventoryTranslator("inventory.set_safety_stock"),
+  unsupportedInventoryTranslator("inventory.set_reorder_point"),
+  unsupportedInventoryTranslator("inventory.protect_inventory"),
+  unsupportedInventoryTranslator("inventory.set_backorder_policy"),
+  unsupportedInventoryTranslator("inventory.clearance"),
+  unsupportedInventoryTranslator("inventory.accelerate_excess_stock"),
+  unsupportedInventoryTranslator("inventory.rollback_policy"),
   merchandisingTranslator,
   noCausalInterventionTranslator(
     "no_op.do_nothing",
