@@ -236,6 +236,24 @@ const ACTION_SCHEMA_1_2_ACTION_TYPES = new Set([
   "pricing.rollback_price",
 ]);
 
+const ACTION_SCHEMA_1_3_TARGET_KINDS = new Set([
+  "promotion",
+  "brand",
+  "product_set",
+]);
+
+const ACTION_SCHEMA_1_3_PARAMETER_KINDS = new Set([
+  "promotion_start",
+  "promotion_stop",
+  "promotion_modify",
+]);
+
+const ACTION_SCHEMA_1_3_ACTION_TYPES = new Set([
+  "promotion.start",
+  "promotion.stop",
+  "promotion.modify",
+]);
+
 function validateSchemaFeatureCompatibility(
   input: any,
   errors: ActionValidationIssue[],
@@ -373,6 +391,48 @@ function validateSchemaFeatureCompatibility(
       );
     }
   }
+
+  if (
+    schemaVersion === "1.0.0" ||
+    schemaVersion === "1.1.0" ||
+    schemaVersion === "1.2.0"
+  ) {
+    if (
+      record(input.target) &&
+      ACTION_SCHEMA_1_3_TARGET_KINDS.has(String(input.target.kind))
+    ) {
+      add(
+        errors,
+        "SCHEMA_FEATURE_REQUIRES_1_3",
+        "target.kind",
+        "this promotion target kind requires Action schema 1.3.0",
+      );
+    }
+
+    if (
+      record(input.parameters) &&
+      ACTION_SCHEMA_1_3_PARAMETER_KINDS.has(String(input.parameters.kind))
+    ) {
+      add(
+        errors,
+        "SCHEMA_FEATURE_REQUIRES_1_3",
+        "parameters.kind",
+        "this promotion parameter kind requires Action schema 1.3.0",
+      );
+    }
+
+    if (
+      typeof input.actionType === "string" &&
+      ACTION_SCHEMA_1_3_ACTION_TYPES.has(input.actionType)
+    ) {
+      add(
+        errors,
+        "SCHEMA_FEATURE_REQUIRES_1_3",
+        "actionType",
+        "this promotion Action type requires Action schema 1.3.0",
+      );
+    }
+  }
 }
 
 function validateTarget(
@@ -399,6 +459,8 @@ function validateTarget(
     sku: ["skuId"],
     category: ["categoryId"],
     collection: ["collectionId"],
+    brand: ["brandId"],
+    product_set: ["productSetId"],
     product_group: ["productGroupId"],
     customer_segment: ["segmentId"],
     funnel_stage: ["funnelId", "stageId"],
@@ -407,6 +469,7 @@ function validateTarget(
     shipping_policy: ["shippingPolicyId"],
     inventory_policy: ["inventoryPolicyId"],
     experiment: ["experimentId"],
+    promotion: ["promotionId"],
     merchant: ["merchantId"],
   };
 
