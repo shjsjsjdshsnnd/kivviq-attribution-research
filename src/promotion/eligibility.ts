@@ -557,8 +557,9 @@ export function evaluatePromotionEligibility(
     };
   }
   if (definition.stacking.kind === "STACKABLE_WITH_TYPES") {
+    const allowedTypes = definition.stacking.types;
     const disallowed = active.filter(
-      (type) => !definition.stacking.types.includes(type),
+      (type) => !allowedTypes.includes(type),
     );
     if (disallowed.length > 0) {
       return {
