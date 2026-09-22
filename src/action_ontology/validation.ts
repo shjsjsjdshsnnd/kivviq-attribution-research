@@ -63,6 +63,8 @@ const CURRENCY_PATTERN = /^[A-Z]{3}$/;
 const ISO_UTC_PATTERN = /Z$/;
 const PROMOTION_ID_PATTERN = /^promo_[A-Za-z0-9._:-]+$/;
 const SHIPPING_OFFER_ID_PATTERN = /^shipoffer_[A-Za-z0-9._:-]+$/;
+const MERCHANDISING_PLACEMENT_ID_PATTERN = /^merchplace_[A-Za-z0-9._:-]+$/;
+const MERCHANDISING_RELATIONSHIP_ID_PATTERN = /^merchrel_[A-Za-z0-9._:-]+$/;
 
 const TOP_LEVEL_FIELDS = new Set([
   "kind",
@@ -2495,6 +2497,11 @@ function validateMerchandisingParameters(
   if (input.kind === "merchandising_visibility") {
     validateMerchandisingEntityTarget(input.entity,path+".entity",errors);
     validateMerchandisingSurface(input.surface,path+".surface",errors);
+    if (input.placementId !== undefined) {
+      if (!nonEmpty(input.placementId) || !MERCHANDISING_PLACEMENT_ID_PATTERN.test(input.placementId)) {
+        add(errors,"INVALID_MERCHANDISING_PLACEMENT_ID",path+".placementId","placementId must begin with merchplace_");
+      }
+    }
     if (input.placement !== undefined) validateMerchandisingPlacement(input.placement,path+".placement",errors);
     if (!record(input.visibility) || !nonEmpty(input.visibility.kind)) {
       add(errors,"INVALID_MERCHANDISING_VISIBILITY",path+".visibility","visibility mode required");
@@ -2504,6 +2511,9 @@ function validateMerchandisingParameters(
       }
     } else if (!["FEATURE","REMOVE_PLACEMENT"].includes(String(input.visibility.kind))) {
       add(errors,"UNKNOWN_MERCHANDISING_VISIBILITY",path+".visibility.kind","unsupported visibility mode");
+    }
+    if (input.visibility.kind === "FEATURE" && input.placementId === undefined) {
+      add(errors,"FEATURE_REQUIRES_PLACEMENT_ID",path+".placementId","feature placement requires stable merchplace_* identity");
     }
     validateMerchandisingConflict(input.conflictResolution,path+".conflictResolution",errors);
     return;
@@ -2523,12 +2533,12 @@ function validateMerchandisingParameters(
     return;
   }
   if (input.kind === "merchandising_remove_placement") {
-    if (!nonEmpty(input.placementId)) add(errors,"INVALID_MERCHANDISING_PLACEMENT_ID",path+".placementId","required");
+    if (!nonEmpty(input.placementId) || !MERCHANDISING_PLACEMENT_ID_PATTERN.test(input.placementId)) add(errors,"INVALID_MERCHANDISING_PLACEMENT_ID",path+".placementId","placementId must begin with merchplace_");
     validateMerchandisingSurface(input.surface,path+".surface",errors);
     return;
   }
   if (input.kind === "merchandising_remove_relationship") {
-    if (!nonEmpty(input.relationshipId)) add(errors,"INVALID_MERCHANDISING_RELATIONSHIP_ID",path+".relationshipId","required");
+    if (!nonEmpty(input.relationshipId) || !MERCHANDISING_RELATIONSHIP_ID_PATTERN.test(input.relationshipId)) add(errors,"INVALID_MERCHANDISING_RELATIONSHIP_ID",path+".relationshipId","relationshipId must begin with merchrel_");
     if (!["SUBSTITUTE","CROSS_SELL","UPSELL"].includes(String(input.relationshipType))) {
       add(errors,"INVALID_MERCHANDISING_RELATIONSHIP_TYPE",path+".relationshipType","unsupported relationship type");
     }
@@ -3531,6 +3541,28 @@ function validateReversibility(
       validateShippingRollbackGuard(input.shippingRollback.conflictGuard,path+".shippingRollback.conflictGuard",errors);
     }
   }
+
+  if (input.merchandisingRollback !== undefined) {
+    if (!record(input.merchandisingRollback) || typeof input.merchandisingRollback.available !== "boolean") {
+      add(errors,"INVALID_MERCHANDISING_ROLLBACK_CONTRACT",path+".merchandisingRollback","available must be explicit");
+    } else if (input.merchandisingRollback.available === false) {
+      if (!nonEmpty(input.merchandisingRollback.reason)) {
+        add(errors,"INVALID_MERCHANDISING_ROLLBACK_REASON",path+".merchandisingRollback.reason","reason is required");
+      }
+    } else {
+      validateMerchandisingRollbackStrategy(input.merchandisingRollback.strategy,path+".merchandisingRollback.strategy",errors);
+      if (!record(input.merchandisingRollback.trigger) || !nonEmpty(input.merchandisingRollback.trigger.kind)) {
+        add(errors,"INVALID_MERCHANDISING_ROLLBACK_TRIGGER",path+".merchandisingRollback.trigger","trigger is required");
+      } else if (input.merchandisingRollback.trigger.kind === "AT") {
+        validateTimestamp(input.merchandisingRollback.trigger.at,path+".merchandisingRollback.trigger.at",errors);
+      } else if (input.merchandisingRollback.trigger.kind !== "ON_TERMINATION") {
+        add(errors,"INVALID_MERCHANDISING_ROLLBACK_TRIGGER",path+".merchandisingRollback.trigger.kind","unsupported trigger");
+      }
+      validateNonNegativeInteger(input.merchandisingRollback.delaySeconds,path+".merchandisingRollback.delaySeconds",errors);
+      validateKnownOrUnknown(input.merchandisingRollback.cost,path+".merchandisingRollback.cost",errors,(v,p)=>validateMoney(v,p,errors));
+      validateMerchandisingRollbackGuard(input.merchandisingRollback.conflictGuard,path+".merchandisingRollback.conflictGuard",errors);
+    }
+  }
 }
 
 function validateRiskDimensions(
@@ -4035,6 +4067,209 @@ function validateShippingActionSemantics(input:any,errors:ActionValidationIssue[
   }
 }
 
+
+function validateMerchandisingActionSemantics(
+  input: any,
+  errors: ActionValidationIssue[],
+): void {
+  const visibilityTypes = ["merchandising.feature", "merchandising.deprioritize"];
+  if (visibilityTypes.includes(String(input.actionType))) {
+    if (!record(input.parameters) || input.parameters.kind !== "merchandising_visibility") return;
+    if (
+      canonicalRuntimeKey(input.target) !==
+      canonicalRuntimeKey(input.parameters.entity)
+    ) {
+      add(
+        errors,
+        "MERCHANDISING_ENTITY_TARGET_MISMATCH",
+        "parameters.entity",
+        "Action target and merchandising entity must match",
+      );
+    }
+    const expected =
+      input.actionType === "merchandising.feature"
+        ? "FEATURE"
+        : "DEPRIORITIZE";
+    if (!record(input.parameters.visibility) || input.parameters.visibility.kind !== expected) {
+      add(
+        errors,
+        "MERCHANDISING_VISIBILITY_ACTION_MISMATCH",
+        "parameters.visibility.kind",
+        "visibility mode does not match merchandising action type",
+      );
+    }
+  }
+
+  if (input.actionType === "merchandising.set_rank") {
+    if (!record(input.parameters) || input.parameters.kind !== "merchandising_rank") return;
+    if (
+      canonicalRuntimeKey(input.target) !==
+      canonicalRuntimeKey(input.parameters.entity)
+    ) {
+      add(
+        errors,
+        "MERCHANDISING_ENTITY_TARGET_MISMATCH",
+        "parameters.entity",
+        "Action target and ranked entity must match",
+      );
+    }
+    const temporary =
+      record(input.duration) && input.duration.kind === "temporary";
+    if (
+      temporary &&
+      (!record(input.reversibility) ||
+        !record(input.reversibility.merchandisingRollback) ||
+        input.reversibility.merchandisingRollback.available !== true)
+    ) {
+      add(
+        errors,
+        "TEMPORARY_MERCHANDISING_RANK_REQUIRES_SAFE_ROLLBACK",
+        "reversibility.merchandisingRollback",
+        "temporary rank changes require conflict-protected rollback",
+      );
+    }
+    if (
+      record(input.reversibility) &&
+      record(input.reversibility.merchandisingRollback) &&
+      input.reversibility.merchandisingRollback.available === true &&
+      record(input.reversibility.merchandisingRollback.conflictGuard) &&
+      input.reversibility.merchandisingRollback.conflictGuard.sourceActionId !== input.actionId
+    ) {
+      add(
+        errors,
+        "MERCHANDISING_ROLLBACK_SOURCE_MISMATCH",
+        "reversibility.merchandisingRollback.conflictGuard.sourceActionId",
+        "rollback conflict guard must reference this rank Action",
+      );
+    }
+  }
+
+  const relationshipTypeByAction: Readonly<Record<string,string>> = {
+    "merchandising.promote_substitute": "SUBSTITUTE",
+    "merchandising.set_cross_sell": "CROSS_SELL",
+    "merchandising.set_upsell": "UPSELL",
+  };
+  const expectedRelationshipType = relationshipTypeByAction[String(input.actionType)];
+  if (expectedRelationshipType) {
+    if (
+      !record(input.target) ||
+      input.target.kind !== "merchandising_relationship" ||
+      !nonEmpty(input.target.relationshipId) ||
+      !MERCHANDISING_RELATIONSHIP_ID_PATTERN.test(input.target.relationshipId)
+    ) {
+      add(
+        errors,
+        "MERCHANDISING_RELATIONSHIP_ACTION_REQUIRES_RELATIONSHIP_TARGET",
+        "target",
+        "relationship Action requires stable merchrel_* target",
+      );
+    }
+    if (
+      record(input.parameters) &&
+      input.parameters.kind === "merchandising_relationship" &&
+      input.parameters.relationshipType !== expectedRelationshipType
+    ) {
+      add(
+        errors,
+        "MERCHANDISING_RELATIONSHIP_TYPE_MISMATCH",
+        "parameters.relationshipType",
+        "relationship type does not match action type",
+      );
+    }
+  }
+
+  if (input.actionType === "merchandising.remove_placement") {
+    if (
+      !record(input.target) ||
+      input.target.kind !== "merchandising_placement" ||
+      !nonEmpty(input.target.placementId) ||
+      !MERCHANDISING_PLACEMENT_ID_PATTERN.test(input.target.placementId)
+    ) {
+      add(
+        errors,
+        "MERCHANDISING_REMOVE_PLACEMENT_REQUIRES_PLACEMENT_TARGET",
+        "target",
+        "remove placement requires stable merchplace_* target",
+      );
+    }
+    if (
+      record(input.parameters) &&
+      input.parameters.kind === "merchandising_remove_placement" &&
+      input.parameters.placementId !== input.target.placementId
+    ) {
+      add(
+        errors,
+        "MERCHANDISING_PLACEMENT_ID_MISMATCH",
+        "parameters.placementId",
+        "placement ID must match Action target",
+      );
+    }
+    if (!record(input.duration) || input.duration.kind !== "instantaneous") {
+      add(
+        errors,
+        "MERCHANDISING_REMOVE_PLACEMENT_MUST_BE_INSTANTANEOUS",
+        "duration",
+        "placement removal is an instantaneous state change",
+      );
+    }
+  }
+
+  if (input.actionType === "merchandising.remove_relationship") {
+    if (
+      !record(input.target) ||
+      input.target.kind !== "merchandising_relationship" ||
+      !nonEmpty(input.target.relationshipId) ||
+      !MERCHANDISING_RELATIONSHIP_ID_PATTERN.test(input.target.relationshipId)
+    ) {
+      add(
+        errors,
+        "MERCHANDISING_REMOVE_RELATIONSHIP_REQUIRES_RELATIONSHIP_TARGET",
+        "target",
+        "remove relationship requires stable merchrel_* target",
+      );
+    }
+    if (
+      record(input.parameters) &&
+      input.parameters.kind === "merchandising_remove_relationship" &&
+      input.parameters.relationshipId !== input.target.relationshipId
+    ) {
+      add(
+        errors,
+        "MERCHANDISING_RELATIONSHIP_ID_MISMATCH",
+        "parameters.relationshipId",
+        "relationship ID must match Action target",
+      );
+    }
+    if (!record(input.duration) || input.duration.kind !== "instantaneous") {
+      add(
+        errors,
+        "MERCHANDISING_REMOVE_RELATIONSHIP_MUST_BE_INSTANTANEOUS",
+        "duration",
+        "relationship removal is an instantaneous state change",
+      );
+    }
+  }
+
+  if (input.actionType === "merchandising.rollback_rank") {
+    if (!record(input.parameters) || input.parameters.kind !== "merchandising_rank_rollback") return;
+    if (!nonEmpty(input.reversalOfActionId)) {
+      add(
+        errors,
+        "MERCHANDISING_ROLLBACK_REQUIRES_REVERSAL_REFERENCE",
+        "reversalOfActionId",
+        "rank rollback must reference original rank Action",
+      );
+    } else if (input.reversalOfActionId !== input.parameters.originalActionId) {
+      add(
+        errors,
+        "MERCHANDISING_ROLLBACK_ORIGINAL_ACTION_MISMATCH",
+        "reversalOfActionId",
+        "rollback references must identify the same original Action",
+      );
+    }
+  }
+}
+
 function deepFreeze<T>(value: T): T {
   if (typeof value !== "object" || value === null || Object.isFrozen(value)) return value;
   Object.freeze(value);
@@ -4188,6 +4423,7 @@ export function validateAction(
   validatePricingActionSemantics(input, errors);
   validatePromotionActionSemantics(input, errors);
   validateShippingActionSemantics(input, errors);
+  validateMerchandisingActionSemantics(input, errors);
 
   if (input.reversalOfActionId !== undefined) {
     if (!nonEmpty(input.reversalOfActionId)) {
