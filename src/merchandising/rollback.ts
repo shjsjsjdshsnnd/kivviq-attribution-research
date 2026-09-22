@@ -65,10 +65,11 @@ export function evaluateMerchandisingRollbackReadiness(
     };
   }
 
+  const strategy = parameters.strategy;
   const snapshot = context.rankingSnapshots?.find(
     (candidate) =>
       candidate.bindingRef ===
-      parameters.strategy.rankingSnapshotRef,
+      strategy.rankingSnapshotRef,
   );
   if (!snapshot) {
     return {
