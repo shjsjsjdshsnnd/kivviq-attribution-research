@@ -37,6 +37,13 @@ import {
   resolveProductOffer as resolveStep10ProductOffer,
   type PricingCustomerContext,
 } from "../pricing_promotions/runtime.js";
+import {
+  postPurchaseTransition,
+  productRetentionChoiceMultiplier,
+  retentionNeedDeferralMultiplier,
+  stockoutMerchantExitAffinityDelta,
+  type RetentionCustomerContext,
+} from "../retention_ltv/runtime.js";
 
 export interface ProductOffer {
   readonly productId: string;
@@ -65,6 +72,34 @@ export function pricingCustomerContext(
     lifecycle: customer.lifecycle,
     need: customer.need,
     brandAffinity: customer.brandAffinity,
+    promotionDependenceShift:
+      customer.retention.promotionDependenceShift,
+  };
+}
+
+function retentionCustomerContext(
+  customer: RuntimeCustomerState,
+): RetentionCustomerContext {
+  return {
+    source: customer.source,
+    purchaseCount: customer.purchaseCount,
+    lifecycle: customer.lifecycle,
+    brandAffinity: customer.brandAffinity,
+    need: customer.need,
+    ...(customer.lastPurchaseMs === undefined
+      ? {}
+      : { lastPurchaseMs: customer.lastPurchaseMs }),
+    repeatHazardQualityMultiplier:
+      customer.retention
+        .repeatHazardQualityMultiplier,
+    promotionDependenceShift:
+      customer.retention.promotionDependenceShift,
+    trueChurnState:
+      customer.retention.trueChurnState,
+    ownedProductQuantities:
+      customer.retention.ownedProductQuantities,
+    categoryFamiliarity:
+      customer.retention.categoryFamiliarity,
   };
 }
 
@@ -383,6 +418,14 @@ export function chooseProduct(
           ? 2.4
           : 1;
       const memory = totalMemoryLift(customer);
+      const retentionChoiceMultiplier =
+        commercePolicy?.retentionScenario === undefined
+          ? 1
+          : productRetentionChoiceMultiplier(
+              runtime.merchantWorld,
+              retentionCustomerContext(customer),
+              productId,
+            );
       const latentWeight =
         Math.max(1e-9, preference) *
         Math.max(
@@ -393,6 +436,7 @@ export function chooseProduct(
         offer.priceUtilityMultiplier *
         offer.promotionUtilityMultiplier *
         complementMultiplier *
+        retentionChoiceMultiplier *
         (1 + memory.productPreference);
 
       return {
@@ -696,6 +740,20 @@ export function chooseProduct(
       0.72,
     ),
   );
+
+  if (
+    exitsMerchant &&
+    commercePolicy?.retentionScenario !== undefined
+  ) {
+    customer.brandAffinity = clamp(
+      customer.brandAffinity +
+        stockoutMerchantExitAffinityDelta(
+          commercePolicy.retentionScenario,
+        ),
+      0,
+      1,
+    );
+  }
 
   recordInventoryDemand(runtime.inventoryEconomy, {
     demandId,
@@ -1326,7 +1384,22 @@ export function completePurchase(
         productId: line.productId,
         quantity: line.quantity,
       })),
-    );
+    ) *
+    (commercePolicy?.retentionScenario === undefined
+      ? 1
+      : retentionNeedDeferralMultiplier(
+          runtime.merchantWorld,
+          lines.map((line) => ({
+            productId: line.productId,
+            quantity: line.quantity,
+            ...(line.promotionIds === undefined
+              ? {}
+              : {
+                  promotionIds:
+                    line.promotionIds,
+                }),
+          })),
+        ));
   const realizedShippingPromotionReturnMultiplier =
     commercePolicy?.pricingPromotionScenario === undefined
       ? 1
@@ -1357,11 +1430,49 @@ export function completePurchase(
           ),
         }));
 
+  const retentionTransition =
+    commercePolicy?.retentionScenario === undefined
+      ? undefined
+      : postPurchaseTransition(
+          runtime.merchantWorld,
+          commercePolicy.retentionScenario,
+          retentionCustomerContext(customer),
+          realizedLines.map((line) => ({
+            productId: line.productId,
+            quantity: line.quantity,
+            ...(line.promotionIds === undefined
+              ? {}
+              : {
+                  promotionIds:
+                    line.promotionIds,
+                }),
+          })),
+          customer.purchaseCount === 0
+            ? [...customer.channelMemory.values()]
+                .filter(
+                  (memory) =>
+                    Math.abs(memory.awarenessLift) +
+                      Math.abs(
+                        memory.considerationLift,
+                      ) +
+                      Math.abs(
+                        memory.purchaseProbabilityLift,
+                      ) +
+                      Math.abs(
+                        memory.productPreferenceLift,
+                      ) >
+                    1e-12,
+                )
+                .map((memory) => memory.channelId)
+            : [],
+        );
+
   delete customer.cart;
   transitionAfterPurchase(
     customer,
     timestampMs,
     timingDeferral,
+    retentionTransition,
   );
 
   return {
