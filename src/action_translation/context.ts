@@ -12,6 +12,7 @@ import {
   SUPPORTED_TRANSLATION_CONTEXT_SCHEMA_VERSIONS,
   TRANSLATION_CONTEXT_SCHEMA_VERSION,
   type PricingMembershipBinding,
+  type PromotionMembershipBinding,
   type TranslationContext,
   type TranslationFailure,
 } from "./types.js";
@@ -32,6 +33,9 @@ const FORBIDDEN_CONTEXT_KEYS = new Set([
   "evaluatorResult",
   "recommendationScore",
   "optimizerOutput",
+  "expectedDemandLift",
+  "predictedRedemptions",
+  "predictedAOV",
 ]);
 
 function record(value: unknown): value is any {
@@ -161,6 +165,80 @@ function validatePricingMembershipBindings(
   return { ok: true };
 }
 
+
+function validatePromotionMembershipBindings(
+  input: unknown,
+):
+  | { readonly ok: true }
+  | { readonly ok: false; readonly message: string } {
+  if (input === undefined) return { ok: true };
+  if (!Array.isArray(input)) {
+    return {
+      ok: false,
+      message: "promotionMembershipBindings must be an array",
+    };
+  }
+
+  const bindingIds = new Set<string>();
+  for (const binding of input) {
+    if (
+      !record(binding) ||
+      !nonEmpty(binding.promotionId) ||
+      !["decision_time", "translation_time", "effective_time"].includes(
+        String(binding.evaluateAt),
+      ) ||
+      !nonEmpty(binding.bindingRef) ||
+      !nonEmpty(binding.sourceRef) ||
+      typeof binding.snapshotTime !== "string" ||
+      !binding.snapshotTime.endsWith("Z") ||
+      !Number.isFinite(Date.parse(binding.snapshotTime)) ||
+      !Array.isArray(binding.members) ||
+      binding.members.length === 0
+    ) {
+      return {
+        ok: false,
+        message: "promotion membership binding is malformed",
+      };
+    }
+
+    if (bindingIds.has(binding.bindingRef)) {
+      return {
+        ok: false,
+        message: "promotion membership bindingRef values must be unique",
+      };
+    }
+    bindingIds.add(binding.bindingRef);
+
+    const members = new Set<string>();
+    for (const member of binding.members) {
+      if (
+        !record(member) ||
+        !record(member.businessTarget) ||
+        !["sku", "product"].includes(String(member.businessTarget.kind)) ||
+        !record(member.simulatorTarget) ||
+        !["sku", "product"].includes(String(member.simulatorTarget.kind)) ||
+        !nonEmpty(member.sourceRef)
+      ) {
+        return {
+          ok: false,
+          message: "promotion membership member is malformed",
+        };
+      }
+
+      const key = stableKey(member.businessTarget);
+      if (members.has(key)) {
+        return {
+          ok: false,
+          message: "promotion membership contains duplicate business members",
+        };
+      }
+      members.add(key);
+    }
+  }
+
+  return { ok: true };
+}
+
 export type TranslationContextValidationResult =
   | {
       readonly ok: true;
@@ -256,6 +334,20 @@ export function validateTranslationContext(
         status: "MISSING_CONTEXT",
         code: "MALFORMED_PRICING_MEMBERSHIP_CONTEXT",
         message: pricingMembershipValidation.message,
+      },
+    };
+  }
+
+  const promotionMembershipValidation = validatePromotionMembershipBindings(
+    input.promotionMembershipBindings,
+  );
+  if (!promotionMembershipValidation.ok) {
+    return {
+      ok: false,
+      failure: {
+        status: "MISSING_CONTEXT",
+        code: "MALFORMED_PROMOTION_MEMBERSHIP_CONTEXT",
+        message: promotionMembershipValidation.message,
       },
     };
   }
@@ -447,4 +539,40 @@ export function resolvePricingMembership(
   }
 
   return { status: "resolved", binding };
+}
+
+
+export type PromotionMembershipResolution =
+  | {
+      readonly status: "resolved";
+      readonly binding: PromotionMembershipBinding;
+    }
+  | { readonly status: "missing"; readonly ref: string }
+  | { readonly status: "ambiguous"; readonly ref: string };
+
+export function resolvePromotionMembership(
+  context: TranslationContext,
+  promotionId: string,
+  evaluateAt: "decision_time" | "translation_time" | "effective_time",
+  bindingRef?: string,
+): PromotionMembershipResolution {
+  const matches = (context.promotionMembershipBindings ?? []).filter(
+    (binding) =>
+      binding.promotionId === promotionId &&
+      binding.evaluateAt === evaluateAt &&
+      (!bindingRef || binding.bindingRef === bindingRef),
+  );
+
+  const ref =
+    "promotion-membership:" +
+    promotionId +
+    ":" +
+    evaluateAt +
+    ":" +
+    (bindingRef ?? "unbound");
+
+  if (matches.length === 0) return { status: "missing", ref };
+  if (matches.length > 1) return { status: "ambiguous", ref };
+
+  return { status: "resolved", binding: matches[0]! };
 }
