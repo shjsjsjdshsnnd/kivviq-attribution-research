@@ -19,6 +19,7 @@ import {
 import {
   createOperatorEvaluationBundle,
   invokeOperatorAtDecision,
+  toOperatorDecisionInput,
 } from "../../src/evaluation/operator-evaluation.js";
 import { calculateCanonicalSimulationMetrics } from "../../src/evaluation/canonical-metrics.js";
 import {
@@ -263,18 +264,11 @@ describe("Step 3.2 canonical DO_NOTHING baseline", () => {
       { orders: 10 },
     );
     const availability = availabilityFor(opportunity);
-    const input = {
-      opportunityId: opportunity.opportunityId,
-      decisionTime: opportunity.at,
-      observation: {
-        records: observation.records,
-      },
-      legalActionSpace: {
-        rules: availability.rules,
-        mutualExclusionGroups:
-          availability.mutualExclusionGroups,
-      },
-    };
+    const input = toOperatorDecisionInput(
+      opportunity,
+      observation,
+      availability,
+    );
 
     const output = DO_NOTHING_OPERATOR.decide(input);
 
