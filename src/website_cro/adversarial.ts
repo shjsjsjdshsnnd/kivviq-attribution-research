@@ -80,6 +80,7 @@ export function healthyWebsiteState(
       trust: 0.92,
       socialProof: 0.86,
       ctaUsability: 0.93,
+      priceConfidenceSensitivity: 0.45,
     },
     cart: {
       componentVersion: `cart_${versionId}`,
@@ -106,6 +107,7 @@ export function healthyWebsiteState(
       paymentReliability: 0.997,
       shippingCostVisibility: "cart",
       excessiveSteps: 0.05,
+      futureAffinityImpact: 0,
     },
     ...(productPresentation === undefined
       ? {}
@@ -253,6 +255,7 @@ export function shippingSurpriseScenario(
           ...state.checkout,
           componentVersion: "checkout_late_shipping_v1",
           shippingCostVisibility: "checkout_review",
+          futureAffinityImpact: 0.035,
         },
       },
     ],
@@ -320,6 +323,7 @@ export function bottleneckSizeScenario(
           formUsability: 0.62,
           mobileUsability: 0.6,
           excessiveSteps: 0.26,
+      futureAffinityImpact: 0.02,
         },
       },
     ],
