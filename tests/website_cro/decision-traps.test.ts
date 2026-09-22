@@ -52,7 +52,7 @@ function trafficIncrease(
     operation: "set" as const,
     value: {
       kind: "number" as const,
-      value: Math.max(reference * 2.5, 1),
+      value: Math.max(reference * 1.4, 1),
       unit: "money_minor" as const,
     },
   };
@@ -358,31 +358,36 @@ describe("Step 12 causal decision traps", () => {
           .representedContributionProfitMinor,
       );
 
-      const common = {
+      expect(
+        poor.incrementalTrafficSpendMinor,
+      ).toBeGreaterThan(0);
+
+      const fixed = compareTrafficToCro({
         merchantWorld: world,
         latentPopulation: population,
         simulationSeed: 123,
         startTime: START,
         endTime: END,
+        websiteScenario:
+          healthyWebsiteScenario(START),
+        croIntervention: FIX_CHECKOUT_DEFECT,
+        trafficIntervention: traffic,
         config: { maxEvents: 330_000 },
-        commercePolicy: {
-          websiteScenario:
-            healthyWebsiteScenario(START),
-        },
-      } as const;
-      const fixedBaseline = simulateWorld(common);
-      const fixedTraffic = simulateWorld({
-        ...common,
-        interventions: [traffic],
       });
-      const fixedTrafficDelta =
-        fixedTraffic.totals
-          .representedContributionProfitMinor -
-        fixedBaseline.totals
-          .representedContributionProfitMinor;
 
-      expect(fixedTrafficDelta).toBeGreaterThan(0);
-      expect(fixedTrafficDelta).toBeGreaterThan(
+      expect(
+        fixed.incrementalTrafficSpendMinor,
+      ).toBe(
+        poor.incrementalTrafficSpendMinor,
+      );
+      expect(
+        fixed.trafficDelta
+          .representedContributionProfitMinor,
+      ).toBeGreaterThan(0);
+      expect(
+        fixed.trafficDelta
+          .representedContributionProfitMinor,
+      ).toBeGreaterThan(
         poor.trafficDelta
           .representedContributionProfitMinor,
       );
@@ -464,14 +469,14 @@ describe("Step 12 causal decision traps", () => {
       expect(metaDrop).toBeGreaterThan(0);
       expect(metaDrop).toBeGreaterThan(googleDrop);
       expect(
-        world.manifest.channelIncrementality.find(
-          (item) => item.channelId === "meta",
-        )?.effect.value,
-      ).toBe(
-        world.manifest.channelIncrementality.find(
-          (item) => item.channelId === "meta",
-        )?.effect.value,
-      );
+        healthy.provenance.merchantWorldId,
+      ).toBe(world.manifest.worldId);
+      expect(
+        broken.provenance.merchantWorldId,
+      ).toBe(world.manifest.worldId);
+      expect(
+        healthy.provenance.interventions,
+      ).toEqual(broken.provenance.interventions);
       expect(
         broken.godMode.website?.causalEvents.some(
           (event) =>
