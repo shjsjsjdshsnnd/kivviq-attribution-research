@@ -785,14 +785,20 @@ export function websiteProductDiscoveryMultiplier(input: {
     const placement =
       presentation?.collectionVisibility ??
       state.collection.rankingQuality;
+    const rankingQuality =
+      state.collection.rankingQuality;
+    const relevancePlacement = clamp(
+      0.12 + input.latentPreference * 0.95,
+    );
+    const effectivePlacement =
+      clamp(placement) * (1 - rankingQuality) +
+      relevancePlacement * rankingQuality;
     const discoverability =
-      0.08 +
-      1.45 *
-        clamp(placement) *
-        (0.28 + 0.72 * state.collection.rankingQuality);
-    const preferenceRescue =
-      1 + Math.min(0.3, Math.max(0, input.latentPreference) * 0.15);
-    return clamp(discoverability * preferenceRescue, 0.04, 1.7);
+      0.05 +
+      1.5 *
+        effectivePlacement *
+        (0.35 + 0.65 * rankingQuality);
+    return clamp(discoverability, 0.03, 1.7);
   }
 
   const searchability =
