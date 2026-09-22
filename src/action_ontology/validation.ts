@@ -1734,15 +1734,15 @@ function validatePromotionConflictResolution(
   }
   if (["NONE", "BEST_DISCOUNT"].includes(String(input.kind))) return;
   if (input.kind === "PRIORITY") {
-    validateNonNegativeInteger(input.priority, path + ".priority", errors);
+    validateNonNegativeInteger(input.precedence, path + ".precedence", errors);
     return;
   }
   if (input.kind === "MUTUALLY_EXCLUSIVE_GROUP") {
     if (!nonEmpty(input.groupId)) {
       add(errors, "INVALID_PROMOTION_CONFLICT_GROUP", path + ".groupId", "groupId is required");
     }
-    if (input.priority !== undefined) {
-      validateNonNegativeInteger(input.priority, path + ".priority", errors);
+    if (input.precedence !== undefined) {
+      validateNonNegativeInteger(input.precedence, path + ".precedence", errors);
     }
     return;
   }
