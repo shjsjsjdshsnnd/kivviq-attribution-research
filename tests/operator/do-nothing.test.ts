@@ -596,6 +596,30 @@ describe("Step 3.2 canonical DO_NOTHING baseline", () => {
         /^fnv1a64:[0-9a-f]{16}$/,
       );
       expect(Object.isFrozen(bundle)).toBe(true);
+
+      console.log(
+        "STEP3_2_DO_NOTHING_FLOOR",
+        JSON.stringify({
+          simulatorVersion: result.provenance.simulatorVersion,
+          worldId: String(world.manifest.worldId),
+          worldFingerprint: evaluationFingerprint(world.manifest),
+          worldCurrency: String(world.manifest.merchant.currency),
+          interventionStart: INTERVENTION_START,
+          horizon,
+          decisionOpportunityCount: decisions.length,
+          discretionaryActionCount: 0,
+          simulatorInterventionCount:
+            result.provenance.interventions.length,
+          representedTotals: result.totals,
+          metricResults,
+          evaluationRunId:
+            evaluationArtifact.evaluationRunId,
+          evaluationArtifactFingerprint:
+            evaluationArtifact.artifactFingerprint,
+          operatorEvaluationBundleFingerprint:
+            bundle.bundleFingerprint,
+        }),
+      );
     },
     60_000,
   );
