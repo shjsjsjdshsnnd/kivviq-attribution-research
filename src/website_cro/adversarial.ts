@@ -125,38 +125,51 @@ export function healthyWebsiteScenario(
 export function slowMobilePdpScenario(
   deployedAt: string,
 ): WebsiteScenario {
-  const state = structuredClone(
-    healthyWebsiteState(deployedAt),
-  );
-  state.pdp.componentVersion = "pdp_slow_mobile_v1";
-  state.pdp.performance.mobile = {
-    ...state.pdp.performance.mobile,
-    latencyMs: 7_200,
-    interactionDelayMs: 1_650,
-    responsiveness: 0.42,
-    assetWeightProxy: 7.4,
-  };
+  const state = healthyWebsiteState(deployedAt);
   return {
     scenarioId: "slow-mobile-pdp-trap",
-    states: [state],
+    states: [
+      {
+        ...state,
+        pdp: {
+          ...state.pdp,
+          componentVersion: "pdp_slow_mobile_v1",
+          performance: {
+            ...state.pdp.performance,
+            mobile: {
+              ...state.pdp.performance.mobile,
+              latencyMs: 7_200,
+              interactionDelayMs: 1_650,
+              responsiveness: 0.42,
+              assetWeightProxy: 7.4,
+            },
+          },
+        },
+      },
+    ],
   };
 }
 
 export function badSearchScenario(
   deployedAt: string,
 ): WebsiteScenario {
-  const state = structuredClone(
-    healthyWebsiteState(deployedAt),
-  );
-  state.search.componentVersion = "search_bad_v1";
-  state.search.relevance = 0.12;
-  state.search.synonymCoverage = 0.16;
-  state.search.zeroResultBaseProbability = 0.34;
-  state.search.reformulationSupport = 0.38;
-  state.search.alternativeDiscovery = 0.25;
+  const state = healthyWebsiteState(deployedAt);
   return {
     scenarioId: "bad-search-trap",
-    states: [state],
+    states: [
+      {
+        ...state,
+        search: {
+          ...state.search,
+          componentVersion: "search_bad_v1",
+          relevance: 0.12,
+          synonymCoverage: 0.16,
+          zeroResultBaseProbability: 0.34,
+          reformulationSupport: 0.38,
+          alternativeDiscovery: 0.25,
+        },
+      },
+    ],
   };
 }
 
@@ -177,54 +190,72 @@ export function poorCollectionSortingScenario(
       collectionVisibility: 1,
     });
   }
-  const state = structuredClone(
-    healthyWebsiteState(
-      deployedAt,
-      "website_bad_sorting",
-      presentation,
-    ),
+  const state = healthyWebsiteState(
+    deployedAt,
+    "website_bad_sorting",
+    presentation,
   );
-  state.collection.componentVersion =
-    "collection_bad_sorting_v1";
-  state.collection.rankingQuality = 0.26;
   return {
     scenarioId: "poor-collection-sorting-trap",
-    states: [state],
+    states: [
+      {
+        ...state,
+        collection: {
+          ...state.collection,
+          componentVersion: "collection_bad_sorting_v1",
+          rankingQuality: 0.26,
+        },
+      },
+    ],
   };
 }
 
 export function brokenCouponScenario(
   deployedAt: string,
 ): WebsiteScenario {
-  const state = structuredClone(
-    healthyWebsiteState(deployedAt),
-  );
-  state.cart.componentVersion = "cart_coupon_defect_v1";
-  state.cart.couponReliability = 0.03;
-  state.cart.promotionVisibility = 0.96;
+  const state = healthyWebsiteState(deployedAt);
   return {
     scenarioId: "broken-coupon-trap",
-    states: [state],
+    states: [
+      {
+        ...state,
+        cart: {
+          ...state.cart,
+          componentVersion: "cart_coupon_defect_v1",
+          couponReliability: 0.03,
+          promotionVisibility: 0.96,
+        },
+      },
+    ],
   };
 }
 
 export function shippingSurpriseScenario(
   deployedAt: string,
 ): WebsiteScenario {
-  const state = structuredClone(
-    healthyWebsiteState(deployedAt),
-  );
-  state.pdp.componentVersion = "pdp_hidden_shipping_v1";
-  state.pdp.deliveryClarity = 0.3;
-  state.cart.componentVersion = "cart_hidden_shipping_v1";
-  state.cart.shippingVisibility = 0.12;
-  state.checkout.componentVersion =
-    "checkout_late_shipping_v1";
-  state.checkout.shippingCostVisibility =
-    "checkout_review";
+  const state = healthyWebsiteState(deployedAt);
   return {
     scenarioId: "shipping-surprise-trap",
-    states: [state],
+    states: [
+      {
+        ...state,
+        pdp: {
+          ...state.pdp,
+          componentVersion: "pdp_hidden_shipping_v1",
+          deliveryClarity: 0.3,
+        },
+        cart: {
+          ...state.cart,
+          componentVersion: "cart_hidden_shipping_v1",
+          shippingVisibility: 0.12,
+        },
+        checkout: {
+          ...state.checkout,
+          componentVersion: "checkout_late_shipping_v1",
+          shippingCostVisibility: "checkout_review",
+        },
+      },
+    ],
   };
 }
 
@@ -236,20 +267,27 @@ export function checkoutRegressionScenario(
     initialDeployedAt,
     "website_pre_regression",
   );
-  const after = structuredClone(
-    healthyWebsiteState(
-      regressionDeployedAt,
-      "website_checkout_regression",
-    ),
+  const baselineAfter = healthyWebsiteState(
+    regressionDeployedAt,
+    "website_checkout_regression",
   );
-  after.checkout.componentVersion = "checkout_v2";
-  after.checkout.mobileUsability = 0.25;
-  after.checkout.formUsability = 0.55;
-  after.checkout.addressValidationReliability = 0.34;
-  after.checkout.performance.mobile = {
-    ...after.checkout.performance.mobile,
-    interactionDelayMs: 1_900,
-    responsiveness: 0.48,
+  const after: WebsiteState = {
+    ...baselineAfter,
+    checkout: {
+      ...baselineAfter.checkout,
+      componentVersion: "checkout_v2",
+      mobileUsability: 0.25,
+      formUsability: 0.55,
+      addressValidationReliability: 0.34,
+      performance: {
+        ...baselineAfter.checkout.performance,
+        mobile: {
+          ...baselineAfter.checkout.performance.mobile,
+          interactionDelayMs: 1_900,
+          responsiveness: 0.48,
+        },
+      },
+    },
   };
 
   return {
@@ -261,38 +299,51 @@ export function checkoutRegressionScenario(
 export function bottleneckSizeScenario(
   deployedAt: string,
 ): WebsiteScenario {
-  const state = structuredClone(
-    healthyWebsiteState(deployedAt),
-  );
-  state.search.componentVersion =
-    "search_visually_bad_low_volume";
-  state.search.relevance = 0.28;
-  state.search.synonymCoverage = 0.32;
-  state.search.zeroResultBaseProbability = 0.42;
-  state.checkout.componentVersion =
-    "checkout_moderate_high_volume";
-  state.checkout.formUsability = 0.62;
-  state.checkout.mobileUsability = 0.6;
-  state.checkout.excessiveSteps = 0.26;
+  const state = healthyWebsiteState(deployedAt);
   return {
     scenarioId: "bottleneck-size-trap",
-    states: [state],
+    states: [
+      {
+        ...state,
+        search: {
+          ...state.search,
+          componentVersion:
+            "search_visually_bad_low_volume",
+          relevance: 0.28,
+          synonymCoverage: 0.32,
+          zeroResultBaseProbability: 0.42,
+        },
+        checkout: {
+          ...state.checkout,
+          componentVersion:
+            "checkout_moderate_high_volume",
+          formUsability: 0.62,
+          mobileUsability: 0.6,
+          excessiveSteps: 0.26,
+        },
+      },
+    ],
   };
 }
 
 export function weakPdpInformationScenario(
   deployedAt: string,
 ): WebsiteScenario {
-  const state = structuredClone(
-    healthyWebsiteState(deployedAt),
-  );
-  state.pdp.componentVersion = "pdp_weak_content_v1";
-  state.pdp.imageryQuality = 0.38;
-  state.pdp.informationCompleteness = 0.34;
-  state.pdp.deliveryClarity = 0.48;
-  state.pdp.trust = 0.52;
+  const state = healthyWebsiteState(deployedAt);
   return {
     scenarioId: "weak-pdp-content",
-    states: [state],
+    states: [
+      {
+        ...state,
+        pdp: {
+          ...state.pdp,
+          componentVersion: "pdp_weak_content_v1",
+          imageryQuality: 0.38,
+          informationCompleteness: 0.34,
+          deliveryClarity: 0.48,
+          trust: 0.52,
+        },
+      },
+    ],
   };
 }
