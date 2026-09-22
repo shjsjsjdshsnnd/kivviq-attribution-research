@@ -52,8 +52,20 @@ function trafficIncrease(
     operation: "set" as const,
     value: {
       kind: "number" as const,
-      value: Math.max(reference * 1.4, 1),
+      value: Math.max(reference * 1.15, 1),
       unit: "money_minor" as const,
+    },
+  };
+}
+
+function abundantInventory() {
+  return {
+    variable: "inventory.available",
+    operation: "set" as const,
+    value: {
+      kind: "number" as const,
+      value: 10_000,
+      unit: "units" as const,
     },
   };
 }
@@ -192,7 +204,10 @@ describe("Step 12 causal decision traps", () => {
           ...FIX_CHECKOUT_DEFECT,
           effectiveAt: utcTimestamp(RELEASE),
         },
-        interventions: [marketingChange],
+        interventions: [
+          abundantInventory(),
+          marketingChange,
+        ],
         config: { maxEvents: 300_000 },
       });
 
@@ -315,7 +330,7 @@ describe("Step 12 causal decision traps", () => {
       const world = withChannelEffects(
         zeroBase,
         {
-          meta: scale * 0.9,
+          meta: scale * 2.5,
           google_search: scale * 0.7,
           pinterest: scale * 0.45,
         },
@@ -336,6 +351,7 @@ describe("Step 12 causal decision traps", () => {
         websiteScenario: poorCheckoutScenario(START),
         croIntervention: FIX_CHECKOUT_DEFECT,
         trafficIntervention: traffic,
+        interventions: [abundantInventory()],
         config: { maxEvents: 330_000 },
       });
 
@@ -361,6 +377,7 @@ describe("Step 12 causal decision traps", () => {
           healthyWebsiteScenario(START),
         croIntervention: FIX_CHECKOUT_DEFECT,
         trafficIntervention: traffic,
+        interventions: [abundantInventory()],
         config: { maxEvents: 330_000 },
       });
 

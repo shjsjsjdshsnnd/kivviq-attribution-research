@@ -70,9 +70,13 @@ function customerIntentByObservedDevice(
 function compositionSkewedPopulation(
   population: LatentCustomerPopulation,
 ): LatentCustomerPopulation {
+  const quality = (customer: LatentCustomerPopulation["customers"][number]) =>
+    customer.purchaseIntent * 0.5 +
+    customer.currentPurchaseNeed * 0.42 +
+    customer.brandAffinity * 0.08;
   const ordered = [...population.customers].sort(
     (left, right) =>
-      left.purchaseIntent - right.purchaseIntent ||
+      quality(left) - quality(right) ||
       left.customerId.localeCompare(right.customerId),
   );
   const mobileIds = new Set(
