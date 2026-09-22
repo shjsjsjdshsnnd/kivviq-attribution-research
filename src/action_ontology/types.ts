@@ -1043,6 +1043,7 @@ export type CroSurface =
 export type CroDevice = "ALL_DEVICES" | "MOBILE" | "DESKTOP";
 
 export type CroComponent =
+  | "PAGE_LAYOUT"
   | "HERO"
   | "VALUE_PROPOSITION"
   | "FEATURED_PRODUCTS"
