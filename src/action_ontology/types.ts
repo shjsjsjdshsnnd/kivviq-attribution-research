@@ -528,12 +528,12 @@ export type PromotionStacking =
 
 export type PromotionConflictResolution =
   | { readonly kind: "NONE" }
-  | { readonly kind: "PRIORITY"; readonly priority: number }
+  | { readonly kind: "PRIORITY"; readonly precedence: number }
   | { readonly kind: "BEST_DISCOUNT" }
   | {
       readonly kind: "MUTUALLY_EXCLUSIVE_GROUP";
       readonly groupId: string;
-      readonly priority?: number;
+      readonly precedence?: number;
     };
 
 export interface PromotionDefinition {
