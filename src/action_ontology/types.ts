@@ -1032,6 +1032,7 @@ export type InventoryRollbackContract =
 
 
 export type CroSurface =
+  | "SITE_WIDE"
   | "HOMEPAGE"
   | "COLLECTION"
   | "PDP"
