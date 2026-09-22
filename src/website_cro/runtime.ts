@@ -116,6 +116,7 @@ function validateState(state: WebsiteState): void {
     [state.pdp.trust, "pdp.trust"],
     [state.pdp.socialProof, "pdp.socialProof"],
     [state.pdp.ctaUsability, "pdp.ctaUsability"],
+    [state.pdp.priceConfidenceSensitivity, "pdp.priceConfidenceSensitivity"],
     [state.cart.clarity, "cart.clarity"],
     [state.cart.shippingVisibility, "cart.shippingVisibility"],
     [state.cart.promotionVisibility, "cart.promotionVisibility"],
@@ -133,6 +134,7 @@ function validateState(state: WebsiteState): void {
     [state.checkout.addressValidationReliability, "checkout.addressValidationReliability"],
     [state.checkout.paymentReliability, "checkout.paymentReliability"],
     [state.checkout.excessiveSteps, "checkout.excessiveSteps"],
+    [state.checkout.futureAffinityImpact, "checkout.futureAffinityImpact"],
   ];
 
   for (const [value, path] of unitValues) assertUnitInterval(value, path);
@@ -265,6 +267,11 @@ function applyIntervention(
       mobileUsability: number;
       addressValidationReliability: number;
       paymentReliability: number;
+      shippingCostVisibility:
+        | "pdp"
+        | "cart"
+        | "checkout_shipping"
+        | "checkout_review";
     };
     cart: { couponReliability: number; shippingVisibility: number };
     collection: { rankingQuality: number };
@@ -358,6 +365,26 @@ function applyIntervention(
         intervention,
       );
       return;
+    case "website.checkout.shipping_cost_visibility": {
+      if (intervention.value.kind !== "category") {
+        throw new RangeError(
+          "website.checkout.shipping_cost_visibility must be categorical",
+        );
+      }
+      const value = intervention.value.value;
+      if (
+        value !== "pdp" &&
+        value !== "cart" &&
+        value !== "checkout_shipping" &&
+        value !== "checkout_review"
+      ) {
+        throw new RangeError(
+          "website.checkout.shipping_cost_visibility has an unsupported stage",
+        );
+      }
+      mutable.checkout.shippingCostVisibility = value;
+      return;
+    }
     default:
       throw new RangeError(
         `unsupported Step 12 website intervention target ${intervention.variable}`,
@@ -461,6 +488,8 @@ function componentQuality(
   customer: WebsiteCustomerContext,
   productId?: string,
   categoryId?: string,
+  productPriceMinor?: number,
+  expectedAovMinor?: number,
 ): {
   readonly quality: number;
   readonly frictions: WebsiteFrictionKind[];
@@ -539,25 +568,47 @@ function componentQuality(
         customer.priceSensitivityMultiplier * 0.15 +
         (1 - customer.brandAffinity) * 0.28,
     );
+    const priceRatio =
+      productPriceMinor === undefined ||
+      expectedAovMinor === undefined
+        ? 1
+        : productPriceMinor / Math.max(1, expectedAovMinor);
+    const priceConfidencePressure = clamp(
+      Math.max(0, priceRatio - 0.75) *
+        state.pdp.priceConfidenceSensitivity,
+      0,
+      1.2,
+    );
+    const informationWeight =
+      0.12 +
+      0.13 * infoImportance * informationNeed +
+      0.08 * priceConfidencePressure;
+    const deliveryWeight =
+      0.08 +
+      0.1 * deliveryImportance +
+      0.05 * priceConfidencePressure;
+    const trustWeight =
+      0.08 +
+      0.08 * trustImportance +
+      0.07 * priceConfidencePressure;
     const weighted =
       imagery * (0.12 + 0.11 * imageryImportance) +
-      information *
-        (0.12 + 0.13 * infoImportance * informationNeed) +
+      information * informationWeight +
       state.pdp.priceClarity * 0.09 +
       state.pdp.variantSelectionUsability * 0.08 +
       state.pdp.inventoryClarity * 0.07 +
-      delivery * (0.08 + 0.1 * deliveryImportance) +
-      state.pdp.trust * (0.08 + 0.08 * trustImportance) +
+      delivery * deliveryWeight +
+      state.pdp.trust * trustWeight +
       state.pdp.socialProof * 0.05 +
       state.pdp.ctaUsability * 0.08;
     const denominator =
       (0.12 + 0.11 * imageryImportance) +
-      (0.12 + 0.13 * infoImportance * informationNeed) +
+      informationWeight +
       0.09 +
       0.08 +
       0.07 +
-      (0.08 + 0.1 * deliveryImportance) +
-      (0.08 + 0.08 * trustImportance) +
+      deliveryWeight +
+      trustWeight +
       0.05 +
       0.08;
     if (imagery < 0.52) frictions.push("weak_imagery");
@@ -605,6 +656,8 @@ export function websitePageExperience(input: {
   readonly customer: WebsiteCustomerContext;
   readonly productId?: string;
   readonly categoryId?: string;
+  readonly productPriceMinor?: number;
+  readonly expectedAovMinor?: number;
 }): PageExperience | undefined {
   if (input.scenario === undefined) return undefined;
   const state = resolveWebsiteState(
@@ -613,6 +666,8 @@ export function websitePageExperience(input: {
     input.device,
     input.productId,
     input.categoryId,
+    input.productPriceMinor,
+    input.expectedAovMinor,
   );
   const component = state[input.component];
   const performance = component.performance[input.device];
@@ -866,6 +921,8 @@ export function resolveCheckoutExperience(input: {
     addressValidationFailed,
     shippingSurprise,
     frictions: [...new Set(frictions)],
+    futureAffinityImpact:
+      state.checkout.futureAffinityImpact,
   };
 }
 
