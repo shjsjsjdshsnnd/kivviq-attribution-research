@@ -18,6 +18,27 @@ export const EVALUATION_ARTIFACT_SCHEMA_VERSION = "1.0.0" as const;
 const SEMVER = /^\d+\.\d+\.\d+$/;
 const ONE_DAY_SECONDS = 24 * 60 * 60;
 
+const FORBIDDEN_BENCHMARK_OPERATOR_KEYS = new Set([
+  "worldId",
+  "world_id",
+  "worldFingerprint",
+  "world_fingerprint",
+  "scenarioId",
+  "scenario_id",
+  "benchmarkId",
+  "benchmark_id",
+  "benchmarkWorld",
+  "benchmark_world",
+  "evaluationRunId",
+  "evaluation_run_id",
+  "contractFingerprint",
+  "metricDefinitionFingerprint",
+  "sharedSeeds",
+  "operatorInternalSeed",
+  "holdoutId",
+  "holdout_id",
+]);
+
 export class BaselineEvaluationContractError extends Error {
   public constructor(message: string) {
     super(message);
@@ -127,7 +148,10 @@ export interface ObservationContract {
   readonly permittedClasses: readonly ObservationInformationClass[];
   readonly forbiddenClasses: readonly ObservationInformationClass[];
   readonly maxHistorySeconds: number;
+  readonly forbiddenSourceRefPrefixes: readonly string[];
   readonly requireAvailableAtOrBeforeDecision: true;
+  readonly requireSourceEventTimeBoundary: true;
+  readonly benchmarkIdentityFieldsForbidden: true;
   readonly failClosedOnUnknownClass: true;
   readonly unrestrictedMetadataForbidden: true;
 }
@@ -714,6 +738,20 @@ function validateContractBody(
       Number.isFinite(contract.observation.maxHistorySeconds),
     "maxHistorySeconds must be finite and non-negative",
   );
+  requireCondition(
+    contract.observation.forbiddenSourceRefPrefixes.length > 0,
+    "observation contract must define forbidden source-ref prefixes",
+  );
+  unique(
+    contract.observation.forbiddenSourceRefPrefixes,
+    "observation forbiddenSourceRefPrefixes",
+  );
+  for (const prefix of contract.observation.forbiddenSourceRefPrefixes) {
+    requireCondition(
+      prefix.trim().length > 0 && prefix === prefix.toLowerCase(),
+      "forbidden source-ref prefixes must be non-empty lowercase strings",
+    );
+  }
   for (const forbidden of [
     "simulator_latent_state",
     "future_information",
@@ -971,7 +1009,18 @@ export const CANONICAL_BASELINE_EVALUATION_CONTRACT_V1 =
         "evaluator_only_metric",
       ],
       maxHistorySeconds: 90 * ONE_DAY_SECONDS,
+      forbiddenSourceRefPrefixes: [
+        "simulator:",
+        "ground-truth:",
+        "ground_truth:",
+        "oracle:",
+        "evaluator:",
+        "benchmark:",
+        "holdout:",
+      ],
       requireAvailableAtOrBeforeDecision: true,
+      requireSourceEventTimeBoundary: true,
+      benchmarkIdentityFieldsForbidden: true,
       failClosedOnUnknownClass: true,
       unrestrictedMetadataForbidden: true,
     },
@@ -1147,6 +1196,9 @@ export function assertDecisionOpportunityAllowed(
 export interface EvaluationObservationDatum {
   readonly observationKey: string;
   readonly informationClass: ObservationInformationClass;
+  /** Latest event/snapshot time used to construct this observation or derived metric. */
+  readonly sourceMaxOccurredAt: string;
+  /** Time at which the completed observation became available to the operator. */
   readonly availableAt: string;
   readonly sourceRef: string;
   readonly value: unknown;
@@ -1157,6 +1209,30 @@ export interface OperatorObservationSnapshot {
   readonly decisionTime: string;
   readonly records: readonly EvaluationObservationDatum[];
   readonly observationFingerprint: string;
+}
+
+function assertNoBenchmarkIdentityLeakage(
+  value: unknown,
+  path = "$",
+): void {
+  if (Array.isArray(value)) {
+    value.forEach((entry, index) =>
+      assertNoBenchmarkIdentityLeakage(entry, path + "[" + index + "]"),
+    );
+    return;
+  }
+  if (!isRecord(value)) return;
+
+  for (const [key, entry] of Object.entries(value)) {
+    requireCondition(
+      !FORBIDDEN_BENCHMARK_OPERATOR_KEYS.has(key),
+      "benchmark identity field cannot enter operator observations at " +
+        path +
+        "." +
+        key,
+    );
+    assertNoBenchmarkIdentityLeakage(entry, path + "." + key);
+  }
 }
 
 export function buildOperatorObservationSnapshot(
@@ -1173,6 +1249,14 @@ export function buildOperatorObservationSnapshot(
       "observationKey is required",
     );
     requireCondition(record.sourceRef.trim().length > 0, "sourceRef is required");
+    const normalizedSourceRef = record.sourceRef.trim().toLowerCase();
+    requireCondition(
+      !contract.observation.forbiddenSourceRefPrefixes.some((prefix) =>
+        normalizedSourceRef.startsWith(prefix),
+      ),
+      "operator observation sourceRef is evaluator/God-mode only: " +
+        record.sourceRef,
+    );
     requireCondition(
       contract.observation.permittedClasses.includes(record.informationClass),
       "observation information class is not permitted: " +
@@ -1184,19 +1268,32 @@ export function buildOperatorObservationSnapshot(
         String(record.informationClass),
     );
 
+    const sourceMaxOccurredMs = parseTime(
+      record.sourceMaxOccurredAt,
+      "observation sourceMaxOccurredAt",
+    );
     const availableMs = parseTime(record.availableAt, "observation availableAt");
+    requireCondition(
+      sourceMaxOccurredMs <= availableMs,
+      "observation cannot become available before its latest source event",
+    );
+    requireCondition(
+      sourceMaxOccurredMs <= decisionMs,
+      "future source events cannot enter operator observations",
+    );
     requireCondition(
       availableMs <= decisionMs,
       "future information cannot enter operator observations",
     );
     requireCondition(
-      availableMs >=
+      sourceMaxOccurredMs >=
         decisionMs - contract.observation.maxHistorySeconds * 1000,
-      "observation exceeds the permitted history window",
+      "observation source exceeds the permitted history window",
     );
 
     assertNoLatentLeakage(record.value);
     assertNoLatentLeakage(record);
+    assertNoBenchmarkIdentityLeakage(record.value);
 
     return cloneJson(record);
   });
