@@ -77,7 +77,7 @@ export function pricingCustomerContext(
   };
 }
 
-function retentionCustomerContext(
+export function retentionCustomerContext(
   customer: RuntimeCustomerState,
 ): RetentionCustomerContext {
   return {
