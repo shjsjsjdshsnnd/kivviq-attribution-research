@@ -64,7 +64,7 @@ function pricingAction(input: {
     actionId: actionId(input.actionIdValue),
     actionType: actionType(input.actionTypeValue ?? "pricing.adjust_price"),
     actionCategory: "pricing",
-    schemaVersion: ACTION_SCHEMA_VERSION,
+    schemaVersion: "1.2.0",
     description: input.description,
     target: input.target,
     scope: input.scope ?? { dimensions: [] },
