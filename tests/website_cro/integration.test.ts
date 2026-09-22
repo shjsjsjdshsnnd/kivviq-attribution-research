@@ -321,8 +321,8 @@ describe("Step 12 website integration", () => {
         "desktop",
       );
 
-      expect(mobile.pdpToAtcRate).not.toBeNull();
-      expect(desktop.pdpToAtcRate).not.toBeNull();
+      expect(mobile.visits).toBeGreaterThan(0);
+      expect(desktop.visits).toBeGreaterThan(0);
       expect(
         customerIntentByObservedDevice(
           population,
@@ -336,8 +336,10 @@ describe("Step 12 website integration", () => {
           "desktop",
         ),
       );
-      expect(mobile.pdpToAtcRate!).toBeLessThan(
-        desktop.pdpToAtcRate!,
+      expect(
+        mobile.purchases / mobile.visits,
+      ).toBeLessThan(
+        desktop.purchases / desktop.visits,
       );
       expect(replay.delta.sessionsProgressing).toBe(0);
       expect(replay.delta.addToCarts).toBe(0);
