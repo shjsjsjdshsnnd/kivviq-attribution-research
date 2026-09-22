@@ -517,6 +517,33 @@ export const allowProductXBackordersUntilOctober15 = inventoryAction({
   },
 });
 
+export const rollbackProductXBackorder = inventoryAction({
+  actionIdValue: "action_inventory_rollback_product_x_backorder",
+  actionTypeValue: "inventory.rollback_policy",
+  target: { kind: "product", productId: "product:X" },
+  description: "Rollback Product X temporary backorder policy only if it still owns the current policy state.",
+  parameters: {
+    kind: "inventory_policy_rollback",
+    originalActionId: allowProductXBackordersUntilOctober15.actionId,
+    strategy: {
+      kind: "RESTORE_PRE_ACTION_VALUE",
+      preActionValue: {
+        kind: "inventory_policy_snapshot",
+        baselineId: "inventory-policy:product-x:backorder:pre-action",
+      },
+    },
+    conflictGuard: {
+      kind: "REQUIRE_CURRENT_MATCHES_ACTION_OUTPUT",
+      sourceActionId: allowProductXBackordersUntilOctober15.actionId,
+      expectedValue: {
+        kind: "backorder_policy",
+        policy: { kind: "ALLOW_UNTIL_DATE", until: OCTOBER_15 },
+      },
+    },
+  },
+  reversalOfActionId: allowProductXBackordersUntilOctober15.actionId,
+});
+
 export const clearanceSkuA = inventoryAction({
   actionIdValue: "action_inventory_clearance_sku_a",
   actionTypeValue: "inventory.clearance",
