@@ -148,6 +148,7 @@ export interface ObservationContract {
   readonly permittedClasses: readonly ObservationInformationClass[];
   readonly forbiddenClasses: readonly ObservationInformationClass[];
   readonly maxHistorySeconds: number;
+  readonly allowedSourceRefPrefixes: readonly string[];
   readonly forbiddenSourceRefPrefixes: readonly string[];
   readonly requireAvailableAtOrBeforeDecision: true;
   readonly requireSourceEventTimeBoundary: true;
@@ -740,6 +741,20 @@ function validateContractBody(
     "maxHistorySeconds must be finite and non-negative",
   );
   requireCondition(
+    contract.observation.allowedSourceRefPrefixes.length > 0,
+    "observation contract must define allowed source-ref prefixes",
+  );
+  unique(
+    contract.observation.allowedSourceRefPrefixes,
+    "observation allowedSourceRefPrefixes",
+  );
+  for (const prefix of contract.observation.allowedSourceRefPrefixes) {
+    requireCondition(
+      prefix.trim().length > 0 && prefix === prefix.toLowerCase(),
+      "allowed source-ref prefixes must be non-empty lowercase strings",
+    );
+  }
+  requireCondition(
     contract.observation.forbiddenSourceRefPrefixes.length > 0,
     "observation contract must define forbidden source-ref prefixes",
   );
@@ -1010,6 +1025,17 @@ export const CANONICAL_BASELINE_EVALUATION_CONTRACT_V1 =
         "evaluator_only_metric",
       ],
       maxHistorySeconds: 90 * ONE_DAY_SECONDS,
+      allowedSourceRefPrefixes: [
+        "merchant-observations:",
+        "merchant-state:",
+        "derived-observable:",
+        "historical-observable:",
+        "platform-report:",
+        "commerce-ledger:",
+        "inventory-ledger:",
+        "catalog-state:",
+        "marketing-state:",
+      ],
       forbiddenSourceRefPrefixes: [
         "simulator:",
         "ground-truth:",
@@ -1198,6 +1224,8 @@ export function assertDecisionOpportunityAllowed(
 export interface EvaluationObservationDatum {
   readonly observationKey: string;
   readonly informationClass: ObservationInformationClass;
+  /** Earliest event/snapshot time used to construct this observation or derived metric. */
+  readonly sourceMinOccurredAt: string;
   /** Latest event/snapshot time used to construct this observation or derived metric. */
   readonly sourceMaxOccurredAt: string;
   /** Time at which the completed observation became available to the operator. */
@@ -1253,6 +1281,13 @@ export function buildOperatorObservationSnapshot(
     requireCondition(record.sourceRef.trim().length > 0, "sourceRef is required");
     const normalizedSourceRef = record.sourceRef.trim().toLowerCase();
     requireCondition(
+      contract.observation.allowedSourceRefPrefixes.some((prefix) =>
+        normalizedSourceRef.startsWith(prefix),
+      ),
+      "operator observation sourceRef is not in the frozen allowlist: " +
+        record.sourceRef,
+    );
+    requireCondition(
       !contract.observation.forbiddenSourceRefPrefixes.some((prefix) =>
         normalizedSourceRef.startsWith(prefix),
       ),
@@ -1270,11 +1305,19 @@ export function buildOperatorObservationSnapshot(
         String(record.informationClass),
     );
 
+    const sourceMinOccurredMs = parseTime(
+      record.sourceMinOccurredAt,
+      "observation sourceMinOccurredAt",
+    );
     const sourceMaxOccurredMs = parseTime(
       record.sourceMaxOccurredAt,
       "observation sourceMaxOccurredAt",
     );
     const availableMs = parseTime(record.availableAt, "observation availableAt");
+    requireCondition(
+      sourceMinOccurredMs <= sourceMaxOccurredMs,
+      "observation source time range is inverted",
+    );
     requireCondition(
       sourceMaxOccurredMs <= availableMs,
       "observation cannot become available before its latest source event",
@@ -1288,7 +1331,7 @@ export function buildOperatorObservationSnapshot(
       "future information cannot enter operator observations",
     );
     requireCondition(
-      sourceMaxOccurredMs >=
+      sourceMinOccurredMs >=
         decisionMs - contract.observation.maxHistorySeconds * 1000,
       "observation source exceeds the permitted history window",
     );
