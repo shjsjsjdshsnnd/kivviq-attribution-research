@@ -1750,6 +1750,8 @@ export const OUTCOME_FAMILIES = [
   "customer_value",
   "retention",
   "return_rate",
+  "engagement",
+  "experience_performance",
 ] as const;
 
 export type OutcomeFamily = (typeof OUTCOME_FAMILIES)[number];
