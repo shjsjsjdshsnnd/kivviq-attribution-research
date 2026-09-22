@@ -1,0 +1,2786 @@
+[
+  {
+    "evaluator_diagnostic_only": {
+      "latent_confounding_present": false,
+      "oracle_recoverability": true
+    },
+    "finite_sample_limited": true,
+    "latent_confounding_level": 0.0,
+    "measurement_condition": "perfect",
+    "measurement_limited": false,
+    "observable_diagnostics": {
+      "central_fraction_010_090": 1.0,
+      "control_ess": 36.53762959705886,
+      "fraction_005_095": 1.0,
+      "fraction_010_090": 1.0,
+      "normalized_control_ess": 0.45672036996323573,
+      "normalized_overlap_mass": 0.9897051624115056,
+      "normalized_treated_ess": 0.45577963003676425,
+      "overlap_weighted_ess": 79.17641299292045,
+      "propensity_max": 0.5849190742451903,
+      "propensity_min": 0.41338242108267,
+      "treated_ess": 36.46237040294114,
+      "treatment_prevalence": 0.4994845260676868
+    },
+    "protocol_version": "candidate4-public-support-calibration-v1",
+    "sample_size": 80,
+    "seed": 2026092201,
+    "structural_class": "STRUCTURALLY_FULL_POPULATION_SUPPORTED",
+    "support_level": "full"
+  },
+  {
+    "evaluator_diagnostic_only": {
+      "latent_confounding_present": false,
+      "oracle_recoverability": true
+    },
+    "finite_sample_limited": true,
+    "latent_confounding_level": 0.0,
+    "measurement_condition": "perfect",
+    "measurement_limited": false,
+    "observable_diagnostics": {
+      "central_fraction_010_090": 1.0,
+      "control_ess": 36.41119482705563,
+      "fraction_005_095": 1.0,
+      "fraction_010_090": 1.0,
+      "normalized_control_ess": 0.4551399353381954,
+      "normalized_overlap_mass": 0.9897002352131633,
+      "normalized_treated_ess": 0.4573600646618046,
+      "overlap_weighted_ess": 79.17601881705306,
+      "propensity_max": 0.5866175789173301,
+      "propensity_min": 0.4150809257548097,
+      "treated_ess": 36.58880517294437,
+      "treatment_prevalence": 0.501216509218416
+    },
+    "protocol_version": "candidate4-public-support-calibration-v1",
+    "sample_size": 80,
+    "seed": 2026092202,
+    "structural_class": "STRUCTURALLY_FULL_POPULATION_SUPPORTED",
+    "support_level": "full"
+  },
+  {
+    "evaluator_diagnostic_only": {
+      "latent_confounding_present": true,
+      "oracle_recoverability": false
+    },
+    "finite_sample_limited": true,
+    "latent_confounding_level": 1.0,
+    "measurement_condition": "perfect",
+    "measurement_limited": false,
+    "observable_diagnostics": {
+      "central_fraction_010_090": 1.0,
+      "control_ess": 36.53762959705886,
+      "fraction_005_095": 1.0,
+      "fraction_010_090": 1.0,
+      "normalized_control_ess": 0.45672036996323573,
+      "normalized_overlap_mass": 0.9897051624115056,
+      "normalized_treated_ess": 0.45577963003676425,
+      "overlap_weighted_ess": 79.17641299292045,
+      "propensity_max": 0.5849190742451903,
+      "propensity_min": 0.41338242108267,
+      "treated_ess": 36.46237040294114,
+      "treatment_prevalence": 0.4994845260676868
+    },
+    "protocol_version": "candidate4-public-support-calibration-v1",
+    "sample_size": 80,
+    "seed": 2026092201,
+    "structural_class": "STRUCTURALLY_FULL_POPULATION_SUPPORTED",
+    "support_level": "full"
+  },
+  {
+    "evaluator_diagnostic_only": {
+      "latent_confounding_present": true,
+      "oracle_recoverability": false
+    },
+    "finite_sample_limited": true,
+    "latent_confounding_level": 1.0,
+    "measurement_condition": "perfect",
+    "measurement_limited": false,
+    "observable_diagnostics": {
+      "central_fraction_010_090": 1.0,
+      "control_ess": 36.41119482705563,
+      "fraction_005_095": 1.0,
+      "fraction_010_090": 1.0,
+      "normalized_control_ess": 0.4551399353381954,
+      "normalized_overlap_mass": 0.9897002352131633,
+      "normalized_treated_ess": 0.4573600646618046,
+      "overlap_weighted_ess": 79.17601881705306,
+      "propensity_max": 0.5866175789173301,
+      "propensity_min": 0.4150809257548097,
+      "treated_ess": 36.58880517294437,
+      "treatment_prevalence": 0.501216509218416
+    },
+    "protocol_version": "candidate4-public-support-calibration-v1",
+    "sample_size": 80,
+    "seed": 2026092202,
+    "structural_class": "STRUCTURALLY_FULL_POPULATION_SUPPORTED",
+    "support_level": "full"
+  },
+  {
+    "evaluator_diagnostic_only": {
+      "latent_confounding_present": false,
+      "oracle_recoverability": true
+    },
+    "finite_sample_limited": true,
+    "latent_confounding_level": 0.0,
+    "measurement_condition": "damaged",
+    "measurement_limited": true,
+    "observable_diagnostics": {
+      "central_fraction_010_090": 0.78,
+      "control_ess": 36.53762959705886,
+      "fraction_005_095": 1.0,
+      "fraction_010_090": 0.78,
+      "normalized_control_ess": 0.45672036996323573,
+      "normalized_overlap_mass": 0.9897051624115056,
+      "normalized_treated_ess": 0.45577963003676425,
+      "overlap_weighted_ess": 79.17641299292045,
+      "propensity_max": 0.5849190742451903,
+      "propensity_min": 0.41338242108267,
+      "treated_ess": 36.46237040294114,
+      "treatment_prevalence": 0.4994845260676868
+    },
+    "protocol_version": "candidate4-public-support-calibration-v1",
+    "sample_size": 80,
+    "seed": 2026092201,
+    "structural_class": "STRUCTURALLY_FULL_POPULATION_SUPPORTED",
+    "support_level": "full"
+  },
+  {
+    "evaluator_diagnostic_only": {
+      "latent_confounding_present": false,
+      "oracle_recoverability": true
+    },
+    "finite_sample_limited": true,
+    "latent_confounding_level": 0.0,
+    "measurement_condition": "damaged",
+    "measurement_limited": true,
+    "observable_diagnostics": {
+      "central_fraction_010_090": 0.78,
+      "control_ess": 36.41119482705563,
+      "fraction_005_095": 1.0,
+      "fraction_010_090": 0.78,
+      "normalized_control_ess": 0.4551399353381954,
+      "normalized_overlap_mass": 0.9897002352131633,
+      "normalized_treated_ess": 0.4573600646618046,
+      "overlap_weighted_ess": 79.17601881705306,
+      "propensity_max": 0.5866175789173301,
+      "propensity_min": 0.4150809257548097,
+      "treated_ess": 36.58880517294437,
+      "treatment_prevalence": 0.501216509218416
+    },
+    "protocol_version": "candidate4-public-support-calibration-v1",
+    "sample_size": 80,
+    "seed": 2026092202,
+    "structural_class": "STRUCTURALLY_FULL_POPULATION_SUPPORTED",
+    "support_level": "full"
+  },
+  {
+    "evaluator_diagnostic_only": {
+      "latent_confounding_present": true,
+      "oracle_recoverability": false
+    },
+    "finite_sample_limited": true,
+    "latent_confounding_level": 1.0,
+    "measurement_condition": "damaged",
+    "measurement_limited": true,
+    "observable_diagnostics": {
+      "central_fraction_010_090": 0.78,
+      "control_ess": 36.53762959705886,
+      "fraction_005_095": 1.0,
+      "fraction_010_090": 0.78,
+      "normalized_control_ess": 0.45672036996323573,
+      "normalized_overlap_mass": 0.9897051624115056,
+      "normalized_treated_ess": 0.45577963003676425,
+      "overlap_weighted_ess": 79.17641299292045,
+      "propensity_max": 0.5849190742451903,
+      "propensity_min": 0.41338242108267,
+      "treated_ess": 36.46237040294114,
+      "treatment_prevalence": 0.4994845260676868
+    },
+    "protocol_version": "candidate4-public-support-calibration-v1",
+    "sample_size": 80,
+    "seed": 2026092201,
+    "structural_class": "STRUCTURALLY_FULL_POPULATION_SUPPORTED",
+    "support_level": "full"
+  },
+  {
+    "evaluator_diagnostic_only": {
+      "latent_confounding_present": true,
+      "oracle_recoverability": false
+    },
+    "finite_sample_limited": true,
+    "latent_confounding_level": 1.0,
+    "measurement_condition": "damaged",
+    "measurement_limited": true,
+    "observable_diagnostics": {
+      "central_fraction_010_090": 0.78,
+      "control_ess": 36.41119482705563,
+      "fraction_005_095": 1.0,
+      "fraction_010_090": 0.78,
+      "normalized_control_ess": 0.4551399353381954,
+      "normalized_overlap_mass": 0.9897002352131633,
+      "normalized_treated_ess": 0.4573600646618046,
+      "overlap_weighted_ess": 79.17601881705306,
+      "propensity_max": 0.5866175789173301,
+      "propensity_min": 0.4150809257548097,
+      "treated_ess": 36.58880517294437,
+      "treatment_prevalence": 0.501216509218416
+    },
+    "protocol_version": "candidate4-public-support-calibration-v1",
+    "sample_size": 80,
+    "seed": 2026092202,
+    "structural_class": "STRUCTURALLY_FULL_POPULATION_SUPPORTED",
+    "support_level": "full"
+  },
+  {
+    "evaluator_diagnostic_only": {
+      "latent_confounding_present": false,
+      "oracle_recoverability": true
+    },
+    "finite_sample_limited": false,
+    "latent_confounding_level": 0.0,
+    "measurement_condition": "perfect",
+    "measurement_limited": false,
+    "observable_diagnostics": {
+      "central_fraction_010_090": 1.0,
+      "control_ess": 114.07659487390374,
+      "fraction_005_095": 1.0,
+      "fraction_010_090": 1.0,
+      "normalized_control_ess": 0.456306379495615,
+      "normalized_overlap_mass": 0.9896731766946198,
+      "normalized_treated_ess": 0.456193620504385,
+      "overlap_weighted_ess": 247.41829417365497,
+      "propensity_max": 0.5866175789173301,
+      "propensity_min": 0.41338242108267,
+      "treated_ess": 114.04840512609626,
+      "treatment_prevalence": 0.4999382142513809
+    },
+    "protocol_version": "candidate4-public-support-calibration-v1",
+    "sample_size": 250,
+    "seed": 2026092201,
+    "structural_class": "STRUCTURALLY_FULL_POPULATION_SUPPORTED",
+    "support_level": "full"
+  },
+  {
+    "evaluator_diagnostic_only": {
+      "latent_confounding_present": false,
+      "oracle_recoverability": true
+    },
+    "finite_sample_limited": false,
+    "latent_confounding_level": 0.0,
+    "measurement_condition": "perfect",
+    "measurement_limited": false,
+    "observable_diagnostics": {
+      "central_fraction_010_090": 1.0,
+      "control_ess": 114.00075036387408,
+      "fraction_005_095": 1.0,
+      "fraction_010_090": 1.0,
+      "normalized_control_ess": 0.4560030014554963,
+      "normalized_overlap_mass": 0.9896717372466921,
+      "normalized_treated_ess": 0.4564969985445037,
+      "overlap_weighted_ess": 247.41793431167304,
+      "propensity_max": 0.5866175789173301,
+      "propensity_min": 0.41338242108267,
+      "treated_ess": 114.12424963612592,
+      "treatment_prevalence": 0.5002706833364424
+    },
+    "protocol_version": "candidate4-public-support-calibration-v1",
+    "sample_size": 250,
+    "seed": 2026092202,
+    "structural_class": "STRUCTURALLY_FULL_POPULATION_SUPPORTED",
+    "support_level": "full"
+  },
+  {
+    "evaluator_diagnostic_only": {
+      "latent_confounding_present": true,
+      "oracle_recoverability": false
+    },
+    "finite_sample_limited": false,
+    "latent_confounding_level": 1.0,
+    "measurement_condition": "perfect",
+    "measurement_limited": false,
+    "observable_diagnostics": {
+      "central_fraction_010_090": 1.0,
+      "control_ess": 114.07659487390374,
+      "fraction_005_095": 1.0,
+      "fraction_010_090": 1.0,
+      "normalized_control_ess": 0.456306379495615,
+      "normalized_overlap_mass": 0.9896731766946198,
+      "normalized_treated_ess": 0.456193620504385,
+      "overlap_weighted_ess": 247.41829417365497,
+      "propensity_max": 0.5866175789173301,
+      "propensity_min": 0.41338242108267,
+      "treated_ess": 114.04840512609626,
+      "treatment_prevalence": 0.4999382142513809
+    },
+    "protocol_version": "candidate4-public-support-calibration-v1",
+    "sample_size": 250,
+    "seed": 2026092201,
+    "structural_class": "STRUCTURALLY_FULL_POPULATION_SUPPORTED",
+    "support_level": "full"
+  },
+  {
+    "evaluator_diagnostic_only": {
+      "latent_confounding_present": true,
+      "oracle_recoverability": false
+    },
+    "finite_sample_limited": false,
+    "latent_confounding_level": 1.0,
+    "measurement_condition": "perfect",
+    "measurement_limited": false,
+    "observable_diagnostics": {
+      "central_fraction_010_090": 1.0,
+      "control_ess": 114.00075036387408,
+      "fraction_005_095": 1.0,
+      "fraction_010_090": 1.0,
+      "normalized_control_ess": 0.4560030014554963,
+      "normalized_overlap_mass": 0.9896717372466921,
+      "normalized_treated_ess": 0.4564969985445037,
+      "overlap_weighted_ess": 247.41793431167304,
+      "propensity_max": 0.5866175789173301,
+      "propensity_min": 0.41338242108267,
+      "treated_ess": 114.12424963612592,
+      "treatment_prevalence": 0.5002706833364424
+    },
+    "protocol_version": "candidate4-public-support-calibration-v1",
+    "sample_size": 250,
+    "seed": 2026092202,
+    "structural_class": "STRUCTURALLY_FULL_POPULATION_SUPPORTED",
+    "support_level": "full"
+  },
+  {
+    "evaluator_diagnostic_only": {
+      "latent_confounding_present": false,
+      "oracle_recoverability": true
+    },
+    "finite_sample_limited": false,
+    "latent_confounding_level": 0.0,
+    "measurement_condition": "damaged",
+    "measurement_limited": true,
+    "observable_diagnostics": {
+      "central_fraction_010_090": 0.78,
+      "control_ess": 114.07659487390374,
+      "fraction_005_095": 1.0,
+      "fraction_010_090": 0.78,
+      "normalized_control_ess": 0.456306379495615,
+      "normalized_overlap_mass": 0.9896731766946198,
+      "normalized_treated_ess": 0.456193620504385,
+      "overlap_weighted_ess": 247.41829417365497,
+      "propensity_max": 0.5866175789173301,
+      "propensity_min": 0.41338242108267,
+      "treated_ess": 114.04840512609626,
+      "treatment_prevalence": 0.4999382142513809
+    },
+    "protocol_version": "candidate4-public-support-calibration-v1",
+    "sample_size": 250,
+    "seed": 2026092201,
+    "structural_class": "STRUCTURALLY_FULL_POPULATION_SUPPORTED",
+    "support_level": "full"
+  },
+  {
+    "evaluator_diagnostic_only": {
+      "latent_confounding_present": false,
+      "oracle_recoverability": true
+    },
+    "finite_sample_limited": false,
+    "latent_confounding_level": 0.0,
+    "measurement_condition": "damaged",
+    "measurement_limited": true,
+    "observable_diagnostics": {
+      "central_fraction_010_090": 0.78,
+      "control_ess": 114.00075036387408,
+      "fraction_005_095": 1.0,
+      "fraction_010_090": 0.78,
+      "normalized_control_ess": 0.4560030014554963,
+      "normalized_overlap_mass": 0.9896717372466921,
+      "normalized_treated_ess": 0.4564969985445037,
+      "overlap_weighted_ess": 247.41793431167304,
+      "propensity_max": 0.5866175789173301,
+      "propensity_min": 0.41338242108267,
+      "treated_ess": 114.12424963612592,
+      "treatment_prevalence": 0.5002706833364424
+    },
+    "protocol_version": "candidate4-public-support-calibration-v1",
+    "sample_size": 250,
+    "seed": 2026092202,
+    "structural_class": "STRUCTURALLY_FULL_POPULATION_SUPPORTED",
+    "support_level": "full"
+  },
+  {
+    "evaluator_diagnostic_only": {
+      "latent_confounding_present": true,
+      "oracle_recoverability": false
+    },
+    "finite_sample_limited": false,
+    "latent_confounding_level": 1.0,
+    "measurement_condition": "damaged",
+    "measurement_limited": true,
+    "observable_diagnostics": {
+      "central_fraction_010_090": 0.78,
+      "control_ess": 114.07659487390374,
+      "fraction_005_095": 1.0,
+      "fraction_010_090": 0.78,
+      "normalized_control_ess": 0.456306379495615,
+      "normalized_overlap_mass": 0.9896731766946198,
+      "normalized_treated_ess": 0.456193620504385,
+      "overlap_weighted_ess": 247.41829417365497,
+      "propensity_max": 0.5866175789173301,
+      "propensity_min": 0.41338242108267,
+      "treated_ess": 114.04840512609626,
+      "treatment_prevalence": 0.4999382142513809
+    },
+    "protocol_version": "candidate4-public-support-calibration-v1",
+    "sample_size": 250,
+    "seed": 2026092201,
+    "structural_class": "STRUCTURALLY_FULL_POPULATION_SUPPORTED",
+    "support_level": "full"
+  },
+  {
+    "evaluator_diagnostic_only": {
+      "latent_confounding_present": true,
+      "oracle_recoverability": false
+    },
+    "finite_sample_limited": false,
+    "latent_confounding_level": 1.0,
+    "measurement_condition": "damaged",
+    "measurement_limited": true,
+    "observable_diagnostics": {
+      "central_fraction_010_090": 0.78,
+      "control_ess": 114.00075036387408,
+      "fraction_005_095": 1.0,
+      "fraction_010_090": 0.78,
+      "normalized_control_ess": 0.4560030014554963,
+      "normalized_overlap_mass": 0.9896717372466921,
+      "normalized_treated_ess": 0.4564969985445037,
+      "overlap_weighted_ess": 247.41793431167304,
+      "propensity_max": 0.5866175789173301,
+      "propensity_min": 0.41338242108267,
+      "treated_ess": 114.12424963612592,
+      "treatment_prevalence": 0.5002706833364424
+    },
+    "protocol_version": "candidate4-public-support-calibration-v1",
+    "sample_size": 250,
+    "seed": 2026092202,
+    "structural_class": "STRUCTURALLY_FULL_POPULATION_SUPPORTED",
+    "support_level": "full"
+  },
+  {
+    "evaluator_diagnostic_only": {
+      "latent_confounding_present": false,
+      "oracle_recoverability": true
+    },
+    "finite_sample_limited": false,
+    "latent_confounding_level": 0.0,
+    "measurement_condition": "perfect",
+    "measurement_limited": false,
+    "observable_diagnostics": {
+      "central_fraction_010_090": 1.0,
+      "control_ess": 2281.291077284911,
+      "fraction_005_095": 1.0,
+      "fraction_010_090": 1.0,
+      "normalized_control_ess": 0.4562582154569822,
+      "normalized_overlap_mass": 0.9897147456749742,
+      "normalized_treated_ess": 0.45624178454301784,
+      "overlap_weighted_ess": 4948.573728374871,
+      "propensity_max": 0.5866175789173301,
+      "propensity_min": 0.41338242108267,
+      "treated_ess": 2281.208922715089,
+      "treatment_prevalence": 0.4999909967594716
+    },
+    "protocol_version": "candidate4-public-support-calibration-v1",
+    "sample_size": 5000,
+    "seed": 2026092201,
+    "structural_class": "STRUCTURALLY_FULL_POPULATION_SUPPORTED",
+    "support_level": "full"
+  },
+  {
+    "evaluator_diagnostic_only": {
+      "latent_confounding_present": false,
+      "oracle_recoverability": true
+    },
+    "finite_sample_limited": false,
+    "latent_confounding_level": 0.0,
+    "measurement_condition": "perfect",
+    "measurement_limited": false,
+    "observable_diagnostics": {
+      "central_fraction_010_090": 1.0,
+      "control_ess": 2281.210483752435,
+      "fraction_005_095": 1.0,
+      "fraction_010_090": 1.0,
+      "normalized_control_ess": 0.45624209675048694,
+      "normalized_overlap_mass": 0.9897147479061945,
+      "normalized_treated_ess": 0.45625790324951304,
+      "overlap_weighted_ess": 4948.5737395309725,
+      "propensity_max": 0.5866175789173301,
+      "propensity_min": 0.41338242108267,
+      "treated_ess": 2281.289516247565,
+      "treatment_prevalence": 0.5000086610953567
+    },
+    "protocol_version": "candidate4-public-support-calibration-v1",
+    "sample_size": 5000,
+    "seed": 2026092202,
+    "structural_class": "STRUCTURALLY_FULL_POPULATION_SUPPORTED",
+    "support_level": "full"
+  },
+  {
+    "evaluator_diagnostic_only": {
+      "latent_confounding_present": true,
+      "oracle_recoverability": false
+    },
+    "finite_sample_limited": false,
+    "latent_confounding_level": 1.0,
+    "measurement_condition": "perfect",
+    "measurement_limited": false,
+    "observable_diagnostics": {
+      "central_fraction_010_090": 1.0,
+      "control_ess": 2281.291077284911,
+      "fraction_005_095": 1.0,
+      "fraction_010_090": 1.0,
+      "normalized_control_ess": 0.4562582154569822,
+      "normalized_overlap_mass": 0.9897147456749742,
+      "normalized_treated_ess": 0.45624178454301784,
+      "overlap_weighted_ess": 4948.573728374871,
+      "propensity_max": 0.5866175789173301,
+      "propensity_min": 0.41338242108267,
+      "treated_ess": 2281.208922715089,
+      "treatment_prevalence": 0.4999909967594716
+    },
+    "protocol_version": "candidate4-public-support-calibration-v1",
+    "sample_size": 5000,
+    "seed": 2026092201,
+    "structural_class": "STRUCTURALLY_FULL_POPULATION_SUPPORTED",
+    "support_level": "full"
+  },
+  {
+    "evaluator_diagnostic_only": {
+      "latent_confounding_present": true,
+      "oracle_recoverability": false
+    },
+    "finite_sample_limited": false,
+    "latent_confounding_level": 1.0,
+    "measurement_condition": "perfect",
+    "measurement_limited": false,
+    "observable_diagnostics": {
+      "central_fraction_010_090": 1.0,
+      "control_ess": 2281.210483752435,
+      "fraction_005_095": 1.0,
+      "fraction_010_090": 1.0,
+      "normalized_control_ess": 0.45624209675048694,
+      "normalized_overlap_mass": 0.9897147479061945,
+      "normalized_treated_ess": 0.45625790324951304,
+      "overlap_weighted_ess": 4948.5737395309725,
+      "propensity_max": 0.5866175789173301,
+      "propensity_min": 0.41338242108267,
+      "treated_ess": 2281.289516247565,
+      "treatment_prevalence": 0.5000086610953567
+    },
+    "protocol_version": "candidate4-public-support-calibration-v1",
+    "sample_size": 5000,
+    "seed": 2026092202,
+    "structural_class": "STRUCTURALLY_FULL_POPULATION_SUPPORTED",
+    "support_level": "full"
+  },
+  {
+    "evaluator_diagnostic_only": {
+      "latent_confounding_present": false,
+      "oracle_recoverability": true
+    },
+    "finite_sample_limited": false,
+    "latent_confounding_level": 0.0,
+    "measurement_condition": "damaged",
+    "measurement_limited": true,
+    "observable_diagnostics": {
+      "central_fraction_010_090": 0.78,
+      "control_ess": 2281.291077284911,
+      "fraction_005_095": 1.0,
+      "fraction_010_090": 0.78,
+      "normalized_control_ess": 0.4562582154569822,
+      "normalized_overlap_mass": 0.9897147456749742,
+      "normalized_treated_ess": 0.45624178454301784,
+      "overlap_weighted_ess": 4948.573728374871,
+      "propensity_max": 0.5866175789173301,
+      "propensity_min": 0.41338242108267,
+      "treated_ess": 2281.208922715089,
+      "treatment_prevalence": 0.4999909967594716
+    },
+    "protocol_version": "candidate4-public-support-calibration-v1",
+    "sample_size": 5000,
+    "seed": 2026092201,
+    "structural_class": "STRUCTURALLY_FULL_POPULATION_SUPPORTED",
+    "support_level": "full"
+  },
+  {
+    "evaluator_diagnostic_only": {
+      "latent_confounding_present": false,
+      "oracle_recoverability": true
+    },
+    "finite_sample_limited": false,
+    "latent_confounding_level": 0.0,
+    "measurement_condition": "damaged",
+    "measurement_limited": true,
+    "observable_diagnostics": {
+      "central_fraction_010_090": 0.78,
+      "control_ess": 2281.210483752435,
+      "fraction_005_095": 1.0,
+      "fraction_010_090": 0.78,
+      "normalized_control_ess": 0.45624209675048694,
+      "normalized_overlap_mass": 0.9897147479061945,
+      "normalized_treated_ess": 0.45625790324951304,
+      "overlap_weighted_ess": 4948.5737395309725,
+      "propensity_max": 0.5866175789173301,
+      "propensity_min": 0.41338242108267,
+      "treated_ess": 2281.289516247565,
+      "treatment_prevalence": 0.5000086610953567
+    },
+    "protocol_version": "candidate4-public-support-calibration-v1",
+    "sample_size": 5000,
+    "seed": 2026092202,
+    "structural_class": "STRUCTURALLY_FULL_POPULATION_SUPPORTED",
+    "support_level": "full"
+  },
+  {
+    "evaluator_diagnostic_only": {
+      "latent_confounding_present": true,
+      "oracle_recoverability": false
+    },
+    "finite_sample_limited": false,
+    "latent_confounding_level": 1.0,
+    "measurement_condition": "damaged",
+    "measurement_limited": true,
+    "observable_diagnostics": {
+      "central_fraction_010_090": 0.78,
+      "control_ess": 2281.291077284911,
+      "fraction_005_095": 1.0,
+      "fraction_010_090": 0.78,
+      "normalized_control_ess": 0.4562582154569822,
+      "normalized_overlap_mass": 0.9897147456749742,
+      "normalized_treated_ess": 0.45624178454301784,
+      "overlap_weighted_ess": 4948.573728374871,
+      "propensity_max": 0.5866175789173301,
+      "propensity_min": 0.41338242108267,
+      "treated_ess": 2281.208922715089,
+      "treatment_prevalence": 0.4999909967594716
+    },
+    "protocol_version": "candidate4-public-support-calibration-v1",
+    "sample_size": 5000,
+    "seed": 2026092201,
+    "structural_class": "STRUCTURALLY_FULL_POPULATION_SUPPORTED",
+    "support_level": "full"
+  },
+  {
+    "evaluator_diagnostic_only": {
+      "latent_confounding_present": true,
+      "oracle_recoverability": false
+    },
+    "finite_sample_limited": false,
+    "latent_confounding_level": 1.0,
+    "measurement_condition": "damaged",
+    "measurement_limited": true,
+    "observable_diagnostics": {
+      "central_fraction_010_090": 0.78,
+      "control_ess": 2281.210483752435,
+      "fraction_005_095": 1.0,
+      "fraction_010_090": 0.78,
+      "normalized_control_ess": 0.45624209675048694,
+      "normalized_overlap_mass": 0.9897147479061945,
+      "normalized_treated_ess": 0.45625790324951304,
+      "overlap_weighted_ess": 4948.5737395309725,
+      "propensity_max": 0.5866175789173301,
+      "propensity_min": 0.41338242108267,
+      "treated_ess": 2281.289516247565,
+      "treatment_prevalence": 0.5000086610953567
+    },
+    "protocol_version": "candidate4-public-support-calibration-v1",
+    "sample_size": 5000,
+    "seed": 2026092202,
+    "structural_class": "STRUCTURALLY_FULL_POPULATION_SUPPORTED",
+    "support_level": "full"
+  },
+  {
+    "evaluator_diagnostic_only": {
+      "latent_confounding_present": false,
+      "oracle_recoverability": true
+    },
+    "finite_sample_limited": true,
+    "latent_confounding_level": 0.0,
+    "measurement_condition": "perfect",
+    "measurement_limited": false,
+    "observable_diagnostics": {
+      "central_fraction_010_090": 0.7625,
+      "control_ess": 43.72980543718179,
+      "fraction_005_095": 1.0,
+      "fraction_010_090": 0.7625,
+      "normalized_control_ess": 0.5466225679647724,
+      "normalized_overlap_mass": 0.6025959207027715,
+      "normalized_treated_ess": 0.1408774320352276,
+      "overlap_weighted_ess": 48.207673656221715,
+      "propensity_max": 0.4316800165217519,
+      "propensity_min": 0.060086650174007626,
+      "treated_ess": 11.270194562818208,
+      "treatment_prevalence": 0.20491262841487654
+    },
+    "protocol_version": "candidate4-public-support-calibration-v1",
+    "sample_size": 80,
+    "seed": 2026092201,
+    "structural_class": "STRUCTURALLY_OVERLAP_ONLY",
+    "support_level": "overlap_only"
+  },
+  {
+    "evaluator_diagnostic_only": {
+      "latent_confounding_present": false,
+      "oracle_recoverability": true
+    },
+    "finite_sample_limited": true,
+    "latent_confounding_level": 0.0,
+    "measurement_condition": "perfect",
+    "measurement_limited": false,
+    "observable_diagnostics": {
+      "central_fraction_010_090": 0.775,
+      "control_ess": 43.52136384119901,
+      "fraction_005_095": 1.0,
+      "fraction_010_090": 0.775,
+      "normalized_control_ess": 0.5440170480149876,
+      "normalized_overlap_mass": 0.6101516731098096,
+      "normalized_treated_ess": 0.1434829519850124,
+      "overlap_weighted_ess": 48.81213384878477,
+      "propensity_max": 0.43782349911420193,
+      "propensity_min": 0.061514181694634434,
+      "treated_ess": 11.478636158800992,
+      "treatment_prevalence": 0.20870247561456348
+    },
+    "protocol_version": "candidate4-public-support-calibration-v1",
+    "sample_size": 80,
+    "seed": 2026092202,
+    "structural_class": "STRUCTURALLY_OVERLAP_ONLY",
+    "support_level": "overlap_only"
+  },
+  {
+    "evaluator_diagnostic_only": {
+      "latent_confounding_present": true,
+      "oracle_recoverability": false
+    },
+    "finite_sample_limited": true,
+    "latent_confounding_level": 1.0,
+    "measurement_condition": "perfect",
+    "measurement_limited": false,
+    "observable_diagnostics": {
+      "central_fraction_010_090": 0.7625,
+      "control_ess": 43.72980543718179,
+      "fraction_005_095": 1.0,
+      "fraction_010_090": 0.7625,
+      "normalized_control_ess": 0.5466225679647724,
+      "normalized_overlap_mass": 0.6025959207027715,
+      "normalized_treated_ess": 0.1408774320352276,
+      "overlap_weighted_ess": 48.207673656221715,
+      "propensity_max": 0.4316800165217519,
+      "propensity_min": 0.060086650174007626,
+      "treated_ess": 11.270194562818208,
+      "treatment_prevalence": 0.20491262841487654
+    },
+    "protocol_version": "candidate4-public-support-calibration-v1",
+    "sample_size": 80,
+    "seed": 2026092201,
+    "structural_class": "STRUCTURALLY_OVERLAP_ONLY",
+    "support_level": "overlap_only"
+  },
+  {
+    "evaluator_diagnostic_only": {
+      "latent_confounding_present": true,
+      "oracle_recoverability": false
+    },
+    "finite_sample_limited": true,
+    "latent_confounding_level": 1.0,
+    "measurement_condition": "perfect",
+    "measurement_limited": false,
+    "observable_diagnostics": {
+      "central_fraction_010_090": 0.775,
+      "control_ess": 43.52136384119901,
+      "fraction_005_095": 1.0,
+      "fraction_010_090": 0.775,
+      "normalized_control_ess": 0.5440170480149876,
+      "normalized_overlap_mass": 0.6101516731098096,
+      "normalized_treated_ess": 0.1434829519850124,
+      "overlap_weighted_ess": 48.81213384878477,
+      "propensity_max": 0.43782349911420193,
+      "propensity_min": 0.061514181694634434,
+      "treated_ess": 11.478636158800992,
+      "treatment_prevalence": 0.20870247561456348
+    },
+    "protocol_version": "candidate4-public-support-calibration-v1",
+    "sample_size": 80,
+    "seed": 2026092202,
+    "structural_class": "STRUCTURALLY_OVERLAP_ONLY",
+    "support_level": "overlap_only"
+  },
+  {
+    "evaluator_diagnostic_only": {
+      "latent_confounding_present": false,
+      "oracle_recoverability": true
+    },
+    "finite_sample_limited": true,
+    "latent_confounding_level": 0.0,
+    "measurement_condition": "damaged",
+    "measurement_limited": true,
+    "observable_diagnostics": {
+      "central_fraction_010_090": 0.5425,
+      "control_ess": 43.72980543718179,
+      "fraction_005_095": 1.0,
+      "fraction_010_090": 0.5425,
+      "normalized_control_ess": 0.5466225679647724,
+      "normalized_overlap_mass": 0.6025959207027715,
+      "normalized_treated_ess": 0.1408774320352276,
+      "overlap_weighted_ess": 48.207673656221715,
+      "propensity_max": 0.4316800165217519,
+      "propensity_min": 0.060086650174007626,
+      "treated_ess": 11.270194562818208,
+      "treatment_prevalence": 0.20491262841487654
+    },
+    "protocol_version": "candidate4-public-support-calibration-v1",
+    "sample_size": 80,
+    "seed": 2026092201,
+    "structural_class": "STRUCTURALLY_OVERLAP_ONLY",
+    "support_level": "overlap_only"
+  },
+  {
+    "evaluator_diagnostic_only": {
+      "latent_confounding_present": false,
+      "oracle_recoverability": true
+    },
+    "finite_sample_limited": true,
+    "latent_confounding_level": 0.0,
+    "measurement_condition": "damaged",
+    "measurement_limited": true,
+    "observable_diagnostics": {
+      "central_fraction_010_090": 0.555,
+      "control_ess": 43.52136384119901,
+      "fraction_005_095": 1.0,
+      "fraction_010_090": 0.555,
+      "normalized_control_ess": 0.5440170480149876,
+      "normalized_overlap_mass": 0.6101516731098096,
+      "normalized_treated_ess": 0.1434829519850124,
+      "overlap_weighted_ess": 48.81213384878477,
+      "propensity_max": 0.43782349911420193,
+      "propensity_min": 0.061514181694634434,
+      "treated_ess": 11.478636158800992,
+      "treatment_prevalence": 0.20870247561456348
+    },
+    "protocol_version": "candidate4-public-support-calibration-v1",
+    "sample_size": 80,
+    "seed": 2026092202,
+    "structural_class": "STRUCTURALLY_OVERLAP_ONLY",
+    "support_level": "overlap_only"
+  },
+  {
+    "evaluator_diagnostic_only": {
+      "latent_confounding_present": true,
+      "oracle_recoverability": false
+    },
+    "finite_sample_limited": true,
+    "latent_confounding_level": 1.0,
+    "measurement_condition": "damaged",
+    "measurement_limited": true,
+    "observable_diagnostics": {
+      "central_fraction_010_090": 0.5425,
+      "control_ess": 43.72980543718179,
+      "fraction_005_095": 1.0,
+      "fraction_010_090": 0.5425,
+      "normalized_control_ess": 0.5466225679647724,
+      "normalized_overlap_mass": 0.6025959207027715,
+      "normalized_treated_ess": 0.1408774320352276,
+      "overlap_weighted_ess": 48.207673656221715,
+      "propensity_max": 0.4316800165217519,
+      "propensity_min": 0.060086650174007626,
+      "treated_ess": 11.270194562818208,
+      "treatment_prevalence": 0.20491262841487654
+    },
+    "protocol_version": "candidate4-public-support-calibration-v1",
+    "sample_size": 80,
+    "seed": 2026092201,
+    "structural_class": "STRUCTURALLY_OVERLAP_ONLY",
+    "support_level": "overlap_only"
+  },
+  {
+    "evaluator_diagnostic_only": {
+      "latent_confounding_present": true,
+      "oracle_recoverability": false
+    },
+    "finite_sample_limited": true,
+    "latent_confounding_level": 1.0,
+    "measurement_condition": "damaged",
+    "measurement_limited": true,
+    "observable_diagnostics": {
+      "central_fraction_010_090": 0.555,
+      "control_ess": 43.52136384119901,
+      "fraction_005_095": 1.0,
+      "fraction_010_090": 0.555,
+      "normalized_control_ess": 0.5440170480149876,
+      "normalized_overlap_mass": 0.6101516731098096,
+      "normalized_treated_ess": 0.1434829519850124,
+      "overlap_weighted_ess": 48.81213384878477,
+      "propensity_max": 0.43782349911420193,
+      "propensity_min": 0.061514181694634434,
+      "treated_ess": 11.478636158800992,
+      "treatment_prevalence": 0.20870247561456348
+    },
+    "protocol_version": "candidate4-public-support-calibration-v1",
+    "sample_size": 80,
+    "seed": 2026092202,
+    "structural_class": "STRUCTURALLY_OVERLAP_ONLY",
+    "support_level": "overlap_only"
+  },
+  {
+    "evaluator_diagnostic_only": {
+      "latent_confounding_present": false,
+      "oracle_recoverability": true
+    },
+    "finite_sample_limited": false,
+    "latent_confounding_level": 0.0,
+    "measurement_condition": "perfect",
+    "measurement_limited": false,
+    "observable_diagnostics": {
+      "central_fraction_010_090": 0.768,
+      "control_ess": 136.47172865329253,
+      "fraction_005_095": 1.0,
+      "fraction_010_090": 0.768,
+      "normalized_control_ess": 0.5458869146131701,
+      "normalized_overlap_mass": 0.6042026577776192,
+      "normalized_treated_ess": 0.14161308538682987,
+      "overlap_weighted_ess": 151.0506644444048,
+      "propensity_max": 0.43782349911420193,
+      "propensity_min": 0.060086650174007626,
+      "treated_ess": 35.40327134670747,
+      "treatment_prevalence": 0.20598266965357076
+    },
+    "protocol_version": "candidate4-public-support-calibration-v1",
+    "sample_size": 250,
+    "seed": 2026092201,
+    "structural_class": "STRUCTURALLY_OVERLAP_ONLY",
+    "support_level": "overlap_only"
+  },
+  {
+    "evaluator_diagnostic_only": {
+      "latent_confounding_present": false,
+      "oracle_recoverability": true
+    },
+    "finite_sample_limited": false,
+    "latent_confounding_level": 0.0,
+    "measurement_condition": "perfect",
+    "measurement_limited": false,
+    "observable_diagnostics": {
+      "central_fraction_010_090": 0.772,
+      "control_ess": 136.34649582920028,
+      "fraction_005_095": 1.0,
+      "fraction_010_090": 0.772,
+      "normalized_control_ess": 0.5453859833168011,
+      "normalized_overlap_mass": 0.6056446909943689,
+      "normalized_treated_ess": 0.14211401668319887,
+      "overlap_weighted_ess": 151.41117274859224,
+      "propensity_max": 0.43782349911420193,
+      "propensity_min": 0.060086650174007626,
+      "treated_ess": 35.528504170799714,
+      "treatment_prevalence": 0.2067112969937438
+    },
+    "protocol_version": "candidate4-public-support-calibration-v1",
+    "sample_size": 250,
+    "seed": 2026092202,
+    "structural_class": "STRUCTURALLY_OVERLAP_ONLY",
+    "support_level": "overlap_only"
+  },
+  {
+    "evaluator_diagnostic_only": {
+      "latent_confounding_present": true,
+      "oracle_recoverability": false
+    },
+    "finite_sample_limited": false,
+    "latent_confounding_level": 1.0,
+    "measurement_condition": "perfect",
+    "measurement_limited": false,
+    "observable_diagnostics": {
+      "central_fraction_010_090": 0.768,
+      "control_ess": 136.47172865329253,
+      "fraction_005_095": 1.0,
+      "fraction_010_090": 0.768,
+      "normalized_control_ess": 0.5458869146131701,
+      "normalized_overlap_mass": 0.6042026577776192,
+      "normalized_treated_ess": 0.14161308538682987,
+      "overlap_weighted_ess": 151.0506644444048,
+      "propensity_max": 0.43782349911420193,
+      "propensity_min": 0.060086650174007626,
+      "treated_ess": 35.40327134670747,
+      "treatment_prevalence": 0.20598266965357076
+    },
+    "protocol_version": "candidate4-public-support-calibration-v1",
+    "sample_size": 250,
+    "seed": 2026092201,
+    "structural_class": "STRUCTURALLY_OVERLAP_ONLY",
+    "support_level": "overlap_only"
+  },
+  {
+    "evaluator_diagnostic_only": {
+      "latent_confounding_present": true,
+      "oracle_recoverability": false
+    },
+    "finite_sample_limited": false,
+    "latent_confounding_level": 1.0,
+    "measurement_condition": "perfect",
+    "measurement_limited": false,
+    "observable_diagnostics": {
+      "central_fraction_010_090": 0.772,
+      "control_ess": 136.34649582920028,
+      "fraction_005_095": 1.0,
+      "fraction_010_090": 0.772,
+      "normalized_control_ess": 0.5453859833168011,
+      "normalized_overlap_mass": 0.6056446909943689,
+      "normalized_treated_ess": 0.14211401668319887,
+      "overlap_weighted_ess": 151.41117274859224,
+      "propensity_max": 0.43782349911420193,
+      "propensity_min": 0.060086650174007626,
+      "treated_ess": 35.528504170799714,
+      "treatment_prevalence": 0.2067112969937438
+    },
+    "protocol_version": "candidate4-public-support-calibration-v1",
+    "sample_size": 250,
+    "seed": 2026092202,
+    "structural_class": "STRUCTURALLY_OVERLAP_ONLY",
+    "support_level": "overlap_only"
+  },
+  {
+    "evaluator_diagnostic_only": {
+      "latent_confounding_present": false,
+      "oracle_recoverability": true
+    },
+    "finite_sample_limited": false,
+    "latent_confounding_level": 0.0,
+    "measurement_condition": "damaged",
+    "measurement_limited": true,
+    "observable_diagnostics": {
+      "central_fraction_010_090": 0.548,
+      "control_ess": 136.47172865329253,
+      "fraction_005_095": 1.0,
+      "fraction_010_090": 0.548,
+      "normalized_control_ess": 0.5458869146131701,
+      "normalized_overlap_mass": 0.6042026577776192,
+      "normalized_treated_ess": 0.14161308538682987,
+      "overlap_weighted_ess": 151.0506644444048,
+      "propensity_max": 0.43782349911420193,
+      "propensity_min": 0.060086650174007626,
+      "treated_ess": 35.40327134670747,
+      "treatment_prevalence": 0.20598266965357076
+    },
+    "protocol_version": "candidate4-public-support-calibration-v1",
+    "sample_size": 250,
+    "seed": 2026092201,
+    "structural_class": "STRUCTURALLY_OVERLAP_ONLY",
+    "support_level": "overlap_only"
+  },
+  {
+    "evaluator_diagnostic_only": {
+      "latent_confounding_present": false,
+      "oracle_recoverability": true
+    },
+    "finite_sample_limited": false,
+    "latent_confounding_level": 0.0,
+    "measurement_condition": "damaged",
+    "measurement_limited": true,
+    "observable_diagnostics": {
+      "central_fraction_010_090": 0.552,
+      "control_ess": 136.34649582920028,
+      "fraction_005_095": 1.0,
+      "fraction_010_090": 0.552,
+      "normalized_control_ess": 0.5453859833168011,
+      "normalized_overlap_mass": 0.6056446909943689,
+      "normalized_treated_ess": 0.14211401668319887,
+      "overlap_weighted_ess": 151.41117274859224,
+      "propensity_max": 0.43782349911420193,
+      "propensity_min": 0.060086650174007626,
+      "treated_ess": 35.528504170799714,
+      "treatment_prevalence": 0.2067112969937438
+    },
+    "protocol_version": "candidate4-public-support-calibration-v1",
+    "sample_size": 250,
+    "seed": 2026092202,
+    "structural_class": "STRUCTURALLY_OVERLAP_ONLY",
+    "support_level": "overlap_only"
+  },
+  {
+    "evaluator_diagnostic_only": {
+      "latent_confounding_present": true,
+      "oracle_recoverability": false
+    },
+    "finite_sample_limited": false,
+    "latent_confounding_level": 1.0,
+    "measurement_condition": "damaged",
+    "measurement_limited": true,
+    "observable_diagnostics": {
+      "central_fraction_010_090": 0.548,
+      "control_ess": 136.47172865329253,
+      "fraction_005_095": 1.0,
+      "fraction_010_090": 0.548,
+      "normalized_control_ess": 0.5458869146131701,
+      "normalized_overlap_mass": 0.6042026577776192,
+      "normalized_treated_ess": 0.14161308538682987,
+      "overlap_weighted_ess": 151.0506644444048,
+      "propensity_max": 0.43782349911420193,
+      "propensity_min": 0.060086650174007626,
+      "treated_ess": 35.40327134670747,
+      "treatment_prevalence": 0.20598266965357076
+    },
+    "protocol_version": "candidate4-public-support-calibration-v1",
+    "sample_size": 250,
+    "seed": 2026092201,
+    "structural_class": "STRUCTURALLY_OVERLAP_ONLY",
+    "support_level": "overlap_only"
+  },
+  {
+    "evaluator_diagnostic_only": {
+      "latent_confounding_present": true,
+      "oracle_recoverability": false
+    },
+    "finite_sample_limited": false,
+    "latent_confounding_level": 1.0,
+    "measurement_condition": "damaged",
+    "measurement_limited": true,
+    "observable_diagnostics": {
+      "central_fraction_010_090": 0.552,
+      "control_ess": 136.34649582920028,
+      "fraction_005_095": 1.0,
+      "fraction_010_090": 0.552,
+      "normalized_control_ess": 0.5453859833168011,
+      "normalized_overlap_mass": 0.6056446909943689,
+      "normalized_treated_ess": 0.14211401668319887,
+      "overlap_weighted_ess": 151.41117274859224,
+      "propensity_max": 0.43782349911420193,
+      "propensity_min": 0.060086650174007626,
+      "treated_ess": 35.528504170799714,
+      "treatment_prevalence": 0.2067112969937438
+    },
+    "protocol_version": "candidate4-public-support-calibration-v1",
+    "sample_size": 250,
+    "seed": 2026092202,
+    "structural_class": "STRUCTURALLY_OVERLAP_ONLY",
+    "support_level": "overlap_only"
+  },
+  {
+    "evaluator_diagnostic_only": {
+      "latent_confounding_present": false,
+      "oracle_recoverability": true
+    },
+    "finite_sample_limited": false,
+    "latent_confounding_level": 0.0,
+    "measurement_condition": "perfect",
+    "measurement_limited": false,
+    "observable_diagnostics": {
+      "central_fraction_010_090": 0.772,
+      "control_ess": 2729.356715760912,
+      "fraction_005_095": 1.0,
+      "fraction_010_090": 0.772,
+      "normalized_control_ess": 0.5458713431521823,
+      "normalized_overlap_mass": 0.6043487515418856,
+      "normalized_treated_ess": 0.14162865684781767,
+      "overlap_weighted_ess": 3021.743757709428,
+      "propensity_max": 0.43782349911420193,
+      "propensity_min": 0.060086650174007626,
+      "treated_ess": 708.1432842390883,
+      "treatment_prevalence": 0.20600531905137112
+    },
+    "protocol_version": "candidate4-public-support-calibration-v1",
+    "sample_size": 5000,
+    "seed": 2026092201,
+    "structural_class": "STRUCTURALLY_OVERLAP_ONLY",
+    "support_level": "overlap_only"
+  },
+  {
+    "evaluator_diagnostic_only": {
+      "latent_confounding_present": false,
+      "oracle_recoverability": true
+    },
+    "finite_sample_limited": false,
+    "latent_confounding_level": 0.0,
+    "measurement_condition": "perfect",
+    "measurement_limited": false,
+    "observable_diagnostics": {
+      "central_fraction_010_090": 0.7722,
+      "control_ess": 2729.224239201769,
+      "fraction_005_095": 1.0,
+      "fraction_010_090": 0.7722,
+      "normalized_control_ess": 0.5458448478403538,
+      "normalized_overlap_mass": 0.604425543016216,
+      "normalized_treated_ess": 0.1416551521596462,
+      "overlap_weighted_ess": 3022.1277150810797,
+      "propensity_max": 0.43782349911420193,
+      "propensity_min": 0.060086650174007626,
+      "treated_ess": 708.275760798231,
+      "treatment_prevalence": 0.20604385768675812
+    },
+    "protocol_version": "candidate4-public-support-calibration-v1",
+    "sample_size": 5000,
+    "seed": 2026092202,
+    "structural_class": "STRUCTURALLY_OVERLAP_ONLY",
+    "support_level": "overlap_only"
+  },
+  {
+    "evaluator_diagnostic_only": {
+      "latent_confounding_present": true,
+      "oracle_recoverability": false
+    },
+    "finite_sample_limited": false,
+    "latent_confounding_level": 1.0,
+    "measurement_condition": "perfect",
+    "measurement_limited": false,
+    "observable_diagnostics": {
+      "central_fraction_010_090": 0.772,
+      "control_ess": 2729.356715760912,
+      "fraction_005_095": 1.0,
+      "fraction_010_090": 0.772,
+      "normalized_control_ess": 0.5458713431521823,
+      "normalized_overlap_mass": 0.6043487515418856,
+      "normalized_treated_ess": 0.14162865684781767,
+      "overlap_weighted_ess": 3021.743757709428,
+      "propensity_max": 0.43782349911420193,
+      "propensity_min": 0.060086650174007626,
+      "treated_ess": 708.1432842390883,
+      "treatment_prevalence": 0.20600531905137112
+    },
+    "protocol_version": "candidate4-public-support-calibration-v1",
+    "sample_size": 5000,
+    "seed": 2026092201,
+    "structural_class": "STRUCTURALLY_OVERLAP_ONLY",
+    "support_level": "overlap_only"
+  },
+  {
+    "evaluator_diagnostic_only": {
+      "latent_confounding_present": true,
+      "oracle_recoverability": false
+    },
+    "finite_sample_limited": false,
+    "latent_confounding_level": 1.0,
+    "measurement_condition": "perfect",
+    "measurement_limited": false,
+    "observable_diagnostics": {
+      "central_fraction_010_090": 0.7722,
+      "control_ess": 2729.224239201769,
+      "fraction_005_095": 1.0,
+      "fraction_010_090": 0.7722,
+      "normalized_control_ess": 0.5458448478403538,
+      "normalized_overlap_mass": 0.604425543016216,
+      "normalized_treated_ess": 0.1416551521596462,
+      "overlap_weighted_ess": 3022.1277150810797,
+      "propensity_max": 0.43782349911420193,
+      "propensity_min": 0.060086650174007626,
+      "treated_ess": 708.275760798231,
+      "treatment_prevalence": 0.20604385768675812
+    },
+    "protocol_version": "candidate4-public-support-calibration-v1",
+    "sample_size": 5000,
+    "seed": 2026092202,
+    "structural_class": "STRUCTURALLY_OVERLAP_ONLY",
+    "support_level": "overlap_only"
+  },
+  {
+    "evaluator_diagnostic_only": {
+      "latent_confounding_present": false,
+      "oracle_recoverability": true
+    },
+    "finite_sample_limited": false,
+    "latent_confounding_level": 0.0,
+    "measurement_condition": "damaged",
+    "measurement_limited": true,
+    "observable_diagnostics": {
+      "central_fraction_010_090": 0.552,
+      "control_ess": 2729.356715760912,
+      "fraction_005_095": 1.0,
+      "fraction_010_090": 0.552,
+      "normalized_control_ess": 0.5458713431521823,
+      "normalized_overlap_mass": 0.6043487515418856,
+      "normalized_treated_ess": 0.14162865684781767,
+      "overlap_weighted_ess": 3021.743757709428,
+      "propensity_max": 0.43782349911420193,
+      "propensity_min": 0.060086650174007626,
+      "treated_ess": 708.1432842390883,
+      "treatment_prevalence": 0.20600531905137112
+    },
+    "protocol_version": "candidate4-public-support-calibration-v1",
+    "sample_size": 5000,
+    "seed": 2026092201,
+    "structural_class": "STRUCTURALLY_OVERLAP_ONLY",
+    "support_level": "overlap_only"
+  },
+  {
+    "evaluator_diagnostic_only": {
+      "latent_confounding_present": false,
+      "oracle_recoverability": true
+    },
+    "finite_sample_limited": false,
+    "latent_confounding_level": 0.0,
+    "measurement_condition": "damaged",
+    "measurement_limited": true,
+    "observable_diagnostics": {
+      "central_fraction_010_090": 0.5522,
+      "control_ess": 2729.224239201769,
+      "fraction_005_095": 1.0,
+      "fraction_010_090": 0.5522,
+      "normalized_control_ess": 0.5458448478403538,
+      "normalized_overlap_mass": 0.604425543016216,
+      "normalized_treated_ess": 0.1416551521596462,
+      "overlap_weighted_ess": 3022.1277150810797,
+      "propensity_max": 0.43782349911420193,
+      "propensity_min": 0.060086650174007626,
+      "treated_ess": 708.275760798231,
+      "treatment_prevalence": 0.20604385768675812
+    },
+    "protocol_version": "candidate4-public-support-calibration-v1",
+    "sample_size": 5000,
+    "seed": 2026092202,
+    "structural_class": "STRUCTURALLY_OVERLAP_ONLY",
+    "support_level": "overlap_only"
+  },
+  {
+    "evaluator_diagnostic_only": {
+      "latent_confounding_present": true,
+      "oracle_recoverability": false
+    },
+    "finite_sample_limited": false,
+    "latent_confounding_level": 1.0,
+    "measurement_condition": "damaged",
+    "measurement_limited": true,
+    "observable_diagnostics": {
+      "central_fraction_010_090": 0.552,
+      "control_ess": 2729.356715760912,
+      "fraction_005_095": 1.0,
+      "fraction_010_090": 0.552,
+      "normalized_control_ess": 0.5458713431521823,
+      "normalized_overlap_mass": 0.6043487515418856,
+      "normalized_treated_ess": 0.14162865684781767,
+      "overlap_weighted_ess": 3021.743757709428,
+      "propensity_max": 0.43782349911420193,
+      "propensity_min": 0.060086650174007626,
+      "treated_ess": 708.1432842390883,
+      "treatment_prevalence": 0.20600531905137112
+    },
+    "protocol_version": "candidate4-public-support-calibration-v1",
+    "sample_size": 5000,
+    "seed": 2026092201,
+    "structural_class": "STRUCTURALLY_OVERLAP_ONLY",
+    "support_level": "overlap_only"
+  },
+  {
+    "evaluator_diagnostic_only": {
+      "latent_confounding_present": true,
+      "oracle_recoverability": false
+    },
+    "finite_sample_limited": false,
+    "latent_confounding_level": 1.0,
+    "measurement_condition": "damaged",
+    "measurement_limited": true,
+    "observable_diagnostics": {
+      "central_fraction_010_090": 0.5522,
+      "control_ess": 2729.224239201769,
+      "fraction_005_095": 1.0,
+      "fraction_010_090": 0.5522,
+      "normalized_control_ess": 0.5458448478403538,
+      "normalized_overlap_mass": 0.604425543016216,
+      "normalized_treated_ess": 0.1416551521596462,
+      "overlap_weighted_ess": 3022.1277150810797,
+      "propensity_max": 0.43782349911420193,
+      "propensity_min": 0.060086650174007626,
+      "treated_ess": 708.275760798231,
+      "treatment_prevalence": 0.20604385768675812
+    },
+    "protocol_version": "candidate4-public-support-calibration-v1",
+    "sample_size": 5000,
+    "seed": 2026092202,
+    "structural_class": "STRUCTURALLY_OVERLAP_ONLY",
+    "support_level": "overlap_only"
+  },
+  {
+    "evaluator_diagnostic_only": {
+      "latent_confounding_present": false,
+      "oracle_recoverability": false
+    },
+    "finite_sample_limited": true,
+    "latent_confounding_level": 0.0,
+    "measurement_condition": "perfect",
+    "measurement_limited": false,
+    "observable_diagnostics": {
+      "central_fraction_010_090": 0.275,
+      "control_ess": 35.45737065116089,
+      "fraction_005_095": 0.4375,
+      "fraction_010_090": 0.275,
+      "normalized_control_ess": 0.44321713313951117,
+      "normalized_overlap_mass": 0.23230159106713122,
+      "normalized_treated_ess": 0.03178286686048886,
+      "overlap_weighted_ess": 18.5841272853705,
+      "propensity_max": 0.2419533478549745,
+      "propensity_min": 0.004966801650056957,
+      "treated_ess": 2.542629348839109,
+      "treatment_prevalence": 0.06691129865366077
+    },
+    "protocol_version": "candidate4-public-support-calibration-v1",
+    "sample_size": 80,
+    "seed": 2026092201,
+    "structural_class": "STRUCTURALLY_UNSUPPORTED",
+    "support_level": "unsupported"
+  },
+  {
+    "evaluator_diagnostic_only": {
+      "latent_confounding_present": false,
+      "oracle_recoverability": false
+    },
+    "finite_sample_limited": true,
+    "latent_confounding_level": 0.0,
+    "measurement_condition": "perfect",
+    "measurement_limited": false,
+    "observable_diagnostics": {
+      "central_fraction_010_090": 0.275,
+      "control_ess": 35.363218480354284,
+      "fraction_005_095": 0.45,
+      "fraction_010_090": 0.275,
+      "normalized_control_ess": 0.4420402310044286,
+      "normalized_overlap_mass": 0.23966392227525607,
+      "normalized_treated_ess": 0.03295976899557146,
+      "overlap_weighted_ess": 19.173113782020486,
+      "propensity_max": 0.24973989440488234,
+      "propensity_min": 0.0051787466943639055,
+      "treated_ess": 2.6367815196457167,
+      "treatment_prevalence": 0.0693889873590978
+    },
+    "protocol_version": "candidate4-public-support-calibration-v1",
+    "sample_size": 80,
+    "seed": 2026092202,
+    "structural_class": "STRUCTURALLY_UNSUPPORTED",
+    "support_level": "unsupported"
+  },
+  {
+    "evaluator_diagnostic_only": {
+      "latent_confounding_present": true,
+      "oracle_recoverability": false
+    },
+    "finite_sample_limited": true,
+    "latent_confounding_level": 1.0,
+    "measurement_condition": "perfect",
+    "measurement_limited": false,
+    "observable_diagnostics": {
+      "central_fraction_010_090": 0.275,
+      "control_ess": 35.45737065116089,
+      "fraction_005_095": 0.4375,
+      "fraction_010_090": 0.275,
+      "normalized_control_ess": 0.44321713313951117,
+      "normalized_overlap_mass": 0.23230159106713122,
+      "normalized_treated_ess": 0.03178286686048886,
+      "overlap_weighted_ess": 18.5841272853705,
+      "propensity_max": 0.2419533478549745,
+      "propensity_min": 0.004966801650056957,
+      "treated_ess": 2.542629348839109,
+      "treatment_prevalence": 0.06691129865366077
+    },
+    "protocol_version": "candidate4-public-support-calibration-v1",
+    "sample_size": 80,
+    "seed": 2026092201,
+    "structural_class": "STRUCTURALLY_UNSUPPORTED",
+    "support_level": "unsupported"
+  },
+  {
+    "evaluator_diagnostic_only": {
+      "latent_confounding_present": true,
+      "oracle_recoverability": false
+    },
+    "finite_sample_limited": true,
+    "latent_confounding_level": 1.0,
+    "measurement_condition": "perfect",
+    "measurement_limited": false,
+    "observable_diagnostics": {
+      "central_fraction_010_090": 0.275,
+      "control_ess": 35.363218480354284,
+      "fraction_005_095": 0.45,
+      "fraction_010_090": 0.275,
+      "normalized_control_ess": 0.4420402310044286,
+      "normalized_overlap_mass": 0.23966392227525607,
+      "normalized_treated_ess": 0.03295976899557146,
+      "overlap_weighted_ess": 19.173113782020486,
+      "propensity_max": 0.24973989440488234,
+      "propensity_min": 0.0051787466943639055,
+      "treated_ess": 2.6367815196457167,
+      "treatment_prevalence": 0.0693889873590978
+    },
+    "protocol_version": "candidate4-public-support-calibration-v1",
+    "sample_size": 80,
+    "seed": 2026092202,
+    "structural_class": "STRUCTURALLY_UNSUPPORTED",
+    "support_level": "unsupported"
+  },
+  {
+    "evaluator_diagnostic_only": {
+      "latent_confounding_present": false,
+      "oracle_recoverability": false
+    },
+    "finite_sample_limited": true,
+    "latent_confounding_level": 0.0,
+    "measurement_condition": "damaged",
+    "measurement_limited": true,
+    "observable_diagnostics": {
+      "central_fraction_010_090": 0.05500000000000002,
+      "control_ess": 35.45737065116089,
+      "fraction_005_095": 0.4375,
+      "fraction_010_090": 0.05500000000000002,
+      "normalized_control_ess": 0.44321713313951117,
+      "normalized_overlap_mass": 0.23230159106713122,
+      "normalized_treated_ess": 0.03178286686048886,
+      "overlap_weighted_ess": 18.5841272853705,
+      "propensity_max": 0.2419533478549745,
+      "propensity_min": 0.004966801650056957,
+      "treated_ess": 2.542629348839109,
+      "treatment_prevalence": 0.06691129865366077
+    },
+    "protocol_version": "candidate4-public-support-calibration-v1",
+    "sample_size": 80,
+    "seed": 2026092201,
+    "structural_class": "STRUCTURALLY_UNSUPPORTED",
+    "support_level": "unsupported"
+  },
+  {
+    "evaluator_diagnostic_only": {
+      "latent_confounding_present": false,
+      "oracle_recoverability": false
+    },
+    "finite_sample_limited": true,
+    "latent_confounding_level": 0.0,
+    "measurement_condition": "damaged",
+    "measurement_limited": true,
+    "observable_diagnostics": {
+      "central_fraction_010_090": 0.05500000000000002,
+      "control_ess": 35.363218480354284,
+      "fraction_005_095": 0.45,
+      "fraction_010_090": 0.05500000000000002,
+      "normalized_control_ess": 0.4420402310044286,
+      "normalized_overlap_mass": 0.23966392227525607,
+      "normalized_treated_ess": 0.03295976899557146,
+      "overlap_weighted_ess": 19.173113782020486,
+      "propensity_max": 0.24973989440488234,
+      "propensity_min": 0.0051787466943639055,
+      "treated_ess": 2.6367815196457167,
+      "treatment_prevalence": 0.0693889873590978
+    },
+    "protocol_version": "candidate4-public-support-calibration-v1",
+    "sample_size": 80,
+    "seed": 2026092202,
+    "structural_class": "STRUCTURALLY_UNSUPPORTED",
+    "support_level": "unsupported"
+  },
+  {
+    "evaluator_diagnostic_only": {
+      "latent_confounding_present": true,
+      "oracle_recoverability": false
+    },
+    "finite_sample_limited": true,
+    "latent_confounding_level": 1.0,
+    "measurement_condition": "damaged",
+    "measurement_limited": true,
+    "observable_diagnostics": {
+      "central_fraction_010_090": 0.05500000000000002,
+      "control_ess": 35.45737065116089,
+      "fraction_005_095": 0.4375,
+      "fraction_010_090": 0.05500000000000002,
+      "normalized_control_ess": 0.44321713313951117,
+      "normalized_overlap_mass": 0.23230159106713122,
+      "normalized_treated_ess": 0.03178286686048886,
+      "overlap_weighted_ess": 18.5841272853705,
+      "propensity_max": 0.2419533478549745,
+      "propensity_min": 0.004966801650056957,
+      "treated_ess": 2.542629348839109,
+      "treatment_prevalence": 0.06691129865366077
+    },
+    "protocol_version": "candidate4-public-support-calibration-v1",
+    "sample_size": 80,
+    "seed": 2026092201,
+    "structural_class": "STRUCTURALLY_UNSUPPORTED",
+    "support_level": "unsupported"
+  },
+  {
+    "evaluator_diagnostic_only": {
+      "latent_confounding_present": true,
+      "oracle_recoverability": false
+    },
+    "finite_sample_limited": true,
+    "latent_confounding_level": 1.0,
+    "measurement_condition": "damaged",
+    "measurement_limited": true,
+    "observable_diagnostics": {
+      "central_fraction_010_090": 0.05500000000000002,
+      "control_ess": 35.363218480354284,
+      "fraction_005_095": 0.45,
+      "fraction_010_090": 0.05500000000000002,
+      "normalized_control_ess": 0.4420402310044286,
+      "normalized_overlap_mass": 0.23966392227525607,
+      "normalized_treated_ess": 0.03295976899557146,
+      "overlap_weighted_ess": 19.173113782020486,
+      "propensity_max": 0.24973989440488234,
+      "propensity_min": 0.0051787466943639055,
+      "treated_ess": 2.6367815196457167,
+      "treatment_prevalence": 0.0693889873590978
+    },
+    "protocol_version": "candidate4-public-support-calibration-v1",
+    "sample_size": 80,
+    "seed": 2026092202,
+    "structural_class": "STRUCTURALLY_UNSUPPORTED",
+    "support_level": "unsupported"
+  },
+  {
+    "evaluator_diagnostic_only": {
+      "latent_confounding_present": false,
+      "oracle_recoverability": false
+    },
+    "finite_sample_limited": false,
+    "latent_confounding_level": 0.0,
+    "measurement_condition": "perfect",
+    "measurement_limited": false,
+    "observable_diagnostics": {
+      "central_fraction_010_090": 0.268,
+      "control_ess": 110.6947229816822,
+      "fraction_005_095": 0.436,
+      "fraction_010_090": 0.268,
+      "normalized_control_ess": 0.4427788919267288,
+      "normalized_overlap_mass": 0.23468005279624107,
+      "normalized_treated_ess": 0.032221108073271165,
+      "overlap_weighted_ess": 58.67001319906027,
+      "propensity_max": 0.24973989440488234,
+      "propensity_min": 0.004966801650056957,
+      "treated_ess": 8.055277018317792,
+      "treatment_prevalence": 0.06783391173320245
+    },
+    "protocol_version": "candidate4-public-support-calibration-v1",
+    "sample_size": 250,
+    "seed": 2026092201,
+    "structural_class": "STRUCTURALLY_UNSUPPORTED",
+    "support_level": "unsupported"
+  },
+  {
+    "evaluator_diagnostic_only": {
+      "latent_confounding_present": false,
+      "oracle_recoverability": false
+    },
+    "finite_sample_limited": false,
+    "latent_confounding_level": 0.0,
+    "measurement_condition": "perfect",
+    "measurement_limited": false,
+    "observable_diagnostics": {
+      "central_fraction_010_090": 0.268,
+      "control_ess": 110.637607462221,
+      "fraction_005_095": 0.44,
+      "fraction_010_090": 0.268,
+      "normalized_control_ess": 0.442550429848884,
+      "normalized_overlap_mass": 0.23609996003193676,
+      "normalized_treated_ess": 0.032449570151116026,
+      "overlap_weighted_ess": 59.02499000798419,
+      "propensity_max": 0.24973989440488234,
+      "propensity_min": 0.004966801650056957,
+      "treated_ess": 8.112392537779007,
+      "treatment_prevalence": 0.06831488452866533
+    },
+    "protocol_version": "candidate4-public-support-calibration-v1",
+    "sample_size": 250,
+    "seed": 2026092202,
+    "structural_class": "STRUCTURALLY_UNSUPPORTED",
+    "support_level": "unsupported"
+  },
+  {
+    "evaluator_diagnostic_only": {
+      "latent_confounding_present": true,
+      "oracle_recoverability": false
+    },
+    "finite_sample_limited": false,
+    "latent_confounding_level": 1.0,
+    "measurement_condition": "perfect",
+    "measurement_limited": false,
+    "observable_diagnostics": {
+      "central_fraction_010_090": 0.268,
+      "control_ess": 110.6947229816822,
+      "fraction_005_095": 0.436,
+      "fraction_010_090": 0.268,
+      "normalized_control_ess": 0.4427788919267288,
+      "normalized_overlap_mass": 0.23468005279624107,
+      "normalized_treated_ess": 0.032221108073271165,
+      "overlap_weighted_ess": 58.67001319906027,
+      "propensity_max": 0.24973989440488234,
+      "propensity_min": 0.004966801650056957,
+      "treated_ess": 8.055277018317792,
+      "treatment_prevalence": 0.06783391173320245
+    },
+    "protocol_version": "candidate4-public-support-calibration-v1",
+    "sample_size": 250,
+    "seed": 2026092201,
+    "structural_class": "STRUCTURALLY_UNSUPPORTED",
+    "support_level": "unsupported"
+  },
+  {
+    "evaluator_diagnostic_only": {
+      "latent_confounding_present": true,
+      "oracle_recoverability": false
+    },
+    "finite_sample_limited": false,
+    "latent_confounding_level": 1.0,
+    "measurement_condition": "perfect",
+    "measurement_limited": false,
+    "observable_diagnostics": {
+      "central_fraction_010_090": 0.268,
+      "control_ess": 110.637607462221,
+      "fraction_005_095": 0.44,
+      "fraction_010_090": 0.268,
+      "normalized_control_ess": 0.442550429848884,
+      "normalized_overlap_mass": 0.23609996003193676,
+      "normalized_treated_ess": 0.032449570151116026,
+      "overlap_weighted_ess": 59.02499000798419,
+      "propensity_max": 0.24973989440488234,
+      "propensity_min": 0.004966801650056957,
+      "treated_ess": 8.112392537779007,
+      "treatment_prevalence": 0.06831488452866533
+    },
+    "protocol_version": "candidate4-public-support-calibration-v1",
+    "sample_size": 250,
+    "seed": 2026092202,
+    "structural_class": "STRUCTURALLY_UNSUPPORTED",
+    "support_level": "unsupported"
+  },
+  {
+    "evaluator_diagnostic_only": {
+      "latent_confounding_present": false,
+      "oracle_recoverability": false
+    },
+    "finite_sample_limited": false,
+    "latent_confounding_level": 0.0,
+    "measurement_condition": "damaged",
+    "measurement_limited": true,
+    "observable_diagnostics": {
+      "central_fraction_010_090": 0.048000000000000015,
+      "control_ess": 110.6947229816822,
+      "fraction_005_095": 0.436,
+      "fraction_010_090": 0.048000000000000015,
+      "normalized_control_ess": 0.4427788919267288,
+      "normalized_overlap_mass": 0.23468005279624107,
+      "normalized_treated_ess": 0.032221108073271165,
+      "overlap_weighted_ess": 58.67001319906027,
+      "propensity_max": 0.24973989440488234,
+      "propensity_min": 0.004966801650056957,
+      "treated_ess": 8.055277018317792,
+      "treatment_prevalence": 0.06783391173320245
+    },
+    "protocol_version": "candidate4-public-support-calibration-v1",
+    "sample_size": 250,
+    "seed": 2026092201,
+    "structural_class": "STRUCTURALLY_UNSUPPORTED",
+    "support_level": "unsupported"
+  },
+  {
+    "evaluator_diagnostic_only": {
+      "latent_confounding_present": false,
+      "oracle_recoverability": false
+    },
+    "finite_sample_limited": false,
+    "latent_confounding_level": 0.0,
+    "measurement_condition": "damaged",
+    "measurement_limited": true,
+    "observable_diagnostics": {
+      "central_fraction_010_090": 0.048000000000000015,
+      "control_ess": 110.637607462221,
+      "fraction_005_095": 0.44,
+      "fraction_010_090": 0.048000000000000015,
+      "normalized_control_ess": 0.442550429848884,
+      "normalized_overlap_mass": 0.23609996003193676,
+      "normalized_treated_ess": 0.032449570151116026,
+      "overlap_weighted_ess": 59.02499000798419,
+      "propensity_max": 0.24973989440488234,
+      "propensity_min": 0.004966801650056957,
+      "treated_ess": 8.112392537779007,
+      "treatment_prevalence": 0.06831488452866533
+    },
+    "protocol_version": "candidate4-public-support-calibration-v1",
+    "sample_size": 250,
+    "seed": 2026092202,
+    "structural_class": "STRUCTURALLY_UNSUPPORTED",
+    "support_level": "unsupported"
+  },
+  {
+    "evaluator_diagnostic_only": {
+      "latent_confounding_present": true,
+      "oracle_recoverability": false
+    },
+    "finite_sample_limited": false,
+    "latent_confounding_level": 1.0,
+    "measurement_condition": "damaged",
+    "measurement_limited": true,
+    "observable_diagnostics": {
+      "central_fraction_010_090": 0.048000000000000015,
+      "control_ess": 110.6947229816822,
+      "fraction_005_095": 0.436,
+      "fraction_010_090": 0.048000000000000015,
+      "normalized_control_ess": 0.4427788919267288,
+      "normalized_overlap_mass": 0.23468005279624107,
+      "normalized_treated_ess": 0.032221108073271165,
+      "overlap_weighted_ess": 58.67001319906027,
+      "propensity_max": 0.24973989440488234,
+      "propensity_min": 0.004966801650056957,
+      "treated_ess": 8.055277018317792,
+      "treatment_prevalence": 0.06783391173320245
+    },
+    "protocol_version": "candidate4-public-support-calibration-v1",
+    "sample_size": 250,
+    "seed": 2026092201,
+    "structural_class": "STRUCTURALLY_UNSUPPORTED",
+    "support_level": "unsupported"
+  },
+  {
+    "evaluator_diagnostic_only": {
+      "latent_confounding_present": true,
+      "oracle_recoverability": false
+    },
+    "finite_sample_limited": false,
+    "latent_confounding_level": 1.0,
+    "measurement_condition": "damaged",
+    "measurement_limited": true,
+    "observable_diagnostics": {
+      "central_fraction_010_090": 0.048000000000000015,
+      "control_ess": 110.637607462221,
+      "fraction_005_095": 0.44,
+      "fraction_010_090": 0.048000000000000015,
+      "normalized_control_ess": 0.442550429848884,
+      "normalized_overlap_mass": 0.23609996003193676,
+      "normalized_treated_ess": 0.032449570151116026,
+      "overlap_weighted_ess": 59.02499000798419,
+      "propensity_max": 0.24973989440488234,
+      "propensity_min": 0.004966801650056957,
+      "treated_ess": 8.112392537779007,
+      "treatment_prevalence": 0.06831488452866533
+    },
+    "protocol_version": "candidate4-public-support-calibration-v1",
+    "sample_size": 250,
+    "seed": 2026092202,
+    "structural_class": "STRUCTURALLY_UNSUPPORTED",
+    "support_level": "unsupported"
+  },
+  {
+    "evaluator_diagnostic_only": {
+      "latent_confounding_present": false,
+      "oracle_recoverability": false
+    },
+    "finite_sample_limited": false,
+    "latent_confounding_level": 0.0,
+    "measurement_condition": "perfect",
+    "measurement_limited": false,
+    "observable_diagnostics": {
+      "central_fraction_010_090": 0.2674,
+      "control_ess": 2213.9289938141446,
+      "fraction_005_095": 0.4356,
+      "fraction_010_090": 0.2674,
+      "normalized_control_ess": 0.4427857987628289,
+      "normalized_overlap_mass": 0.2346020419610878,
+      "normalized_treated_ess": 0.032214201237171086,
+      "overlap_weighted_ess": 1173.010209805439,
+      "propensity_max": 0.24973989440488234,
+      "propensity_min": 0.004966801650056957,
+      "treated_ess": 161.07100618585542,
+      "treatment_prevalence": 0.06781937102562334
+    },
+    "protocol_version": "candidate4-public-support-calibration-v1",
+    "sample_size": 5000,
+    "seed": 2026092201,
+    "structural_class": "STRUCTURALLY_UNSUPPORTED",
+    "support_level": "unsupported"
+  },
+  {
+    "evaluator_diagnostic_only": {
+      "latent_confounding_present": false,
+      "oracle_recoverability": false
+    },
+    "finite_sample_limited": false,
+    "latent_confounding_level": 0.0,
+    "measurement_condition": "perfect",
+    "measurement_limited": false,
+    "observable_diagnostics": {
+      "central_fraction_010_090": 0.2674,
+      "control_ess": 2213.8690706427637,
+      "fraction_005_095": 0.4358,
+      "fraction_010_090": 0.2674,
+      "normalized_control_ess": 0.44277381412855277,
+      "normalized_overlap_mass": 0.23467687316953104,
+      "normalized_treated_ess": 0.032226185871447266,
+      "overlap_weighted_ess": 1173.384365847655,
+      "propensity_max": 0.24973989440488234,
+      "propensity_min": 0.004966801650056957,
+      "treated_ess": 161.13092935723634,
+      "treatment_prevalence": 0.06784460183462583
+    },
+    "protocol_version": "candidate4-public-support-calibration-v1",
+    "sample_size": 5000,
+    "seed": 2026092202,
+    "structural_class": "STRUCTURALLY_UNSUPPORTED",
+    "support_level": "unsupported"
+  },
+  {
+    "evaluator_diagnostic_only": {
+      "latent_confounding_present": true,
+      "oracle_recoverability": false
+    },
+    "finite_sample_limited": false,
+    "latent_confounding_level": 1.0,
+    "measurement_condition": "perfect",
+    "measurement_limited": false,
+    "observable_diagnostics": {
+      "central_fraction_010_090": 0.2674,
+      "control_ess": 2213.9289938141446,
+      "fraction_005_095": 0.4356,
+      "fraction_010_090": 0.2674,
+      "normalized_control_ess": 0.4427857987628289,
+      "normalized_overlap_mass": 0.2346020419610878,
+      "normalized_treated_ess": 0.032214201237171086,
+      "overlap_weighted_ess": 1173.010209805439,
+      "propensity_max": 0.24973989440488234,
+      "propensity_min": 0.004966801650056957,
+      "treated_ess": 161.07100618585542,
+      "treatment_prevalence": 0.06781937102562334
+    },
+    "protocol_version": "candidate4-public-support-calibration-v1",
+    "sample_size": 5000,
+    "seed": 2026092201,
+    "structural_class": "STRUCTURALLY_UNSUPPORTED",
+    "support_level": "unsupported"
+  },
+  {
+    "evaluator_diagnostic_only": {
+      "latent_confounding_present": true,
+      "oracle_recoverability": false
+    },
+    "finite_sample_limited": false,
+    "latent_confounding_level": 1.0,
+    "measurement_condition": "perfect",
+    "measurement_limited": false,
+    "observable_diagnostics": {
+      "central_fraction_010_090": 0.2674,
+      "control_ess": 2213.8690706427637,
+      "fraction_005_095": 0.4358,
+      "fraction_010_090": 0.2674,
+      "normalized_control_ess": 0.44277381412855277,
+      "normalized_overlap_mass": 0.23467687316953104,
+      "normalized_treated_ess": 0.032226185871447266,
+      "overlap_weighted_ess": 1173.384365847655,
+      "propensity_max": 0.24973989440488234,
+      "propensity_min": 0.004966801650056957,
+      "treated_ess": 161.13092935723634,
+      "treatment_prevalence": 0.06784460183462583
+    },
+    "protocol_version": "candidate4-public-support-calibration-v1",
+    "sample_size": 5000,
+    "seed": 2026092202,
+    "structural_class": "STRUCTURALLY_UNSUPPORTED",
+    "support_level": "unsupported"
+  },
+  {
+    "evaluator_diagnostic_only": {
+      "latent_confounding_present": false,
+      "oracle_recoverability": false
+    },
+    "finite_sample_limited": false,
+    "latent_confounding_level": 0.0,
+    "measurement_condition": "damaged",
+    "measurement_limited": true,
+    "observable_diagnostics": {
+      "central_fraction_010_090": 0.047400000000000025,
+      "control_ess": 2213.9289938141446,
+      "fraction_005_095": 0.4356,
+      "fraction_010_090": 0.047400000000000025,
+      "normalized_control_ess": 0.4427857987628289,
+      "normalized_overlap_mass": 0.2346020419610878,
+      "normalized_treated_ess": 0.032214201237171086,
+      "overlap_weighted_ess": 1173.010209805439,
+      "propensity_max": 0.24973989440488234,
+      "propensity_min": 0.004966801650056957,
+      "treated_ess": 161.07100618585542,
+      "treatment_prevalence": 0.06781937102562334
+    },
+    "protocol_version": "candidate4-public-support-calibration-v1",
+    "sample_size": 5000,
+    "seed": 2026092201,
+    "structural_class": "STRUCTURALLY_UNSUPPORTED",
+    "support_level": "unsupported"
+  },
+  {
+    "evaluator_diagnostic_only": {
+      "latent_confounding_present": false,
+      "oracle_recoverability": false
+    },
+    "finite_sample_limited": false,
+    "latent_confounding_level": 0.0,
+    "measurement_condition": "damaged",
+    "measurement_limited": true,
+    "observable_diagnostics": {
+      "central_fraction_010_090": 0.047400000000000025,
+      "control_ess": 2213.8690706427637,
+      "fraction_005_095": 0.4358,
+      "fraction_010_090": 0.047400000000000025,
+      "normalized_control_ess": 0.44277381412855277,
+      "normalized_overlap_mass": 0.23467687316953104,
+      "normalized_treated_ess": 0.032226185871447266,
+      "overlap_weighted_ess": 1173.384365847655,
+      "propensity_max": 0.24973989440488234,
+      "propensity_min": 0.004966801650056957,
+      "treated_ess": 161.13092935723634,
+      "treatment_prevalence": 0.06784460183462583
+    },
+    "protocol_version": "candidate4-public-support-calibration-v1",
+    "sample_size": 5000,
+    "seed": 2026092202,
+    "structural_class": "STRUCTURALLY_UNSUPPORTED",
+    "support_level": "unsupported"
+  },
+  {
+    "evaluator_diagnostic_only": {
+      "latent_confounding_present": true,
+      "oracle_recoverability": false
+    },
+    "finite_sample_limited": false,
+    "latent_confounding_level": 1.0,
+    "measurement_condition": "damaged",
+    "measurement_limited": true,
+    "observable_diagnostics": {
+      "central_fraction_010_090": 0.047400000000000025,
+      "control_ess": 2213.9289938141446,
+      "fraction_005_095": 0.4356,
+      "fraction_010_090": 0.047400000000000025,
+      "normalized_control_ess": 0.4427857987628289,
+      "normalized_overlap_mass": 0.2346020419610878,
+      "normalized_treated_ess": 0.032214201237171086,
+      "overlap_weighted_ess": 1173.010209805439,
+      "propensity_max": 0.24973989440488234,
+      "propensity_min": 0.004966801650056957,
+      "treated_ess": 161.07100618585542,
+      "treatment_prevalence": 0.06781937102562334
+    },
+    "protocol_version": "candidate4-public-support-calibration-v1",
+    "sample_size": 5000,
+    "seed": 2026092201,
+    "structural_class": "STRUCTURALLY_UNSUPPORTED",
+    "support_level": "unsupported"
+  },
+  {
+    "evaluator_diagnostic_only": {
+      "latent_confounding_present": true,
+      "oracle_recoverability": false
+    },
+    "finite_sample_limited": false,
+    "latent_confounding_level": 1.0,
+    "measurement_condition": "damaged",
+    "measurement_limited": true,
+    "observable_diagnostics": {
+      "central_fraction_010_090": 0.047400000000000025,
+      "control_ess": 2213.8690706427637,
+      "fraction_005_095": 0.4358,
+      "fraction_010_090": 0.047400000000000025,
+      "normalized_control_ess": 0.44277381412855277,
+      "normalized_overlap_mass": 0.23467687316953104,
+      "normalized_treated_ess": 0.032226185871447266,
+      "overlap_weighted_ess": 1173.384365847655,
+      "propensity_max": 0.24973989440488234,
+      "propensity_min": 0.004966801650056957,
+      "treated_ess": 161.13092935723634,
+      "treatment_prevalence": 0.06784460183462583
+    },
+    "protocol_version": "candidate4-public-support-calibration-v1",
+    "sample_size": 5000,
+    "seed": 2026092202,
+    "structural_class": "STRUCTURALLY_UNSUPPORTED",
+    "support_level": "unsupported"
+  },
+  {
+    "evaluator_diagnostic_only": {
+      "latent_confounding_present": false,
+      "oracle_recoverability": true
+    },
+    "finite_sample_limited": true,
+    "latent_confounding_level": 0.0,
+    "measurement_condition": "perfect",
+    "measurement_limited": false,
+    "observable_diagnostics": {
+      "central_fraction_010_090": 0.5625,
+      "control_ess": 41.67728940845869,
+      "fraction_005_095": 0.8,
+      "fraction_010_090": 0.5625,
+      "normalized_control_ess": 0.5209661176057336,
+      "normalized_overlap_mass": 0.46498821116742484,
+      "normalized_treated_ess": 0.09153388239426638,
+      "overlap_weighted_ess": 37.19905689339399,
+      "propensity_max": 0.3820160176136094,
+      "propensity_min": 0.027922573784073024,
+      "treated_ess": 7.322710591541311,
+      "treatment_prevalence": 0.14944307329676143
+    },
+    "protocol_version": "candidate4-public-support-calibration-v1",
+    "sample_size": 80,
+    "seed": 2026092201,
+    "structural_class": "STRUCTURALLY_OVERLAP_ONLY",
+    "support_level": "boundary"
+  },
+  {
+    "evaluator_diagnostic_only": {
+      "latent_confounding_present": false,
+      "oracle_recoverability": true
+    },
+    "finite_sample_limited": true,
+    "latent_confounding_level": 0.0,
+    "measurement_condition": "perfect",
+    "measurement_limited": false,
+    "observable_diagnostics": {
+      "central_fraction_010_090": 0.5625,
+      "control_ess": 41.499112351176755,
+      "fraction_005_095": 0.8125,
+      "fraction_010_090": 0.5625,
+      "normalized_control_ess": 0.5187389043897095,
+      "normalized_overlap_mass": 0.4734082514063565,
+      "normalized_treated_ess": 0.09376109561029061,
+      "overlap_weighted_ess": 37.87266011250852,
+      "propensity_max": 0.389360766050778,
+      "propensity_min": 0.028776431108617113,
+      "treated_ess": 7.500887648823249,
+      "treatment_prevalence": 0.15307933977190302
+    },
+    "protocol_version": "candidate4-public-support-calibration-v1",
+    "sample_size": 80,
+    "seed": 2026092202,
+    "structural_class": "STRUCTURALLY_OVERLAP_ONLY",
+    "support_level": "boundary"
+  },
+  {
+    "evaluator_diagnostic_only": {
+      "latent_confounding_present": true,
+      "oracle_recoverability": false
+    },
+    "finite_sample_limited": true,
+    "latent_confounding_level": 1.0,
+    "measurement_condition": "perfect",
+    "measurement_limited": false,
+    "observable_diagnostics": {
+      "central_fraction_010_090": 0.5625,
+      "control_ess": 41.67728940845869,
+      "fraction_005_095": 0.8,
+      "fraction_010_090": 0.5625,
+      "normalized_control_ess": 0.5209661176057336,
+      "normalized_overlap_mass": 0.46498821116742484,
+      "normalized_treated_ess": 0.09153388239426638,
+      "overlap_weighted_ess": 37.19905689339399,
+      "propensity_max": 0.3820160176136094,
+      "propensity_min": 0.027922573784073024,
+      "treated_ess": 7.322710591541311,
+      "treatment_prevalence": 0.14944307329676143
+    },
+    "protocol_version": "candidate4-public-support-calibration-v1",
+    "sample_size": 80,
+    "seed": 2026092201,
+    "structural_class": "STRUCTURALLY_OVERLAP_ONLY",
+    "support_level": "boundary"
+  },
+  {
+    "evaluator_diagnostic_only": {
+      "latent_confounding_present": true,
+      "oracle_recoverability": false
+    },
+    "finite_sample_limited": true,
+    "latent_confounding_level": 1.0,
+    "measurement_condition": "perfect",
+    "measurement_limited": false,
+    "observable_diagnostics": {
+      "central_fraction_010_090": 0.5625,
+      "control_ess": 41.499112351176755,
+      "fraction_005_095": 0.8125,
+      "fraction_010_090": 0.5625,
+      "normalized_control_ess": 0.5187389043897095,
+      "normalized_overlap_mass": 0.4734082514063565,
+      "normalized_treated_ess": 0.09376109561029061,
+      "overlap_weighted_ess": 37.87266011250852,
+      "propensity_max": 0.389360766050778,
+      "propensity_min": 0.028776431108617113,
+      "treated_ess": 7.500887648823249,
+      "treatment_prevalence": 0.15307933977190302
+    },
+    "protocol_version": "candidate4-public-support-calibration-v1",
+    "sample_size": 80,
+    "seed": 2026092202,
+    "structural_class": "STRUCTURALLY_OVERLAP_ONLY",
+    "support_level": "boundary"
+  },
+  {
+    "evaluator_diagnostic_only": {
+      "latent_confounding_present": false,
+      "oracle_recoverability": true
+    },
+    "finite_sample_limited": true,
+    "latent_confounding_level": 0.0,
+    "measurement_condition": "damaged",
+    "measurement_limited": true,
+    "observable_diagnostics": {
+      "central_fraction_010_090": 0.3425,
+      "control_ess": 41.67728940845869,
+      "fraction_005_095": 0.8,
+      "fraction_010_090": 0.3425,
+      "normalized_control_ess": 0.5209661176057336,
+      "normalized_overlap_mass": 0.46498821116742484,
+      "normalized_treated_ess": 0.09153388239426638,
+      "overlap_weighted_ess": 37.19905689339399,
+      "propensity_max": 0.3820160176136094,
+      "propensity_min": 0.027922573784073024,
+      "treated_ess": 7.322710591541311,
+      "treatment_prevalence": 0.14944307329676143
+    },
+    "protocol_version": "candidate4-public-support-calibration-v1",
+    "sample_size": 80,
+    "seed": 2026092201,
+    "structural_class": "STRUCTURALLY_OVERLAP_ONLY",
+    "support_level": "boundary"
+  },
+  {
+    "evaluator_diagnostic_only": {
+      "latent_confounding_present": false,
+      "oracle_recoverability": true
+    },
+    "finite_sample_limited": true,
+    "latent_confounding_level": 0.0,
+    "measurement_condition": "damaged",
+    "measurement_limited": true,
+    "observable_diagnostics": {
+      "central_fraction_010_090": 0.3425,
+      "control_ess": 41.499112351176755,
+      "fraction_005_095": 0.8125,
+      "fraction_010_090": 0.3425,
+      "normalized_control_ess": 0.5187389043897095,
+      "normalized_overlap_mass": 0.4734082514063565,
+      "normalized_treated_ess": 0.09376109561029061,
+      "overlap_weighted_ess": 37.87266011250852,
+      "propensity_max": 0.389360766050778,
+      "propensity_min": 0.028776431108617113,
+      "treated_ess": 7.500887648823249,
+      "treatment_prevalence": 0.15307933977190302
+    },
+    "protocol_version": "candidate4-public-support-calibration-v1",
+    "sample_size": 80,
+    "seed": 2026092202,
+    "structural_class": "STRUCTURALLY_OVERLAP_ONLY",
+    "support_level": "boundary"
+  },
+  {
+    "evaluator_diagnostic_only": {
+      "latent_confounding_present": true,
+      "oracle_recoverability": false
+    },
+    "finite_sample_limited": true,
+    "latent_confounding_level": 1.0,
+    "measurement_condition": "damaged",
+    "measurement_limited": true,
+    "observable_diagnostics": {
+      "central_fraction_010_090": 0.3425,
+      "control_ess": 41.67728940845869,
+      "fraction_005_095": 0.8,
+      "fraction_010_090": 0.3425,
+      "normalized_control_ess": 0.5209661176057336,
+      "normalized_overlap_mass": 0.46498821116742484,
+      "normalized_treated_ess": 0.09153388239426638,
+      "overlap_weighted_ess": 37.19905689339399,
+      "propensity_max": 0.3820160176136094,
+      "propensity_min": 0.027922573784073024,
+      "treated_ess": 7.322710591541311,
+      "treatment_prevalence": 0.14944307329676143
+    },
+    "protocol_version": "candidate4-public-support-calibration-v1",
+    "sample_size": 80,
+    "seed": 2026092201,
+    "structural_class": "STRUCTURALLY_OVERLAP_ONLY",
+    "support_level": "boundary"
+  },
+  {
+    "evaluator_diagnostic_only": {
+      "latent_confounding_present": true,
+      "oracle_recoverability": false
+    },
+    "finite_sample_limited": true,
+    "latent_confounding_level": 1.0,
+    "measurement_condition": "damaged",
+    "measurement_limited": true,
+    "observable_diagnostics": {
+      "central_fraction_010_090": 0.3425,
+      "control_ess": 41.499112351176755,
+      "fraction_005_095": 0.8125,
+      "fraction_010_090": 0.3425,
+      "normalized_control_ess": 0.5187389043897095,
+      "normalized_overlap_mass": 0.4734082514063565,
+      "normalized_treated_ess": 0.09376109561029061,
+      "overlap_weighted_ess": 37.87266011250852,
+      "propensity_max": 0.389360766050778,
+      "propensity_min": 0.028776431108617113,
+      "treated_ess": 7.500887648823249,
+      "treatment_prevalence": 0.15307933977190302
+    },
+    "protocol_version": "candidate4-public-support-calibration-v1",
+    "sample_size": 80,
+    "seed": 2026092202,
+    "structural_class": "STRUCTURALLY_OVERLAP_ONLY",
+    "support_level": "boundary"
+  },
+  {
+    "evaluator_diagnostic_only": {
+      "latent_confounding_present": false,
+      "oracle_recoverability": true
+    },
+    "finite_sample_limited": false,
+    "latent_confounding_level": 0.0,
+    "measurement_condition": "perfect",
+    "measurement_limited": false,
+    "observable_diagnostics": {
+      "central_fraction_010_090": 0.564,
+      "control_ess": 130.07158560293252,
+      "fraction_005_095": 0.8,
+      "fraction_010_090": 0.564,
+      "normalized_control_ess": 0.5202863424117301,
+      "normalized_overlap_mass": 0.4669415766365952,
+      "normalized_treated_ess": 0.09221365758826994,
+      "overlap_weighted_ess": 116.7353941591488,
+      "propensity_max": 0.389360766050778,
+      "propensity_min": 0.027922573784073024,
+      "treated_ess": 23.053414397067485,
+      "treatment_prevalence": 0.15055291034819582
+    },
+    "protocol_version": "candidate4-public-support-calibration-v1",
+    "sample_size": 250,
+    "seed": 2026092201,
+    "structural_class": "STRUCTURALLY_OVERLAP_ONLY",
+    "support_level": "boundary"
+  },
+  {
+    "evaluator_diagnostic_only": {
+      "latent_confounding_present": false,
+      "oracle_recoverability": true
+    },
+    "finite_sample_limited": false,
+    "latent_confounding_level": 0.0,
+    "measurement_condition": "perfect",
+    "measurement_limited": false,
+    "observable_diagnostics": {
+      "central_fraction_010_090": 0.564,
+      "control_ess": 129.9642972429542,
+      "fraction_005_095": 0.804,
+      "fraction_010_090": 0.564,
+      "normalized_control_ess": 0.5198571889718168,
+      "normalized_overlap_mass": 0.46855075480599095,
+      "normalized_treated_ess": 0.09264281102818331,
+      "overlap_weighted_ess": 117.13768870149774,
+      "propensity_max": 0.389360766050778,
+      "propensity_min": 0.027922573784073024,
+      "treated_ess": 23.160702757045826,
+      "treatment_prevalence": 0.15125356902560538
+    },
+    "protocol_version": "candidate4-public-support-calibration-v1",
+    "sample_size": 250,
+    "seed": 2026092202,
+    "structural_class": "STRUCTURALLY_OVERLAP_ONLY",
+    "support_level": "boundary"
+  },
+  {
+    "evaluator_diagnostic_only": {
+      "latent_confounding_present": true,
+      "oracle_recoverability": false
+    },
+    "finite_sample_limited": false,
+    "latent_confounding_level": 1.0,
+    "measurement_condition": "perfect",
+    "measurement_limited": false,
+    "observable_diagnostics": {
+      "central_fraction_010_090": 0.564,
+      "control_ess": 130.07158560293252,
+      "fraction_005_095": 0.8,
+      "fraction_010_090": 0.564,
+      "normalized_control_ess": 0.5202863424117301,
+      "normalized_overlap_mass": 0.4669415766365952,
+      "normalized_treated_ess": 0.09221365758826994,
+      "overlap_weighted_ess": 116.7353941591488,
+      "propensity_max": 0.389360766050778,
+      "propensity_min": 0.027922573784073024,
+      "treated_ess": 23.053414397067485,
+      "treatment_prevalence": 0.15055291034819582
+    },
+    "protocol_version": "candidate4-public-support-calibration-v1",
+    "sample_size": 250,
+    "seed": 2026092201,
+    "structural_class": "STRUCTURALLY_OVERLAP_ONLY",
+    "support_level": "boundary"
+  },
+  {
+    "evaluator_diagnostic_only": {
+      "latent_confounding_present": true,
+      "oracle_recoverability": false
+    },
+    "finite_sample_limited": false,
+    "latent_confounding_level": 1.0,
+    "measurement_condition": "perfect",
+    "measurement_limited": false,
+    "observable_diagnostics": {
+      "central_fraction_010_090": 0.564,
+      "control_ess": 129.9642972429542,
+      "fraction_005_095": 0.804,
+      "fraction_010_090": 0.564,
+      "normalized_control_ess": 0.5198571889718168,
+      "normalized_overlap_mass": 0.46855075480599095,
+      "normalized_treated_ess": 0.09264281102818331,
+      "overlap_weighted_ess": 117.13768870149774,
+      "propensity_max": 0.389360766050778,
+      "propensity_min": 0.027922573784073024,
+      "treated_ess": 23.160702757045826,
+      "treatment_prevalence": 0.15125356902560538
+    },
+    "protocol_version": "candidate4-public-support-calibration-v1",
+    "sample_size": 250,
+    "seed": 2026092202,
+    "structural_class": "STRUCTURALLY_OVERLAP_ONLY",
+    "support_level": "boundary"
+  },
+  {
+    "evaluator_diagnostic_only": {
+      "latent_confounding_present": false,
+      "oracle_recoverability": true
+    },
+    "finite_sample_limited": false,
+    "latent_confounding_level": 0.0,
+    "measurement_condition": "damaged",
+    "measurement_limited": true,
+    "observable_diagnostics": {
+      "central_fraction_010_090": 0.344,
+      "control_ess": 130.07158560293252,
+      "fraction_005_095": 0.8,
+      "fraction_010_090": 0.344,
+      "normalized_control_ess": 0.5202863424117301,
+      "normalized_overlap_mass": 0.4669415766365952,
+      "normalized_treated_ess": 0.09221365758826994,
+      "overlap_weighted_ess": 116.7353941591488,
+      "propensity_max": 0.389360766050778,
+      "propensity_min": 0.027922573784073024,
+      "treated_ess": 23.053414397067485,
+      "treatment_prevalence": 0.15055291034819582
+    },
+    "protocol_version": "candidate4-public-support-calibration-v1",
+    "sample_size": 250,
+    "seed": 2026092201,
+    "structural_class": "STRUCTURALLY_OVERLAP_ONLY",
+    "support_level": "boundary"
+  },
+  {
+    "evaluator_diagnostic_only": {
+      "latent_confounding_present": false,
+      "oracle_recoverability": true
+    },
+    "finite_sample_limited": false,
+    "latent_confounding_level": 0.0,
+    "measurement_condition": "damaged",
+    "measurement_limited": true,
+    "observable_diagnostics": {
+      "central_fraction_010_090": 0.344,
+      "control_ess": 129.9642972429542,
+      "fraction_005_095": 0.804,
+      "fraction_010_090": 0.344,
+      "normalized_control_ess": 0.5198571889718168,
+      "normalized_overlap_mass": 0.46855075480599095,
+      "normalized_treated_ess": 0.09264281102818331,
+      "overlap_weighted_ess": 117.13768870149774,
+      "propensity_max": 0.389360766050778,
+      "propensity_min": 0.027922573784073024,
+      "treated_ess": 23.160702757045826,
+      "treatment_prevalence": 0.15125356902560538
+    },
+    "protocol_version": "candidate4-public-support-calibration-v1",
+    "sample_size": 250,
+    "seed": 2026092202,
+    "structural_class": "STRUCTURALLY_OVERLAP_ONLY",
+    "support_level": "boundary"
+  },
+  {
+    "evaluator_diagnostic_only": {
+      "latent_confounding_present": true,
+      "oracle_recoverability": false
+    },
+    "finite_sample_limited": false,
+    "latent_confounding_level": 1.0,
+    "measurement_condition": "damaged",
+    "measurement_limited": true,
+    "observable_diagnostics": {
+      "central_fraction_010_090": 0.344,
+      "control_ess": 130.07158560293252,
+      "fraction_005_095": 0.8,
+      "fraction_010_090": 0.344,
+      "normalized_control_ess": 0.5202863424117301,
+      "normalized_overlap_mass": 0.4669415766365952,
+      "normalized_treated_ess": 0.09221365758826994,
+      "overlap_weighted_ess": 116.7353941591488,
+      "propensity_max": 0.389360766050778,
+      "propensity_min": 0.027922573784073024,
+      "treated_ess": 23.053414397067485,
+      "treatment_prevalence": 0.15055291034819582
+    },
+    "protocol_version": "candidate4-public-support-calibration-v1",
+    "sample_size": 250,
+    "seed": 2026092201,
+    "structural_class": "STRUCTURALLY_OVERLAP_ONLY",
+    "support_level": "boundary"
+  },
+  {
+    "evaluator_diagnostic_only": {
+      "latent_confounding_present": true,
+      "oracle_recoverability": false
+    },
+    "finite_sample_limited": false,
+    "latent_confounding_level": 1.0,
+    "measurement_condition": "damaged",
+    "measurement_limited": true,
+    "observable_diagnostics": {
+      "central_fraction_010_090": 0.344,
+      "control_ess": 129.9642972429542,
+      "fraction_005_095": 0.804,
+      "fraction_010_090": 0.344,
+      "normalized_control_ess": 0.5198571889718168,
+      "normalized_overlap_mass": 0.46855075480599095,
+      "normalized_treated_ess": 0.09264281102818331,
+      "overlap_weighted_ess": 117.13768870149774,
+      "propensity_max": 0.389360766050778,
+      "propensity_min": 0.027922573784073024,
+      "treated_ess": 23.160702757045826,
+      "treatment_prevalence": 0.15125356902560538
+    },
+    "protocol_version": "candidate4-public-support-calibration-v1",
+    "sample_size": 250,
+    "seed": 2026092202,
+    "structural_class": "STRUCTURALLY_OVERLAP_ONLY",
+    "support_level": "boundary"
+  },
+  {
+    "evaluator_diagnostic_only": {
+      "latent_confounding_present": false,
+      "oracle_recoverability": true
+    },
+    "finite_sample_limited": false,
+    "latent_confounding_level": 0.0,
+    "measurement_condition": "perfect",
+    "measurement_limited": false,
+    "observable_diagnostics": {
+      "central_fraction_010_090": 0.5642,
+      "control_ess": 2601.4457551380756,
+      "fraction_005_095": 0.8018,
+      "fraction_010_090": 0.5642,
+      "normalized_control_ess": 0.5202891510276151,
+      "normalized_overlap_mass": 0.46696681117185285,
+      "normalized_treated_ess": 0.09221084897238487,
+      "overlap_weighted_ess": 2334.834055859264,
+      "propensity_max": 0.389360766050778,
+      "propensity_min": 0.027922573784073024,
+      "treated_ess": 461.05424486192436,
+      "treatment_prevalence": 0.15054832485287326
+    },
+    "protocol_version": "candidate4-public-support-calibration-v1",
+    "sample_size": 5000,
+    "seed": 2026092201,
+    "structural_class": "STRUCTURALLY_OVERLAP_ONLY",
+    "support_level": "boundary"
+  },
+  {
+    "evaluator_diagnostic_only": {
+      "latent_confounding_present": false,
+      "oracle_recoverability": true
+    },
+    "finite_sample_limited": false,
+    "latent_confounding_level": 0.0,
+    "measurement_condition": "perfect",
+    "measurement_limited": false,
+    "observable_diagnostics": {
+      "central_fraction_010_090": 0.5642,
+      "control_ess": 2601.332535634844,
+      "fraction_005_095": 0.802,
+      "fraction_010_090": 0.5642,
+      "normalized_control_ess": 0.5202665071269689,
+      "normalized_overlap_mass": 0.4670522566288953,
+      "normalized_treated_ess": 0.0922334928730312,
+      "overlap_weighted_ess": 2335.2612831444767,
+      "propensity_max": 0.389360766050778,
+      "propensity_min": 0.027922573784073024,
+      "treated_ess": 461.16746436515604,
+      "treatment_prevalence": 0.15058529448658156
+    },
+    "protocol_version": "candidate4-public-support-calibration-v1",
+    "sample_size": 5000,
+    "seed": 2026092202,
+    "structural_class": "STRUCTURALLY_OVERLAP_ONLY",
+    "support_level": "boundary"
+  },
+  {
+    "evaluator_diagnostic_only": {
+      "latent_confounding_present": true,
+      "oracle_recoverability": false
+    },
+    "finite_sample_limited": false,
+    "latent_confounding_level": 1.0,
+    "measurement_condition": "perfect",
+    "measurement_limited": false,
+    "observable_diagnostics": {
+      "central_fraction_010_090": 0.5642,
+      "control_ess": 2601.4457551380756,
+      "fraction_005_095": 0.8018,
+      "fraction_010_090": 0.5642,
+      "normalized_control_ess": 0.5202891510276151,
+      "normalized_overlap_mass": 0.46696681117185285,
+      "normalized_treated_ess": 0.09221084897238487,
+      "overlap_weighted_ess": 2334.834055859264,
+      "propensity_max": 0.389360766050778,
+      "propensity_min": 0.027922573784073024,
+      "treated_ess": 461.05424486192436,
+      "treatment_prevalence": 0.15054832485287326
+    },
+    "protocol_version": "candidate4-public-support-calibration-v1",
+    "sample_size": 5000,
+    "seed": 2026092201,
+    "structural_class": "STRUCTURALLY_OVERLAP_ONLY",
+    "support_level": "boundary"
+  },
+  {
+    "evaluator_diagnostic_only": {
+      "latent_confounding_present": true,
+      "oracle_recoverability": false
+    },
+    "finite_sample_limited": false,
+    "latent_confounding_level": 1.0,
+    "measurement_condition": "perfect",
+    "measurement_limited": false,
+    "observable_diagnostics": {
+      "central_fraction_010_090": 0.5642,
+      "control_ess": 2601.332535634844,
+      "fraction_005_095": 0.802,
+      "fraction_010_090": 0.5642,
+      "normalized_control_ess": 0.5202665071269689,
+      "normalized_overlap_mass": 0.4670522566288953,
+      "normalized_treated_ess": 0.0922334928730312,
+      "overlap_weighted_ess": 2335.2612831444767,
+      "propensity_max": 0.389360766050778,
+      "propensity_min": 0.027922573784073024,
+      "treated_ess": 461.16746436515604,
+      "treatment_prevalence": 0.15058529448658156
+    },
+    "protocol_version": "candidate4-public-support-calibration-v1",
+    "sample_size": 5000,
+    "seed": 2026092202,
+    "structural_class": "STRUCTURALLY_OVERLAP_ONLY",
+    "support_level": "boundary"
+  },
+  {
+    "evaluator_diagnostic_only": {
+      "latent_confounding_present": false,
+      "oracle_recoverability": true
+    },
+    "finite_sample_limited": false,
+    "latent_confounding_level": 0.0,
+    "measurement_condition": "damaged",
+    "measurement_limited": true,
+    "observable_diagnostics": {
+      "central_fraction_010_090": 0.34420000000000006,
+      "control_ess": 2601.4457551380756,
+      "fraction_005_095": 0.8018,
+      "fraction_010_090": 0.34420000000000006,
+      "normalized_control_ess": 0.5202891510276151,
+      "normalized_overlap_mass": 0.46696681117185285,
+      "normalized_treated_ess": 0.09221084897238487,
+      "overlap_weighted_ess": 2334.834055859264,
+      "propensity_max": 0.389360766050778,
+      "propensity_min": 0.027922573784073024,
+      "treated_ess": 461.05424486192436,
+      "treatment_prevalence": 0.15054832485287326
+    },
+    "protocol_version": "candidate4-public-support-calibration-v1",
+    "sample_size": 5000,
+    "seed": 2026092201,
+    "structural_class": "STRUCTURALLY_OVERLAP_ONLY",
+    "support_level": "boundary"
+  },
+  {
+    "evaluator_diagnostic_only": {
+      "latent_confounding_present": false,
+      "oracle_recoverability": true
+    },
+    "finite_sample_limited": false,
+    "latent_confounding_level": 0.0,
+    "measurement_condition": "damaged",
+    "measurement_limited": true,
+    "observable_diagnostics": {
+      "central_fraction_010_090": 0.34420000000000006,
+      "control_ess": 2601.332535634844,
+      "fraction_005_095": 0.802,
+      "fraction_010_090": 0.34420000000000006,
+      "normalized_control_ess": 0.5202665071269689,
+      "normalized_overlap_mass": 0.4670522566288953,
+      "normalized_treated_ess": 0.0922334928730312,
+      "overlap_weighted_ess": 2335.2612831444767,
+      "propensity_max": 0.389360766050778,
+      "propensity_min": 0.027922573784073024,
+      "treated_ess": 461.16746436515604,
+      "treatment_prevalence": 0.15058529448658156
+    },
+    "protocol_version": "candidate4-public-support-calibration-v1",
+    "sample_size": 5000,
+    "seed": 2026092202,
+    "structural_class": "STRUCTURALLY_OVERLAP_ONLY",
+    "support_level": "boundary"
+  },
+  {
+    "evaluator_diagnostic_only": {
+      "latent_confounding_present": true,
+      "oracle_recoverability": false
+    },
+    "finite_sample_limited": false,
+    "latent_confounding_level": 1.0,
+    "measurement_condition": "damaged",
+    "measurement_limited": true,
+    "observable_diagnostics": {
+      "central_fraction_010_090": 0.34420000000000006,
+      "control_ess": 2601.4457551380756,
+      "fraction_005_095": 0.8018,
+      "fraction_010_090": 0.34420000000000006,
+      "normalized_control_ess": 0.5202891510276151,
+      "normalized_overlap_mass": 0.46696681117185285,
+      "normalized_treated_ess": 0.09221084897238487,
+      "overlap_weighted_ess": 2334.834055859264,
+      "propensity_max": 0.389360766050778,
+      "propensity_min": 0.027922573784073024,
+      "treated_ess": 461.05424486192436,
+      "treatment_prevalence": 0.15054832485287326
+    },
+    "protocol_version": "candidate4-public-support-calibration-v1",
+    "sample_size": 5000,
+    "seed": 2026092201,
+    "structural_class": "STRUCTURALLY_OVERLAP_ONLY",
+    "support_level": "boundary"
+  },
+  {
+    "evaluator_diagnostic_only": {
+      "latent_confounding_present": true,
+      "oracle_recoverability": false
+    },
+    "finite_sample_limited": false,
+    "latent_confounding_level": 1.0,
+    "measurement_condition": "damaged",
+    "measurement_limited": true,
+    "observable_diagnostics": {
+      "central_fraction_010_090": 0.34420000000000006,
+      "control_ess": 2601.332535634844,
+      "fraction_005_095": 0.802,
+      "fraction_010_090": 0.34420000000000006,
+      "normalized_control_ess": 0.5202665071269689,
+      "normalized_overlap_mass": 0.4670522566288953,
+      "normalized_treated_ess": 0.0922334928730312,
+      "overlap_weighted_ess": 2335.2612831444767,
+      "propensity_max": 0.389360766050778,
+      "propensity_min": 0.027922573784073024,
+      "treated_ess": 461.16746436515604,
+      "treatment_prevalence": 0.15058529448658156
+    },
+    "protocol_version": "candidate4-public-support-calibration-v1",
+    "sample_size": 5000,
+    "seed": 2026092202,
+    "structural_class": "STRUCTURALLY_OVERLAP_ONLY",
+    "support_level": "boundary"
+  }
+]

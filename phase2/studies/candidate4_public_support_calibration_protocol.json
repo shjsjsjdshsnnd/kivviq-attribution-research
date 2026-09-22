@@ -1,0 +1,8 @@
+{
+  "version": "candidate4-public-support-calibration-v1",
+  "scope": "PUBLIC_SYNTHETIC_CANDIDATE_INDEPENDENT",
+  "forbidden_inputs": ["sealed_holdouts", "candidate3-holdout-v2", "candidate4_holdout", "candidate4_implementation"],
+  "grid": {"support_levels": ["full", "overlap_only", "unsupported", "boundary"], "sample_sizes": [80, 250, 5000], "measurement_conditions": ["perfect", "damaged"], "latent_confounding_levels": [0.0, 1.0], "seeds": [2026092201, 2026092202]},
+  "outputs": ["observable_support_diagnostics", "evaluator_diagnostic_only_oracle_flags", "structural_class", "finite_sample_limited", "measurement_limited"],
+  "threshold_selection": "PROHIBITED_IN_THIS_STUDY"
+}
