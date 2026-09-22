@@ -17,6 +17,17 @@ import {
   bundleAttachmentOpportunity,
   effectiveFreeShippingThreshold,
 } from "../pricing_promotions/runtime.js";
+import {
+  pageCausalEvents,
+  websiteCustomerContext,
+  websitePageExperience,
+  zeroResultSearchProbability,
+} from "../website_cro/runtime.js";
+import type {
+  WebsiteCausalEvent,
+  WebsiteComponentName,
+  WebsiteFunnelTransition,
+} from "../website_cro/types.js";
 
 export type SessionPage =
   | "landing"
@@ -50,6 +61,7 @@ export interface SessionStepResult {
   readonly nextPage: SessionPage;
   readonly delayMs: number;
   readonly checkoutReady: boolean;
+  readonly websiteCausalEvents?: readonly WebsiteCausalEvent[];
 }
 
 const clamp = (value: number, min: number, max: number): number =>
@@ -228,6 +240,41 @@ function funnelProbability(
   );
 }
 
+function websiteComponentForPage(
+  page: SessionPage,
+): WebsiteComponentName | undefined {
+  if (page === "landing") return "homepage";
+  if (page === "collection") return "collection";
+  if (page === "search_results") return "search";
+  if (page === "pdp") return "pdp";
+  if (page === "cart") return "cart";
+  if (page === "checkout") return "checkout";
+  return undefined;
+}
+
+function websiteTransitionForPage(
+  page: SessionPage,
+): WebsiteFunnelTransition | undefined {
+  if (page === "landing") return "landing_to_browse";
+  if (page === "collection" || page === "search_results") {
+    return "browse_to_pdp";
+  }
+  if (page === "pdp") return "pdp_to_atc";
+  if (page === "cart") return "atc_to_checkout";
+  if (page === "checkout") return "checkout_to_purchase";
+  return undefined;
+}
+
+function productCategory(
+  runtime: RuntimeWorldState,
+  productId: string | undefined,
+): string | undefined {
+  if (productId === undefined) return undefined;
+  return runtime.merchantWorld.manifest.productDemandMechanisms.find(
+    (candidate) => candidate.productId === productId,
+  )?.categoryId;
+}
+
 function productViewEvent(
   session: RuntimeSession,
   customer: RuntimeCustomerState,
@@ -281,12 +328,115 @@ export function advanceSession(
   const stepKey = `${session.sessionId}:step:${session.step}`;
   session.step += 1;
   const events: PerfectObservableJourneyEvent[] = [];
+  const websiteEvents: WebsiteCausalEvent[] = [];
   const intent = clamp(customer.intent, 0, 1);
   const need = clamp(customer.need, 0, 1);
+  const websiteCustomer = websiteCustomerContext({
+    customerId: customer.customerId,
+    intent,
+    need,
+    brandAffinity: customer.brandAffinity,
+    priceSensitivityMultiplier:
+      customer.source.priceSensitivityMultiplier,
+    promotionSensitivityMultiplier:
+      customer.source.promotionSensitivityMultiplier,
+    purchaseCount: customer.purchaseCount,
+  });
+  const experienceFor = (
+    component: WebsiteComponentName,
+    productId?: string,
+  ) =>
+    websitePageExperience({
+      scenario: commercePolicy?.websiteScenario,
+      timestampMs,
+      component,
+      device: session.device,
+      customer: websiteCustomer,
+      ...(productId === undefined ? {} : { productId }),
+      ...(productId === undefined
+        ? {}
+        : {
+            categoryId: productCategory(
+              runtime,
+              productId,
+            ),
+          }),
+    });
+  const startingPage = session.currentPage;
+  const startingComponent =
+    websiteComponentForPage(startingPage);
+  const startingTransition =
+    websiteTransitionForPage(startingPage);
+  const startingExperience =
+    startingComponent === undefined
+      ? undefined
+      : experienceFor(
+          startingComponent,
+          session.currentProductId,
+        );
+
+  if (
+    startingExperience !== undefined &&
+    startingTransition !== undefined
+  ) {
+    websiteEvents.push(
+      ...pageCausalEvents({
+        experience: startingExperience,
+        scenario: commercePolicy?.websiteScenario,
+        customerId: customer.customerId,
+        sessionId: session.sessionId,
+        timestampMs,
+        device: session.device,
+        transition: startingTransition as Exclude<
+          WebsiteFunnelTransition,
+          "checkout_to_purchase"
+        >,
+        source: session.source,
+        ...(session.currentProductId === undefined
+          ? {}
+          : { productId: session.currentProductId }),
+      }),
+    );
+  }
+
+  if (
+    startingExperience !== undefined &&
+    randomness.bool(
+      `${stepKey}:page-load-failure:${startingComponent ?? "none"}`,
+      startingExperience.loadFailureProbability,
+    )
+  ) {
+    session.ended = true;
+    session.currentPage = "ended";
+    events.push({
+      eventId: eventId(
+        session.sessionId,
+        `load_failure_${session.step}`,
+      ),
+      eventType: "session_end",
+      occurredAt: new Date(timestampMs).toISOString(),
+      anonymousSubjectId: customer.customerId,
+      sessionId: session.sessionId,
+      source: session.source,
+      device: session.device,
+    });
+    return {
+      observableEvents: events,
+      nextPage: "ended",
+      delayMs: startingExperience.latencyMs,
+      checkoutReady: false,
+      websiteCausalEvents: websiteEvents,
+    };
+  }
+
   const stayProbability = clamp(
-    0.25 + 0.36 * intent + 0.24 * need + 0.08 * customer.brandAffinity,
-    0.12,
-    0.92,
+    (0.25 +
+      0.36 * intent +
+      0.24 * need +
+      0.08 * customer.brandAffinity) *
+      (startingExperience?.continuationMultiplier ?? 1),
+    0.04,
+    0.94,
   );
 
   if (
@@ -309,15 +459,27 @@ export function advanceSession(
       nextPage: "ended",
       delayMs: 0,
       checkoutReady: false,
+      ...(websiteEvents.length === 0
+        ? {}
+        : { websiteCausalEvents: websiteEvents }),
     };
   }
 
   if (session.currentPage === "landing") {
+    const homepageExperience = experienceFor("homepage");
+    const landingProgress =
+      homepageExperience?.transitionMultiplier ?? 1;
     const next = randomness.weightedPick(`${stepKey}:landing-next`, [
-      { value: "collection" as const, weight: 0.38 },
-      { value: "search_results" as const, weight: 0.22 },
-      { value: "pdp" as const, weight: 0.31 + intent * 0.25 },
-      { value: "ended" as const, weight: 0.14 },
+      { value: "collection" as const, weight: 0.38 * landingProgress },
+      { value: "search_results" as const, weight: 0.22 * landingProgress },
+      {
+        value: "pdp" as const,
+        weight: (0.31 + intent * 0.25) * landingProgress,
+      },
+      {
+        value: "ended" as const,
+        weight: 0.14 + Math.max(0, 1 - landingProgress) * 0.35,
+      },
     ]);
     session.currentPage = next;
     if (next === "collection") {
@@ -354,10 +516,103 @@ export function advanceSession(
     }
   }
 
+  if (session.currentPage === "search_results") {
+    const searchExperience = experienceFor("search");
+    const zeroResultProbability =
+      zeroResultSearchProbability({
+        scenario: commercePolicy?.websiteScenario,
+        timestampMs,
+        device: session.device,
+        intent,
+      });
+    if (
+      randomness.bool(
+        `${stepKey}:zero-result-search`,
+        zeroResultProbability,
+      )
+    ) {
+      events.push({
+        eventId: eventId(
+          session.sessionId,
+          `search_zero_${session.step}`,
+        ),
+        eventType: "search_zero_result",
+        occurredAt: new Date(timestampMs).toISOString(),
+        anonymousSubjectId: customer.customerId,
+        sessionId: session.sessionId,
+        source: session.source,
+        device: session.device,
+      });
+      if (
+        searchExperience !== undefined &&
+        commercePolicy?.websiteScenario !== undefined
+      ) {
+        websiteEvents.push({
+          eventId:
+            `website:${session.sessionId}:zero-result:${timestampMs}`,
+          customerId: customer.customerId,
+          sessionId: session.sessionId,
+          occurredAt: new Date(timestampMs).toISOString(),
+          scenarioId: commercePolicy.websiteScenario.scenarioId,
+          websiteVersionId: searchExperience.websiteVersionId,
+          component: "search",
+          componentVersion: searchExperience.componentVersion,
+          device: session.device,
+          transition: "browse_to_pdp",
+          friction: "zero_result_search",
+          probabilityMultiplier:
+            searchExperience.transitionMultiplier,
+          source: session.source,
+        });
+      }
+
+      const reformulateProbability = clamp(
+        0.18 +
+          intent * 0.36 +
+          (searchExperience?.transitionMultiplier ?? 1) * 0.16,
+        0.12,
+        0.78,
+      );
+      if (
+        randomness.bool(
+          `${stepKey}:reformulate`,
+          reformulateProbability,
+        )
+      ) {
+        events.push({
+          eventId: eventId(
+            session.sessionId,
+            `search_reformulate_${session.step}`,
+          ),
+          eventType: "search_reformulation",
+          occurredAt: new Date(timestampMs).toISOString(),
+          anonymousSubjectId: customer.customerId,
+          sessionId: session.sessionId,
+          source: session.source,
+          device: session.device,
+        });
+      } else if (
+        randomness.bool(
+          `${stepKey}:zero-result-browse-category`,
+          0.34 + need * 0.2,
+        )
+      ) {
+        session.currentPage = "collection";
+      } else {
+        session.currentPage = "ended";
+        session.ended = true;
+      }
+    }
+  }
+
   if (
     session.currentPage === "collection" ||
     session.currentPage === "search_results"
   ) {
+    const listSurface = session.currentPage;
+    const listExperience = experienceFor(
+      listSurface === "collection" ? "collection" : "search",
+    );
     const toPdp =
       funnelProbability(
         runtime,
@@ -365,7 +620,8 @@ export function advanceSession(
         "pdp",
         0.48,
       ) *
-      (0.68 + intent * 0.5);
+      (0.68 + intent * 0.5) *
+      (listExperience?.transitionMultiplier ?? 1);
 
     if (
       randomness.bool(
@@ -381,6 +637,10 @@ export function advanceSession(
         randomness,
         `${stepKey}:product`,
         commercePolicy,
+        {
+          surface: listSurface,
+          device: session.device,
+        },
       );
       if (offer) {
         session.currentProductId = offer.productId;
@@ -414,6 +674,10 @@ export function advanceSession(
         randomness,
         `${stepKey}:pdp-offer`,
         commercePolicy,
+        {
+          surface: "pdp",
+          device: session.device,
+        },
       );
       if (offer && offer.productId !== session.currentProductId) {
         // Browsing can move to another preferred product.
@@ -428,17 +692,39 @@ export function advanceSession(
         randomness,
         `${stepKey}:pdp-product`,
         commercePolicy,
+        {
+          surface: "pdp",
+          device: session.device,
+        },
       );
       if (offer) session.currentProductId = offer.productId;
     }
 
     if (offer) {
+      const pdpExperience = experienceFor(
+        "pdp",
+        offer.productId,
+      );
+      websiteEvents.push(
+        ...pageCausalEvents({
+          experience: pdpExperience,
+          scenario: commercePolicy?.websiteScenario,
+          customerId: customer.customerId,
+          sessionId: session.sessionId,
+          timestampMs,
+          device: session.device,
+          transition: "pdp_to_atc",
+          source: session.source,
+          productId: offer.productId,
+        }),
+      );
       const atcProbability =
         funnelProbability(runtime, "pdp", "add_to_cart", 0.1) *
         (0.45 + intent * 0.85) *
         (0.55 + need * 0.65) *
         offer.priceUtilityMultiplier *
-        offer.promotionUtilityMultiplier;
+        offer.promotionUtilityMultiplier *
+        (pdpExperience?.transitionMultiplier ?? 1);
 
       const inventoryMechanism =
         runtime.merchantWorld.manifest.inventoryMechanisms.find(
@@ -547,6 +833,15 @@ export function advanceSession(
         }
         session.currentPage = "cart";
         events.push({
+          eventId: eventId(session.sessionId, `cart_${session.step}`),
+          eventType: "cart_view",
+          occurredAt: new Date(timestampMs).toISOString(),
+          anonymousSubjectId: customer.customerId,
+          sessionId: session.sessionId,
+          source: session.source,
+          device: session.device,
+        });
+        events.push({
           eventId: eventId(session.sessionId, `atc_${session.step}`),
           eventType: "add_to_cart",
           occurredAt: new Date(timestampMs).toISOString(),
@@ -614,6 +909,19 @@ export function advanceSession(
         ? 0.82
         : 1;
 
+    const cartExperience = experienceFor("cart");
+    websiteEvents.push(
+      ...pageCausalEvents({
+        experience: cartExperience,
+        scenario: commercePolicy?.websiteScenario,
+        customerId: customer.customerId,
+        sessionId: session.sessionId,
+        timestampMs,
+        device: session.device,
+        transition: "atc_to_checkout",
+        source: session.source,
+      }),
+    );
     const checkoutProbability =
       funnelProbability(
         runtime,
@@ -622,7 +930,8 @@ export function advanceSession(
         0.52,
       ) *
       (0.55 + intent * 0.55) *
-      fillBasketMultiplier;
+      fillBasketMultiplier *
+      (cartExperience?.transitionMultiplier ?? 1);
 
     if (
       randomness.bool(
@@ -657,16 +966,21 @@ export function advanceSession(
   }
 
   const checkoutReady = session.currentPage === "checkout";
-  const delayMs = randomness.integer(
-    `${stepKey}:delay`,
-    8_000,
-    130_000,
-  );
+  const delayMs =
+    randomness.integer(
+      `${stepKey}:delay`,
+      8_000,
+      130_000,
+    ) +
+    (startingExperience?.interactionDelayMs ?? 0);
 
   return {
     observableEvents: events,
     nextPage: session.currentPage,
     delayMs,
     checkoutReady,
+    ...(websiteEvents.length === 0
+      ? {}
+      : { websiteCausalEvents: websiteEvents }),
   };
 }
