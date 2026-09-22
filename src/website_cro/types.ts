@@ -250,6 +250,11 @@ export interface CroEvaluationRequest {
   readonly endTime: string;
   readonly websiteScenario: WebsiteScenario;
   readonly intervention: Intervention;
+  /**
+   * Non-CRO factual interventions (for example a promotion or a dated
+   * marketing-mix change) are replayed identically in both arms.
+   */
+  readonly interventions?: readonly Intervention[];
   readonly commercePolicy?: Omit<
     SimulationCommercePolicy,
     "websiteScenario"
