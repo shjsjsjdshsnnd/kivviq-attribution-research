@@ -4,12 +4,13 @@ import type {
   UtcTimestamp,
 } from "../core/units.js";
 
-export const ACTION_SCHEMA_VERSION = "1.4.0" as const;
+export const ACTION_SCHEMA_VERSION = "1.5.0" as const;
 export const SUPPORTED_ACTION_SCHEMA_VERSIONS = [
   "1.0.0",
   "1.1.0",
   "1.2.0",
   "1.3.0",
+  "1.4.0",
   ACTION_SCHEMA_VERSION,
 ] as const;
 export type ActionSchemaVersion =
@@ -113,6 +114,8 @@ export type ActionTarget =
   | { readonly kind: "inventory_policy"; readonly inventoryPolicyId: string }
   | { readonly kind: "experiment"; readonly experimentId: string }
   | { readonly kind: "promotion"; readonly promotionId: string }
+  | { readonly kind: "merchandising_placement"; readonly placementId: string }
+  | { readonly kind: "merchandising_relationship"; readonly relationshipId: string }
   | { readonly kind: "merchant"; readonly merchantId: string };
 
 export type ScopeDimension =
@@ -742,6 +745,123 @@ export type ShippingRollbackContract =
       readonly conflictGuard: ShippingRollbackConflictGuard;
     };
 
+
+export type MerchandisingEntityTarget =
+  | Extract<ActionTarget, { readonly kind: "sku" }>
+  | Extract<ActionTarget, { readonly kind: "product" }>
+  | Extract<ActionTarget, { readonly kind: "collection" }>;
+
+export type MerchandisingSurface =
+  | { readonly kind: "COLLECTION_PAGE"; readonly collectionId: string }
+  | { readonly kind: "CATEGORY_PAGE"; readonly categoryId: string }
+  | { readonly kind: "SEARCH_RESULTS"; readonly searchScopeId: string }
+  | { readonly kind: "HOMEPAGE"; readonly areaId?: string }
+  | { readonly kind: "PRODUCT_PAGE"; readonly productId: string }
+  | { readonly kind: "CART"; readonly areaId?: string }
+  | { readonly kind: "CHECKOUT"; readonly areaId?: string }
+  | { readonly kind: "POST_PURCHASE"; readonly areaId?: string }
+  | { readonly kind: "RECOMMENDATION_SLOT"; readonly slotGroupId: string }
+  | { readonly kind: "CUSTOM"; readonly surfaceId: string };
+
+export type MerchandisingPlacement =
+  | { readonly kind: "POSITION"; readonly position: number }
+  | { readonly kind: "NAMED_SLOT"; readonly slotId: string };
+
+export type MerchandisingDisplacementSemantics = "SHIFT_OTHERS";
+
+export interface MerchandisingRankingSnapshotRef {
+  readonly bindingRef: string;
+  readonly evaluateAt: MembershipEvaluationBoundary;
+}
+
+export type MerchandisingRankOperation =
+  | {
+      readonly kind: "SET";
+      readonly position: number;
+    }
+  | {
+      readonly kind: "DELTA";
+      readonly direction: "UP" | "DOWN";
+      readonly positions: number;
+      readonly snapshot: MerchandisingRankingSnapshotRef;
+    }
+  | {
+      readonly kind: "MOVE_TO_TOP";
+      readonly snapshot?: MerchandisingRankingSnapshotRef;
+    };
+
+export type MerchandisingVisibilityMode =
+  | { readonly kind: "FEATURE" }
+  | {
+      readonly kind: "DEPRIORITIZE";
+      readonly belowPosition?: number;
+    }
+  | { readonly kind: "REMOVE_PLACEMENT" };
+
+export type MerchandisingRelationshipType =
+  | "SUBSTITUTE"
+  | "CROSS_SELL"
+  | "UPSELL";
+
+export interface MerchandisingRelationshipTarget {
+  readonly entity: Extract<
+    ActionTarget,
+    { readonly kind: "sku" | "product" }
+  >;
+  readonly position: number;
+}
+
+export type MerchandisingRelationshipTrigger =
+  | { readonly kind: "ALWAYS" }
+  | {
+      readonly kind: "SOURCE_INVENTORY_AT_MOST";
+      readonly units: number;
+    }
+  | {
+      readonly kind: "SOURCE_OUT_OF_STOCK";
+    };
+
+export type MerchandisingConflictResolution =
+  | { readonly kind: "COEXIST" }
+  | { readonly kind: "PRECEDENCE"; readonly precedence: number }
+  | {
+      readonly kind: "MUTUALLY_EXCLUSIVE_GROUP";
+      readonly groupId: string;
+      readonly precedence?: number;
+    };
+
+export type MerchandisingRollbackStrategy =
+  | {
+      readonly kind: "RESTORE_PRE_ACTION_VALUE";
+      readonly rankingSnapshotRef: string;
+    }
+  | {
+      readonly kind: "SET_EXPLICIT_VALUE";
+      readonly position: number;
+    };
+
+export interface MerchandisingRollbackConflictGuard {
+  readonly kind: "REQUIRE_CURRENT_MATCHES_ACTION_OUTPUT";
+  readonly sourceActionId: ActionId;
+  readonly expectedPosition: number;
+}
+
+export type MerchandisingRollbackContract =
+  | {
+      readonly available: false;
+      readonly reason: string;
+    }
+  | {
+      readonly available: true;
+      readonly strategy: MerchandisingRollbackStrategy;
+      readonly trigger:
+        | { readonly kind: "ON_TERMINATION" }
+        | { readonly kind: "AT"; readonly at: UtcTimestamp };
+      readonly delaySeconds: number;
+      readonly cost: KnownOrUnknown<MonetaryValue>;
+      readonly conflictGuard: MerchandisingRollbackConflictGuard;
+    };
+
 export type ActionParameters =
   | {
       readonly kind: "budget_adjustment";
@@ -824,6 +944,42 @@ export type ActionParameters =
       readonly collectionId: string;
       readonly productId: string;
       readonly position: number;
+    }
+  | {
+      readonly kind: "merchandising_visibility";
+      readonly entity: MerchandisingEntityTarget;
+      readonly surface: MerchandisingSurface;
+      readonly placement?: MerchandisingPlacement;
+      readonly visibility: MerchandisingVisibilityMode;
+      readonly conflictResolution: MerchandisingConflictResolution;
+    }
+  | {
+      readonly kind: "merchandising_rank";
+      readonly entity: MerchandisingEntityTarget;
+      readonly surface: MerchandisingSurface;
+      readonly operation: MerchandisingRankOperation;
+      readonly displacement: MerchandisingDisplacementSemantics;
+      readonly conflictResolution: MerchandisingConflictResolution;
+    }
+  | {
+      readonly kind: "merchandising_relationship";
+      readonly relationshipType: MerchandisingRelationshipType;
+      readonly source: Extract<ActionTarget, { readonly kind: "sku" | "product" }>;
+      readonly targets: readonly MerchandisingRelationshipTarget[];
+      readonly surface: MerchandisingSurface;
+      readonly trigger: MerchandisingRelationshipTrigger;
+      readonly conflictResolution: MerchandisingConflictResolution;
+    }
+  | {
+      readonly kind: "merchandising_remove_relationship";
+      readonly relationshipId: string;
+      readonly relationshipType: MerchandisingRelationshipType;
+    }
+  | {
+      readonly kind: "merchandising_rank_rollback";
+      readonly originalActionId: ActionId;
+      readonly strategy: MerchandisingRollbackStrategy;
+      readonly conflictGuard: MerchandisingRollbackConflictGuard;
     }
   | {
       readonly kind: "shipping_policy";
@@ -1083,6 +1239,7 @@ export interface ActionReversibility {
    */
   readonly pricingRollback?: PricingRollbackContract;
   readonly shippingRollback?: ShippingRollbackContract;
+  readonly merchandisingRollback?: MerchandisingRollbackContract;
 }
 
 export const RISK_DIMENSIONS = [
