@@ -670,6 +670,8 @@ export const collectionPromotionMissingMembershipBinding = promotionAction({
         ),
       },
     },
+    stacking: { kind: "STACKABLE" },
+    conflictResolution: { kind: "NONE" },
   }),
 });
 
