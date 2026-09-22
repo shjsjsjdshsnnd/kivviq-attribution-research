@@ -502,3 +502,13 @@ export const IMPROVE_PDP_IMAGERY: Intervention = {
     unit: "dimensionless",
   },
 };
+
+
+export const FIX_SEARCH_DEFECT: Intervention = {
+  variable: "website.search.fix_defect",
+  operation: "set",
+  value: {
+    kind: "boolean",
+    value: true,
+  },
+};
