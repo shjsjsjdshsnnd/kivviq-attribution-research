@@ -83,7 +83,7 @@ function baseScenario(
   return {
     version: RETENTION_LTV_VERSION,
     source: "step11_explicit_synthetic",
-    merchantRepeatHazardMultiplier: 1.05,
+    merchantRepeatHazardMultiplier: 1.25,
     loyalPurchaseThreshold: 4,
     lapseAfterExpectedIntervals: 2.4,
     dormantAfterExpectedIntervals: 4.8,
@@ -102,14 +102,14 @@ function baseScenario(
         ? {}
         : {
             [channelA]: {
-              repeatHazardMultiplier: 0.34,
-              brandAffinityDelta: -0.08,
-              promotionDependenceDelta: 0.55,
+              repeatHazardMultiplier: 0.15,
+              brandAffinityDelta: -0.15,
+              promotionDependenceDelta: 0.9,
             },
             [channelB]: {
-              repeatHazardMultiplier: 2.45,
-              brandAffinityDelta: 0.16,
-              promotionDependenceDelta: -0.08,
+              repeatHazardMultiplier: 5.5,
+              brandAffinityDelta: 0.25,
+              promotionDependenceDelta: -0.15,
             },
           },
     lifecycleMarketing: [
@@ -189,8 +189,8 @@ function request(
       ? {}
       : { interventions }),
     simulationConfig: {
-      maxEvents: 280_000,
-      maxSessionsPerCustomer: 26,
+      maxEvents: 600_000,
+      maxSessionsPerCustomer: 80,
       maxStepsPerSession: 18,
       opportunityCadenceHours: 12,
       lifecycleCheckDays: 21,
@@ -253,8 +253,8 @@ export function createCheapCustomerTrapFixture(): CheapCustomerTrapFixture {
     world,
     channelA,
     Math.max(
-      Math.abs(aBase) * 1.8,
-      Math.abs(bBase) * 1.45,
+      Math.abs(aBase) * 2.6,
+      Math.abs(bBase) * 2.1,
       world.summary.expectedAnnualOrders / 140,
     ),
   );
@@ -262,7 +262,7 @@ export function createCheapCustomerTrapFixture(): CheapCustomerTrapFixture {
     world,
     channelB,
     Math.max(
-      Math.abs(bBase) * 0.7,
+      Math.abs(bBase) * 0.45,
       world.summary.expectedAnnualOrders / 420,
     ),
   );
@@ -280,8 +280,8 @@ export function createCheapCustomerTrapFixture(): CheapCustomerTrapFixture {
   const interventions = spendInterventions(
     channels,
     {
-      [channelA]: 55_000,
-      [channelB]: 145_000,
+      [channelA]: 40_000,
+      [channelB]: 200_000,
     },
   );
 
@@ -365,44 +365,61 @@ export function createObservedLtvSelectionTrapFixture(): ObservedLtvSelectionTra
   };
 
   // Preserve each customer’s latent value/retention traits. Only selection
-  // into the zero-effect channel changes: naturally higher-repeat customers
-  // are much more likely to use it.
-  for (const customer of mutable.customers) {
-    const highValueScore =
-      customer.repeatPropensity * 0.58 +
-      customer.brandAffinity * 0.24 +
-      Math.min(
-        1,
-        customer.expectedOrderValueMinor /
-          Math.max(
-            1,
-            world.summary.expectedAovMinor * 1.5,
+  // into the zero-effect channel changes. Rank on pre-existing latent value;
+  // the selected channel attracts the high-value tail while the comparison
+  // channel attracts the lower-value tail.
+  const latentScores = mutable.customers
+    .map((customer) => ({
+      customerId: customer.customerId,
+      score:
+        customer.repeatPropensity * 0.5 +
+        customer.brandAffinity * 0.18 +
+        Math.min(
+          1,
+          customer.expectedFuturePurchases /
+            5,
+        ) *
+          0.2 +
+        Math.min(
+          1,
+          customer.expectedOrderValueMinor /
+            Math.max(
+              1,
+              world.summary.expectedAovMinor * 1.6,
+            ),
+        ) *
+          0.12,
+    }))
+    .sort(
+      (left, right) =>
+        right.score - left.score,
+    );
+  const highValueIds = new Set(
+    latentScores
+      .slice(
+        0,
+        Math.max(
+          1,
+          Math.floor(
+            latentScores.length * 0.4,
           ),
-      ) *
-        0.18;
+        ),
+      )
+      .map((item) => item.customerId),
+  );
+
+  for (const customer of mutable.customers) {
+    const highValue =
+      highValueIds.has(customer.customerId);
     for (const trait of customer.channelTraits) {
       if (trait.channelId === selectedChannel) {
         trait.naturalUseProbability =
-          Math.min(
-            0.96,
-            Math.max(
-              0.01,
-              0.03 +
-                highValueScore * 0.9,
-            ),
-          );
+          highValue ? 0.98 : 0.01;
       } else if (
         trait.channelId === comparisonChannel
       ) {
         trait.naturalUseProbability =
-          Math.min(
-            0.9,
-            Math.max(
-              0.02,
-              0.82 -
-                highValueScore * 0.7,
-            ),
-          );
+          highValue ? 0.01 : 0.92;
       }
     }
   }
@@ -417,7 +434,7 @@ export function createObservedLtvSelectionTrapFixture(): ObservedLtvSelectionTra
     channels,
     {
       [selectedChannel]: 0,
-      [comparisonChannel]: 90_000,
+      [comparisonChannel]: 0,
     },
   );
 
