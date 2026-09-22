@@ -1,0 +1,36 @@
+name: Step 11 Retention LTV CI
+
+on:
+  push:
+    branches:
+      - step11/retention-ltv
+  pull_request:
+    branches:
+      - step10/pricing-promotions
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: Install
+        run: npm install --no-audit --no-fund
+      - name: Architecture boundary
+        run: npm run architecture
+      - name: Typecheck
+        run: npm run typecheck
+      - name: Step 11 tests
+        run: npm run test:step11 -- --maxWorkers=1
+      - name: Test
+        run: npm test -- --maxWorkers=1
+      - name: Build
+        run: npm run build
