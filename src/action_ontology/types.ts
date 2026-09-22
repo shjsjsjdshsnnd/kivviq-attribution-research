@@ -908,13 +908,27 @@ export interface InventoryReorderDefinition {
   readonly procurementEconomics?: InventoryProcurementEconomics;
 }
 
+export type InventoryTimingReference =
+  | {
+      readonly kind:"current_planned_reorder_at_decision";
+      readonly decisionTime:UtcTimestamp;
+    }
+  | {
+      readonly kind:"explicit_planned_reorder";
+      readonly at:UtcTimestamp;
+    }
+  | {
+      readonly kind:"baseline_snapshot";
+      readonly baselineId:string;
+    };
+
 export type InventoryTimingOperation =
   | { readonly kind:"SET_DATE"; readonly at: UtcTimestamp }
   | {
       readonly kind:"DELTA_DAYS";
       readonly direction:"earlier"|"later";
       readonly days:number;
-      readonly baseline: ReferenceValue;
+      readonly baseline: InventoryTimingReference;
     }
   | {
       readonly kind:"INVENTORY_TRIGGER";
