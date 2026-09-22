@@ -63,6 +63,8 @@ const CURRENCY_PATTERN = /^[A-Z]{3}$/;
 const ISO_UTC_PATTERN = /Z$/;
 const PROMOTION_ID_PATTERN = /^promo_[A-Za-z0-9._:-]+$/;
 const SHIPPING_OFFER_ID_PATTERN = /^shipoffer_[A-Za-z0-9._:-]+$/;
+const MERCHANDISING_PLACEMENT_ID_PATTERN = /^merchplace_[A-Za-z0-9._:-]+$/;
+const MERCHANDISING_RELATIONSHIP_ID_PATTERN = /^merchrel_[A-Za-z0-9._:-]+$/;
 
 const TOP_LEVEL_FIELDS = new Set([
   "kind",
@@ -116,6 +118,13 @@ const FORBIDDEN_ACTION_KEYS = new Set([
   "expectedShippingCost",
   "predictedDemand",
   "predictedAbandonmentReduction",
+  "expectedCTR",
+  "predictedPurchaseProbability",
+  "predictedCrossSellRate",
+  "predictedUpsellRate",
+  "futureConversion",
+  "futureInventory",
+  "futureRevenue",
   "futureCartValue",
   "futureShippingCost",
   "confidence",
@@ -285,6 +294,32 @@ const ACTION_SCHEMA_1_4_ACTION_TYPES = new Set([
   "shipping.stop_offer",
   "shipping.adjust_policy",
   "shipping.rollback_policy",
+]);
+
+const ACTION_SCHEMA_1_5_TARGET_KINDS = new Set([
+  "merchandising_placement",
+  "merchandising_relationship",
+]);
+
+const ACTION_SCHEMA_1_5_PARAMETER_KINDS = new Set([
+  "merchandising_visibility",
+  "merchandising_rank",
+  "merchandising_relationship",
+  "merchandising_remove_placement",
+  "merchandising_remove_relationship",
+  "merchandising_rank_rollback",
+]);
+
+const ACTION_SCHEMA_1_5_ACTION_TYPES = new Set([
+  "merchandising.feature",
+  "merchandising.deprioritize",
+  "merchandising.set_rank",
+  "merchandising.promote_substitute",
+  "merchandising.set_cross_sell",
+  "merchandising.set_upsell",
+  "merchandising.remove_placement",
+  "merchandising.remove_relationship",
+  "merchandising.rollback_rank",
 ]);
 
 function validateSchemaFeatureCompatibility(
@@ -498,6 +533,39 @@ function validateSchemaFeatureCompatibility(
       add(errors,"SCHEMA_FEATURE_REQUIRES_1_4","reversibility.shippingRollback","shipping rollback semantics require Action schema 1.4.0");
     }
   }
+
+  if (
+    schemaVersion === "1.0.0" ||
+    schemaVersion === "1.1.0" ||
+    schemaVersion === "1.2.0" ||
+    schemaVersion === "1.3.0" ||
+    schemaVersion === "1.4.0"
+  ) {
+    if (
+      record(input.target) &&
+      ACTION_SCHEMA_1_5_TARGET_KINDS.has(String(input.target.kind))
+    ) {
+      add(errors,"SCHEMA_FEATURE_REQUIRES_1_5","target.kind","this merchandising target kind requires Action schema 1.5.0");
+    }
+    if (
+      record(input.parameters) &&
+      ACTION_SCHEMA_1_5_PARAMETER_KINDS.has(String(input.parameters.kind))
+    ) {
+      add(errors,"SCHEMA_FEATURE_REQUIRES_1_5","parameters.kind","this merchandising parameter kind requires Action schema 1.5.0");
+    }
+    if (
+      typeof input.actionType === "string" &&
+      ACTION_SCHEMA_1_5_ACTION_TYPES.has(input.actionType)
+    ) {
+      add(errors,"SCHEMA_FEATURE_REQUIRES_1_5","actionType","this merchandising Action type requires Action schema 1.5.0");
+    }
+    if (
+      record(input.reversibility) &&
+      input.reversibility.merchandisingRollback !== undefined
+    ) {
+      add(errors,"SCHEMA_FEATURE_REQUIRES_1_5","reversibility.merchandisingRollback","merchandising rollback semantics require Action schema 1.5.0");
+    }
+  }
 }
 
 function validateTarget(
@@ -536,6 +604,8 @@ function validateTarget(
     inventory_policy: ["inventoryPolicyId"],
     experiment: ["experimentId"],
     promotion: ["promotionId"],
+    merchandising_placement: ["placementId"],
+    merchandising_relationship: ["relationshipId"],
     merchant: ["merchantId"],
   };
 
@@ -2122,6 +2192,366 @@ function validateShippingParameters(input: unknown,path: string,errors: ActionVa
     validateShippingRollbackGuard(input.conflictGuard,path+".conflictGuard",errors,typeof input.originalActionId==="string"?input.originalActionId:undefined);return;
   }
 }
+
+function validateMerchandisingEntityTarget(
+  input: unknown,
+  path: string,
+  errors: ActionValidationIssue[],
+): void {
+  validateTarget(input, path, errors);
+  if (
+    record(input) &&
+    !["sku", "product", "collection"].includes(String(input.kind))
+  ) {
+    add(
+      errors,
+      "INVALID_MERCHANDISING_ENTITY_TARGET",
+      path + ".kind",
+      "merchandising entity must be SKU, product or collection",
+    );
+  }
+}
+
+function validateMerchandisingSurface(
+  input: unknown,
+  path: string,
+  errors: ActionValidationIssue[],
+): void {
+  if (!record(input) || !nonEmpty(input.kind)) {
+    add(errors, "INVALID_MERCHANDISING_SURFACE", path, "surface kind is required");
+    return;
+  }
+  switch (input.kind) {
+    case "COLLECTION_PAGE":
+      if (!nonEmpty(input.collectionId)) {
+        add(errors, "INVALID_MERCHANDISING_SURFACE_ID", path + ".collectionId", "required");
+      }
+      return;
+    case "CATEGORY_PAGE":
+      if (!nonEmpty(input.categoryId)) {
+        add(errors, "INVALID_MERCHANDISING_SURFACE_ID", path + ".categoryId", "required");
+      }
+      return;
+    case "SEARCH_RESULTS":
+      if (!nonEmpty(input.searchScopeId)) {
+        add(errors, "INVALID_MERCHANDISING_SURFACE_ID", path + ".searchScopeId", "required");
+      }
+      return;
+    case "HOMEPAGE":
+    case "CART":
+    case "CHECKOUT":
+    case "POST_PURCHASE":
+      if (input.areaId !== undefined && !nonEmpty(input.areaId)) {
+        add(errors, "INVALID_MERCHANDISING_AREA_ID", path + ".areaId", "must be non-empty when supplied");
+      }
+      return;
+    case "PRODUCT_PAGE":
+      if (!nonEmpty(input.productId)) {
+        add(errors, "INVALID_MERCHANDISING_SURFACE_ID", path + ".productId", "required");
+      }
+      return;
+    case "RECOMMENDATION_SLOT":
+      if (!nonEmpty(input.slotGroupId)) {
+        add(errors, "INVALID_MERCHANDISING_SURFACE_ID", path + ".slotGroupId", "required");
+      }
+      return;
+    case "CUSTOM":
+      if (!nonEmpty(input.surfaceId)) {
+        add(errors, "INVALID_MERCHANDISING_SURFACE_ID", path + ".surfaceId", "required");
+      }
+      return;
+    default:
+      add(errors, "UNKNOWN_MERCHANDISING_SURFACE", path + ".kind", "unsupported surface");
+  }
+}
+
+function validateMerchandisingPlacement(
+  input: unknown,
+  path: string,
+  errors: ActionValidationIssue[],
+): void {
+  if (!record(input) || !nonEmpty(input.kind)) {
+    add(errors, "INVALID_MERCHANDISING_PLACEMENT", path, "placement kind is required");
+    return;
+  }
+  if (input.kind === "POSITION") {
+    validatePositiveInteger(input.position, path + ".position", errors);
+    return;
+  }
+  if (input.kind === "NAMED_SLOT") {
+    if (!nonEmpty(input.slotId)) {
+      add(errors, "INVALID_MERCHANDISING_SLOT", path + ".slotId", "slotId is required");
+    }
+    return;
+  }
+  add(errors, "UNKNOWN_MERCHANDISING_PLACEMENT", path + ".kind", "unsupported placement");
+}
+
+function validateMerchandisingConflict(
+  input: unknown,
+  path: string,
+  errors: ActionValidationIssue[],
+): void {
+  if (!record(input) || !nonEmpty(input.kind)) {
+    add(errors, "INVALID_MERCHANDISING_CONFLICT", path, "conflict kind is required");
+    return;
+  }
+  if (input.kind === "COEXIST") return;
+  if (input.kind === "PRECEDENCE") {
+    validateNonNegativeInteger(input.precedence, path + ".precedence", errors);
+    return;
+  }
+  if (input.kind === "MUTUALLY_EXCLUSIVE_GROUP") {
+    if (!nonEmpty(input.groupId)) {
+      add(errors, "INVALID_MERCHANDISING_CONFLICT_GROUP", path + ".groupId", "groupId is required");
+    }
+    if (input.precedence !== undefined) {
+      validateNonNegativeInteger(input.precedence, path + ".precedence", errors);
+    }
+    return;
+  }
+  add(errors, "UNKNOWN_MERCHANDISING_CONFLICT", path + ".kind", "unsupported conflict kind");
+}
+
+function validateMerchandisingSnapshotRef(
+  input: unknown,
+  path: string,
+  errors: ActionValidationIssue[],
+): void {
+  if (!record(input)) {
+    add(errors, "INVALID_MERCHANDISING_SNAPSHOT_REF", path, "snapshot reference is required");
+    return;
+  }
+  if (!nonEmpty(input.bindingRef)) {
+    add(errors, "INVALID_MERCHANDISING_SNAPSHOT_BINDING", path + ".bindingRef", "bindingRef is required");
+  }
+  if (
+    !["decision_time", "translation_time", "effective_time"].includes(
+      String(input.evaluateAt),
+    )
+  ) {
+    add(
+      errors,
+      "INVALID_MERCHANDISING_SNAPSHOT_BOUNDARY",
+      path + ".evaluateAt",
+      "must be decision_time, translation_time or effective_time",
+    );
+  }
+}
+
+function validateMerchandisingRankOperation(
+  input: unknown,
+  path: string,
+  errors: ActionValidationIssue[],
+): void {
+  if (!record(input) || !nonEmpty(input.kind)) {
+    add(errors, "INVALID_MERCHANDISING_RANK_OPERATION", path, "rank operation is required");
+    return;
+  }
+  if (input.kind === "SET") {
+    validatePositiveInteger(input.position, path + ".position", errors);
+    return;
+  }
+  if (input.kind === "DELTA") {
+    if (!["UP", "DOWN"].includes(String(input.direction))) {
+      add(errors, "INVALID_MERCHANDISING_RANK_DIRECTION", path + ".direction", "must be UP or DOWN");
+    }
+    validatePositiveInteger(input.positions, path + ".positions", errors);
+    validateMerchandisingSnapshotRef(input.snapshot, path + ".snapshot", errors);
+    return;
+  }
+  if (input.kind === "MOVE_TO_TOP") {
+    if (input.snapshot !== undefined) {
+      validateMerchandisingSnapshotRef(input.snapshot, path + ".snapshot", errors);
+    }
+    return;
+  }
+  add(errors, "UNKNOWN_MERCHANDISING_RANK_OPERATION", path + ".kind", "unsupported rank operation");
+}
+
+function validateMerchandisingRelationshipTrigger(
+  input: unknown,
+  path: string,
+  errors: ActionValidationIssue[],
+): void {
+  if (!record(input) || !nonEmpty(input.kind)) {
+    add(errors, "INVALID_MERCHANDISING_RELATIONSHIP_TRIGGER", path, "trigger kind is required");
+    return;
+  }
+  if (["ALWAYS", "SOURCE_OUT_OF_STOCK"].includes(String(input.kind))) return;
+  if (input.kind === "SOURCE_INVENTORY_AT_MOST") {
+    validateNonNegativeInteger(input.units, path + ".units", errors);
+    return;
+  }
+  add(errors, "UNKNOWN_MERCHANDISING_RELATIONSHIP_TRIGGER", path + ".kind", "unsupported trigger");
+}
+
+function merchandisingTargetKey(input: unknown): string {
+  if (!record(input)) return "";
+  if (input.kind === "product") return "product:" + String(input.productId ?? "");
+  if (input.kind === "sku") return "sku:" + String(input.skuId ?? "");
+  if (input.kind === "collection") return "collection:" + String(input.collectionId ?? "");
+  return "";
+}
+
+function validateMerchandisingRelationship(
+  input: unknown,
+  path: string,
+  errors: ActionValidationIssue[],
+): void {
+  if (!record(input)) {
+    add(errors, "INVALID_MERCHANDISING_RELATIONSHIP", path, "relationship parameters are required");
+    return;
+  }
+  if (!["SUBSTITUTE", "CROSS_SELL", "UPSELL"].includes(String(input.relationshipType))) {
+    add(errors, "INVALID_MERCHANDISING_RELATIONSHIP_TYPE", path + ".relationshipType", "unsupported relationship type");
+  }
+  validateTarget(input.source, path + ".source", errors);
+  if (
+    record(input.source) &&
+    !["sku", "product"].includes(String(input.source.kind))
+  ) {
+    add(errors, "INVALID_MERCHANDISING_RELATIONSHIP_SOURCE", path + ".source.kind", "source must be SKU or product");
+  }
+  if (!Array.isArray(input.targets) || input.targets.length === 0) {
+    add(errors, "INVALID_MERCHANDISING_RELATIONSHIP_TARGETS", path + ".targets", "at least one ordered target is required");
+  } else {
+    const positions:number[] = [];
+    const targetKeys = new Set<string>();
+    input.targets.forEach((target:unknown,index:number)=>{
+      const p=path+".targets["+index+"]";
+      if(!record(target)){
+        add(errors,"INVALID_MERCHANDISING_RELATIONSHIP_TARGET",p,"target object required");
+        return;
+      }
+      validateTarget(target.entity,p+".entity",errors);
+      if(record(target.entity)&&!["sku","product"].includes(String(target.entity.kind))){
+        add(errors,"INVALID_MERCHANDISING_RELATIONSHIP_TARGET_KIND",p+".entity.kind","target must be SKU or product");
+      }
+      validatePositiveInteger(target.position,p+".position",errors);
+      if(Number.isInteger(target.position)) positions.push(Number(target.position));
+      const key=merchandisingTargetKey(target.entity);
+      if(key&&targetKeys.has(key)) add(errors,"DUPLICATE_MERCHANDISING_RELATIONSHIP_TARGET",p+".entity","relationship targets must be unique");
+      if(key) targetKeys.add(key);
+      if(key&&key===merchandisingTargetKey(input.source)) add(errors,"MERCHANDISING_RELATIONSHIP_SELF_TARGET",p+".entity","source cannot recommend itself");
+    });
+    const sorted=[...positions].sort((a,b)=>a-b);
+    if(sorted.some((value,index)=>value!==index+1)){
+      add(errors,"MERCHANDISING_RELATIONSHIP_POSITIONS_NOT_CONTIGUOUS",path+".targets","ordered relationship positions must be contiguous starting at 1");
+    }
+  }
+  validateMerchandisingSurface(input.surface,path+".surface",errors);
+  validateMerchandisingRelationshipTrigger(input.trigger,path+".trigger",errors);
+  validateMerchandisingConflict(input.conflictResolution,path+".conflictResolution",errors);
+}
+
+function validateMerchandisingRollbackStrategy(
+  input: unknown,
+  path: string,
+  errors: ActionValidationIssue[],
+): void {
+  if (!record(input) || !nonEmpty(input.kind)) {
+    add(errors, "INVALID_MERCHANDISING_ROLLBACK_STRATEGY", path, "strategy is required");
+    return;
+  }
+  if (input.kind === "RESTORE_PRE_ACTION_VALUE") {
+    if (!nonEmpty(input.rankingSnapshotRef)) {
+      add(errors, "INVALID_MERCHANDISING_ROLLBACK_SNAPSHOT", path + ".rankingSnapshotRef", "snapshot ref is required");
+    }
+    return;
+  }
+  if (input.kind === "SET_EXPLICIT_VALUE") {
+    validatePositiveInteger(input.position, path + ".position", errors);
+    return;
+  }
+  add(errors, "UNKNOWN_MERCHANDISING_ROLLBACK_STRATEGY", path + ".kind", "unsupported rollback strategy");
+}
+
+function validateMerchandisingRollbackGuard(
+  input: unknown,
+  path: string,
+  errors: ActionValidationIssue[],
+  originalActionId?: string,
+): void {
+  if (!record(input) || input.kind !== "REQUIRE_CURRENT_MATCHES_ACTION_OUTPUT") {
+    add(errors, "INVALID_MERCHANDISING_ROLLBACK_GUARD", path, "conflict guard is required");
+    return;
+  }
+  if (!nonEmpty(input.sourceActionId)) {
+    add(errors, "INVALID_MERCHANDISING_ROLLBACK_SOURCE", path + ".sourceActionId", "required");
+  } else if (originalActionId && input.sourceActionId !== originalActionId) {
+    add(errors, "MERCHANDISING_ROLLBACK_SOURCE_MISMATCH", path + ".sourceActionId", "must reference original Action");
+  }
+  validatePositiveInteger(input.expectedPosition, path + ".expectedPosition", errors);
+}
+
+function validateMerchandisingParameters(
+  input: unknown,
+  path: string,
+  errors: ActionValidationIssue[],
+): void {
+  if (!record(input)) {
+    add(errors, "INVALID_MERCHANDISING_PARAMETERS", path, "parameters are required");
+    return;
+  }
+  if (input.kind === "merchandising_visibility") {
+    validateMerchandisingEntityTarget(input.entity,path+".entity",errors);
+    validateMerchandisingSurface(input.surface,path+".surface",errors);
+    if (input.placementId !== undefined) {
+      if (!nonEmpty(input.placementId) || !MERCHANDISING_PLACEMENT_ID_PATTERN.test(input.placementId)) {
+        add(errors,"INVALID_MERCHANDISING_PLACEMENT_ID",path+".placementId","placementId must begin with merchplace_");
+      }
+    }
+    if (input.placement !== undefined) validateMerchandisingPlacement(input.placement,path+".placement",errors);
+    if (!record(input.visibility) || !nonEmpty(input.visibility.kind)) {
+      add(errors,"INVALID_MERCHANDISING_VISIBILITY",path+".visibility","visibility mode required");
+    } else if (input.visibility.kind === "DEPRIORITIZE") {
+      if (input.visibility.belowPosition !== undefined) {
+        validatePositiveInteger(input.visibility.belowPosition,path+".visibility.belowPosition",errors);
+      }
+    } else if (!["FEATURE","REMOVE_PLACEMENT"].includes(String(input.visibility.kind))) {
+      add(errors,"UNKNOWN_MERCHANDISING_VISIBILITY",path+".visibility.kind","unsupported visibility mode");
+    }
+    if (input.visibility.kind === "FEATURE" && input.placementId === undefined) {
+      add(errors,"FEATURE_REQUIRES_PLACEMENT_ID",path+".placementId","feature placement requires stable merchplace_* identity");
+    }
+    validateMerchandisingConflict(input.conflictResolution,path+".conflictResolution",errors);
+    return;
+  }
+  if (input.kind === "merchandising_rank") {
+    validateMerchandisingEntityTarget(input.entity,path+".entity",errors);
+    validateMerchandisingSurface(input.surface,path+".surface",errors);
+    validateMerchandisingRankOperation(input.operation,path+".operation",errors);
+    if (input.displacement !== "SHIFT_OTHERS") {
+      add(errors,"INVALID_MERCHANDISING_DISPLACEMENT",path+".displacement","SHIFT_OTHERS is required");
+    }
+    validateMerchandisingConflict(input.conflictResolution,path+".conflictResolution",errors);
+    return;
+  }
+  if (input.kind === "merchandising_relationship") {
+    validateMerchandisingRelationship(input,path,errors);
+    return;
+  }
+  if (input.kind === "merchandising_remove_placement") {
+    if (!nonEmpty(input.placementId) || !MERCHANDISING_PLACEMENT_ID_PATTERN.test(input.placementId)) add(errors,"INVALID_MERCHANDISING_PLACEMENT_ID",path+".placementId","placementId must begin with merchplace_");
+    validateMerchandisingSurface(input.surface,path+".surface",errors);
+    return;
+  }
+  if (input.kind === "merchandising_remove_relationship") {
+    if (!nonEmpty(input.relationshipId) || !MERCHANDISING_RELATIONSHIP_ID_PATTERN.test(input.relationshipId)) add(errors,"INVALID_MERCHANDISING_RELATIONSHIP_ID",path+".relationshipId","relationshipId must begin with merchrel_");
+    if (!["SUBSTITUTE","CROSS_SELL","UPSELL"].includes(String(input.relationshipType))) {
+      add(errors,"INVALID_MERCHANDISING_RELATIONSHIP_TYPE",path+".relationshipType","unsupported relationship type");
+    }
+    return;
+  }
+  if (input.kind === "merchandising_rank_rollback") {
+    if (!nonEmpty(input.originalActionId)) add(errors,"INVALID_MERCHANDISING_ROLLBACK_ORIGINAL",path+".originalActionId","required");
+    validateMerchandisingRollbackStrategy(input.strategy,path+".strategy",errors);
+    validateMerchandisingRollbackGuard(input.conflictGuard,path+".conflictGuard",errors,typeof input.originalActionId==="string"?input.originalActionId:undefined);
+    return;
+  }
+}
+
 function validateParameters(
   input: unknown,
   path: string,
@@ -2273,6 +2703,14 @@ function validateParameters(
         add(errors, "INVALID_MERCHANDISING_TARGET", path, "collectionId and productId are required");
       }
       validatePositiveInteger(input.position, path + ".position", errors);
+      return;
+    case "merchandising_visibility":
+    case "merchandising_rank":
+    case "merchandising_relationship":
+    case "merchandising_remove_placement":
+    case "merchandising_remove_relationship":
+    case "merchandising_rank_rollback":
+      validateMerchandisingParameters(input,path,errors);
       return;
     case "shipping_policy":
       if (!nonEmpty(input.setting)) {
@@ -3103,6 +3541,28 @@ function validateReversibility(
       validateShippingRollbackGuard(input.shippingRollback.conflictGuard,path+".shippingRollback.conflictGuard",errors);
     }
   }
+
+  if (input.merchandisingRollback !== undefined) {
+    if (!record(input.merchandisingRollback) || typeof input.merchandisingRollback.available !== "boolean") {
+      add(errors,"INVALID_MERCHANDISING_ROLLBACK_CONTRACT",path+".merchandisingRollback","available must be explicit");
+    } else if (input.merchandisingRollback.available === false) {
+      if (!nonEmpty(input.merchandisingRollback.reason)) {
+        add(errors,"INVALID_MERCHANDISING_ROLLBACK_REASON",path+".merchandisingRollback.reason","reason is required");
+      }
+    } else {
+      validateMerchandisingRollbackStrategy(input.merchandisingRollback.strategy,path+".merchandisingRollback.strategy",errors);
+      if (!record(input.merchandisingRollback.trigger) || !nonEmpty(input.merchandisingRollback.trigger.kind)) {
+        add(errors,"INVALID_MERCHANDISING_ROLLBACK_TRIGGER",path+".merchandisingRollback.trigger","trigger is required");
+      } else if (input.merchandisingRollback.trigger.kind === "AT") {
+        validateTimestamp(input.merchandisingRollback.trigger.at,path+".merchandisingRollback.trigger.at",errors);
+      } else if (input.merchandisingRollback.trigger.kind !== "ON_TERMINATION") {
+        add(errors,"INVALID_MERCHANDISING_ROLLBACK_TRIGGER",path+".merchandisingRollback.trigger.kind","unsupported trigger");
+      }
+      validateNonNegativeInteger(input.merchandisingRollback.delaySeconds,path+".merchandisingRollback.delaySeconds",errors);
+      validateKnownOrUnknown(input.merchandisingRollback.cost,path+".merchandisingRollback.cost",errors,(v,p)=>validateMoney(v,p,errors));
+      validateMerchandisingRollbackGuard(input.merchandisingRollback.conflictGuard,path+".merchandisingRollback.conflictGuard",errors);
+    }
+  }
 }
 
 function validateRiskDimensions(
@@ -3607,6 +4067,209 @@ function validateShippingActionSemantics(input:any,errors:ActionValidationIssue[
   }
 }
 
+
+function validateMerchandisingActionSemantics(
+  input: any,
+  errors: ActionValidationIssue[],
+): void {
+  const visibilityTypes = ["merchandising.feature", "merchandising.deprioritize"];
+  if (visibilityTypes.includes(String(input.actionType))) {
+    if (!record(input.parameters) || input.parameters.kind !== "merchandising_visibility") return;
+    if (
+      canonicalRuntimeKey(input.target) !==
+      canonicalRuntimeKey(input.parameters.entity)
+    ) {
+      add(
+        errors,
+        "MERCHANDISING_ENTITY_TARGET_MISMATCH",
+        "parameters.entity",
+        "Action target and merchandising entity must match",
+      );
+    }
+    const expected =
+      input.actionType === "merchandising.feature"
+        ? "FEATURE"
+        : "DEPRIORITIZE";
+    if (!record(input.parameters.visibility) || input.parameters.visibility.kind !== expected) {
+      add(
+        errors,
+        "MERCHANDISING_VISIBILITY_ACTION_MISMATCH",
+        "parameters.visibility.kind",
+        "visibility mode does not match merchandising action type",
+      );
+    }
+  }
+
+  if (input.actionType === "merchandising.set_rank") {
+    if (!record(input.parameters) || input.parameters.kind !== "merchandising_rank") return;
+    if (
+      canonicalRuntimeKey(input.target) !==
+      canonicalRuntimeKey(input.parameters.entity)
+    ) {
+      add(
+        errors,
+        "MERCHANDISING_ENTITY_TARGET_MISMATCH",
+        "parameters.entity",
+        "Action target and ranked entity must match",
+      );
+    }
+    const temporary =
+      record(input.duration) && input.duration.kind === "temporary";
+    if (
+      temporary &&
+      (!record(input.reversibility) ||
+        !record(input.reversibility.merchandisingRollback) ||
+        input.reversibility.merchandisingRollback.available !== true)
+    ) {
+      add(
+        errors,
+        "TEMPORARY_MERCHANDISING_RANK_REQUIRES_SAFE_ROLLBACK",
+        "reversibility.merchandisingRollback",
+        "temporary rank changes require conflict-protected rollback",
+      );
+    }
+    if (
+      record(input.reversibility) &&
+      record(input.reversibility.merchandisingRollback) &&
+      input.reversibility.merchandisingRollback.available === true &&
+      record(input.reversibility.merchandisingRollback.conflictGuard) &&
+      input.reversibility.merchandisingRollback.conflictGuard.sourceActionId !== input.actionId
+    ) {
+      add(
+        errors,
+        "MERCHANDISING_ROLLBACK_SOURCE_MISMATCH",
+        "reversibility.merchandisingRollback.conflictGuard.sourceActionId",
+        "rollback conflict guard must reference this rank Action",
+      );
+    }
+  }
+
+  const relationshipTypeByAction: Readonly<Record<string,string>> = {
+    "merchandising.promote_substitute": "SUBSTITUTE",
+    "merchandising.set_cross_sell": "CROSS_SELL",
+    "merchandising.set_upsell": "UPSELL",
+  };
+  const expectedRelationshipType = relationshipTypeByAction[String(input.actionType)];
+  if (expectedRelationshipType) {
+    if (
+      !record(input.target) ||
+      input.target.kind !== "merchandising_relationship" ||
+      !nonEmpty(input.target.relationshipId) ||
+      !MERCHANDISING_RELATIONSHIP_ID_PATTERN.test(input.target.relationshipId)
+    ) {
+      add(
+        errors,
+        "MERCHANDISING_RELATIONSHIP_ACTION_REQUIRES_RELATIONSHIP_TARGET",
+        "target",
+        "relationship Action requires stable merchrel_* target",
+      );
+    }
+    if (
+      record(input.parameters) &&
+      input.parameters.kind === "merchandising_relationship" &&
+      input.parameters.relationshipType !== expectedRelationshipType
+    ) {
+      add(
+        errors,
+        "MERCHANDISING_RELATIONSHIP_TYPE_MISMATCH",
+        "parameters.relationshipType",
+        "relationship type does not match action type",
+      );
+    }
+  }
+
+  if (input.actionType === "merchandising.remove_placement") {
+    if (
+      !record(input.target) ||
+      input.target.kind !== "merchandising_placement" ||
+      !nonEmpty(input.target.placementId) ||
+      !MERCHANDISING_PLACEMENT_ID_PATTERN.test(input.target.placementId)
+    ) {
+      add(
+        errors,
+        "MERCHANDISING_REMOVE_PLACEMENT_REQUIRES_PLACEMENT_TARGET",
+        "target",
+        "remove placement requires stable merchplace_* target",
+      );
+    }
+    if (
+      record(input.parameters) &&
+      input.parameters.kind === "merchandising_remove_placement" &&
+      input.parameters.placementId !== input.target.placementId
+    ) {
+      add(
+        errors,
+        "MERCHANDISING_PLACEMENT_ID_MISMATCH",
+        "parameters.placementId",
+        "placement ID must match Action target",
+      );
+    }
+    if (!record(input.duration) || input.duration.kind !== "instantaneous") {
+      add(
+        errors,
+        "MERCHANDISING_REMOVE_PLACEMENT_MUST_BE_INSTANTANEOUS",
+        "duration",
+        "placement removal is an instantaneous state change",
+      );
+    }
+  }
+
+  if (input.actionType === "merchandising.remove_relationship") {
+    if (
+      !record(input.target) ||
+      input.target.kind !== "merchandising_relationship" ||
+      !nonEmpty(input.target.relationshipId) ||
+      !MERCHANDISING_RELATIONSHIP_ID_PATTERN.test(input.target.relationshipId)
+    ) {
+      add(
+        errors,
+        "MERCHANDISING_REMOVE_RELATIONSHIP_REQUIRES_RELATIONSHIP_TARGET",
+        "target",
+        "remove relationship requires stable merchrel_* target",
+      );
+    }
+    if (
+      record(input.parameters) &&
+      input.parameters.kind === "merchandising_remove_relationship" &&
+      input.parameters.relationshipId !== input.target.relationshipId
+    ) {
+      add(
+        errors,
+        "MERCHANDISING_RELATIONSHIP_ID_MISMATCH",
+        "parameters.relationshipId",
+        "relationship ID must match Action target",
+      );
+    }
+    if (!record(input.duration) || input.duration.kind !== "instantaneous") {
+      add(
+        errors,
+        "MERCHANDISING_REMOVE_RELATIONSHIP_MUST_BE_INSTANTANEOUS",
+        "duration",
+        "relationship removal is an instantaneous state change",
+      );
+    }
+  }
+
+  if (input.actionType === "merchandising.rollback_rank") {
+    if (!record(input.parameters) || input.parameters.kind !== "merchandising_rank_rollback") return;
+    if (!nonEmpty(input.reversalOfActionId)) {
+      add(
+        errors,
+        "MERCHANDISING_ROLLBACK_REQUIRES_REVERSAL_REFERENCE",
+        "reversalOfActionId",
+        "rank rollback must reference original rank Action",
+      );
+    } else if (input.reversalOfActionId !== input.parameters.originalActionId) {
+      add(
+        errors,
+        "MERCHANDISING_ROLLBACK_ORIGINAL_ACTION_MISMATCH",
+        "reversalOfActionId",
+        "rollback references must identify the same original Action",
+      );
+    }
+  }
+}
+
 function deepFreeze<T>(value: T): T {
   if (typeof value !== "object" || value === null || Object.isFrozen(value)) return value;
   Object.freeze(value);
@@ -3760,6 +4423,7 @@ export function validateAction(
   validatePricingActionSemantics(input, errors);
   validatePromotionActionSemantics(input, errors);
   validateShippingActionSemantics(input, errors);
+  validateMerchandisingActionSemantics(input, errors);
 
   if (input.reversalOfActionId !== undefined) {
     if (!nonEmpty(input.reversalOfActionId)) {

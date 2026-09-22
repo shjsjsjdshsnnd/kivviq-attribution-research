@@ -36,6 +36,12 @@ const FORBIDDEN_CONTEXT_KEYS = new Set([
   "expectedDemandLift",
   "predictedRedemptions",
   "predictedAOV",
+  "futureInventory",
+  "futureConversion",
+  "predictedPurchaseProbability",
+  "predictedCrossSellRate",
+  "predictedUpsellRate",
+  "expectedCTR",
 ]);
 
 function record(value: unknown): value is any {
@@ -239,6 +245,126 @@ function validatePromotionMembershipBindings(
   return { ok: true };
 }
 
+
+function validateMerchandisingRankingSnapshots(
+  input: unknown,
+):
+  | { readonly ok: true }
+  | { readonly ok: false; readonly message: string } {
+  if (input === undefined) return { ok: true };
+  if (!Array.isArray(input)) {
+    return {
+      ok: false,
+      message: "merchandisingRankingSnapshots must be an array",
+    };
+  }
+
+  const refs = new Set<string>();
+  for (const snapshot of input) {
+    if (
+      !record(snapshot) ||
+      !nonEmpty(snapshot.bindingRef) ||
+      !["decision_time", "translation_time", "effective_time"].includes(
+        String(snapshot.evaluateAt),
+      ) ||
+      typeof snapshot.snapshotTime !== "string" ||
+      !snapshot.snapshotTime.endsWith("Z") ||
+      !Number.isFinite(Date.parse(snapshot.snapshotTime)) ||
+      !nonEmpty(snapshot.sourceRef) ||
+      !record(snapshot.surface) ||
+      !Array.isArray(snapshot.orderedEntities) ||
+      snapshot.orderedEntities.length === 0 ||
+      snapshot.orderedEntities.some(
+        (entity: unknown) =>
+          !record(entity) ||
+          !["sku", "product", "collection"].includes(String(entity.kind)),
+      )
+    ) {
+      return {
+        ok: false,
+        message: "merchandising ranking snapshot is malformed",
+      };
+    }
+
+    if (refs.has(snapshot.bindingRef)) {
+      return {
+        ok: false,
+        message: "merchandising ranking bindingRef values must be unique",
+      };
+    }
+    refs.add(snapshot.bindingRef);
+
+    const entities = snapshot.orderedEntities.map(stableKey);
+    if (new Set(entities).size !== entities.length) {
+      return {
+        ok: false,
+        message: "merchandising ranking snapshot contains duplicate entities",
+      };
+    }
+  }
+
+  return { ok: true };
+}
+
+function validateMerchandisingSurfaceDefinitions(
+  input: unknown,
+):
+  | { readonly ok: true }
+  | { readonly ok: false; readonly message: string } {
+  if (input === undefined) return { ok: true };
+  if (!Array.isArray(input)) {
+    return {
+      ok: false,
+      message: "merchandisingSurfaceDefinitions must be an array",
+    };
+  }
+  const surfaces = new Set<string>();
+  for (const definition of input) {
+    if (
+      !record(definition) ||
+      !record(definition.surface) ||
+      !nonEmpty(definition.sourceRef)
+    ) {
+      return {
+        ok: false,
+        message: "merchandising surface definition is malformed",
+      };
+    }
+    if (
+      definition.capacity !== undefined &&
+      (!Number.isInteger(definition.capacity) ||
+        Number(definition.capacity) <= 0)
+    ) {
+      return {
+        ok: false,
+        message: "merchandising surface capacity must be a positive integer",
+      };
+    }
+    if (
+      definition.namedSlotIds !== undefined &&
+      (!Array.isArray(definition.namedSlotIds) ||
+        definition.namedSlotIds.some((value: unknown) => !nonEmpty(value)) ||
+        new Set(definition.namedSlotIds).size !==
+          definition.namedSlotIds.length)
+    ) {
+      return {
+        ok: false,
+        message: "merchandising named slots must be unique non-empty strings",
+      };
+    }
+
+    const key = stableKey(definition.surface);
+    if (surfaces.has(key)) {
+      return {
+        ok: false,
+        message: "merchandising surface definitions must be unique",
+      };
+    }
+    surfaces.add(key);
+  }
+  return { ok: true };
+}
+
 export type TranslationContextValidationResult =
   | {
       readonly ok: true;
@@ -323,6 +449,25 @@ export function validateTranslationContext(
     };
   }
 
+
+  if (
+    (input.schemaVersion === "1.0.0" ||
+      input.schemaVersion === "1.1.0" ||
+      input.schemaVersion === "1.2.0") &&
+    (input.merchandisingRankingSnapshots !== undefined ||
+      input.merchandisingSurfaceDefinitions !== undefined)
+  ) {
+    return {
+      ok: false,
+      failure: {
+        status: "MISSING_CONTEXT",
+        code: "TRANSLATION_CONTEXT_FEATURE_REQUIRES_1_3",
+        message:
+          "merchandising ranking/surface context requires TranslationContext schema 1.3.0.",
+      },
+    };
+  }
+
   if (
     typeof input.simulatorClock !== "string" ||
     !input.simulatorClock.endsWith("Z") ||
@@ -378,6 +523,36 @@ export function validateTranslationContext(
         status: "MISSING_CONTEXT",
         code: "MALFORMED_PROMOTION_MEMBERSHIP_CONTEXT",
         message: promotionMembershipValidation.message,
+      },
+    };
+  }
+
+  const merchandisingRankingValidation =
+    validateMerchandisingRankingSnapshots(
+      input.merchandisingRankingSnapshots,
+    );
+  if (!merchandisingRankingValidation.ok) {
+    return {
+      ok: false,
+      failure: {
+        status: "MISSING_CONTEXT",
+        code: "MALFORMED_MERCHANDISING_RANKING_CONTEXT",
+        message: merchandisingRankingValidation.message,
+      },
+    };
+  }
+
+  const merchandisingSurfaceValidation =
+    validateMerchandisingSurfaceDefinitions(
+      input.merchandisingSurfaceDefinitions,
+    );
+  if (!merchandisingSurfaceValidation.ok) {
+    return {
+      ok: false,
+      failure: {
+        status: "MISSING_CONTEXT",
+        code: "MALFORMED_MERCHANDISING_SURFACE_CONTEXT",
+        message: merchandisingSurfaceValidation.message,
       },
     };
   }
@@ -604,5 +779,29 @@ export function resolvePromotionMembership(
   if (matches.length === 0) return { status: "missing", ref };
   if (matches.length > 1) return { status: "ambiguous", ref };
 
+  return { status: "resolved", binding: matches[0]! };
+}
+
+
+export type MerchandisingRankingSnapshotResolution =
+  | {
+      readonly status: "resolved";
+      readonly binding: NonNullable<
+        TranslationContext["merchandisingRankingSnapshots"]
+      >[number];
+    }
+  | { readonly status: "missing"; readonly ref: string }
+  | { readonly status: "ambiguous"; readonly ref: string };
+
+export function resolveMerchandisingRankingSnapshot(
+  context: TranslationContext,
+  bindingRef: string,
+): MerchandisingRankingSnapshotResolution {
+  const matches = (context.merchandisingRankingSnapshots ?? []).filter(
+    (snapshot) => snapshot.bindingRef === bindingRef,
+  );
+  const ref = "merchandising-ranking:" + bindingRef;
+  if (matches.length === 0) return { status: "missing", ref };
+  if (matches.length > 1) return { status: "ambiguous", ref };
   return { status: "resolved", binding: matches[0]! };
 }

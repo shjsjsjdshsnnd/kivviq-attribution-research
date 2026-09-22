@@ -6,6 +6,8 @@ import type {
   CompoundAction,
   MonetaryValue,
   MembershipEvaluationBoundary,
+  MerchandisingEntityTarget,
+  MerchandisingSurface,
   PricingMembershipBoundary,
   ReferenceValue,
   ScalarValue,
@@ -16,10 +18,11 @@ import type {
 } from "../simulator_intervention/types.js";
 
 export const ACTION_TRANSLATION_VERSION = "1.0.0" as const;
-export const TRANSLATION_CONTEXT_SCHEMA_VERSION = "1.2.0" as const;
+export const TRANSLATION_CONTEXT_SCHEMA_VERSION = "1.3.0" as const;
 export const SUPPORTED_TRANSLATION_CONTEXT_SCHEMA_VERSIONS = [
   "1.0.0",
   "1.1.0",
+  "1.2.0",
   TRANSLATION_CONTEXT_SCHEMA_VERSION,
 ] as const;
 
@@ -86,6 +89,26 @@ export interface PromotionMembershipBinding {
   readonly members: readonly PromotionMembershipMemberBinding[];
 }
 
+
+export interface MerchandisingRankingSnapshotBinding {
+  readonly bindingRef: string;
+  readonly evaluateAt:
+    | "decision_time"
+    | "translation_time"
+    | "effective_time";
+  readonly snapshotTime: UtcTimestamp;
+  readonly sourceRef: string;
+  readonly surface: MerchandisingSurface;
+  readonly orderedEntities: readonly MerchandisingEntityTarget[];
+}
+
+export interface MerchandisingSurfaceDefinitionBinding {
+  readonly surface: MerchandisingSurface;
+  readonly sourceRef: string;
+  readonly capacity?: number;
+  readonly namedSlotIds?: readonly string[];
+}
+
 export interface TranslationContext {
   readonly schemaVersion:
     (typeof SUPPORTED_TRANSLATION_CONTEXT_SCHEMA_VERSIONS)[number];
@@ -95,6 +118,8 @@ export interface TranslationContext {
   readonly referenceBindings: readonly TranslationReferenceBinding[];
   readonly pricingMembershipBindings?: readonly PricingMembershipBinding[];
   readonly promotionMembershipBindings?: readonly PromotionMembershipBinding[];
+  readonly merchandisingRankingSnapshots?: readonly MerchandisingRankingSnapshotBinding[];
+  readonly merchandisingSurfaceDefinitions?: readonly MerchandisingSurfaceDefinitionBinding[];
 }
 
 export interface ResolvedCompoundBusinessAction {

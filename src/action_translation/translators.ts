@@ -785,6 +785,49 @@ function unsupportedShippingTranslator(
   };
 }
 
+
+function unsupportedRigorousMerchandisingTranslator(
+  actionType:
+    | "merchandising.feature"
+    | "merchandising.deprioritize"
+    | "merchandising.set_rank"
+    | "merchandising.promote_substitute"
+    | "merchandising.set_cross_sell"
+    | "merchandising.set_upsell"
+    | "merchandising.remove_placement"
+    | "merchandising.remove_relationship"
+    | "merchandising.rollback_rank",
+): ActionTranslator {
+  const relationship =
+    actionType === "merchandising.promote_substitute" ||
+    actionType === "merchandising.set_cross_sell" ||
+    actionType === "merchandising.set_upsell" ||
+    actionType === "merchandising.remove_relationship";
+  const placementRemoval = actionType === "merchandising.remove_placement";
+  return {
+    actionType,
+    translatorId:
+      "translator." +
+      actionType.replace(".", "_") +
+      "_boundary.v1",
+    translationVersion: ACTION_TRANSLATION_VERSION,
+    supportedTargetKinds: relationship
+      ? ["merchandising_relationship"]
+      : placementRemoval
+        ? ["merchandising_placement"]
+        : ["sku", "product", "collection"],
+    translate(action) {
+      return {
+        status: "UNSUPPORTED_SIMULATOR_CAPABILITY",
+        actionId: action.actionId,
+        code: "MERCHANDISING_CAPABILITY_UNSUPPORTED_BY_SIMULATOR",
+        message:
+          "Current simulator merchandising_position intervention does not preserve rigorous surface/container, displacement, relationship, removal or rollback semantics. The Action is not approximated through demand, conversion, advertising, availability or price mutations.",
+      };
+    },
+  };
+}
+
 const merchandisingTranslator: ActionTranslator = {
   actionType: "merchandising.move_product",
   translatorId: "translator.merchandising_position.v1",
@@ -890,6 +933,15 @@ export const CORE_ACTION_TRANSLATORS: readonly ActionTranslator[] = Object.freez
   unsupportedShippingTranslator("shipping.stop_offer"),
   unsupportedShippingTranslator("shipping.adjust_policy"),
   unsupportedShippingTranslator("shipping.rollback_policy"),
+  unsupportedRigorousMerchandisingTranslator("merchandising.feature"),
+  unsupportedRigorousMerchandisingTranslator("merchandising.deprioritize"),
+  unsupportedRigorousMerchandisingTranslator("merchandising.set_rank"),
+  unsupportedRigorousMerchandisingTranslator("merchandising.promote_substitute"),
+  unsupportedRigorousMerchandisingTranslator("merchandising.set_cross_sell"),
+  unsupportedRigorousMerchandisingTranslator("merchandising.set_upsell"),
+  unsupportedRigorousMerchandisingTranslator("merchandising.remove_placement"),
+  unsupportedRigorousMerchandisingTranslator("merchandising.remove_relationship"),
+  unsupportedRigorousMerchandisingTranslator("merchandising.rollback_rank"),
   merchandisingTranslator,
   noCausalInterventionTranslator(
     "no_op.do_nothing",
