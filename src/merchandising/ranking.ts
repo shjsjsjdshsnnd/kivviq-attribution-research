@@ -43,7 +43,7 @@ function findSnapshot(
   );
 }
 
-function applyShiftOthers(
+export function applyShiftOthers(
   ordered: readonly MerchandisingEntityTarget[],
   entity: MerchandisingEntityTarget,
   targetPosition: number,
