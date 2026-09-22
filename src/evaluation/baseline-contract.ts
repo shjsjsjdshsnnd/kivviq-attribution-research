@@ -1413,10 +1413,13 @@ export function validateActionAtDecision(
     );
   }
 
-  if (String(action.timing.decisionTime) !== opportunity.at) {
+  if (
+    parseTime(String(action.timing.decisionTime), "Action decisionTime") !==
+    parseTime(opportunity.at, "decision opportunity timestamp")
+  ) {
     return invalidAction(
       "DECISION_TIME_MISMATCH",
-      "Action decisionTime must exactly match the decision opportunity",
+      "Action decisionTime must match the decision opportunity",
     );
   }
 
