@@ -272,7 +272,10 @@ describe("Step 12 causal decision traps", () => {
       expect(world.summary.activeChannels).toContain(
         "meta",
       );
-      const population = populationFor(world, 7331, 80);
+      const population =
+        channelDeviceCorrelatedPopulation(
+          populationFor(world, 7331, 220),
+        );
       const marketingChange = {
         ...trafficIncrease(world, START, POST_END),
         effectiveAt: utcTimestamp(RELEASE),
