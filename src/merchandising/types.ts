@@ -2,8 +2,8 @@ import type {
   Action,
   MerchandisingEntityTarget,
   MerchandisingSurface,
-  UtcTimestamp,
 } from "../action_ontology/types.js";
+import type { UtcTimestamp } from "../core/units.js";
 
 export interface MerchandisingRankingSnapshot {
   readonly bindingRef: string;
