@@ -61,6 +61,7 @@ const ACTION_TYPE_PATTERN = /^[a-z][a-z0-9_]*(?:\.[a-z][a-z0-9_]*)+$/;
 const CATEGORY_PATTERN = /^[a-z][a-z0-9_]*$/;
 const CURRENCY_PATTERN = /^[A-Z]{3}$/;
 const ISO_UTC_PATTERN = /Z$/;
+const PROMOTION_ID_PATTERN = /^promo_[A-Za-z0-9._:-]+$/;
 
 const TOP_LEVEL_FIELDS = new Set([
   "kind",
@@ -100,11 +101,14 @@ const FORBIDDEN_ACTION_KEYS = new Set([
   "expectedProfit",
   "expectedContribution",
   "expectedDemand",
+  "expectedDemandLift",
   "expectedUnitsSold",
   "expectedROAS",
   "expectedConversions",
   "predictedElasticity",
   "predictedLift",
+  "predictedRedemptions",
+  "predictedAOV",
   "confidence",
   "confidenceScore",
   "rank",
@@ -1500,6 +1504,19 @@ function validatePromotionProductScope(
     input.exclude.forEach((selector: unknown, index: number) =>
       validatePromotionEntitySelector(selector, path + ".exclude[" + index + "]", errors),
     );
+  }
+
+  if (Array.isArray(input.include)) {
+    const keys = input.include.map(promotionSelectorKey).filter(Boolean);
+    if (new Set(keys).size !== keys.length) {
+      add(errors, "DUPLICATE_PROMOTION_INCLUDE", path + ".include", "include selectors must be unique");
+    }
+  }
+  if (Array.isArray(input.exclude)) {
+    const keys = input.exclude.map(promotionSelectorKey).filter(Boolean);
+    if (new Set(keys).size !== keys.length) {
+      add(errors, "DUPLICATE_PROMOTION_EXCLUDE", path + ".exclude", "exclude selectors must be unique");
+    }
   }
   if (input.exclusionPrecedence !== "EXCLUDE_OVERRIDES_INCLUDE") {
     add(
@@ -3140,6 +3157,111 @@ function validatePricingActionSemantics(
   }
 }
 
+
+function validatePromotionActionSemantics(
+  input: any,
+  errors: ActionValidationIssue[],
+): void {
+  if (
+    input.actionType !== "promotion.start" &&
+    input.actionType !== "promotion.stop" &&
+    input.actionType !== "promotion.modify"
+  ) {
+    return;
+  }
+
+  if (!record(input.target) || input.target.kind !== "promotion") {
+    add(
+      errors,
+      "PROMOTION_ACTION_REQUIRES_PROMOTION_TARGET",
+      "target.kind",
+      "promotion.start/stop/modify must target stable promotion identity",
+    );
+    return;
+  }
+
+  if (
+    !nonEmpty(input.target.promotionId) ||
+    !PROMOTION_ID_PATTERN.test(input.target.promotionId)
+  ) {
+    add(
+      errors,
+      "INVALID_PROMOTION_ID",
+      "target.promotionId",
+      "promotionId must begin with promo_",
+    );
+  }
+
+  if (!record(input.parameters)) return;
+
+  const referencedId =
+    input.parameters.kind === "promotion_start"
+      ? input.parameters.promotionId
+      : input.parameters.kind === "promotion_stop" ||
+          input.parameters.kind === "promotion_modify"
+        ? input.parameters.targetPromotionId
+        : undefined;
+
+  if (
+    typeof referencedId === "string" &&
+    referencedId !== input.target.promotionId
+  ) {
+    add(
+      errors,
+      "PROMOTION_ID_MISMATCH",
+      "parameters",
+      "parameter promotion identity must match Action target.promotionId",
+    );
+  }
+  if (
+    typeof referencedId === "string" &&
+    !PROMOTION_ID_PATTERN.test(referencedId)
+  ) {
+    add(
+      errors,
+      "INVALID_PROMOTION_ID",
+      "parameters",
+      "promotion identity must begin with promo_",
+    );
+  }
+
+  if (
+    record(input.reversibility) &&
+    input.reversibility.pricingRollback !== undefined
+  ) {
+    add(
+      errors,
+      "PROMOTION_CANNOT_USE_PRICING_ROLLBACK",
+      "reversibility.pricingRollback",
+      "promotion termination deactivates promotion state and must not restore regular prices",
+    );
+  }
+
+  if (
+    input.actionType === "promotion.stop" &&
+    (!record(input.duration) || input.duration.kind !== "instantaneous")
+  ) {
+    add(
+      errors,
+      "PROMOTION_STOP_MUST_BE_INSTANTANEOUS",
+      "duration",
+      "promotion.stop represents an instantaneous ACTIVE to INACTIVE state transition",
+    );
+  }
+
+  if (
+    input.actionType === "promotion.modify" &&
+    (!record(input.duration) || input.duration.kind !== "instantaneous")
+  ) {
+    add(
+      errors,
+      "PROMOTION_MODIFY_MUST_BE_INSTANTANEOUS",
+      "duration",
+      "promotion.modify represents an instantaneous promotion-definition change",
+    );
+  }
+}
+
 function deepFreeze<T>(value: T): T {
   if (typeof value !== "object" || value === null || Object.isFrozen(value)) return value;
   Object.freeze(value);
@@ -3291,6 +3413,7 @@ export function validateAction(
   validateIntent(input.intent, "intent", errors);
   validateProvenance(input.provenance, "provenance", errors);
   validatePricingActionSemantics(input, errors);
+  validatePromotionActionSemantics(input, errors);
 
   if (input.reversalOfActionId !== undefined) {
     if (!nonEmpty(input.reversalOfActionId)) {
