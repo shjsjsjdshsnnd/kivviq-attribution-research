@@ -1,6 +1,7 @@
 import type { GeneratedMerchantWorld } from "../generation/config.js";
 import type { SharedRandomness } from "./kernel.js";
 import type { SimulationInterventionState } from "./interventions.js";
+import { websiteProductDiscoveryMultiplier } from "../website_cro/runtime.js";
 import type {
   PersistentCart,
   RuntimeCustomerState,
@@ -362,6 +363,10 @@ export function chooseProduct(
   randomness: SharedRandomness,
   key: string,
   commercePolicy?: SimulationCommercePolicy,
+  websiteContext?: {
+    readonly surface: "collection" | "search_results" | "pdp";
+    readonly device: "mobile" | "desktop" | "tablet";
+  },
 ): ProductOffer | undefined {
   const preferred = customer.source.productPreferences.map(
     (preference) => preference.productId,
@@ -426,7 +431,7 @@ export function chooseProduct(
               retentionCustomerContext(customer),
               productId,
             );
-      const latentWeight =
+      const structuralWeight =
         Math.max(1e-9, preference) *
         Math.max(
           1e-9,
@@ -438,11 +443,24 @@ export function chooseProduct(
         complementMultiplier *
         retentionChoiceMultiplier *
         (1 + memory.productPreference);
+      const websiteDiscoveryMultiplier =
+        websiteContext === undefined
+          ? 1
+          : websiteProductDiscoveryMultiplier({
+              scenario: commercePolicy?.websiteScenario,
+              timestampMs,
+              device: websiteContext.device,
+              surface: websiteContext.surface,
+              productId,
+              latentPreference: preference,
+            });
+      const observedChoiceWeight =
+        structuralWeight * websiteDiscoveryMultiplier;
 
       return {
         value: offer,
-        weight: latentWeight * inventoryMultiplier,
-        latentWeight,
+        weight: observedChoiceWeight * inventoryMultiplier,
+        latentWeight: observedChoiceWeight,
       };
     })
     .filter((entry) => entry.weight > 0);
