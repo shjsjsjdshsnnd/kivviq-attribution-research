@@ -984,20 +984,34 @@ export type InventoryPolicyValue =
       readonly inventoryLocationId?:string;
     };
 
+export type InventoryRollbackValue =
+  | ScalarValue
+  | {
+      readonly kind:"backorder_policy";
+      readonly policy:InventoryBackorderPolicy;
+    };
+
+export type InventoryRollbackReference =
+  | ReferenceValue
+  | {
+      readonly kind:"inventory_policy_snapshot";
+      readonly baselineId:string;
+    };
+
 export type InventoryRollbackStrategy =
   | {
       readonly kind:"RESTORE_PRE_ACTION_VALUE";
-      readonly preActionValue:ReferenceValue;
+      readonly preActionValue:InventoryRollbackReference;
     }
   | {
       readonly kind:"SET_EXPLICIT_VALUE";
-      readonly value:ScalarValue;
+      readonly value:InventoryRollbackValue;
     };
 
 export interface InventoryRollbackConflictGuard {
   readonly kind:"REQUIRE_CURRENT_MATCHES_ACTION_OUTPUT";
   readonly sourceActionId:ActionId;
-  readonly expectedValue:ScalarValue;
+  readonly expectedValue:InventoryRollbackValue;
 }
 
 export type InventoryRollbackContract =
