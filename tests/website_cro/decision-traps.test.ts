@@ -342,7 +342,7 @@ describe("Step 12 causal decision traps", () => {
       const population = populationFor(
         zeroBase,
         7333,
-        210,
+        100,
       );
       const traffic = trafficIncrease(world);
       const poor = compareTrafficToCro({
