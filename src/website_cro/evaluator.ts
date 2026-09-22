@@ -404,6 +404,7 @@ export function replayCroIntervention(
     simulationSeed: request.simulationSeed,
     startTime: request.startTime,
     endTime: request.endTime,
+    interventions: request.interventions ?? [],
     ...(request.config === undefined
       ? {}
       : { config: request.config }),
@@ -501,7 +502,10 @@ export function compareTrafficToCro(
   });
   const traffic = simulateWorld({
     ...common,
-    interventions: [request.trafficIntervention],
+    interventions: [
+      ...(request.interventions ?? []),
+      request.trafficIntervention,
+    ],
     commercePolicy: baselinePolicy,
   });
 
