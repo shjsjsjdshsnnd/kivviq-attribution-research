@@ -412,15 +412,33 @@ export function chooseProduct(
       const cartProductIds = new Set(
         customer.cart?.lines.map((line) => line.productId) ?? [],
       );
-      const complementMultiplier =
-        commercePolicy?.enableProductRelationships === true &&
-        [...cartProductIds].some(
-          (cartProductId) =>
-            runtime.merchantWorld.manifest.productDemandMechanisms
-              .find((item) => item.productId === cartProductId)
-              ?.complementaryProductIds?.includes(productId) ?? false,
-        )
-          ? 2.4
+      const relationshipMultiplier =
+        commercePolicy?.enableProductRelationships === true
+          ? [...cartProductIds].reduce(
+              (multiplier, cartProductId) => {
+                const cartDemand =
+                  runtime.merchantWorld.manifest.productDemandMechanisms.find(
+                    (item) =>
+                      item.productId === cartProductId,
+                  );
+                if (
+                  cartDemand?.complementaryProductIds?.includes(
+                    productId,
+                  ) === true
+                ) {
+                  return Math.max(multiplier, 2.4);
+                }
+                if (
+                  cartDemand?.substitutionProductIds?.includes(
+                    productId,
+                  ) === true
+                ) {
+                  return Math.max(multiplier, 1.55);
+                }
+                return multiplier;
+              },
+              1,
+            )
           : 1;
       const memory = totalMemoryLift(customer);
       const retentionChoiceMultiplier =
@@ -440,7 +458,7 @@ export function chooseProduct(
           0.25 *
         offer.priceUtilityMultiplier *
         offer.promotionUtilityMultiplier *
-        complementMultiplier *
+        relationshipMultiplier *
         retentionChoiceMultiplier *
         (1 + memory.productPreference);
       const websiteDiscoveryMultiplier =
