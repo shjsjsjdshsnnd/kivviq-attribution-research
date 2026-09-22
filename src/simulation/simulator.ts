@@ -84,6 +84,7 @@ import {
 import {
   checkoutCausalEvents,
   resolveCheckoutExperience,
+  resolveWebsiteState,
   validateWebsiteScenario,
   websiteCustomerContext,
 } from "../website_cro/runtime.js";
@@ -1953,6 +1954,37 @@ export function simulateWorld(
       const nextCount = count + 1;
       sessionCount.set(customer.customerId, nextCount);
 
+      if (customer.cart !== undefined) {
+        if (
+          event.timestampMs >=
+          customer.cart.expiresAtMs
+        ) {
+          delete customer.cart;
+        } else if (
+          request.commercePolicy
+            ?.websiteScenario !== undefined
+        ) {
+          const websiteState =
+            resolveWebsiteState(
+              request.commercePolicy
+                .websiteScenario,
+              event.timestampMs,
+              "mobile",
+            );
+          const restoreProbability =
+            websiteState.cart
+              .persistenceProbability;
+          if (
+            !randomness.bool(
+              `cart-restore:${customer.customerId}:${nextCount}`,
+              restoreProbability,
+            )
+          ) {
+            delete customer.cart;
+          }
+        }
+      }
+
       refreshLatentCustomerState(
         customer,
         event.timestampMs,
@@ -2129,6 +2161,54 @@ export function simulateWorld(
             source: session.source,
           }),
         );
+
+        if (
+          request.commercePolicy
+            ?.retentionScenario !== undefined &&
+          checkoutExperience !== undefined &&
+          checkoutExperience.futureAffinityImpact > 0
+        ) {
+          const severeFailures =
+            Number(checkoutExperience.couponFailed) +
+            Number(checkoutExperience.paymentFailed) +
+            Number(
+              checkoutExperience.addressValidationFailed,
+            ) +
+            Number(
+              checkoutExperience.shippingSurprise,
+            );
+          if (
+            severeFailures > 0 &&
+            randomness.bool(
+              `${session.sessionId}:website-experience-memory:${session.step}`,
+              clamp(
+                0.18 +
+                  severeFailures * 0.11 +
+                  (1 - customer.brandAffinity) *
+                    0.08,
+                0,
+                0.75,
+              ),
+            )
+          ) {
+            const affinityLoss =
+              checkoutExperience.futureAffinityImpact *
+              Math.min(1.8, 0.7 + severeFailures * 0.28);
+            customer.brandAffinity = clamp(
+              customer.brandAffinity -
+                affinityLoss,
+              0,
+              1,
+            );
+            customer.retention
+              .repeatHazardQualityMultiplier *=
+              clamp(
+                1 - affinityLoss * 0.7,
+                0.72,
+                1,
+              );
+          }
+        }
 
         if (
           request.commercePolicy?.websiteScenario !==
