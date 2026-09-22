@@ -289,7 +289,6 @@ export interface PageExperience {
   readonly interactionDelayMs: number;
   readonly loadFailureProbability: number;
   readonly frictions: readonly WebsiteFrictionKind[];
-  readonly futureAffinityImpact: number;
 }
 
 export interface CheckoutExperience {
@@ -301,6 +300,7 @@ export interface CheckoutExperience {
   readonly addressValidationFailed: boolean;
   readonly shippingSurprise: boolean;
   readonly frictions: readonly WebsiteFrictionKind[];
+  readonly futureAffinityImpact: number;
 }
 
 export interface WebsiteCustomerContext {
