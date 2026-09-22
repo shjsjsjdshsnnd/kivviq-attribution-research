@@ -67,7 +67,8 @@ export function resolveCroOrdering(
     return { status: "INVALID", code: "CRO_POSITION_OUT_OF_RANGE" };
   }
 
-  const ordering = action.parameters.ordering;
+  const parameters = action.parameters;
+  const ordering = parameters.ordering;
   if (ordering.kind === "SET_POSITION") {
     return ordering.position > 0
       ? { status: "RESOLVED", targetPosition: ordering.position }
@@ -86,9 +87,9 @@ export function resolveCroOrdering(
   }
   const snapshot = matches[0]!;
   if (
-    snapshot.surface !== action.parameters.surface ||
-    croStableKey(snapshot.pageScope) !== croStableKey(action.parameters.pageScope) ||
-    snapshot.device !== action.parameters.device ||
+    snapshot.surface !== parameters.surface ||
+    croStableKey(snapshot.pageScope) !== croStableKey(parameters.pageScope) ||
+    snapshot.device !== parameters.device ||
     snapshot.evaluateAt !== ordering.snapshot.evaluateAt
   ) {
     return {
@@ -99,7 +100,7 @@ export function resolveCroOrdering(
   }
 
   const currentIndex = snapshot.orderedComponents.findIndex((entry) =>
-    componentMatches(entry, action.parameters.component),
+    componentMatches(entry, parameters.component),
   );
   if (currentIndex < 0) {
     return {
@@ -121,7 +122,7 @@ export function resolveCroOrdering(
 
   const resultingOrder = moveBeforeOrAfter(
     snapshot.orderedComponents,
-    action.parameters.component,
+    parameters.component,
     ordering.referenceComponent,
     ordering.kind === "PLACE_AFTER",
   );
@@ -134,7 +135,7 @@ export function resolveCroOrdering(
   }
   const targetPosition =
     resultingOrder.findIndex((entry) =>
-      componentMatches(entry, action.parameters.component),
+      componentMatches(entry, parameters.component),
     ) + 1;
 
   return {
