@@ -1,5 +1,10 @@
 import type { Intervention } from "../ground_truth/interventions.js";
-import type { ObservableSource, SimulationConfig, SimulationResult } from "../simulation/types.js";
+import type {
+  ObservableSource,
+  SimulationCommercePolicy,
+  SimulationConfig,
+  SimulationResult,
+} from "../simulation/types.js";
 import type { GeneratedMerchantWorld } from "../generation/config.js";
 import type { LatentCustomerPopulation } from "../customer_population/types.js";
 
@@ -245,6 +250,10 @@ export interface CroEvaluationRequest {
   readonly endTime: string;
   readonly websiteScenario: WebsiteScenario;
   readonly intervention: Intervention;
+  readonly commercePolicy?: Omit<
+    SimulationCommercePolicy,
+    "websiteScenario"
+  >;
   readonly config?: SimulationConfig;
 }
 
