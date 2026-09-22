@@ -146,6 +146,8 @@ export function deviceNeutralWebsiteScenario(
         navigation: {
           ...state.navigation,
           performance: structuredClone(neutral),
+          mobileMenuUsability:
+            state.navigation.pathEfficiency,
         },
         collection: {
           ...state.collection,
@@ -166,7 +168,7 @@ export function deviceNeutralWebsiteScenario(
         checkout: {
           ...state.checkout,
           performance: structuredClone(neutral),
-          mobileUsability: 0.93,
+          mobileUsability: 1,
         },
       },
     ],
