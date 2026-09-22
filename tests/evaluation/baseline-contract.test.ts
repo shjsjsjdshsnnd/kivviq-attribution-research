@@ -16,9 +16,11 @@ import {
   assertValidBaselineEvaluationContract,
   buildActionAvailabilitySnapshot,
   buildOperatorObservationSnapshot,
+  createEvaluationActionAttemptRecord,
   createEvaluationComparisonBinding,
   createEvaluationRunArtifact,
   createFixedIntervalDecisionOpportunity,
+  deriveEvaluationHorizonTimestamps,
   evaluationFingerprint,
   resolveActionConstraintAssessment,
   validateActionAtDecision,
@@ -87,6 +89,42 @@ function allMetricResults(): readonly MetricResult[] {
     metricId: metric.metricId,
     value: null,
   }));
+}
+
+function noActionDecisionRecords() {
+  if (contract.cadence.kind !== "fixed_interval") {
+    throw new Error("canonical test contract must use fixed_interval cadence");
+  }
+  const count = Math.ceil(
+    contract.horizon.interventionSeconds /
+      contract.cadence.intervalSeconds,
+  );
+
+  return Array.from({ length: count }, (_, sequence) => {
+    const decision = opportunity(sequence);
+    const observation = buildOperatorObservationSnapshot(
+      contract,
+      decision,
+      [
+        {
+          observationKey: "orders.trailing_7d",
+          informationClass: "derived_observable_metric" as const,
+          sourceMaxOccurredAt: decision.at,
+          availableAt: decision.at,
+          sourceRef: "merchant-observations:v1",
+          value: { orders: 12 },
+        },
+      ],
+    );
+    const availability = googleBudgetAvailability(decision);
+
+    return {
+      opportunity: decision,
+      observation,
+      availability,
+      actionAttempts: [],
+    };
+  });
 }
 
 describe("Step 3.1 baseline evaluation contract", () => {
@@ -486,14 +524,20 @@ describe("Step 3.1 baseline evaluation contract", () => {
   it("uses common random numbers while isolating operator-internal randomness", () => {
     const left = createEvaluationComparisonBinding(
       contract,
+      "simulator-contract-binding-test",
       "world-3101",
       "world-fingerprint-3101",
+      "CAD",
+      decisionAnchor,
       seeds("operator-a"),
     );
     const right = createEvaluationComparisonBinding(
       contract,
+      "simulator-contract-binding-test",
       "world-3101",
       "world-fingerprint-3101",
+      "CAD",
+      decisionAnchor,
       seeds("operator-b"),
     );
 
@@ -514,6 +558,62 @@ describe("Step 3.1 baseline evaluation contract", () => {
     ).toThrow(/identical comparison-critical bindings/);
   });
 
+  it("records raw Action attempts, validation, disposition and exact executed Action", () => {
+    const decision = opportunity();
+    const availability = googleBudgetAvailability(decision);
+
+    const accepted = createEvaluationActionAttemptRecord(
+      contract,
+      decision,
+      availability,
+      increaseGoogleShoppingBudget20,
+    );
+    expect(accepted.actionValidation.valid).toBe(true);
+    expect(accepted.constraintDisposition?.status).toBe("ACCEPTED");
+    expect(accepted.executedAction).toEqual(
+      increaseGoogleShoppingBudget20,
+    );
+
+    const tooLarge = clone(increaseGoogleShoppingBudget20);
+    tooLarge.parameters.operation.factor = 3;
+    const rejected = createEvaluationActionAttemptRecord(
+      contract,
+      decision,
+      availability,
+      tooLarge,
+    );
+    expect(rejected.actionValidation).toMatchObject({
+      valid: false,
+      code: "PARAMETER_OUT_OF_RANGE",
+    });
+    expect(rejected.constraintDisposition).toBeUndefined();
+    expect(rejected.executedAction).toBeUndefined();
+  });
+
+  it("fails artifacts closed when a recorded observation snapshot is tampered with", () => {
+    const decisionRecords = clone(noActionDecisionRecords());
+    decisionRecords[0].observation.records[0].value.orders = 999;
+
+    expect(() =>
+      createEvaluationRunArtifact(contract, {
+        operator: {
+          operatorId: "operator-a",
+          operatorVersion: "1.0.0",
+          operatorFingerprint: "operator-fingerprint-a",
+        },
+        simulatorVersion: "simulator-contract-binding-test",
+        worldId: "world-3101",
+        worldFingerprint: "world-fingerprint-3101",
+        worldCurrency: "CAD",
+        seeds: seeds("operator-a"),
+        interventionStartTime: decisionAnchor,
+        decisionRecords,
+        outcomeSummary: {},
+        metricResults: allMetricResults(),
+      }),
+    ).toThrow(/observation snapshot fingerprint mismatch/);
+  });
+
   it("keeps evaluator-only metrics distinct from operator observations", () => {
     const evaluatorOnly = contract.metrics.filter(
       (metric) => metric.visibility === "evaluator_only",
@@ -532,24 +632,8 @@ describe("Step 3.1 baseline evaluation contract", () => {
     );
   });
 
-  it("produces a complete deterministic machine-readable evaluation artifact and records no-op opportunities", () => {
-    const decision = opportunity();
-    const observation = buildOperatorObservationSnapshot(
-      contract,
-      decision,
-      [
-        {
-          observationKey: "orders.trailing_7d",
-          informationClass: "derived_observable_metric",
-          sourceMaxOccurredAt: decision.at,
-          availableAt: decision.at,
-          sourceRef: "merchant-observations:v1",
-          value: { orders: 12 },
-        },
-      ],
-    );
-    const availability = googleBudgetAvailability(decision);
-
+  it("produces a complete deterministic self-auditing artifact and records every no-op opportunity", () => {
+    const decisionRecords = noActionDecisionRecords();
     const input = {
       operator: {
         operatorId: "operator-a",
@@ -559,23 +643,10 @@ describe("Step 3.1 baseline evaluation contract", () => {
       simulatorVersion: "simulator-contract-binding-test",
       worldId: "world-3101",
       worldFingerprint: "world-fingerprint-3101",
+      worldCurrency: "CAD",
       seeds: seeds("operator-a"),
-      startTime: decision.at,
-      endTime: new Date(
-        Date.parse(decision.at) +
-          contract.horizon.outcomeMeasurementSeconds * 1_000,
-      ).toISOString(),
-      decisionRecords: [
-        {
-          opportunity: decision,
-          observationFingerprint:
-            observation.observationFingerprint,
-          availabilityFingerprint:
-            availability.availabilityFingerprint,
-          proposedActionFingerprints: [],
-          dispositions: [],
-        },
-      ],
+      interventionStartTime: decisionAnchor,
+      decisionRecords,
       outcomeSummary: {
         representedOrders: 12,
       },
@@ -584,22 +655,34 @@ describe("Step 3.1 baseline evaluation contract", () => {
 
     const left = createEvaluationRunArtifact(contract, input);
     const right = createEvaluationRunArtifact(contract, input);
+    const expectedHorizon = deriveEvaluationHorizonTimestamps(
+      contract,
+      decisionAnchor,
+    );
 
     expect(left.evaluationRunId).toBe(right.evaluationRunId);
     expect(left.artifactFingerprint).toBe(
       right.artifactFingerprint,
     );
+    expect(left.horizonTimestamps).toEqual(expectedHorizon);
+    expect(left.worldCurrency).toBe("CAD");
     expect(left.metricResults).toHaveLength(
       contract.metrics.length,
     );
-    expect(left.decisionRecords[0]?.proposedActionFingerprints).toEqual([]);
-    expect(left.decisionRecords[0]?.dispositions).toEqual([]);
+    expect(left.decisionRecords).toHaveLength(
+      decisionRecords.length,
+    );
+    expect(
+      left.decisionRecords.every(
+        (record) => record.actionAttempts.length === 0,
+      ),
+    ).toBe(true);
     expect(Object.isFrozen(left)).toBe(true);
     expect(Object.isFrozen(left.decisionRecords)).toBe(true);
+    expect(Object.isFrozen(left.decisionRecords[0]?.observation)).toBe(true);
   });
 
   it("does not permit an operator to choose or omit its evaluation metrics", () => {
-    const decision = opportunity();
     const base = {
       operator: {
         operatorId: "operator-a",
@@ -609,13 +692,10 @@ describe("Step 3.1 baseline evaluation contract", () => {
       simulatorVersion: "simulator-contract-binding-test",
       worldId: "world-3101",
       worldFingerprint: "world-fingerprint-3101",
+      worldCurrency: "CAD",
       seeds: seeds("operator-a"),
-      startTime: decision.at,
-      endTime: new Date(
-        Date.parse(decision.at) +
-          contract.horizon.outcomeMeasurementSeconds * 1_000,
-      ).toISOString(),
-      decisionRecords: [],
+      interventionStartTime: decisionAnchor,
+      decisionRecords: noActionDecisionRecords(),
       outcomeSummary: {},
     };
 
