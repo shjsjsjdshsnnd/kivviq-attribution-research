@@ -74,16 +74,16 @@ export function assessPromotionPairConflict(
     leftConflict.groupId === rightConflict.groupId
   ) {
     if (
-      leftConflict.priority !== undefined &&
-      rightConflict.priority !== undefined &&
-      leftConflict.priority !== rightConflict.priority
+      leftConflict.precedence !== undefined &&
+      rightConflict.precedence !== undefined &&
+      leftConflict.precedence !== rightConflict.precedence
     ) {
       return {
         status: "RESOLVABLE",
         strategy: "MUTUALLY_EXCLUSIVE_GROUP",
         groupId: leftConflict.groupId,
         winnerPromotionId:
-          leftConflict.priority > rightConflict.priority
+          leftConflict.precedence > rightConflict.precedence
             ? left.promotionId
             : right.promotionId,
       };
@@ -98,13 +98,13 @@ export function assessPromotionPairConflict(
   if (
     leftConflict.kind === "PRIORITY" &&
     rightConflict.kind === "PRIORITY" &&
-    leftConflict.priority !== rightConflict.priority
+    leftConflict.precedence !== rightConflict.precedence
   ) {
     return {
       status: "RESOLVABLE",
       strategy: "PRIORITY",
       winnerPromotionId:
-        leftConflict.priority > rightConflict.priority
+        leftConflict.precedence > rightConflict.precedence
           ? left.promotionId
           : right.promotionId,
     };
