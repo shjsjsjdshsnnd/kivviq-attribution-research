@@ -243,6 +243,37 @@ Implemented research contracts include:
 
 Step 11 evaluator/oracle truth remains isolated from the Operator-safe root.
 
+### Step 12 — website, funnel & CRO simulation
+
+Branch: `step12/website-cro-simulation`
+
+Draft PR: #39
+
+Canonical frozen Step 11 parent: `62de3c0840d408116064a7fc691c777a83906e55`
+
+Step 12 makes the storefront a causal component of the synthetic ecommerce system. Hidden, versioned website state now covers homepage, navigation, collections, site search, PDP, cart and checkout, with device-specific performance and nonlinear customer-specific friction.
+
+Implemented research contracts include:
+
+- time-versioned website/component state and dated releases;
+- mobile/desktop/tablet performance, latency, load failure and responsiveness;
+- homepage/navigation discovery mechanics;
+- collection ranking/discovery and poor-sorting traps;
+- synthetic search, reformulation and zero-result behavior;
+- PDP imagery, information, trust, delivery and price-confidence mechanics;
+- cart persistence, complement-aware cross-sell and coupon behavior;
+- checkout form/mobile/address/payment friction and shipping surprise;
+- website × channel/product/category/price/promotion/inventory/retention interactions;
+- evaluator-only CRO interventions using the frozen generic intervention contract;
+- shared-randomness factual/counterfactual replay;
+- observational funnel diagnostics by device/channel/product/category plus abandonment by stage;
+- contribution-based CRO opportunity value without an Opportunity Engine ranking;
+- hard traps for slow mobile PDP, traffic-quality controls, broken coupons, checkout regression, channel blame, bottleneck size and traffic-vs-CRO sequencing.
+
+Step 12 remains opt-in through `SimulationCommercePolicy.websiteScenario`. Without it, the frozen inherited simulation path is unchanged.
+
+Website/CRO state and causal events are evaluator/God-mode only and are not exported by the Operator-safe root.
+
 ### Research isolation
 
 No private Kivviq, Maison Olive data, real merchant/customer data, production systems, credentials or private implementation details are used.
@@ -272,3 +303,4 @@ No private Kivviq, Maison Olive data, real merchant/customer data, production sy
 - `docs/step10-pricing-promotions-acceptance.md`
 - `docs/step11-retention-ltv.md`
 - `docs/step11-retention-ltv-acceptance.md`
+- `docs/step12-website-cro.md`
