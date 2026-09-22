@@ -1954,37 +1954,6 @@ export function simulateWorld(
       const nextCount = count + 1;
       sessionCount.set(customer.customerId, nextCount);
 
-      if (customer.cart !== undefined) {
-        if (
-          event.timestampMs >=
-          customer.cart.expiresAtMs
-        ) {
-          delete customer.cart;
-        } else if (
-          request.commercePolicy
-            ?.websiteScenario !== undefined
-        ) {
-          const websiteState =
-            resolveWebsiteState(
-              request.commercePolicy
-                .websiteScenario,
-              event.timestampMs,
-              "mobile",
-            );
-          const restoreProbability =
-            websiteState.cart
-              .persistenceProbability;
-          if (
-            !randomness.bool(
-              `cart-restore:${customer.customerId}:${nextCount}`,
-              restoreProbability,
-            )
-          ) {
-            delete customer.cart;
-          }
-        }
-      }
-
       refreshLatentCustomerState(
         customer,
         event.timestampMs,
@@ -2003,6 +1972,37 @@ export function simulateWorld(
         sessionId,
         randomness,
       );
+
+      if (customer.cart !== undefined) {
+        if (
+          event.timestampMs >=
+          customer.cart.expiresAtMs
+        ) {
+          delete customer.cart;
+        } else if (
+          request.commercePolicy
+            ?.websiteScenario !== undefined
+        ) {
+          const websiteState =
+            resolveWebsiteState(
+              request.commercePolicy
+                .websiteScenario,
+              event.timestampMs,
+              started.session.device,
+            );
+          const restoreProbability =
+            websiteState.cart
+              .persistenceProbability;
+          if (
+            !randomness.bool(
+              `cart-restore:${customer.customerId}:${nextCount}`,
+              restoreProbability,
+            )
+          ) {
+            delete customer.cart;
+          }
+        }
+      }
       sessions.set(sessionId, started.session);
       observableEvents.push(...started.observableEvents);
 
