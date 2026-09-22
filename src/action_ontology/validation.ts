@@ -3213,6 +3213,37 @@ function validateInventoryCoordinatedActionIds(
   }
 }
 
+function validateInventoryRollbackValue(
+  input: unknown,
+  path: string,
+  errors: ActionValidationIssue[],
+): void {
+  if (record(input) && input.kind === "backorder_policy") {
+    validateInventoryBackorderPolicy(
+      input.policy,
+      path + ".policy",
+      errors,
+    );
+    return;
+  }
+  validateScalar(input, path, errors);
+}
+
+function validateInventoryRollbackReference(
+  input: unknown,
+  path: string,
+  errors: ActionValidationIssue[],
+  decisionTime?: string,
+): void {
+  if (record(input) && input.kind === "inventory_policy_snapshot") {
+    if (!nonEmpty(input.baselineId)) {
+      add(errors, "INVALID_INVENTORY_POLICY_SNAPSHOT", path + ".baselineId", "baselineId is required");
+    }
+    return;
+  }
+  validateReference(input,path,errors,decisionTime);
+}
+
 function validateInventoryRollbackStrategy(
   input: unknown,
   path: string,
@@ -3224,7 +3255,7 @@ function validateInventoryRollbackStrategy(
     return;
   }
   if (input.kind === "RESTORE_PRE_ACTION_VALUE") {
-    validateReference(
+    validateInventoryRollbackReference(
       input.preActionValue,
       path + ".preActionValue",
       errors,
@@ -3233,7 +3264,7 @@ function validateInventoryRollbackStrategy(
     return;
   }
   if (input.kind === "SET_EXPLICIT_VALUE") {
-    validateScalar(input.value, path + ".value", errors);
+    validateInventoryRollbackValue(input.value, path + ".value", errors);
     return;
   }
   add(errors, "UNKNOWN_INVENTORY_ROLLBACK_STRATEGY", path + ".kind", "unsupported rollback strategy");
@@ -3254,7 +3285,7 @@ function validateInventoryRollbackGuard(
   } else if (originalActionId && input.sourceActionId !== originalActionId) {
     add(errors, "INVENTORY_ROLLBACK_SOURCE_MISMATCH", path + ".sourceActionId", "must reference original inventory policy Action");
   }
-  validateScalar(input.expectedValue, path + ".expectedValue", errors);
+  validateInventoryRollbackValue(input.expectedValue, path + ".expectedValue", errors);
 }
 
 function validateInventoryParameters(
