@@ -21,7 +21,8 @@
     "test:action-translation": "vitest run tests/action_translation tests/simulator_intervention --reporter=verbose",
     "test:paid-media": "vitest run tests/paid_media --reporter=verbose",
     "test:pricing": "vitest run tests/pricing --reporter=verbose",
-    "test:promotion": "vitest run tests/promotion --reporter=verbose"
+    "test:promotion": "vitest run tests/promotion --reporter=verbose",
+    "test:shipping": "vitest run tests/shipping --reporter=verbose"
   },
   "exports": {
     ".": "./dist/index.js",
@@ -39,7 +40,8 @@
     "./action-translation": "./dist/action_translation/index.js",
     "./paid-media": "./dist/paid_media/index.js",
     "./pricing": "./dist/pricing/index.js",
-    "./promotion": "./dist/promotion/index.js"
+    "./promotion": "./dist/promotion/index.js",
+    "./shipping": "./dist/shipping/index.js"
   },
   "devDependencies": {
     "typescript": "^5.9.2",
