@@ -1,6 +1,8 @@
 import type { Action } from "../action_ontology/types.js";
 import type {
   CanonicalOperator,
+  CanonicalOperatorMetadata,
+  OperatorDecisionAudit,
   OperatorDecisionInput,
   OperatorObservationInformationClass,
 } from "../operator/types.js";
@@ -67,6 +69,12 @@ export type OperatorInvocationDisposition =
   | "NO_DISCRETIONARY_ACTIONS"
   | "ACTION_PROPOSALS_RECORDED";
 
+export interface RecordedOperatorDecisionAudit {
+  readonly auditType: string;
+  readonly payload: OperatorDecisionAudit["payload"];
+  readonly auditFingerprint: string;
+}
+
 export interface OperatorInvocationAudit {
   readonly invocationId: string;
   readonly operatorId: string;
@@ -80,6 +88,7 @@ export interface OperatorInvocationAudit {
   readonly outputFingerprint: string;
   readonly proposedActionCount: number;
   readonly disposition: OperatorInvocationDisposition;
+  readonly decisionAudit?: RecordedOperatorDecisionAudit;
 }
 
 export interface EvaluatedOperatorDecision {
@@ -208,6 +217,19 @@ export function invokeOperatorAtDecision(
   const output = operator.decide(input);
   assertDecisionOutput(output);
 
+  const decisionAudit = operator.auditDecision?.(input, output);
+  const recordedDecisionAudit =
+    decisionAudit === undefined
+      ? undefined
+      : deepFreezeEvaluation({
+          auditType: decisionAudit.auditType,
+          payload: cloneJson(decisionAudit.payload),
+          auditFingerprint: evaluationFingerprint({
+            auditType: decisionAudit.auditType,
+            payload: decisionAudit.payload,
+          }),
+        });
+
   const actions = [...output.actions];
   const attempts = actions.map((rawAction, proposalIndex) => {
     const preliminary = validateActionAtDecision(
@@ -273,6 +295,9 @@ export function invokeOperatorAtDecision(
       actions.length === 0
         ? ("NO_DISCRETIONARY_ACTIONS" as const)
         : ("ACTION_PROPOSALS_RECORDED" as const),
+    ...(recordedDecisionAudit === undefined
+      ? {}
+      : { decisionAudit: recordedDecisionAudit }),
   };
 
   const invocation: OperatorInvocationAudit =
@@ -301,18 +326,30 @@ export interface OperatorEvaluationBundle {
   readonly schemaVersion: typeof OPERATOR_EVALUATION_BUNDLE_SCHEMA_VERSION;
   readonly evaluationArtifact: EvaluationRunArtifact;
   readonly operatorInvocations: readonly OperatorInvocationAudit[];
+  readonly operatorMetadata?: CanonicalOperatorMetadata;
   readonly bundleFingerprint: string;
 }
 
 export function createOperatorEvaluationBundle(
   evaluationArtifact: EvaluationRunArtifact,
   operatorInvocations: readonly OperatorInvocationAudit[],
+  operatorMetadata?: CanonicalOperatorMetadata,
 ): OperatorEvaluationBundle {
   requireCondition(
     operatorInvocations.length ===
       evaluationArtifact.decisionRecords.length,
     "every decision opportunity must have exactly one operator invocation",
   );
+
+  if (operatorMetadata !== undefined) {
+    requireCondition(
+      operatorMetadata.operatorId === evaluationArtifact.operator.operatorId &&
+        operatorMetadata.operatorVersion === evaluationArtifact.operator.operatorVersion &&
+        operatorMetadata.implementationFingerprint ===
+          evaluationArtifact.operator.operatorFingerprint,
+      "operator metadata differs from evaluation artifact identity",
+    );
+  }
 
   for (let index = 0; index < operatorInvocations.length; index += 1) {
     const invocation = operatorInvocations[index]!;
@@ -369,6 +406,9 @@ export function createOperatorEvaluationBundle(
     schemaVersion: OPERATOR_EVALUATION_BUNDLE_SCHEMA_VERSION,
     evaluationArtifact,
     operatorInvocations: cloneJson(operatorInvocations),
+    ...(operatorMetadata === undefined
+      ? {}
+      : { operatorMetadata: cloneJson(operatorMetadata) }),
   };
 
   return deepFreezeEvaluation({
