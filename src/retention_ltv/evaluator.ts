@@ -2378,8 +2378,10 @@ function zeroChannelInterventions(
 export function evaluateAcquisitionChannelCounterfactual(
   request: RetentionLtvEvaluationRequest,
   channel: PaidMarketingChannel,
+  factualReport?: RetentionLtvReport,
 ): AcquisitionChannelCounterfactual {
   const factual =
+    factualReport ??
     evaluateRetentionLtvEconomics(
       request,
     );
