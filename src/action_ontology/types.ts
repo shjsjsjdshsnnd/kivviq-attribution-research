@@ -4,11 +4,12 @@ import type {
   UtcTimestamp,
 } from "../core/units.js";
 
-export const ACTION_SCHEMA_VERSION = "1.3.0" as const;
+export const ACTION_SCHEMA_VERSION = "1.4.0" as const;
 export const SUPPORTED_ACTION_SCHEMA_VERSIONS = [
   "1.0.0",
   "1.1.0",
   "1.2.0",
+  "1.3.0",
   ACTION_SCHEMA_VERSION,
 ] as const;
 export type ActionSchemaVersion =
@@ -108,6 +109,7 @@ export type ActionTarget =
   | { readonly kind: "page"; readonly pageId: string }
   | { readonly kind: "lifecycle_program"; readonly programId: string }
   | { readonly kind: "shipping_policy"; readonly shippingPolicyId: string }
+  | { readonly kind: "shipping_offer"; readonly shippingOfferId: string }
   | { readonly kind: "inventory_policy"; readonly inventoryPolicyId: string }
   | { readonly kind: "experiment"; readonly experimentId: string }
   | { readonly kind: "promotion"; readonly promotionId: string }
@@ -548,6 +550,198 @@ export interface PromotionDefinition {
   readonly terminationBehavior: "DEACTIVATE_PROMOTION";
 }
 
+
+export type ShippingMembershipSemantics = {
+  readonly evaluateAt: MembershipEvaluationBoundary;
+  readonly bindingRef?: string;
+};
+
+export type ShippingProductSelector = PromotionEntitySelector;
+
+export type ShippingThresholdBasis =
+  | "PRE_DISCOUNT_SUBTOTAL"
+  | "POST_DISCOUNT_SUBTOTAL"
+  | "QUALIFYING_PRODUCT_SUBTOTAL";
+
+export type ShippingServiceSelector =
+  | { readonly kind: "STANDARD" }
+  | { readonly kind: "EXPRESS" }
+  | { readonly kind: "OVERSIZED" }
+  | { readonly kind: "WHITE_GLOVE" }
+  | { readonly kind: "LOCAL_DELIVERY" }
+  | { readonly kind: "CUSTOM"; readonly serviceId: string };
+
+export interface ShippingServiceScope {
+  readonly include: readonly ShippingServiceSelector[];
+  readonly exclude: readonly ShippingServiceSelector[];
+  readonly exclusionPrecedence: "EXCLUDE_OVERRIDES_INCLUDE";
+}
+
+export type ShippingGeographySelector =
+  | { readonly kind: "COUNTRY"; readonly countryCode: string }
+  | {
+      readonly kind: "PROVINCE_STATE";
+      readonly countryCode: string;
+      readonly regionCode: string;
+    }
+  | { readonly kind: "SHIPPING_ZONE"; readonly shippingZoneId: string }
+  | {
+      readonly kind: "POSTAL_REGION";
+      readonly countryCode: string;
+      readonly postalRegionId: string;
+    }
+  | {
+      readonly kind: "MERCHANT_SHIPPING_ZONE";
+      readonly shippingZoneId: string;
+    };
+
+export interface ShippingGeographyScope {
+  readonly include: readonly ShippingGeographySelector[];
+  readonly exclude: readonly ShippingGeographySelector[];
+  readonly exclusionPrecedence: "EXCLUDE_OVERRIDES_INCLUDE";
+}
+
+export type ShippingMixedCartSemantics =
+  | { readonly kind: "ENTIRE_ORDER_IF_ANY_ELIGIBLE_ITEM" }
+  | { readonly kind: "ENTIRE_ORDER_IF_ALL_ITEMS_ELIGIBLE" }
+  | { readonly kind: "ELIGIBLE_ITEMS_ONLY" }
+  | {
+      readonly kind: "QUALIFYING_SUBTOTAL_THRESHOLD";
+      readonly threshold: MonetaryValue;
+      readonly thresholdBasis: "QUALIFYING_PRODUCT_SUBTOTAL";
+    };
+
+export type ShippingProductEligibilityRule =
+  | { readonly kind: "NOT_OVERSIZED" }
+  | { readonly kind: "NOT_FREIGHT_ONLY" }
+  | { readonly kind: "NOT_WHITE_GLOVE_ONLY" }
+  | {
+      readonly kind: "SHIPPING_CLASS_IN";
+      readonly shippingClassIds: readonly string[];
+    };
+
+export interface ShippingProductScope {
+  readonly include: readonly ShippingProductSelector[];
+  readonly exclude: readonly ShippingProductSelector[];
+  readonly exclusionPrecedence: "EXCLUDE_OVERRIDES_INCLUDE";
+  readonly conditions: readonly ShippingProductEligibilityRule[];
+  readonly mixedCart: ShippingMixedCartSemantics;
+  readonly membership?: ShippingMembershipSemantics;
+}
+
+export type ShippingCustomerEligibility =
+  | { readonly kind: "ALL_CUSTOMERS" }
+  | { readonly kind: "NEW_CUSTOMERS" }
+  | { readonly kind: "RETURNING_CUSTOMERS" }
+  | {
+      readonly kind: "CUSTOMER_SEGMENT";
+      readonly segmentId: string;
+      readonly membership: ShippingMembershipSemantics;
+    }
+  | {
+      readonly kind: "LOYALTY_SEGMENT";
+      readonly segmentId: string;
+      readonly membership: ShippingMembershipSemantics;
+    };
+
+export type ShippingCartRequirement =
+  | {
+      readonly kind: "MIN_SUBTOTAL";
+      readonly value: MonetaryValue;
+      readonly basis: ShippingThresholdBasis;
+    }
+  | {
+      readonly kind: "MIN_QUANTITY";
+      readonly quantity: number;
+      readonly target?: ShippingProductSelector;
+    }
+  | {
+      readonly kind: "REQUIRED_TARGET";
+      readonly target: ShippingProductSelector;
+      readonly quantity: number;
+    };
+
+export type ShippingBenefit =
+  | { readonly kind: "FREE_SHIPPING" }
+  | {
+      readonly kind: "FLAT_RATE";
+      readonly customerShippingCharge: MonetaryValue;
+    }
+  | {
+      readonly kind: "SHIPPING_CREDIT";
+      readonly customerShippingCredit: MonetaryValue;
+    };
+
+export type ShippingOfferStacking =
+  | { readonly kind: "COEXIST" }
+  | { readonly kind: "NON_STACKABLE" };
+
+export type ShippingConflictResolution =
+  | { readonly kind: "NONE" }
+  | { readonly kind: "PRECEDENCE"; readonly precedence: number }
+  | { readonly kind: "BEST_BENEFIT" }
+  | {
+      readonly kind: "MUTUALLY_EXCLUSIVE_GROUP";
+      readonly groupId: string;
+      readonly precedence?: number;
+    };
+
+export interface ShippingOfferDefinition {
+  readonly benefit: ShippingBenefit;
+  readonly services: ShippingServiceScope;
+  readonly geography: ShippingGeographyScope;
+  readonly products?: ShippingProductScope;
+  readonly customerEligibility: ShippingCustomerEligibility;
+  readonly cartRequirements: readonly ShippingCartRequirement[];
+  readonly stacking: ShippingOfferStacking;
+  readonly conflictResolution: ShippingConflictResolution;
+  readonly terminationBehavior: "DEACTIVATE_SHIPPING_OFFER";
+}
+
+export interface ShippingThresholdPolicyDefinition {
+  readonly kind: "FREE_SHIPPING_THRESHOLD";
+  readonly service: ShippingServiceSelector;
+  readonly thresholdBasis: ShippingThresholdBasis;
+  readonly operation: ValueOperation<MonetaryValue>;
+  readonly geography: ShippingGeographyScope;
+  readonly products?: ShippingProductScope;
+  readonly customerEligibility: ShippingCustomerEligibility;
+}
+
+export type ShippingRollbackStrategy =
+  | {
+      readonly kind: "RESTORE_PRE_ACTION_VALUE";
+      readonly preActionThreshold: ReferenceValue;
+    }
+  | {
+      readonly kind: "SET_EXPLICIT_VALUE";
+      readonly value: MonetaryValue;
+    };
+
+export interface ShippingRollbackConflictGuard {
+  readonly kind: "REQUIRE_CURRENT_MATCHES_ACTION_OUTPUT";
+  readonly sourceActionId: ActionId;
+  readonly expectedThreshold: MonetaryValue;
+}
+
+export type ShippingRollbackTrigger =
+  | { readonly kind: "ON_TERMINATION" }
+  | { readonly kind: "AT"; readonly at: UtcTimestamp };
+
+export type ShippingRollbackContract =
+  | {
+      readonly available: false;
+      readonly reason: string;
+    }
+  | {
+      readonly available: true;
+      readonly strategy: ShippingRollbackStrategy;
+      readonly trigger: ShippingRollbackTrigger;
+      readonly delaySeconds: number;
+      readonly cost: KnownOrUnknown<MonetaryValue>;
+      readonly conflictGuard: ShippingRollbackConflictGuard;
+    };
+
 export type ActionParameters =
   | {
       readonly kind: "budget_adjustment";
@@ -635,6 +829,30 @@ export type ActionParameters =
       readonly kind: "shipping_policy";
       readonly setting: string;
       readonly operation: ValueOperation<ScalarValue>;
+    }
+  | {
+      readonly kind: "shipping_offer_set";
+      readonly shippingOfferId: string;
+      readonly definition: ShippingOfferDefinition;
+    }
+  | {
+      readonly kind: "shipping_offer_modify";
+      readonly targetShippingOfferId: string;
+      readonly definition: ShippingOfferDefinition;
+    }
+  | {
+      readonly kind: "shipping_offer_stop";
+      readonly targetShippingOfferId: string;
+    }
+  | {
+      readonly kind: "shipping_policy_adjustment";
+      readonly definition: ShippingThresholdPolicyDefinition;
+    }
+  | {
+      readonly kind: "shipping_policy_rollback";
+      readonly originalActionId: ActionId;
+      readonly strategy: ShippingRollbackStrategy;
+      readonly conflictGuard: ShippingRollbackConflictGuard;
     }
   | {
       readonly kind: "page_change";
@@ -864,6 +1082,7 @@ export interface ActionReversibility {
    * it does not execute rollback.
    */
   readonly pricingRollback?: PricingRollbackContract;
+  readonly shippingRollback?: ShippingRollbackContract;
 }
 
 export const RISK_DIMENSIONS = [
