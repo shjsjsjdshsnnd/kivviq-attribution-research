@@ -294,7 +294,7 @@ function relationshipAction(input: {
       trigger: input.trigger ?? { kind: "ALWAYS" },
       conflictResolution: coexist,
     },
-    constraints: input.constraints,
+    ...(input.constraints ? { constraints: input.constraints } : {}),
   });
 }
 
