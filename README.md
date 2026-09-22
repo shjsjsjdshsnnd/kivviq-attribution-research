@@ -210,6 +210,39 @@ No pricing optimizer, promotion optimizer or Operator decision policy is impleme
 
 Step 10 remains available only through the explicit `./pricing-promotions` evaluator/God-mode package subpath. It is not exported by the Operator-safe root.
 
+### Step 11 — retention, repeat purchase & lifetime value
+
+Branch: `step11/retention-ltv`
+
+Draft PR: #33
+
+Validated Step 11 implementation head: `5ad5bdd2d29884dcf36503e763a2bd99ca917d5d`
+
+Frozen base: Step 10 head `e5c9027522916f65669e350843bb4bea969e559e`
+
+Step 11 makes customer economics longitudinal. CLV is not a fixed multiplier: it emerges from customer state, future need, repeat-purchase hazard, normal commerce behavior, lifecycle transitions, marketing, pricing/promotion memory, inventory and realized economics.
+
+Implemented research contracts include:
+
+- customer-level economic ledger with first and subsequent purchases;
+- strict separation of realized contribution from expected future value and oracle future realized outcomes;
+- merchant/customer/product/state-dependent repeat-purchase hazard;
+- time-to-second-purchase and third+ purchases through the normal commerce path;
+- merchant-aware lapse, dormancy, latent churn, permanent churn where configured, and reactivation;
+- product ownership, category familiarity, replenishment deferral and cross-category/complement retention;
+- explicit post-purchase brand-affinity and customer-experience effects only when causally configured;
+- lifecycle marketing mechanisms without an optimizer;
+- acquisition-source selection separated from causal acquisition-quality treatment;
+- first-order CAC/ROAS/contribution separated from repeat contribution and expected remaining value;
+- 30/60/90/180/365-day retention and contribution analysis;
+- explicit CLV horizons and optional future-value discounting;
+- evaluator-only uncertainty, cohort analysis and shared-randomness acquisition counterfactuals;
+- counterfactual classification for never-purchased, later-purchased, alternate-channel, same-product, timing-only and long-term-relationship changes;
+- hard low-CAC/high-first-order-ROAS versus high-LTV reversal;
+- hard observed-LTV selection-bias trap.
+
+Step 11 evaluator/oracle truth remains isolated from the Operator-safe root.
+
 ### Research isolation
 
 No private Kivviq, Maison Olive data, real merchant/customer data, production systems, credentials or private implementation details are used.
@@ -237,3 +270,5 @@ No private Kivviq, Maison Olive data, real merchant/customer data, production sy
 - `docs/step9-inventory-dynamics-acceptance.md`
 - `docs/step10-pricing-promotions.md`
 - `docs/step10-pricing-promotions-acceptance.md`
+- `docs/step11-retention-ltv.md`
+- `docs/step11-retention-ltv-acceptance.md`
