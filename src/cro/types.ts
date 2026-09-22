@@ -3,6 +3,7 @@ import type {
   CroCapability,
   CroComponentTarget,
   CroDevice,
+  CroModifiableDimension,
   CroPageScope,
   CroSurface,
 } from "../action_ontology/types.js";
@@ -133,6 +134,6 @@ export type CroConflictAssessment =
 export interface CroFutureVariantBinding {
   readonly variantId: string;
   readonly actionId: Action["actionId"];
-  readonly boundDimensions: readonly string[];
+  readonly boundDimensions: readonly CroModifiableDimension[];
   readonly implementationRef: string;
 }
