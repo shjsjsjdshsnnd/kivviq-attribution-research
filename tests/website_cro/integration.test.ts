@@ -96,6 +96,22 @@ function compositionSkewedPopulation(
       if (mobileIds.has(customer.customerId)) {
         return {
           ...customer,
+          purchaseIntent: Math.min(
+            customer.purchaseIntent,
+            0.12,
+          ),
+          currentPurchaseNeed: Math.min(
+            customer.currentPurchaseNeed,
+            0.12,
+          ),
+          brandAffinity: Math.min(
+            customer.brandAffinity,
+            0.16,
+          ),
+          priceSensitivityMultiplier: Math.max(
+            customer.priceSensitivityMultiplier,
+            2.4,
+          ),
           devicePreference: {
             mobileProbability: 0.998,
             desktopProbability: 0.001,
@@ -106,6 +122,22 @@ function compositionSkewedPopulation(
       if (desktopIds.has(customer.customerId)) {
         return {
           ...customer,
+          purchaseIntent: Math.max(
+            customer.purchaseIntent,
+            0.9,
+          ),
+          currentPurchaseNeed: Math.max(
+            customer.currentPurchaseNeed,
+            0.85,
+          ),
+          brandAffinity: Math.max(
+            customer.brandAffinity,
+            0.82,
+          ),
+          priceSensitivityMultiplier: Math.min(
+            customer.priceSensitivityMultiplier,
+            0.65,
+          ),
           devicePreference: {
             mobileProbability: 0.001,
             desktopProbability: 0.998,
