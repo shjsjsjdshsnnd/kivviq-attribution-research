@@ -12,6 +12,9 @@ import type {
 import type {
   PricingPromotionScenario,
 } from "../pricing_promotions/runtime-types.js";
+import type {
+  RetentionLtvScenario,
+} from "../retention_ltv/runtime-types.js";
 
 export const ECOMMERCE_ECONOMICS_VERSION =
   "ecommerce-economics-7.0.0" as const;
@@ -237,6 +240,10 @@ export interface EcommerceEvaluationRequest {
    * Opt-in Step 10 sidecar. Omitted preserves frozen Step 1-9 behavior.
    */
   readonly pricingPromotionScenario?: PricingPromotionScenario;
+  /**
+   * Opt-in Step 11 sidecar. Omitted preserves frozen Step 1-10 behavior.
+   */
+  readonly retentionScenario?: RetentionLtvScenario;
 }
 
 export interface EconomicCounterfactualDelta {
