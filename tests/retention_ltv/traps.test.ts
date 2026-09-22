@@ -203,7 +203,7 @@ describe("Step 11 deterministic acceptance traps", () => {
           selectedObservedValue,
           comparisonObservedValue,
           selectedCausalEffect:
-            causalMechanism?.effect,
+            causalMechanism?.effect.value,
           selectedCausalTreatmentCustomerWeight:
             selectedChannelRow!
               .causalTreatmentCustomerWeight,
@@ -214,7 +214,7 @@ describe("Step 11 deterministic acceptance traps", () => {
 
       expect(
         Number(
-          causalMechanism?.effect ?? NaN,
+          causalMechanism?.effect.value ?? NaN,
         ),
       ).toBe(0);
       expect(
