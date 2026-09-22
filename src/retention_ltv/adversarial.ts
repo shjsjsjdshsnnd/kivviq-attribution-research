@@ -377,14 +377,14 @@ export function createObservedLtvSelectionTrapFixture(): ObservedLtvSelectionTra
     .map((customer) => ({
       customerId: customer.customerId,
       score:
-        customer.repeatPropensity * 0.5 +
-        customer.brandAffinity * 0.18 +
+        customer.repeatPropensity * 0.3 +
+        customer.brandAffinity * 0.1 +
         Math.min(
           1,
           customer.expectedFuturePurchases /
             5,
         ) *
-          0.2 +
+          0.14 +
         Math.min(
           1,
           customer.expectedOrderValueMinor /
@@ -393,7 +393,15 @@ export function createObservedLtvSelectionTrapFixture(): ObservedLtvSelectionTra
               world.summary.expectedAovMinor * 1.6,
             ),
         ) *
-          0.12,
+          0.08 +
+        customer.purchaseIntent * 0.18 +
+        customer.currentPurchaseNeed * 0.15 +
+        Math.min(
+          1,
+          customer.annualPurchaseHazard /
+            4,
+        ) *
+          0.05,
     }))
     .sort(
       (left, right) =>
