@@ -369,6 +369,11 @@ export function createObservedLtvSelectionTrapFixture(): ObservedLtvSelectionTra
   // the selected channel attracts the high-value tail while the comparison
   // channel attracts the lower-value tail.
   const latentScores = mutable.customers
+    .filter(
+      (customer) =>
+        customer.lifecycle
+          .preSimulationHistory === "none",
+    )
     .map((customer) => ({
       customerId: customer.customerId,
       score:
@@ -455,12 +460,18 @@ export function createObservedLtvSelectionTrapFixture(): ObservedLtvSelectionTra
     id: "observed_ltv_selection",
     selectedChannel,
     comparisonChannel,
-    evaluation: request(
-      world,
-      mutable,
-      211202,
-      scenario,
-      interventions,
-    ),
+    evaluation: {
+      ...request(
+        world,
+        mutable,
+        211202,
+        scenario,
+        interventions,
+      ),
+      asOf:
+        "2026-06-15T00:00:00.000Z",
+      simulationEnd:
+        "2027-06-15T00:00:00.000Z",
+    },
   };
 }
