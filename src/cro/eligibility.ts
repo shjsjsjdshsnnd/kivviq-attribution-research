@@ -24,13 +24,14 @@ function experienceFor(
   action: Action,
   context: CroEligibilityContext,
 ): CroExperienceState | undefined {
-  if (action.parameters.kind !== "cro_intervention") return undefined;
+  if (parameters.kind !== "cro_intervention") return undefined;
+  const parameters = action.parameters;
   return context.experiences?.find(
     (experience) =>
-      experience.surface === action.parameters.surface &&
+      experience.surface === parameters.surface &&
       croStableKey(experience.pageScope) ===
-        croStableKey(action.parameters.pageScope) &&
-      experience.device === action.parameters.device,
+        croStableKey(parameters.pageScope) &&
+      experience.device === parameters.device,
   );
 }
 
@@ -38,7 +39,7 @@ export function evaluateCroEligibility(
   action: Action,
   context: CroEligibilityContext,
 ): CroEligibilityDecision {
-  if (action.parameters.kind !== "cro_intervention") {
+  if (parameters.kind !== "cro_intervention") {
     return {
       status: "ineligible",
       reasonCodes: ["NOT_CRO_INTERVENTION"],
@@ -46,6 +47,7 @@ export function evaluateCroEligibility(
     };
   }
 
+  const parameters = action.parameters;
   const experience = experienceFor(action, context);
   if (!experience) {
     return {
@@ -53,9 +55,9 @@ export function evaluateCroEligibility(
       reasonCodes: ["CRO_EXPERIENCE_CONTEXT_UNKNOWN"],
       missingInformation: [
         croStableKey({
-          surface: action.parameters.surface,
-          pageScope: action.parameters.pageScope,
-          device: action.parameters.device,
+          surface: parameters.surface,
+          pageScope: parameters.pageScope,
+          device: parameters.device,
         }),
       ],
     };
@@ -63,11 +65,11 @@ export function evaluateCroEligibility(
 
   const present = componentPresent(
     experience.presentComponents,
-    action.parameters.component,
+    parameters.component,
   );
 
-  if (action.parameters.intervention === "ADD") {
-    if (action.parameters.addSemantics?.kind === "REQUIRE_ABSENT" && present) {
+  if (parameters.intervention === "ADD") {
+    if (parameters.addSemantics?.kind === "REQUIRE_ABSENT" && present) {
       return {
         status: "ineligible",
         reasonCodes: ["CRO_COMPONENT_ALREADY_EXISTS"],
@@ -75,12 +77,12 @@ export function evaluateCroEligibility(
       };
     }
     if (
-      action.parameters.addSemantics?.kind === "ALLOW_ADDITIONAL_INSTANCE" &&
-      action.parameters.addSemantics.instanceId &&
+      parameters.addSemantics?.kind === "ALLOW_ADDITIONAL_INSTANCE" &&
+      parameters.addSemantics.instanceId &&
       experience.presentComponents.some(
         (component) =>
-          component.component === action.parameters.component.component &&
-          component.instanceId === action.parameters.addSemantics?.instanceId,
+          component.component === parameters.component.component &&
+          component.instanceId === parameters.addSemantics?.instanceId,
       )
     ) {
       return {
@@ -98,7 +100,7 @@ export function evaluateCroEligibility(
   }
 
   if (
-    action.parameters.intervention === "MODIFY_PERFORMANCE" &&
+    parameters.intervention === "MODIFY_PERFORMANCE" &&
     !experience.performanceConfigurationRef
   ) {
     return {
@@ -108,7 +110,7 @@ export function evaluateCroEligibility(
     };
   }
 
-  const missingCapabilities = action.parameters.requiredCapabilities.filter(
+  const missingCapabilities = parameters.requiredCapabilities.filter(
     (capability) => !experience.capabilities.includes(capability),
   );
   if (missingCapabilities.length > 0) {
@@ -119,7 +121,7 @@ export function evaluateCroEligibility(
     };
   }
 
-  if (action.parameters.intervention === "REORDER") {
+  if (parameters.intervention === "REORDER") {
     const resolution = resolveCroOrdering(action, context.structures ?? []);
     if (resolution.status === "MISSING_CONTEXT") {
       return {
@@ -138,17 +140,17 @@ export function evaluateCroEligibility(
   }
 
   if (
-    action.parameters.audience.kind === "CUSTOMER_SEGMENT" &&
-    action.parameters.audience.membership.bindingRef &&
+    parameters.audience.kind === "CUSTOMER_SEGMENT" &&
+    parameters.audience.membership.bindingRef &&
     !context.audienceMembershipBindingRefs?.includes(
-      action.parameters.audience.membership.bindingRef,
+      parameters.audience.membership.bindingRef,
     )
   ) {
     return {
       status: "unknown",
       reasonCodes: ["CRO_AUDIENCE_MEMBERSHIP_UNKNOWN"],
       missingInformation: [
-        action.parameters.audience.membership.bindingRef,
+        parameters.audience.membership.bindingRef,
       ],
     };
   }
