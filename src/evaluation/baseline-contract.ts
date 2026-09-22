@@ -1281,17 +1281,17 @@ export function buildOperatorObservationSnapshot(
     requireCondition(record.sourceRef.trim().length > 0, "sourceRef is required");
     const normalizedSourceRef = record.sourceRef.trim().toLowerCase();
     requireCondition(
-      contract.observation.allowedSourceRefPrefixes.some((prefix) =>
-        normalizedSourceRef.startsWith(prefix),
-      ),
-      "operator observation sourceRef is not in the frozen allowlist: " +
-        record.sourceRef,
-    );
-    requireCondition(
       !contract.observation.forbiddenSourceRefPrefixes.some((prefix) =>
         normalizedSourceRef.startsWith(prefix),
       ),
       "operator observation sourceRef is evaluator/God-mode only: " +
+        record.sourceRef,
+    );
+    requireCondition(
+      contract.observation.allowedSourceRefPrefixes.some((prefix) =>
+        normalizedSourceRef.startsWith(prefix),
+      ),
+      "operator observation sourceRef is not in the frozen allowlist: " +
         record.sourceRef,
     );
     requireCondition(
