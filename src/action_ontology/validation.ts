@@ -61,6 +61,7 @@ const ACTION_TYPE_PATTERN = /^[a-z][a-z0-9_]*(?:\.[a-z][a-z0-9_]*)+$/;
 const CATEGORY_PATTERN = /^[a-z][a-z0-9_]*$/;
 const CURRENCY_PATTERN = /^[A-Z]{3}$/;
 const ISO_UTC_PATTERN = /Z$/;
+const PROMOTION_ID_PATTERN = /^promo_[A-Za-z0-9._:-]+$/;
 
 const TOP_LEVEL_FIELDS = new Set([
   "kind",
@@ -100,11 +101,14 @@ const FORBIDDEN_ACTION_KEYS = new Set([
   "expectedProfit",
   "expectedContribution",
   "expectedDemand",
+  "expectedDemandLift",
   "expectedUnitsSold",
   "expectedROAS",
   "expectedConversions",
   "predictedElasticity",
   "predictedLift",
+  "predictedRedemptions",
+  "predictedAOV",
   "confidence",
   "confidenceScore",
   "rank",
@@ -234,6 +238,24 @@ const ACTION_SCHEMA_1_2_PARAMETER_KINDS = new Set([
 
 const ACTION_SCHEMA_1_2_ACTION_TYPES = new Set([
   "pricing.rollback_price",
+]);
+
+const ACTION_SCHEMA_1_3_TARGET_KINDS = new Set([
+  "promotion",
+  "brand",
+  "product_set",
+]);
+
+const ACTION_SCHEMA_1_3_PARAMETER_KINDS = new Set([
+  "promotion_start",
+  "promotion_stop",
+  "promotion_modify",
+]);
+
+const ACTION_SCHEMA_1_3_ACTION_TYPES = new Set([
+  "promotion.start",
+  "promotion.stop",
+  "promotion.modify",
 ]);
 
 function validateSchemaFeatureCompatibility(
@@ -373,6 +395,48 @@ function validateSchemaFeatureCompatibility(
       );
     }
   }
+
+  if (
+    schemaVersion === "1.0.0" ||
+    schemaVersion === "1.1.0" ||
+    schemaVersion === "1.2.0"
+  ) {
+    if (
+      record(input.target) &&
+      ACTION_SCHEMA_1_3_TARGET_KINDS.has(String(input.target.kind))
+    ) {
+      add(
+        errors,
+        "SCHEMA_FEATURE_REQUIRES_1_3",
+        "target.kind",
+        "this promotion target kind requires Action schema 1.3.0",
+      );
+    }
+
+    if (
+      record(input.parameters) &&
+      ACTION_SCHEMA_1_3_PARAMETER_KINDS.has(String(input.parameters.kind))
+    ) {
+      add(
+        errors,
+        "SCHEMA_FEATURE_REQUIRES_1_3",
+        "parameters.kind",
+        "this promotion parameter kind requires Action schema 1.3.0",
+      );
+    }
+
+    if (
+      typeof input.actionType === "string" &&
+      ACTION_SCHEMA_1_3_ACTION_TYPES.has(input.actionType)
+    ) {
+      add(
+        errors,
+        "SCHEMA_FEATURE_REQUIRES_1_3",
+        "actionType",
+        "this promotion Action type requires Action schema 1.3.0",
+      );
+    }
+  }
 }
 
 function validateTarget(
@@ -399,6 +463,8 @@ function validateTarget(
     sku: ["skuId"],
     category: ["categoryId"],
     collection: ["collectionId"],
+    brand: ["brandId"],
+    product_set: ["productSetId"],
     product_group: ["productGroupId"],
     customer_segment: ["segmentId"],
     funnel_stage: ["funnelId", "stageId"],
@@ -407,6 +473,7 @@ function validateTarget(
     shipping_policy: ["shippingPolicyId"],
     inventory_policy: ["inventoryPolicyId"],
     experiment: ["experimentId"],
+    promotion: ["promotionId"],
     merchant: ["merchantId"],
   };
 
@@ -1184,6 +1251,603 @@ function validatePriceRollbackParameters(
   );
 }
 
+
+function validatePromotionMembership(
+  input: unknown,
+  path: string,
+  errors: ActionValidationIssue[],
+): void {
+  if (!record(input)) {
+    add(errors, "INVALID_PROMOTION_MEMBERSHIP", path, "membership semantics are required");
+    return;
+  }
+  if (
+    !["decision_time", "translation_time", "effective_time"].includes(
+      String(input.evaluateAt),
+    )
+  ) {
+    add(
+      errors,
+      "INVALID_PROMOTION_MEMBERSHIP_BOUNDARY",
+      path + ".evaluateAt",
+      "must be decision_time, translation_time or effective_time",
+    );
+  }
+  if (input.bindingRef !== undefined && !nonEmpty(input.bindingRef)) {
+    add(
+      errors,
+      "INVALID_PROMOTION_MEMBERSHIP_BINDING_REF",
+      path + ".bindingRef",
+      "bindingRef must be non-empty when supplied",
+    );
+  }
+}
+
+function promotionSelectorKey(input: unknown): string {
+  if (!record(input)) return "";
+  switch (input.kind) {
+    case "sku":
+      return "sku:" + String(input.skuId ?? "");
+    case "product":
+      return "product:" + String(input.productId ?? "");
+    case "category":
+      return "category:" + String(input.categoryId ?? "");
+    case "collection":
+      return "collection:" + String(input.collectionId ?? "");
+    case "product_set":
+      return "product_set:" + String(input.productSetId ?? "");
+    case "brand":
+      return "brand:" + String(input.brandId ?? "");
+    default:
+      return "";
+  }
+}
+
+function validatePromotionEntitySelector(
+  input: unknown,
+  path: string,
+  errors: ActionValidationIssue[],
+): void {
+  if (!record(input) || !nonEmpty(input.kind)) {
+    add(errors, "INVALID_PROMOTION_SELECTOR", path, "selector kind is required");
+    return;
+  }
+  const required: Readonly<Record<string, string>> = {
+    sku: "skuId",
+    product: "productId",
+    category: "categoryId",
+    collection: "collectionId",
+    product_set: "productSetId",
+    brand: "brandId",
+  };
+  const field = required[input.kind];
+  if (!field) {
+    add(errors, "UNKNOWN_PROMOTION_SELECTOR", path + ".kind", "unsupported selector");
+    return;
+  }
+  if (!nonEmpty(input[field])) {
+    add(errors, "INVALID_PROMOTION_SELECTOR_ID", path + "." + field, "required");
+  }
+  if (input.kind === "sku" && input.productId !== undefined && !nonEmpty(input.productId)) {
+    add(errors, "INVALID_PROMOTION_SELECTOR_PRODUCT_ID", path + ".productId", "must be non-empty");
+  }
+}
+
+function validatePromotionDiscount(
+  input: unknown,
+  path: string,
+  errors: ActionValidationIssue[],
+): void {
+  if (!record(input) || !nonEmpty(input.kind)) {
+    add(errors, "INVALID_PROMOTION_DISCOUNT", path, "discount kind is required");
+    return;
+  }
+  if (input.kind === "PERCENTAGE") {
+    if (
+      !Number.isInteger(input.basisPoints) ||
+      Number(input.basisPoints) <= 0 ||
+      Number(input.basisPoints) > 10_000
+    ) {
+      add(
+        errors,
+        "INVALID_PROMOTION_PERCENTAGE",
+        path + ".basisPoints",
+        "percentage discount must be integer basis points within (0,10000]",
+      );
+    }
+    return;
+  }
+  if (input.kind === "FIXED_AMOUNT") {
+    validateMoney(input.value, path + ".value", errors);
+    if (
+      record(input.value) &&
+      Number.isInteger(input.value.amountMinor) &&
+      Number(input.value.amountMinor) <= 0
+    ) {
+      add(
+        errors,
+        "INVALID_FIXED_PROMOTION_AMOUNT",
+        path + ".value.amountMinor",
+        "fixed discount amount must be greater than zero",
+      );
+    }
+    return;
+  }
+  if (input.kind === "FIXED_PROMOTIONAL_PRICE") {
+    validateMoney(input.value, path + ".value", errors);
+    return;
+  }
+  add(errors, "UNKNOWN_PROMOTION_DISCOUNT", path + ".kind", "unsupported discount kind");
+}
+
+function validatePromotionBundleComponents(
+  input: unknown,
+  path: string,
+  errors: ActionValidationIssue[],
+  minimum: number,
+): void {
+  if (!Array.isArray(input) || input.length < minimum) {
+    add(
+      errors,
+      "INVALID_PROMOTION_BUNDLE_COMPONENTS",
+      path,
+      "bundle requires at least " + minimum + " component(s)",
+    );
+    return;
+  }
+  const ids = new Set<string>();
+  input.forEach((component: unknown, index: number) => {
+    const componentPath = path + "[" + index + "]";
+    if (!record(component) || !nonEmpty(component.componentId)) {
+      add(errors, "INVALID_PROMOTION_BUNDLE_COMPONENT", componentPath, "componentId is required");
+      return;
+    }
+    if (ids.has(component.componentId)) {
+      add(errors, "DUPLICATE_PROMOTION_BUNDLE_COMPONENT", componentPath + ".componentId", "duplicate componentId");
+    }
+    ids.add(component.componentId);
+    validateTarget(component.target, componentPath + ".target", errors);
+    if (
+      record(component.target) &&
+      !["sku", "product"].includes(String(component.target.kind))
+    ) {
+      add(
+        errors,
+        "INVALID_PROMOTION_BUNDLE_TARGET",
+        componentPath + ".target.kind",
+        "bundle component must target SKU or product",
+      );
+    }
+    validatePositiveInteger(component.quantity, componentPath + ".quantity", errors);
+  });
+}
+
+function validatePromotionMechanism(
+  input: unknown,
+  path: string,
+  errors: ActionValidationIssue[],
+): void {
+  if (!record(input) || !nonEmpty(input.kind)) {
+    add(errors, "INVALID_PROMOTION_MECHANISM", path, "mechanism kind is required");
+    return;
+  }
+  if (input.kind === "DISCOUNT") {
+    validatePromotionDiscount(input.discount, path + ".discount", errors);
+    return;
+  }
+  if (input.kind === "BUNDLE_FIXED_PRICE") {
+    validatePromotionBundleComponents(input.components, path + ".components", errors, 2);
+    validateMoney(input.bundlePrice, path + ".bundlePrice", errors);
+    return;
+  }
+  if (input.kind === "BUNDLE_PERCENTAGE_DISCOUNT") {
+    validatePromotionBundleComponents(input.components, path + ".components", errors, 2);
+    if (
+      !Number.isInteger(input.basisPoints) ||
+      Number(input.basisPoints) <= 0 ||
+      Number(input.basisPoints) > 10_000
+    ) {
+      add(
+        errors,
+        "INVALID_BUNDLE_DISCOUNT_PERCENTAGE",
+        path + ".basisPoints",
+        "must be integer basis points within (0,10000]",
+      );
+    }
+    return;
+  }
+  if (input.kind === "CONDITIONAL_ITEM_DISCOUNT") {
+    validatePromotionBundleComponents(
+      input.qualifyingComponents,
+      path + ".qualifyingComponents",
+      errors,
+      1,
+    );
+    validateTarget(input.rewardTarget, path + ".rewardTarget", errors);
+    if (
+      record(input.rewardTarget) &&
+      !["sku", "product"].includes(String(input.rewardTarget.kind))
+    ) {
+      add(
+        errors,
+        "INVALID_CONDITIONAL_REWARD_TARGET",
+        path + ".rewardTarget.kind",
+        "reward target must be SKU or product",
+      );
+    }
+    validatePositiveInteger(input.rewardQuantity, path + ".rewardQuantity", errors);
+    validatePromotionDiscount(input.discount, path + ".discount", errors);
+    return;
+  }
+  add(errors, "UNKNOWN_PROMOTION_MECHANISM", path + ".kind", "unsupported mechanism");
+}
+
+function validatePromotionProductScope(
+  input: unknown,
+  path: string,
+  errors: ActionValidationIssue[],
+): void {
+  if (!record(input)) {
+    add(errors, "INVALID_PROMOTION_PRODUCT_SCOPE", path, "product scope is required");
+    return;
+  }
+  if (!Array.isArray(input.include) || input.include.length === 0) {
+    add(errors, "PROMOTION_SCOPE_REQUIRES_INCLUDE", path + ".include", "at least one canonical inclusion selector is required");
+  } else {
+    input.include.forEach((selector: unknown, index: number) =>
+      validatePromotionEntitySelector(selector, path + ".include[" + index + "]", errors),
+    );
+  }
+  if (!Array.isArray(input.exclude)) {
+    add(errors, "INVALID_PROMOTION_EXCLUSIONS", path + ".exclude", "exclude must be an array");
+  } else {
+    input.exclude.forEach((selector: unknown, index: number) =>
+      validatePromotionEntitySelector(selector, path + ".exclude[" + index + "]", errors),
+    );
+  }
+
+  if (Array.isArray(input.include)) {
+    const keys = input.include.map(promotionSelectorKey).filter(Boolean);
+    if (new Set(keys).size !== keys.length) {
+      add(errors, "DUPLICATE_PROMOTION_INCLUDE", path + ".include", "include selectors must be unique");
+    }
+  }
+  if (Array.isArray(input.exclude)) {
+    const keys = input.exclude.map(promotionSelectorKey).filter(Boolean);
+    if (new Set(keys).size !== keys.length) {
+      add(errors, "DUPLICATE_PROMOTION_EXCLUDE", path + ".exclude", "exclude selectors must be unique");
+    }
+  }
+  if (input.exclusionPrecedence !== "EXCLUDE_OVERRIDES_INCLUDE") {
+    add(
+      errors,
+      "INVALID_PROMOTION_EXCLUSION_PRECEDENCE",
+      path + ".exclusionPrecedence",
+      "explicit EXCLUDE_OVERRIDES_INCLUDE precedence is required",
+    );
+  }
+
+  const mutableSelector =
+    (Array.isArray(input.include) ? input.include : [])
+      .concat(Array.isArray(input.exclude) ? input.exclude : [])
+      .some(
+        (selector: unknown) =>
+          record(selector) &&
+          ["category", "collection", "product_set", "brand"].includes(
+            String(selector.kind),
+          ),
+      );
+  if (mutableSelector && input.membership === undefined) {
+    add(
+      errors,
+      "MISSING_PROMOTION_MEMBERSHIP_SEMANTICS",
+      path + ".membership",
+      "mutable promotion scope requires an explicit membership evaluation boundary",
+    );
+  }
+  if (input.membership !== undefined) {
+    validatePromotionMembership(input.membership, path + ".membership", errors);
+  }
+
+  if (!Array.isArray(input.conditions)) {
+    add(errors, "INVALID_PROMOTION_PRODUCT_CONDITIONS", path + ".conditions", "conditions must be an array");
+  } else {
+    input.conditions.forEach((condition: unknown, index: number) => {
+      const conditionPath = path + ".conditions[" + index + "]";
+      if (!record(condition) || !nonEmpty(condition.kind)) {
+        add(errors, "INVALID_PROMOTION_PRODUCT_CONDITION", conditionPath, "condition kind is required");
+        return;
+      }
+      if (condition.kind === "INVENTORY_AT_LEAST") {
+        validatePromotionEntitySelector(condition.target, conditionPath + ".target", errors);
+        validateNonNegativeInteger(condition.units, conditionPath + ".units", errors);
+      } else if (condition.kind === "NOT_CLEARANCE") {
+        return;
+      } else if (condition.kind === "BRAND_NOT") {
+        if (!nonEmpty(condition.brandId)) {
+          add(errors, "INVALID_PROMOTION_EXCLUDED_BRAND", conditionPath + ".brandId", "brandId is required");
+        }
+      } else {
+        add(errors, "UNKNOWN_PROMOTION_PRODUCT_CONDITION", conditionPath + ".kind", "unsupported condition");
+      }
+    });
+  }
+}
+
+function validatePromotionApplicationScope(
+  input: unknown,
+  path: string,
+  errors: ActionValidationIssue[],
+): void {
+  if (!record(input) || !nonEmpty(input.kind)) {
+    add(errors, "INVALID_PROMOTION_APPLICATION_SCOPE", path, "application scope kind is required");
+    return;
+  }
+  if (input.kind === "PRODUCT_SCOPE") {
+    validatePromotionProductScope(input.products, path + ".products", errors);
+    return;
+  }
+  if (["ORDER_SCOPE", "BUNDLE_SCOPE"].includes(String(input.kind))) return;
+  add(errors, "UNKNOWN_PROMOTION_APPLICATION_SCOPE", path + ".kind", "unsupported application scope");
+}
+
+function validatePromotionCustomerEligibility(
+  input: unknown,
+  path: string,
+  errors: ActionValidationIssue[],
+): void {
+  if (!record(input) || !nonEmpty(input.kind)) {
+    add(errors, "INVALID_PROMOTION_CUSTOMER_ELIGIBILITY", path, "customer eligibility kind is required");
+    return;
+  }
+  if (
+    ["ALL_CUSTOMERS", "NEW_CUSTOMERS", "RETURNING_CUSTOMERS", "EMAIL_SUBSCRIBERS"].includes(
+      String(input.kind),
+    )
+  ) {
+    return;
+  }
+  if (["CUSTOMER_SEGMENT", "LOYALTY_SEGMENT"].includes(String(input.kind))) {
+    if (!nonEmpty(input.segmentId)) {
+      add(errors, "INVALID_PROMOTION_CUSTOMER_SEGMENT", path + ".segmentId", "segmentId is required");
+    }
+    validatePromotionMembership(input.membership, path + ".membership", errors);
+    return;
+  }
+  add(errors, "UNKNOWN_PROMOTION_CUSTOMER_ELIGIBILITY", path + ".kind", "unsupported customer eligibility");
+}
+
+function validatePromotionPurchaseRequirement(
+  input: unknown,
+  path: string,
+  errors: ActionValidationIssue[],
+): void {
+  if (!record(input) || !nonEmpty(input.kind)) {
+    add(errors, "INVALID_PROMOTION_PURCHASE_REQUIREMENT", path, "requirement kind is required");
+    return;
+  }
+  if (input.kind === "MIN_ORDER_VALUE") {
+    validateMoney(input.value, path + ".value", errors);
+    return;
+  }
+  if (input.kind === "MIN_QUANTITY") {
+    validatePositiveInteger(input.quantity, path + ".quantity", errors);
+    if (input.target !== undefined) {
+      validatePromotionEntitySelector(input.target, path + ".target", errors);
+    }
+    return;
+  }
+  if (input.kind === "REQUIRED_TARGET") {
+    validatePromotionEntitySelector(input.target, path + ".target", errors);
+    validatePositiveInteger(input.quantity, path + ".quantity", errors);
+    return;
+  }
+  if (input.kind === "REQUIRED_BUNDLE_COMPOSITION") {
+    validatePromotionBundleComponents(input.components, path + ".components", errors, 1);
+    return;
+  }
+  add(errors, "UNKNOWN_PROMOTION_PURCHASE_REQUIREMENT", path + ".kind", "unsupported requirement");
+}
+
+function validatePromotionRedemption(
+  input: unknown,
+  path: string,
+  errors: ActionValidationIssue[],
+): void {
+  if (!record(input) || !nonEmpty(input.kind)) {
+    add(errors, "INVALID_PROMOTION_REDEMPTION", path, "redemption kind is required");
+    return;
+  }
+  if (input.kind === "AUTOMATIC") return;
+  if (input.kind === "COUPON") {
+    const hasCode = nonEmpty(input.code);
+    const hasFamily = nonEmpty(input.codeFamilyRef);
+    if (hasCode === hasFamily) {
+      add(
+        errors,
+        "INVALID_COUPON_REFERENCE",
+        path,
+        "coupon requires exactly one of code or codeFamilyRef",
+      );
+    }
+    return;
+  }
+  add(errors, "UNKNOWN_PROMOTION_REDEMPTION", path + ".kind", "unsupported redemption");
+}
+
+function validatePromotionUsageLimits(
+  input: unknown,
+  path: string,
+  errors: ActionValidationIssue[],
+): void {
+  if (!record(input)) {
+    add(errors, "INVALID_PROMOTION_USAGE_LIMITS", path, "usageLimits object is required");
+    return;
+  }
+  for (const field of [
+    "maxTotalRedemptions",
+    "maxRedemptionsPerCustomer",
+    "maxDiscountedUnitsPerOrder",
+  ]) {
+    if (input[field] !== undefined) {
+      validateNonNegativeInteger(input[field], path + "." + field, errors);
+    }
+  }
+  if (input.maxPromotionalExposure !== undefined) {
+    validateMoney(input.maxPromotionalExposure, path + ".maxPromotionalExposure", errors);
+  }
+}
+
+function validatePromotionStacking(
+  input: unknown,
+  path: string,
+  errors: ActionValidationIssue[],
+): void {
+  if (!record(input) || !nonEmpty(input.kind)) {
+    add(errors, "INVALID_PROMOTION_STACKING", path, "stacking kind is required");
+    return;
+  }
+  if (["STACKABLE", "NON_STACKABLE"].includes(String(input.kind))) return;
+  if (input.kind === "STACKABLE_WITH_TYPES") {
+    const validTypes = new Set(["AUTOMATIC", "COUPON", "PRODUCT", "ORDER", "BUNDLE", "SHIPPING"]);
+    if (
+      !Array.isArray(input.types) ||
+      input.types.length === 0 ||
+      input.types.some((value: unknown) => !validTypes.has(String(value))) ||
+      new Set(input.types.map(String)).size !== input.types.length
+    ) {
+      add(errors, "INVALID_PROMOTION_STACKING_TYPES", path + ".types", "types must be a non-empty unique supported list");
+    }
+    return;
+  }
+  add(errors, "UNKNOWN_PROMOTION_STACKING", path + ".kind", "unsupported stacking kind");
+}
+
+function validatePromotionConflictResolution(
+  input: unknown,
+  path: string,
+  errors: ActionValidationIssue[],
+): void {
+  if (!record(input) || !nonEmpty(input.kind)) {
+    add(errors, "INVALID_PROMOTION_CONFLICT_RESOLUTION", path, "conflict resolution kind is required");
+    return;
+  }
+  if (["NONE", "BEST_DISCOUNT"].includes(String(input.kind))) return;
+  if (input.kind === "PRIORITY") {
+    validateNonNegativeInteger(input.precedence, path + ".precedence", errors);
+    return;
+  }
+  if (input.kind === "MUTUALLY_EXCLUSIVE_GROUP") {
+    if (!nonEmpty(input.groupId)) {
+      add(errors, "INVALID_PROMOTION_CONFLICT_GROUP", path + ".groupId", "groupId is required");
+    }
+    if (input.precedence !== undefined) {
+      validateNonNegativeInteger(input.precedence, path + ".precedence", errors);
+    }
+    return;
+  }
+  add(errors, "UNKNOWN_PROMOTION_CONFLICT_RESOLUTION", path + ".kind", "unsupported conflict resolution");
+}
+
+function validatePromotionDefinition(
+  input: unknown,
+  path: string,
+  errors: ActionValidationIssue[],
+): void {
+  if (!record(input)) {
+    add(errors, "INVALID_PROMOTION_DEFINITION", path, "promotion definition is required");
+    return;
+  }
+
+  validatePromotionMechanism(input.mechanism, path + ".mechanism", errors);
+  validatePromotionApplicationScope(input.applicationScope, path + ".applicationScope", errors);
+  validatePromotionCustomerEligibility(input.customerEligibility, path + ".customerEligibility", errors);
+
+  if (!Array.isArray(input.purchaseRequirements)) {
+    add(errors, "INVALID_PROMOTION_PURCHASE_REQUIREMENTS", path + ".purchaseRequirements", "must be an array");
+  } else {
+    input.purchaseRequirements.forEach((requirement: unknown, index: number) =>
+      validatePromotionPurchaseRequirement(requirement, path + ".purchaseRequirements[" + index + "]", errors),
+    );
+  }
+
+  validatePromotionRedemption(input.redemption, path + ".redemption", errors);
+  validatePromotionUsageLimits(input.usageLimits, path + ".usageLimits", errors);
+  validatePromotionStacking(input.stacking, path + ".stacking", errors);
+  validatePromotionConflictResolution(input.conflictResolution, path + ".conflictResolution", errors);
+
+  if (input.terminationBehavior !== "DEACTIVATE_PROMOTION") {
+    add(
+      errors,
+      "INVALID_PROMOTION_TERMINATION_BEHAVIOR",
+      path + ".terminationBehavior",
+      "promotion termination must deactivate the promotion without mutating regular price",
+    );
+  }
+
+  if (
+    record(input.mechanism) &&
+    ["BUNDLE_FIXED_PRICE", "BUNDLE_PERCENTAGE_DISCOUNT", "CONDITIONAL_ITEM_DISCOUNT"].includes(
+      String(input.mechanism.kind),
+    ) &&
+    (!record(input.applicationScope) || input.applicationScope.kind !== "BUNDLE_SCOPE")
+  ) {
+    add(
+      errors,
+      "BUNDLE_MECHANISM_REQUIRES_BUNDLE_SCOPE",
+      path + ".applicationScope",
+      "bundle mechanisms require BUNDLE_SCOPE",
+    );
+  }
+
+  if (
+    record(input.mechanism) &&
+    input.mechanism.kind === "DISCOUNT" &&
+    record(input.mechanism.discount) &&
+    input.mechanism.discount.kind === "FIXED_PROMOTIONAL_PRICE" &&
+    record(input.applicationScope) &&
+    input.applicationScope.kind === "ORDER_SCOPE"
+  ) {
+    add(
+      errors,
+      "PROMOTIONAL_PRICE_REQUIRES_PRODUCT_SCOPE",
+      path + ".applicationScope",
+      "fixed promotional price cannot target an order-wide scope",
+    );
+  }
+}
+
+function validatePromotionParameters(
+  input: unknown,
+  path: string,
+  errors: ActionValidationIssue[],
+): void {
+  if (!record(input)) {
+    add(errors, "INVALID_PROMOTION_PARAMETERS", path, "promotion parameters are required");
+    return;
+  }
+  if (input.kind === "promotion_start") {
+    if (!nonEmpty(input.promotionId)) {
+      add(errors, "INVALID_PROMOTION_ID", path + ".promotionId", "promotionId is required");
+    }
+    validatePromotionDefinition(input.definition, path + ".definition", errors);
+    return;
+  }
+  if (input.kind === "promotion_stop") {
+    if (!nonEmpty(input.targetPromotionId)) {
+      add(errors, "INVALID_PROMOTION_ID", path + ".targetPromotionId", "targetPromotionId is required");
+    }
+    return;
+  }
+  if (input.kind === "promotion_modify") {
+    if (!nonEmpty(input.targetPromotionId)) {
+      add(errors, "INVALID_PROMOTION_ID", path + ".targetPromotionId", "targetPromotionId is required");
+    }
+    validatePromotionDefinition(input.definition, path + ".definition", errors);
+    return;
+  }
+}
+
 function validateParameters(
   input: unknown,
   path: string,
@@ -1298,6 +1962,11 @@ function validateParameters(
       if (input.code !== undefined && !nonEmpty(input.code)) {
         add(errors, "INVALID_PROMOTION_CODE", path + ".code", "must be non-empty");
       }
+      return;
+    case "promotion_start":
+    case "promotion_stop":
+    case "promotion_modify":
+      validatePromotionParameters(input, path, errors);
       return;
     case "inventory":
       validateOperation(
@@ -2488,6 +3157,111 @@ function validatePricingActionSemantics(
   }
 }
 
+
+function validatePromotionActionSemantics(
+  input: any,
+  errors: ActionValidationIssue[],
+): void {
+  if (
+    input.actionType !== "promotion.start" &&
+    input.actionType !== "promotion.stop" &&
+    input.actionType !== "promotion.modify"
+  ) {
+    return;
+  }
+
+  if (!record(input.target) || input.target.kind !== "promotion") {
+    add(
+      errors,
+      "PROMOTION_ACTION_REQUIRES_PROMOTION_TARGET",
+      "target.kind",
+      "promotion.start/stop/modify must target stable promotion identity",
+    );
+    return;
+  }
+
+  if (
+    !nonEmpty(input.target.promotionId) ||
+    !PROMOTION_ID_PATTERN.test(input.target.promotionId)
+  ) {
+    add(
+      errors,
+      "INVALID_PROMOTION_ID",
+      "target.promotionId",
+      "promotionId must begin with promo_",
+    );
+  }
+
+  if (!record(input.parameters)) return;
+
+  const referencedId =
+    input.parameters.kind === "promotion_start"
+      ? input.parameters.promotionId
+      : input.parameters.kind === "promotion_stop" ||
+          input.parameters.kind === "promotion_modify"
+        ? input.parameters.targetPromotionId
+        : undefined;
+
+  if (
+    typeof referencedId === "string" &&
+    referencedId !== input.target.promotionId
+  ) {
+    add(
+      errors,
+      "PROMOTION_ID_MISMATCH",
+      "parameters",
+      "parameter promotion identity must match Action target.promotionId",
+    );
+  }
+  if (
+    typeof referencedId === "string" &&
+    !PROMOTION_ID_PATTERN.test(referencedId)
+  ) {
+    add(
+      errors,
+      "INVALID_PROMOTION_ID",
+      "parameters",
+      "promotion identity must begin with promo_",
+    );
+  }
+
+  if (
+    record(input.reversibility) &&
+    input.reversibility.pricingRollback !== undefined
+  ) {
+    add(
+      errors,
+      "PROMOTION_CANNOT_USE_PRICING_ROLLBACK",
+      "reversibility.pricingRollback",
+      "promotion termination deactivates promotion state and must not restore regular prices",
+    );
+  }
+
+  if (
+    input.actionType === "promotion.stop" &&
+    (!record(input.duration) || input.duration.kind !== "instantaneous")
+  ) {
+    add(
+      errors,
+      "PROMOTION_STOP_MUST_BE_INSTANTANEOUS",
+      "duration",
+      "promotion.stop represents an instantaneous ACTIVE to INACTIVE state transition",
+    );
+  }
+
+  if (
+    input.actionType === "promotion.modify" &&
+    (!record(input.duration) || input.duration.kind !== "instantaneous")
+  ) {
+    add(
+      errors,
+      "PROMOTION_MODIFY_MUST_BE_INSTANTANEOUS",
+      "duration",
+      "promotion.modify represents an instantaneous promotion-definition change",
+    );
+  }
+}
+
 function deepFreeze<T>(value: T): T {
   if (typeof value !== "object" || value === null || Object.isFrozen(value)) return value;
   Object.freeze(value);
@@ -2639,6 +3413,7 @@ export function validateAction(
   validateIntent(input.intent, "intent", errors);
   validateProvenance(input.provenance, "provenance", errors);
   validatePricingActionSemantics(input, errors);
+  validatePromotionActionSemantics(input, errors);
 
   if (input.reversalOfActionId !== undefined) {
     if (!nonEmpty(input.reversalOfActionId)) {

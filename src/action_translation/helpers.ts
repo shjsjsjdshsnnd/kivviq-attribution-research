@@ -316,6 +316,9 @@ export function buildIntervention(
       | "effective_time";
     readonly membershipSnapshotTime: Action["timing"]["decisionTime"];
   },
+  promotionProvenance?: {
+    readonly promotionId: string;
+  },
 ): SimulatorIntervention {
   const time = prepareEffectiveTime(action);
   if (!time.ok) throw new Error(time.failure.code);
@@ -339,6 +342,7 @@ export function buildIntervention(
       interventionIndexWithinComponent,
       interventionCountWithinComponent,
       ...(membershipProvenance ?? {}),
+      ...(promotionProvenance ?? {}),
     },
   };
 

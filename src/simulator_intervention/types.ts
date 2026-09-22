@@ -220,6 +220,7 @@ export interface SimulatorInterventionProvenance {
   readonly membershipBindingRef?: string;
   readonly membershipBoundary?: "decision_time" | "translation_time" | "effective_time";
   readonly membershipSnapshotTime?: UtcTimestamp;
+  readonly promotionId?: string;
 }
 
 export interface SimulatorIntervention {

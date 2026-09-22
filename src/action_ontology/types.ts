@@ -4,10 +4,11 @@ import type {
   UtcTimestamp,
 } from "../core/units.js";
 
-export const ACTION_SCHEMA_VERSION = "1.2.0" as const;
+export const ACTION_SCHEMA_VERSION = "1.3.0" as const;
 export const SUPPORTED_ACTION_SCHEMA_VERSIONS = [
   "1.0.0",
   "1.1.0",
+  "1.2.0",
   ACTION_SCHEMA_VERSION,
 ] as const;
 export type ActionSchemaVersion =
@@ -90,6 +91,8 @@ export type ActionTarget =
     }
   | { readonly kind: "category"; readonly categoryId: string }
   | { readonly kind: "collection"; readonly collectionId: string }
+  | { readonly kind: "brand"; readonly brandId: string }
+  | { readonly kind: "product_set"; readonly productSetId: string }
   | {
       readonly kind: "product_group";
       readonly productGroupId: string;
@@ -107,6 +110,7 @@ export type ActionTarget =
   | { readonly kind: "shipping_policy"; readonly shippingPolicyId: string }
   | { readonly kind: "inventory_policy"; readonly inventoryPolicyId: string }
   | { readonly kind: "experiment"; readonly experimentId: string }
+  | { readonly kind: "promotion"; readonly promotionId: string }
   | { readonly kind: "merchant"; readonly merchantId: string };
 
 export type ScopeDimension =
@@ -293,10 +297,12 @@ export type PaidMediaTransferAmount =
     };
 
 
-export type PricingMembershipBoundary =
+export type MembershipEvaluationBoundary =
   | "decision_time"
   | "translation_time"
   | "effective_time";
+
+export type PricingMembershipBoundary = MembershipEvaluationBoundary;
 
 export interface PricingMembershipSemantics {
   readonly evaluateAt: PricingMembershipBoundary;
@@ -358,6 +364,190 @@ export type PricingRollbackContract =
       readonly conflictGuard: PriceRollbackConflictGuard;
     };
 
+
+export interface PromotionMembershipSemantics {
+  readonly evaluateAt: MembershipEvaluationBoundary;
+  readonly bindingRef?: string;
+}
+
+export type PromotionEntitySelector =
+  | { readonly kind: "sku"; readonly skuId: string; readonly productId?: string }
+  | { readonly kind: "product"; readonly productId: string }
+  | { readonly kind: "category"; readonly categoryId: string }
+  | { readonly kind: "collection"; readonly collectionId: string }
+  | { readonly kind: "product_set"; readonly productSetId: string }
+  | { readonly kind: "brand"; readonly brandId: string };
+
+export type PromotionDiscount =
+  | {
+      readonly kind: "PERCENTAGE";
+      readonly basisPoints: number;
+    }
+  | {
+      readonly kind: "FIXED_AMOUNT";
+      readonly value: MonetaryValue;
+    }
+  | {
+      readonly kind: "FIXED_PROMOTIONAL_PRICE";
+      readonly value: MonetaryValue;
+    };
+
+export interface PromotionBundleComponent {
+  readonly componentId: string;
+  readonly target:
+    | Extract<ActionTarget, { readonly kind: "sku" }>
+    | Extract<ActionTarget, { readonly kind: "product" }>;
+  readonly quantity: number;
+}
+
+export type PromotionMechanism =
+  | {
+      readonly kind: "DISCOUNT";
+      readonly discount: PromotionDiscount;
+    }
+  | {
+      readonly kind: "BUNDLE_FIXED_PRICE";
+      readonly components: readonly PromotionBundleComponent[];
+      readonly bundlePrice: MonetaryValue;
+    }
+  | {
+      readonly kind: "BUNDLE_PERCENTAGE_DISCOUNT";
+      readonly components: readonly PromotionBundleComponent[];
+      readonly basisPoints: number;
+    }
+  | {
+      readonly kind: "CONDITIONAL_ITEM_DISCOUNT";
+      readonly qualifyingComponents: readonly PromotionBundleComponent[];
+      readonly rewardTarget:
+        | Extract<ActionTarget, { readonly kind: "sku" }>
+        | Extract<ActionTarget, { readonly kind: "product" }>;
+      readonly rewardQuantity: number;
+      readonly discount: PromotionDiscount;
+    };
+
+export type PromotionProductEligibilityRule =
+  | {
+      readonly kind: "INVENTORY_AT_LEAST";
+      readonly target: PromotionEntitySelector;
+      readonly units: number;
+    }
+  | {
+      readonly kind: "NOT_CLEARANCE";
+    }
+  | {
+      readonly kind: "BRAND_NOT";
+      readonly brandId: string;
+    };
+
+export interface PromotionProductScope {
+  readonly include: readonly PromotionEntitySelector[];
+  readonly exclude: readonly PromotionEntitySelector[];
+  readonly exclusionPrecedence: "EXCLUDE_OVERRIDES_INCLUDE";
+  readonly conditions: readonly PromotionProductEligibilityRule[];
+  readonly membership?: PromotionMembershipSemantics;
+}
+
+export type PromotionApplicationScope =
+  | {
+      readonly kind: "PRODUCT_SCOPE";
+      readonly products: PromotionProductScope;
+    }
+  | {
+      readonly kind: "ORDER_SCOPE";
+    }
+  | {
+      readonly kind: "BUNDLE_SCOPE";
+    };
+
+export type PromotionCustomerEligibility =
+  | { readonly kind: "ALL_CUSTOMERS" }
+  | { readonly kind: "NEW_CUSTOMERS" }
+  | { readonly kind: "RETURNING_CUSTOMERS" }
+  | {
+      readonly kind: "CUSTOMER_SEGMENT";
+      readonly segmentId: string;
+      readonly membership: PromotionMembershipSemantics;
+    }
+  | { readonly kind: "EMAIL_SUBSCRIBERS" }
+  | {
+      readonly kind: "LOYALTY_SEGMENT";
+      readonly segmentId: string;
+      readonly membership: PromotionMembershipSemantics;
+    };
+
+export type PromotionPurchaseRequirement =
+  | {
+      readonly kind: "MIN_ORDER_VALUE";
+      readonly value: MonetaryValue;
+    }
+  | {
+      readonly kind: "MIN_QUANTITY";
+      readonly quantity: number;
+      readonly target?: PromotionEntitySelector;
+    }
+  | {
+      readonly kind: "REQUIRED_TARGET";
+      readonly target: PromotionEntitySelector;
+      readonly quantity: number;
+    }
+  | {
+      readonly kind: "REQUIRED_BUNDLE_COMPOSITION";
+      readonly components: readonly PromotionBundleComponent[];
+    };
+
+export type PromotionRedemption =
+  | { readonly kind: "AUTOMATIC" }
+  | {
+      readonly kind: "COUPON";
+      readonly code?: string;
+      readonly codeFamilyRef?: string;
+    };
+
+export interface PromotionUsageLimits {
+  readonly maxTotalRedemptions?: number;
+  readonly maxRedemptionsPerCustomer?: number;
+  readonly maxDiscountedUnitsPerOrder?: number;
+  readonly maxPromotionalExposure?: MonetaryValue;
+}
+
+export type PromotionStackingType =
+  | "AUTOMATIC"
+  | "COUPON"
+  | "PRODUCT"
+  | "ORDER"
+  | "BUNDLE"
+  | "SHIPPING";
+
+export type PromotionStacking =
+  | { readonly kind: "STACKABLE" }
+  | { readonly kind: "NON_STACKABLE" }
+  | {
+      readonly kind: "STACKABLE_WITH_TYPES";
+      readonly types: readonly PromotionStackingType[];
+    };
+
+export type PromotionConflictResolution =
+  | { readonly kind: "NONE" }
+  | { readonly kind: "PRIORITY"; readonly precedence: number }
+  | { readonly kind: "BEST_DISCOUNT" }
+  | {
+      readonly kind: "MUTUALLY_EXCLUSIVE_GROUP";
+      readonly groupId: string;
+      readonly precedence?: number;
+    };
+
+export interface PromotionDefinition {
+  readonly mechanism: PromotionMechanism;
+  readonly applicationScope: PromotionApplicationScope;
+  readonly customerEligibility: PromotionCustomerEligibility;
+  readonly purchaseRequirements: readonly PromotionPurchaseRequirement[];
+  readonly redemption: PromotionRedemption;
+  readonly usageLimits: PromotionUsageLimits;
+  readonly stacking: PromotionStacking;
+  readonly conflictResolution: PromotionConflictResolution;
+  readonly terminationBehavior: "DEACTIVATE_PROMOTION";
+}
+
 export type ActionParameters =
   | {
       readonly kind: "budget_adjustment";
@@ -407,6 +597,20 @@ export type ActionParameters =
       readonly kind: "promotion";
       readonly discount: ValueOperation<PercentageValue>;
       readonly code?: string;
+    }
+  | {
+      readonly kind: "promotion_start";
+      readonly promotionId: string;
+      readonly definition: PromotionDefinition;
+    }
+  | {
+      readonly kind: "promotion_stop";
+      readonly targetPromotionId: string;
+    }
+  | {
+      readonly kind: "promotion_modify";
+      readonly targetPromotionId: string;
+      readonly definition: PromotionDefinition;
     }
   | {
       readonly kind: "inventory";

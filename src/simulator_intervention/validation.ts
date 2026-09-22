@@ -411,6 +411,19 @@ export function validateSimulatorIntervention(
       );
     }
 
+    if (
+      input.provenance.promotionId !== undefined &&
+      (!nonEmpty(input.provenance.promotionId) ||
+        !/^promo_[A-Za-z0-9._:-]+$/.test(input.provenance.promotionId))
+    ) {
+      add(
+        errors,
+        "INVALID_PROMOTION_PROVENANCE",
+        "provenance.promotionId",
+        "promotionId must be a stable promo_* identifier",
+      );
+    }
+
     if (input.provenance.membershipSourceRef !== undefined) {
       if (
         !nonEmpty(input.provenance.membershipSourceRef) ||
