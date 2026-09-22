@@ -383,13 +383,13 @@ export function createPullForwardTrapFixture(): PullForwardTrapFixture {
   // deep replenishment offer creates enough customer-specific pull-forward
   // distance for future baseline needs to move into the sale window.
   const promotionEnd =
-    "2026-01-22T00:00:00.000Z";
+    "2026-01-08T00:00:00.000Z";
   const end = "2026-04-15T00:00:00.000Z";
   const baseScenario = scenario(
     world,
     start,
     promotionEnd,
-    0.35,
+    0.6,
   );
   const value: PricingPromotionScenario = {
     ...baseScenario,
