@@ -949,6 +949,7 @@ export type ActionParameters =
       readonly kind: "merchandising_visibility";
       readonly entity: MerchandisingEntityTarget;
       readonly surface: MerchandisingSurface;
+      readonly placementId?: string;
       readonly placement?: MerchandisingPlacement;
       readonly visibility: MerchandisingVisibilityMode;
       readonly conflictResolution: MerchandisingConflictResolution;
