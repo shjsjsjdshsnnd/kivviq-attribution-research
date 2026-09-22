@@ -97,6 +97,17 @@ export function evaluateCroEligibility(
     };
   }
 
+  if (
+    action.parameters.intervention === "MODIFY_PERFORMANCE" &&
+    !experience.performanceConfigurationRef
+  ) {
+    return {
+      status: "unknown",
+      reasonCodes: ["CRO_PERFORMANCE_CONFIGURATION_UNKNOWN"],
+      missingInformation: ["current performance configuration"],
+    };
+  }
+
   const missingCapabilities = action.parameters.requiredCapabilities.filter(
     (capability) => !experience.capabilities.includes(capability),
   );
