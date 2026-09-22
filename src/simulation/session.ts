@@ -1033,6 +1033,81 @@ export function advanceSession(
         source: session.source,
       }),
     );
+
+    let crossSellCheckoutMultiplier = 1;
+    let crossSellExplore = false;
+    if (
+      commercePolicy?.websiteScenario !== undefined &&
+      customer.cart !== undefined
+    ) {
+      const websiteState = resolveWebsiteState(
+        commercePolicy.websiteScenario,
+        timestampMs,
+        session.device,
+      );
+      const relatedProducts = new Set<string>();
+      for (const line of customer.cart.lines) {
+        const demand =
+          runtime.merchantWorld.manifest.productDemandMechanisms.find(
+            (candidate) =>
+              candidate.productId === line.productId,
+          );
+        for (const productId of [
+          ...(demand?.complementaryProductIds ?? []),
+          ...(demand?.substitutionProductIds ?? []),
+        ]) {
+          if (
+            !customer.cart.lines.some(
+              (candidate) =>
+                candidate.productId === productId,
+            )
+          ) {
+            relatedProducts.add(productId);
+          }
+        }
+      }
+
+      if (
+        relatedProducts.size > 0 &&
+        randomness.bool(
+          `${stepKey}:cross-sell-shown`,
+          clamp(
+            0.14 +
+              websiteState.cart.crossSellRelevance *
+                0.42,
+            0,
+            0.65,
+          ),
+        )
+      ) {
+        crossSellExplore = randomness.bool(
+          `${stepKey}:cross-sell-explore`,
+          clamp(
+            websiteState.cart.crossSellRelevance *
+              (0.18 + need * 0.18),
+            0.02,
+            0.42,
+          ),
+        );
+        if (
+          !crossSellExplore &&
+          randomness.bool(
+            `${stepKey}:cross-sell-distract`,
+            clamp(
+              (1 -
+                websiteState.cart
+                  .crossSellRelevance) *
+                0.3,
+              0,
+              0.3,
+            ),
+          )
+        ) {
+          crossSellCheckoutMultiplier = 0.72;
+        }
+      }
+    }
+
     const checkoutProbability =
       funnelProbability(
         runtime,
@@ -1042,9 +1117,24 @@ export function advanceSession(
       ) *
       (0.55 + intent * 0.55) *
       fillBasketMultiplier *
+      crossSellCheckoutMultiplier *
       (cartExperience?.transitionMultiplier ?? 1);
 
-    if (
+    if (crossSellExplore) {
+      session.currentPage = "collection";
+      events.push({
+        eventId: eventId(
+          session.sessionId,
+          `cross_sell_collection_${session.step}`,
+        ),
+        eventType: "collection_view",
+        occurredAt: new Date(timestampMs).toISOString(),
+        anonymousSubjectId: customer.customerId,
+        sessionId: session.sessionId,
+        source: session.source,
+        device: session.device,
+      });
+    } else if (
       randomness.bool(
         `${stepKey}:checkout`,
         clamp(checkoutProbability, 0.05, 0.9),
