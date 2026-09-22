@@ -63,6 +63,7 @@ export function healthyWebsiteState(
     search: {
       componentVersion: `search_${versionId}`,
       performance: structuredClone(shared),
+      entryPropensity: 0.52,
       relevance: 0.91,
       synonymCoverage: 0.9,
       zeroResultBaseProbability: 0.015,
@@ -216,6 +217,7 @@ export function badSearchScenario(
         search: {
           ...state.search,
           componentVersion: "search_bad_v1",
+          entryPropensity: 0.78,
           relevance: 0.12,
           synonymCoverage: 0.16,
           zeroResultBaseProbability: 0.34,
@@ -393,6 +395,7 @@ export function bottleneckSizeScenario(
           ...state.search,
           componentVersion:
             "search_visually_bad_low_volume",
+          entryPropensity: 0.025,
           relevance: 0.28,
           synonymCoverage: 0.32,
           zeroResultBaseProbability: 0.42,
