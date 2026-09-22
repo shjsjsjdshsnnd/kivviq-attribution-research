@@ -57,7 +57,11 @@ function setChannelEffect(
   const mechanisms =
     world.manifest.channelIncrementality as unknown as Array<{
       channelId: string;
-      effect: number;
+      effect: {
+        scale: string;
+        value: number;
+        unit: string;
+      };
     }>;
   const mechanism = mechanisms.find(
     (candidate) =>
@@ -69,7 +73,7 @@ function setChannelEffect(
         channel,
     );
   }
-  mechanism.effect = effect;
+  mechanism.effect.value = effect;
 }
 
 function baseScenario(
@@ -227,18 +231,20 @@ export function createCheapCustomerTrapFixture(): CheapCustomerTrapFixture {
   const mechanisms =
     world.manifest.channelIncrementality as unknown as Array<{
       channelId: string;
-      effect: number;
+      effect: {
+        value: number;
+      };
     }>;
   const aBase =
     mechanisms.find(
       (mechanism) =>
         mechanism.channelId === channelA,
-    )?.effect ?? 0;
+    )?.effect.value ?? 0;
   const bBase =
     mechanisms.find(
       (mechanism) =>
         mechanism.channelId === channelB,
-    )?.effect ?? 0;
+    )?.effect.value ?? 0;
 
   // A is deliberately efficient at creating the first transaction. B has a
   // weaker first-order response but can causally improve post-acquisition
