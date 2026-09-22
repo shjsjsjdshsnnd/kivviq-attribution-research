@@ -88,6 +88,11 @@ export interface PdpMechanism extends VersionedWebsiteComponent {
   readonly trust: number;
   readonly socialProof: number;
   readonly ctaUsability: number;
+  /**
+   * Controls how much expensive purchases increase the need for information,
+   * trust and delivery clarity. Zero means no price × PDP interaction.
+   */
+  readonly priceConfidenceSensitivity: number;
 }
 
 export interface CartMechanism extends VersionedWebsiteComponent {
@@ -116,6 +121,11 @@ export interface CheckoutMechanism extends VersionedWebsiteComponent {
     | "checkout_shipping"
     | "checkout_review";
   readonly excessiveSteps: number;
+  /**
+   * Optional persistent affinity effect after a severe checkout experience.
+   * Zero keeps website friction purely within-session.
+   */
+  readonly futureAffinityImpact: number;
 }
 
 export interface ProductPresentation {
@@ -279,6 +289,7 @@ export interface PageExperience {
   readonly interactionDelayMs: number;
   readonly loadFailureProbability: number;
   readonly frictions: readonly WebsiteFrictionKind[];
+  readonly futureAffinityImpact: number;
 }
 
 export interface CheckoutExperience {
