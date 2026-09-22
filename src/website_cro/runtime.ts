@@ -237,10 +237,23 @@ function setNumber(
   intervention: Intervention,
   min = 0,
   max = 1,
+  expectedUnit:
+    | "dimensionless"
+    | "seconds" = "dimensionless",
 ): void {
+  if (intervention.operation !== "set") {
+    throw new RangeError(
+      `${intervention.variable} only supports set`,
+    );
+  }
   if (intervention.value.kind !== "number") {
     throw new RangeError(
       `${intervention.variable} must use a numeric intervention value`,
+    );
+  }
+  if (intervention.value.unit !== expectedUnit) {
+    throw new RangeError(
+      `${intervention.variable} must use ${expectedUnit}`,
     );
   }
   target[key] = Math.min(
@@ -278,13 +291,21 @@ function applyIntervention(
   };
 
   switch (intervention.variable) {
-    case "website.pdp.mobile.latency_ms": {
-      if (intervention.value.kind !== "number") {
-        throw new RangeError("website.pdp.mobile.latency_ms must be numeric");
+    case "website.pdp.mobile.latency_seconds": {
+      if (
+        intervention.operation !== "set" ||
+        intervention.value.kind !== "number" ||
+        intervention.value.unit !== "seconds"
+      ) {
+        throw new RangeError(
+          "website.pdp.mobile.latency_seconds must be a numeric seconds set intervention",
+        );
       }
       mutable.pdp.performance.mobile = {
         ...mutable.pdp.performance.mobile,
-        latencyMs: Math.max(0, intervention.value.value),
+        latencyMs:
+          Math.max(0, intervention.value.value) *
+          1_000,
       };
       return;
     }
