@@ -275,7 +275,13 @@ function applyIntervention(
       deliveryClarity: number;
       performance: Record<WebsiteDevice, PagePerformance>;
     };
-    search: { relevance: number };
+    search: {
+      relevance: number;
+      synonymCoverage: number;
+      zeroResultBaseProbability: number;
+      reformulationSupport: number;
+      alternativeDiscovery: number;
+    };
     checkout: {
       formUsability: number;
       mobileUsability: number;
@@ -343,6 +349,24 @@ function applyIntervention(
         intervention,
       );
       return;
+    case "website.search.fix_defect": {
+      if (
+        intervention.operation !== "set" ||
+        intervention.value.kind !== "boolean"
+      ) {
+        throw new RangeError(
+          "website.search.fix_defect must be a boolean set intervention",
+        );
+      }
+      if (intervention.value.value) {
+        mutable.search.relevance = 0.96;
+        mutable.search.synonymCoverage = 0.95;
+        mutable.search.zeroResultBaseProbability = 0.01;
+        mutable.search.reformulationSupport = 0.94;
+        mutable.search.alternativeDiscovery = 0.92;
+      }
+      return;
+    }
     case "website.collection.ranking_quality":
       setNumber(
         mutable.collection as unknown as Record<string, unknown>,
