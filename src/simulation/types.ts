@@ -31,6 +31,7 @@ export type ObservableJourneyEventKind =
   | "remove_from_cart"
   | "checkout_start"
   | "checkout_stage"
+  | "coupon_attempt"
   | "coupon_error"
   | "shipping_cost_reveal"
   | "payment_failure"
