@@ -6,7 +6,6 @@ from math import exp
 from statistics import mean
 from typing import Any
 
-
 PROTOCOL_VERSION = "candidate4-public-support-calibration-v1"
 SAMPLE_SIZES = (80, 250, 5000)
 SUPPORT_LEVELS = ("full", "overlap_only", "unsupported", "boundary")
