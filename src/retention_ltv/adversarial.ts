@@ -209,10 +209,10 @@ export interface CheapCustomerTrapFixture {
 export function createCheapCustomerTrapFixture(): CheapCustomerTrapFixture {
   const world = generateMerchantWorldRecord({
     seed: 211001,
-    archetype: "fashion_apparel",
+    archetype: "beauty_cosmetics",
     scale: "growth",
     complexity: "complex",
-    purchaseFrequency: "repeat",
+    purchaseFrequency: "replenishment",
     marketingDependence: "paid_media_heavy",
     promotionProfile: "promotion_sensitive",
     catalogProfile: "tiny_curated",
@@ -320,13 +320,20 @@ export function createObservedLtvSelectionTrapFixture(): ObservedLtvSelectionTra
     customerEconomics: "high_ltv",
   });
   const channels = paidChannels(world);
-  if (channels.length < 2) {
+  const naturalPaid = channels.filter(
+    (channel) =>
+      channel === "google_search" ||
+      channel === "google_shopping" ||
+      channel === "pinterest" ||
+      channel === "affiliate",
+  );
+  if (naturalPaid.length < 2) {
     throw new RangeError(
-      "Step 11 selection fixture requires two paid channels",
+      "Step 11 selection fixture requires two naturally selectable paid channels",
     );
   }
-  const selectedChannel = channels[0]!;
-  const comparisonChannel = channels[1]!;
+  const selectedChannel = naturalPaid[0]!;
+  const comparisonChannel = naturalPaid[1]!;
 
   // The selected channel has exactly zero merchant-level causal effect. Any
   // observed LTV difference must therefore arise from selection/composition.
