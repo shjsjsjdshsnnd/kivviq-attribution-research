@@ -414,14 +414,27 @@ export function createObservedLtvSelectionTrapFixture(): ObservedLtvSelectionTra
     for (const trait of customer.channelTraits) {
       if (trait.channelId === selectedChannel) {
         trait.naturalUseProbability =
-          highValue ? 0.98 : 0.01;
+          highValue ? 0.98 : 0.005;
       } else if (
         trait.channelId === comparisonChannel
       ) {
         trait.naturalUseProbability =
-          highValue ? 0.01 : 0.92;
+          highValue ? 0.005 : 0.96;
+      } else {
+        trait.naturalUseProbability = 0.005;
       }
     }
+
+    // Keep the trap about channel selection, not treatment. Competing natural
+    // routes are intentionally rare so the selected/comparison source remains
+    // observable at the first purchase.
+    const naturalSelection =
+      customer.naturalSelection as unknown as {
+        brandedDirectProbability: number;
+        organicDiscoveryProbability: number;
+      };
+    naturalSelection.brandedDirectProbability = 0.005;
+    naturalSelection.organicDiscoveryProbability = 0.005;
   }
 
   const scenario: RetentionLtvScenario = {
