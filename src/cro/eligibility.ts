@@ -76,13 +76,14 @@ export function evaluateCroEligibility(
         missingInformation: [],
       };
     }
+    const addSemantics = parameters.addSemantics;
     if (
-      parameters.addSemantics?.kind === "ALLOW_ADDITIONAL_INSTANCE" &&
-      parameters.addSemantics.instanceId &&
+      addSemantics?.kind === "ALLOW_ADDITIONAL_INSTANCE" &&
+      addSemantics.instanceId &&
       experience.presentComponents.some(
         (component) =>
           component.component === parameters.component.component &&
-          component.instanceId === parameters.addSemantics?.instanceId,
+          component.instanceId === addSemantics.instanceId,
       )
     ) {
       return {
