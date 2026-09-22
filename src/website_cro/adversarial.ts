@@ -206,7 +206,7 @@ export function poorCollectionSortingScenario(
         collection: {
           ...state.collection,
           componentVersion: "collection_bad_sorting_v1",
-          rankingQuality: 0.26,
+          rankingQuality: 0.08,
         },
       },
     ],
