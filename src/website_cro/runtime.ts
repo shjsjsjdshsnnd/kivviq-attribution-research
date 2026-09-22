@@ -102,6 +102,7 @@ function validateState(state: WebsiteState): void {
     [state.collection.productDensity, "collection.productDensity"],
     [state.collection.relevance, "collection.relevance"],
     [state.collection.availabilityVisibility, "collection.availabilityVisibility"],
+    [state.search.entryPropensity, "search.entryPropensity"],
     [state.search.relevance, "search.relevance"],
     [state.search.synonymCoverage, "search.synonymCoverage"],
     [state.search.zeroResultBaseProbability, "search.zeroResultBaseProbability"],
@@ -276,6 +277,7 @@ function applyIntervention(
       performance: Record<WebsiteDevice, PagePerformance>;
     };
     search: {
+      entryPropensity: number;
       relevance: number;
       synonymCoverage: number;
       zeroResultBaseProbability: number;
@@ -292,6 +294,7 @@ function applyIntervention(
       shippingUsability: number;
       paymentUsability: number;
       reviewUsability: number;
+      performance: Record<WebsiteDevice, PagePerformance>;
       shippingCostVisibility:
         | "pdp"
         | "cart"
@@ -435,6 +438,14 @@ function applyIntervention(
         mutable.checkout.shippingUsability = 0.95;
         mutable.checkout.paymentUsability = 0.95;
         mutable.checkout.reviewUsability = 0.95;
+        mutable.checkout.performance.mobile = {
+          ...mutable.checkout.performance.mobile,
+          latencyMs: 1_050,
+          loadSuccessProbability: 0.997,
+          interactionDelayMs: 84,
+          responsiveness: 0.92,
+          assetWeightProxy: 1.05,
+        };
       }
       return;
     }
