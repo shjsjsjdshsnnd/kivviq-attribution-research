@@ -71,6 +71,11 @@ export interface CollectionMechanism extends VersionedWebsiteComponent {
 }
 
 export interface SearchMechanism extends VersionedWebsiteComponent {
+  /**
+   * Availability/prominence of site-search entry points. This controls
+   * search volume separately from what happens after a customer searches.
+   */
+  readonly entryPropensity: number;
   readonly relevance: number;
   readonly synonymCoverage: number;
   readonly zeroResultBaseProbability: number;
