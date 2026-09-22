@@ -55,7 +55,7 @@ function effectivePromotionSensitivity(
   customer: PricingCustomerContext,
 ): number {
   return clamp(
-    effectivePromotionSensitivity(customer) +
+    customer.source.promotionSensitivityMultiplier +
       (customer.promotionDependenceShift ?? 0),
     0.05,
     5,
