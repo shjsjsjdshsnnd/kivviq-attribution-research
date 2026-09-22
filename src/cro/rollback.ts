@@ -57,9 +57,10 @@ export function evaluateCroRollbackReadiness(
     };
   }
 
+  const strategy = parameters.strategy;
   const snapshot = context.stateSnapshots?.find(
     (candidate) =>
-      candidate.stateSnapshotRef === parameters.strategy.stateSnapshotRef,
+      candidate.stateSnapshotRef === strategy.stateSnapshotRef,
   );
   if (!snapshot) {
     return {
