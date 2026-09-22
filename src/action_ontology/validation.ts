@@ -116,6 +116,13 @@ const FORBIDDEN_ACTION_KEYS = new Set([
   "expectedShippingCost",
   "predictedDemand",
   "predictedAbandonmentReduction",
+  "expectedCTR",
+  "predictedPurchaseProbability",
+  "predictedCrossSellRate",
+  "predictedUpsellRate",
+  "futureConversion",
+  "futureInventory",
+  "futureRevenue",
   "futureCartValue",
   "futureShippingCost",
   "confidence",
@@ -285,6 +292,32 @@ const ACTION_SCHEMA_1_4_ACTION_TYPES = new Set([
   "shipping.stop_offer",
   "shipping.adjust_policy",
   "shipping.rollback_policy",
+]);
+
+const ACTION_SCHEMA_1_5_TARGET_KINDS = new Set([
+  "merchandising_placement",
+  "merchandising_relationship",
+]);
+
+const ACTION_SCHEMA_1_5_PARAMETER_KINDS = new Set([
+  "merchandising_visibility",
+  "merchandising_rank",
+  "merchandising_relationship",
+  "merchandising_remove_placement",
+  "merchandising_remove_relationship",
+  "merchandising_rank_rollback",
+]);
+
+const ACTION_SCHEMA_1_5_ACTION_TYPES = new Set([
+  "merchandising.feature",
+  "merchandising.deprioritize",
+  "merchandising.set_rank",
+  "merchandising.promote_substitute",
+  "merchandising.set_cross_sell",
+  "merchandising.set_upsell",
+  "merchandising.remove_placement",
+  "merchandising.remove_relationship",
+  "merchandising.rollback_rank",
 ]);
 
 function validateSchemaFeatureCompatibility(
@@ -498,6 +531,39 @@ function validateSchemaFeatureCompatibility(
       add(errors,"SCHEMA_FEATURE_REQUIRES_1_4","reversibility.shippingRollback","shipping rollback semantics require Action schema 1.4.0");
     }
   }
+
+  if (
+    schemaVersion === "1.0.0" ||
+    schemaVersion === "1.1.0" ||
+    schemaVersion === "1.2.0" ||
+    schemaVersion === "1.3.0" ||
+    schemaVersion === "1.4.0"
+  ) {
+    if (
+      record(input.target) &&
+      ACTION_SCHEMA_1_5_TARGET_KINDS.has(String(input.target.kind))
+    ) {
+      add(errors,"SCHEMA_FEATURE_REQUIRES_1_5","target.kind","this merchandising target kind requires Action schema 1.5.0");
+    }
+    if (
+      record(input.parameters) &&
+      ACTION_SCHEMA_1_5_PARAMETER_KINDS.has(String(input.parameters.kind))
+    ) {
+      add(errors,"SCHEMA_FEATURE_REQUIRES_1_5","parameters.kind","this merchandising parameter kind requires Action schema 1.5.0");
+    }
+    if (
+      typeof input.actionType === "string" &&
+      ACTION_SCHEMA_1_5_ACTION_TYPES.has(input.actionType)
+    ) {
+      add(errors,"SCHEMA_FEATURE_REQUIRES_1_5","actionType","this merchandising Action type requires Action schema 1.5.0");
+    }
+    if (
+      record(input.reversibility) &&
+      input.reversibility.merchandisingRollback !== undefined
+    ) {
+      add(errors,"SCHEMA_FEATURE_REQUIRES_1_5","reversibility.merchandisingRollback","merchandising rollback semantics require Action schema 1.5.0");
+    }
+  }
 }
 
 function validateTarget(
@@ -536,6 +602,8 @@ function validateTarget(
     inventory_policy: ["inventoryPolicyId"],
     experiment: ["experimentId"],
     promotion: ["promotionId"],
+    merchandising_placement: ["placementId"],
+    merchandising_relationship: ["relationshipId"],
     merchant: ["merchantId"],
   };
 
