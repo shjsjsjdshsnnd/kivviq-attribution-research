@@ -189,6 +189,7 @@ describe("Step 3.1 baseline evaluation contract", () => {
       {
         observationKey: "orders.trailing_7d",
         informationClass: "derived_observable_metric" as const,
+        sourceMaxOccurredAt: decision.at,
         availableAt: decision.at,
         sourceRef: "merchant-observations:v1",
         value: { orders: 12 },
@@ -196,6 +197,7 @@ describe("Step 3.1 baseline evaluation contract", () => {
       {
         observationKey: "budget.google.current",
         informationClass: "current_state_information" as const,
+        sourceMaxOccurredAt: decision.at,
         availableAt: decision.at,
         sourceRef: "merchant-state:v1",
         value: { amountMinor: 500_000, currency: "CAD" },
@@ -230,6 +232,7 @@ describe("Step 3.1 baseline evaluation contract", () => {
         {
           observationKey: "future.orders",
           informationClass: "observable_merchant_data",
+          sourceMaxOccurredAt: decision.at,
           availableAt: future,
           sourceRef: "merchant-observations:v1",
           value: { orders: 99 },
@@ -242,8 +245,9 @@ describe("Step 3.1 baseline evaluation contract", () => {
         {
           observationKey: "latent.intent",
           informationClass: "simulator_latent_state",
+          sourceMaxOccurredAt: decision.at,
           availableAt: decision.at,
-          sourceRef: "simulator:hidden",
+          sourceRef: "merchant-observations:v1",
           value: { intent: 0.9 },
         },
       ]),
@@ -254,8 +258,9 @@ describe("Step 3.1 baseline evaluation contract", () => {
         {
           observationKey: "true.incremental.profit",
           informationClass: "evaluator_only_metric",
+          sourceMaxOccurredAt: decision.at,
           availableAt: decision.at,
-          sourceRef: "evaluator:oracle",
+          sourceRef: "merchant-observations:v1",
           value: { amountMinor: 123_000 },
         },
       ]),
@@ -266,12 +271,56 @@ describe("Step 3.1 baseline evaluation contract", () => {
         {
           observationKey: "apparently.safe",
           informationClass: "current_state_information",
+          sourceMaxOccurredAt: decision.at,
           availableAt: decision.at,
           sourceRef: "merchant-state:v1",
           value: { nested: { seed: 777 } },
         },
       ]),
     ).toThrow(/forbidden latent key/);
+
+
+    expect(() =>
+      buildOperatorObservationSnapshot(contract, decision, [
+        {
+          observationKey: "benchmark.identity",
+          informationClass: "current_state_information",
+          sourceMaxOccurredAt: decision.at,
+          availableAt: decision.at,
+          sourceRef: "merchant-state:v1",
+          value: { worldId: "synthetic-world-3101" },
+        },
+      ]),
+    ).toThrow(/benchmark identity field/);
+
+    expect(() =>
+      buildOperatorObservationSnapshot(contract, decision, [
+        {
+          observationKey: "bad.source",
+          informationClass: "current_state_information",
+          sourceMaxOccurredAt: decision.at,
+          availableAt: decision.at,
+          sourceRef: "evaluator:oracle",
+          value: { safe: true },
+        },
+      ]),
+    ).toThrow(/evaluator\/God-mode only/);
+
+    const futureSource = new Date(
+      Date.parse(decision.at) + 2_000,
+    ).toISOString();
+    expect(() =>
+      buildOperatorObservationSnapshot(contract, decision, [
+        {
+          observationKey: "backdated.derived.metric",
+          informationClass: "derived_observable_metric",
+          sourceMaxOccurredAt: futureSource,
+          availableAt: futureSource,
+          sourceRef: "derived-observable:v1",
+          value: { orders: 100 },
+        },
+      ]),
+    ).toThrow(/future source events/);
   });
 
   it("provides identical decision opportunities at the frozen daily cadence", () => {
@@ -492,6 +541,7 @@ describe("Step 3.1 baseline evaluation contract", () => {
         {
           observationKey: "orders.trailing_7d",
           informationClass: "derived_observable_metric",
+          sourceMaxOccurredAt: decision.at,
           availableAt: decision.at,
           sourceRef: "merchant-observations:v1",
           value: { orders: 12 },
