@@ -71,6 +71,12 @@ export interface PerfectObservableJourneyEvent {
   readonly quantity?: number;
   readonly amountMinor?: number;
   readonly discountMinor?: number;
+  readonly availability?:
+    | "in_stock"
+    | "low_stock"
+    | "backorder"
+    | "out_of_stock";
+  readonly deliveryEstimateDays?: number;
 }
 
 export interface PurchaseLine {
