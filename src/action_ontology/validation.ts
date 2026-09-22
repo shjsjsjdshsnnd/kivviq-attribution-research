@@ -132,6 +132,22 @@ const FORBIDDEN_ACTION_KEYS = new Set([
   "futureRealizedSupplierDelay",
   "actualReceiptAt",
   "counterfactualInventory",
+  "expectedConversionRate",
+  "expectedBounceReduction",
+  "expectedCheckoutCompletion",
+  "predictedRevenue",
+  "counterfactualConversion",
+  "trafficAllocation",
+  "randomizationUnit",
+  "significanceThreshold",
+  "experimentResult",
+  "variantPayload",
+  "domSelector",
+  "checkoutExtensionId",
+  "shopifySectionId",
+  "providerPayload",
+  "futureSessions",
+  "futureOrders",
   "futureConversion",
   "futureInventory",
   "futureRevenue",
@@ -361,6 +377,27 @@ const ACTION_SCHEMA_1_6_ACTION_TYPES = new Set([
   "inventory.clearance",
   "inventory.accelerate_excess_stock",
   "inventory.rollback_policy",
+]);
+
+const ACTION_SCHEMA_1_7_TARGET_KINDS = new Set([
+  "cro_experience",
+]);
+
+const ACTION_SCHEMA_1_7_PARAMETER_KINDS = new Set([
+  "cro_intervention",
+  "cro_rollback",
+]);
+
+const ACTION_SCHEMA_1_7_ACTION_TYPES = new Set([
+  "cro.modify_experience",
+  "cro.add_element",
+  "cro.remove_element",
+  "cro.reorder_elements",
+  "cro.modify_interaction",
+  "cro.modify_navigation",
+  "cro.modify_search",
+  "cro.modify_checkout",
+  "cro.rollback_experience",
 ]);
 
 function validateSchemaFeatureCompatibility(
@@ -641,6 +678,41 @@ function validateSchemaFeatureCompatibility(
       add(errors,"SCHEMA_FEATURE_REQUIRES_1_6","reversibility.inventoryRollback","inventory rollback semantics require Action schema 1.6.0");
     }
   }
+
+  if (
+    schemaVersion === "1.0.0" ||
+    schemaVersion === "1.1.0" ||
+    schemaVersion === "1.2.0" ||
+    schemaVersion === "1.3.0" ||
+    schemaVersion === "1.4.0" ||
+    schemaVersion === "1.5.0" ||
+    schemaVersion === "1.6.0"
+  ) {
+    if (
+      record(input.target) &&
+      ACTION_SCHEMA_1_7_TARGET_KINDS.has(String(input.target.kind))
+    ) {
+      add(errors,"SCHEMA_FEATURE_REQUIRES_1_7","target.kind","this CRO target kind requires Action schema 1.7.0");
+    }
+    if (
+      record(input.parameters) &&
+      ACTION_SCHEMA_1_7_PARAMETER_KINDS.has(String(input.parameters.kind))
+    ) {
+      add(errors,"SCHEMA_FEATURE_REQUIRES_1_7","parameters.kind","this CRO parameter kind requires Action schema 1.7.0");
+    }
+    if (
+      typeof input.actionType === "string" &&
+      ACTION_SCHEMA_1_7_ACTION_TYPES.has(input.actionType)
+    ) {
+      add(errors,"SCHEMA_FEATURE_REQUIRES_1_7","actionType","this CRO Action type requires Action schema 1.7.0");
+    }
+    if (
+      record(input.reversibility) &&
+      input.reversibility.croRollback !== undefined
+    ) {
+      add(errors,"SCHEMA_FEATURE_REQUIRES_1_7","reversibility.croRollback","CRO rollback semantics require Action schema 1.7.0");
+    }
+  }
 }
 
 function validateTarget(
@@ -680,6 +752,7 @@ function validateTarget(
     inventory_location: ["inventoryLocationId"],
     supplier_relationship: ["supplierRelationshipId"],
     inventory_set: ["inventorySetId"],
+    cro_experience: ["experienceId"],
     experiment: ["experimentId"],
     promotion: ["promotionId"],
     merchandising_placement: ["placementId"],
