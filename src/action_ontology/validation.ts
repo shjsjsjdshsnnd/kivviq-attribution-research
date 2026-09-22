@@ -66,6 +66,8 @@ const SHIPPING_OFFER_ID_PATTERN = /^shipoffer_[A-Za-z0-9._:-]+$/;
 const MERCHANDISING_PLACEMENT_ID_PATTERN = /^merchplace_[A-Za-z0-9._:-]+$/;
 const MERCHANDISING_RELATIONSHIP_ID_PATTERN = /^merchrel_[A-Za-z0-9._:-]+$/;
 const CRO_EXPERIENCE_ID_PATTERN = /^croexp_[A-Za-z0-9._:-]+$/;
+const LIFECYCLE_FLOW_ID_PATTERN = /^lifecycleflow_[A-Za-z0-9._:-]+$/;
+const LIFECYCLE_POLICY_ID_PATTERN = /^lifecyclepolicy_[A-Za-z0-9._:-]+$/;
 
 const TOP_LEVEL_FIELDS = new Set([
   "kind",
@@ -149,6 +151,30 @@ const FORBIDDEN_ACTION_KEYS = new Set([
   "providerPayload",
   "futureSessions",
   "futureOrders",
+  "expectedOpenRate",
+  "expectedClickRate",
+  "expectedRepeatPurchase",
+  "expectedRetentionLift",
+  "expectedLTV",
+  "predictedChurnReduction",
+  "predictedOptimalSendTime",
+  "futurePurchase",
+  "futureEngagement",
+  "futureChurn",
+  "futureSegmentMembership",
+  "futureCustomerBehavior",
+  "controlGroup",
+  "statisticalPower",
+  "subjectLine",
+  "messageBody",
+  "messageCreative",
+  "smsCopy",
+  "providerWorkflowId",
+  "omnisendWorkflowId",
+  "klaviyoFlowId",
+  "mailchimpCampaignId",
+  "attentiveCampaignId",
+  "shopifyEmailCampaignId",
   "futureConversion",
   "futureInventory",
   "futureRevenue",
@@ -399,6 +425,29 @@ const ACTION_SCHEMA_1_7_ACTION_TYPES = new Set([
   "cro.modify_search",
   "cro.modify_checkout",
   "cro.rollback_experience",
+]);
+
+const ACTION_SCHEMA_1_8_TARGET_KINDS = new Set([
+  "lifecycle_flow",
+  "lifecycle_contact_policy",
+]);
+
+const ACTION_SCHEMA_1_8_PARAMETER_KINDS = new Set([
+  "lifecycle_send",
+  "lifecycle_flow_start",
+  "lifecycle_flow_stop",
+  "lifecycle_flow_modify",
+  "lifecycle_targeting",
+  "lifecycle_policy_rollback",
+]);
+
+const ACTION_SCHEMA_1_8_ACTION_TYPES = new Set([
+  "lifecycle.send",
+  "lifecycle.start_flow",
+  "lifecycle.stop_flow",
+  "lifecycle.modify_flow",
+  "lifecycle.target_segment",
+  "lifecycle.rollback_policy",
 ]);
 
 function validateSchemaFeatureCompatibility(
@@ -714,6 +763,49 @@ function validateSchemaFeatureCompatibility(
       add(errors,"SCHEMA_FEATURE_REQUIRES_1_7","reversibility.croRollback","CRO rollback semantics require Action schema 1.7.0");
     }
   }
+
+  if (
+    schemaVersion === "1.0.0" ||
+    schemaVersion === "1.1.0" ||
+    schemaVersion === "1.2.0" ||
+    schemaVersion === "1.3.0" ||
+    schemaVersion === "1.4.0" ||
+    schemaVersion === "1.5.0" ||
+    schemaVersion === "1.6.0" ||
+    schemaVersion === "1.7.0"
+  ) {
+    if (
+      record(input.target) &&
+      ACTION_SCHEMA_1_8_TARGET_KINDS.has(String(input.target.kind))
+    ) {
+      add(errors,"SCHEMA_FEATURE_REQUIRES_1_8","target.kind","this lifecycle target kind requires Action schema 1.8.0");
+    }
+    if (
+      record(input.parameters) &&
+      ACTION_SCHEMA_1_8_PARAMETER_KINDS.has(String(input.parameters.kind))
+    ) {
+      add(errors,"SCHEMA_FEATURE_REQUIRES_1_8","parameters.kind","this lifecycle parameter kind requires Action schema 1.8.0");
+    }
+    if (
+      typeof input.actionType === "string" &&
+      ACTION_SCHEMA_1_8_ACTION_TYPES.has(input.actionType)
+    ) {
+      add(errors,"SCHEMA_FEATURE_REQUIRES_1_8","actionType","this lifecycle Action type requires Action schema 1.8.0");
+    }
+    if (
+      record(input.parameters) &&
+      input.parameters.kind === "frequency_adjustment" &&
+      input.parameters.policy !== undefined
+    ) {
+      add(errors,"SCHEMA_FEATURE_REQUIRES_1_8","parameters.policy","structured lifecycle frequency policy requires Action schema 1.8.0");
+    }
+    if (
+      record(input.reversibility) &&
+      input.reversibility.lifecycleRollback !== undefined
+    ) {
+      add(errors,"SCHEMA_FEATURE_REQUIRES_1_8","reversibility.lifecycleRollback","lifecycle rollback semantics require Action schema 1.8.0");
+    }
+  }
 }
 
 function validateTarget(
@@ -747,6 +839,8 @@ function validateTarget(
     funnel_stage: ["funnelId", "stageId"],
     page: ["pageId"],
     lifecycle_program: ["programId"],
+    lifecycle_flow: ["flowId"],
+    lifecycle_contact_policy: ["contactPolicyId"],
     shipping_policy: ["shippingPolicyId"],
     shipping_offer: ["shippingOfferId"],
     inventory_policy: ["inventoryPolicyId"],
