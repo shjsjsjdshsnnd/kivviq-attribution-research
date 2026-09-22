@@ -10,6 +10,7 @@ import {
   type ConstraintIssue,
   type DecisionOpportunity,
   type EvaluationDecisionRecord,
+  type EvaluationRunArtifact,
   type OperatorObservationSnapshot,
   createEvaluationActionAttemptRecord,
   deepFreezeEvaluation,
@@ -288,5 +289,90 @@ export function invokeOperatorAtDecision(
   return deepFreezeEvaluation({
     invocation,
     decisionRecord,
+  });
+}
+
+
+export const OPERATOR_EVALUATION_BUNDLE_SCHEMA_VERSION =
+  "1.0.0" as const;
+
+export interface OperatorEvaluationBundle {
+  readonly kind: "operator_evaluation_bundle";
+  readonly schemaVersion: typeof OPERATOR_EVALUATION_BUNDLE_SCHEMA_VERSION;
+  readonly evaluationArtifact: EvaluationRunArtifact;
+  readonly operatorInvocations: readonly OperatorInvocationAudit[];
+  readonly bundleFingerprint: string;
+}
+
+export function createOperatorEvaluationBundle(
+  evaluationArtifact: EvaluationRunArtifact,
+  operatorInvocations: readonly OperatorInvocationAudit[],
+): OperatorEvaluationBundle {
+  requireCondition(
+    operatorInvocations.length ===
+      evaluationArtifact.decisionRecords.length,
+    "every decision opportunity must have exactly one operator invocation",
+  );
+
+  for (let index = 0; index < operatorInvocations.length; index += 1) {
+    const invocation = operatorInvocations[index]!;
+    const decision = evaluationArtifact.decisionRecords[index]!;
+
+    requireCondition(
+      invocation.operatorId ===
+        evaluationArtifact.operator.operatorId &&
+        invocation.operatorVersion ===
+          evaluationArtifact.operator.operatorVersion &&
+        invocation.operatorFingerprint ===
+          evaluationArtifact.operator.operatorFingerprint,
+      "operator invocation identity differs from evaluation artifact",
+    );
+    requireCondition(
+      invocation.opportunityId ===
+        decision.opportunity.opportunityId &&
+        Date.parse(invocation.decisionTime) ===
+          Date.parse(decision.opportunity.at),
+      "operator invocation does not match its decision opportunity",
+    );
+    requireCondition(
+      invocation.observationFingerprint ===
+        decision.observation.observationFingerprint,
+      "operator invocation observation differs from decision record",
+    );
+    requireCondition(
+      invocation.availabilityFingerprint ===
+        decision.availability.availabilityFingerprint,
+      "operator invocation legal Action space differs from decision record",
+    );
+    requireCondition(
+      invocation.proposedActionCount ===
+        decision.actionAttempts.length,
+      "operator invocation proposal count differs from recorded Action attempts",
+    );
+
+    if (invocation.disposition === "NO_DISCRETIONARY_ACTIONS") {
+      requireCondition(
+        invocation.proposedActionCount === 0 &&
+          decision.actionAttempts.length === 0,
+        "no-action disposition must have zero Action proposals",
+      );
+    } else {
+      requireCondition(
+        invocation.proposedActionCount > 0,
+        "Action-proposal disposition requires at least one proposal",
+      );
+    }
+  }
+
+  const body = {
+    kind: "operator_evaluation_bundle" as const,
+    schemaVersion: OPERATOR_EVALUATION_BUNDLE_SCHEMA_VERSION,
+    evaluationArtifact,
+    operatorInvocations: cloneJson(operatorInvocations),
+  };
+
+  return deepFreezeEvaluation({
+    ...body,
+    bundleFingerprint: evaluationFingerprint(body),
   });
 }
