@@ -971,6 +971,11 @@ export type ActionParameters =
       readonly conflictResolution: MerchandisingConflictResolution;
     }
   | {
+      readonly kind: "merchandising_remove_placement";
+      readonly placementId: string;
+      readonly surface: MerchandisingSurface;
+    }
+  | {
       readonly kind: "merchandising_remove_relationship";
       readonly relationshipId: string;
       readonly relationshipType: MerchandisingRelationshipType;
