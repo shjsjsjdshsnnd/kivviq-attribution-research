@@ -19,6 +19,7 @@ import {
 } from "../pricing_promotions/runtime.js";
 import {
   pageCausalEvents,
+  resolveWebsiteState,
   websiteCustomerContext,
   websitePageExperience,
   zeroResultSearchProbability,
@@ -276,12 +277,52 @@ function productCategory(
 }
 
 function productViewEvent(
+  runtime: RuntimeWorldState,
   session: RuntimeSession,
   customer: RuntimeCustomerState,
   timestampMs: number,
   offer: ProductOffer,
   suffix: string,
+  commercePolicy?: SimulationCommercePolicy,
 ): PerfectObservableJourneyEvent {
+  const inventoryMechanism =
+    runtime.merchantWorld.manifest.inventoryMechanisms.find(
+      (candidate) =>
+        candidate.productId === offer.productId,
+    );
+  const canBackorder =
+    commercePolicy?.executeInventoryLifecycle === true &&
+    inventoryMechanism?.allowBackorders === true &&
+    inventoryMechanism.stockoutBehavior === "backorder";
+  const availability:
+    | "in_stock"
+    | "low_stock"
+    | "backorder"
+    | "out_of_stock" =
+    offer.availableUnits > 3
+      ? "in_stock"
+      : offer.availableUnits > 0
+        ? "low_stock"
+        : canBackorder
+          ? "backorder"
+          : "out_of_stock";
+  const expectedArrival =
+    commercePolicy?.enableInventoryDynamics === true
+      ? runtime.inventoryEconomy.positions.get(
+          offer.productId,
+        )?.expectedArrivalAt
+      : undefined;
+  const deliveryEstimateDays =
+    expectedArrival === undefined
+      ? undefined
+      : Math.max(
+          0,
+          Math.ceil(
+            (Date.parse(expectedArrival) - timestampMs) /
+              86_400_000,
+          ),
+        );
+
   return {
     eventId: eventId(session.sessionId, suffix),
     eventType: "product_view",
@@ -291,6 +332,10 @@ function productViewEvent(
     source: session.source,
     device: session.device,
     productId: offer.productId,
+    availability,
+    ...(deliveryEstimateDays === undefined
+      ? {}
+      : { deliveryEstimateDays }),
   };
 }
 
@@ -345,6 +390,7 @@ export function advanceSession(
   const experienceFor = (
     component: WebsiteComponentName,
     productId?: string,
+    productPriceMinor?: number,
   ) =>
     websitePageExperience({
       scenario: commercePolicy?.websiteScenario,
@@ -353,6 +399,13 @@ export function advanceSession(
       device: session.device,
       customer: websiteCustomer,
       ...(productId === undefined ? {} : { productId }),
+      ...(productPriceMinor === undefined
+        ? {}
+        : {
+            productPriceMinor,
+            expectedAovMinor:
+              runtime.merchantWorld.summary.expectedAovMinor,
+          }),
       ...(productId === undefined
         ? {}
         : {
@@ -467,18 +520,53 @@ export function advanceSession(
 
   if (session.currentPage === "landing") {
     const homepageExperience = experienceFor("homepage");
+    const navigationExperience = experienceFor("navigation");
+    websiteEvents.push(
+      ...pageCausalEvents({
+        experience: navigationExperience,
+        scenario: commercePolicy?.websiteScenario,
+        customerId: customer.customerId,
+        sessionId: session.sessionId,
+        timestampMs,
+        device: session.device,
+        transition: "landing_to_browse",
+        source: session.source,
+      }),
+    );
     const landingProgress =
       homepageExperience?.transitionMultiplier ?? 1;
+    const navigationProgress =
+      navigationExperience?.transitionMultiplier ?? 1;
+    const searchFallback =
+      1 + Math.max(0, 1 - navigationProgress) * 0.9;
     const next = randomness.weightedPick(`${stepKey}:landing-next`, [
-      { value: "collection" as const, weight: 0.38 * landingProgress },
-      { value: "search_results" as const, weight: 0.22 * landingProgress },
+      {
+        value: "collection" as const,
+        weight:
+          0.38 * landingProgress * navigationProgress,
+      },
+      {
+        value: "search_results" as const,
+        weight: 0.22 * landingProgress * searchFallback,
+      },
       {
         value: "pdp" as const,
-        weight: (0.31 + intent * 0.25) * landingProgress,
+        weight:
+          (0.31 + intent * 0.25) *
+          landingProgress *
+          (0.72 + navigationProgress * 0.28),
       },
       {
         value: "ended" as const,
-        weight: 0.14 + Math.max(0, 1 - landingProgress) * 0.35,
+        weight:
+          0.14 +
+          Math.max(
+            0,
+            1 -
+              landingProgress *
+                navigationProgress,
+          ) *
+            0.35,
       },
     ]);
     session.currentPage = next;
@@ -647,11 +735,13 @@ export function advanceSession(
         session.currentPage = "pdp";
         events.push(
           productViewEvent(
+            runtime,
             session,
             customer,
             timestampMs,
             offer,
             `pdp_${session.step}`,
+            commercePolicy,
           ),
         );
       }
@@ -704,6 +794,7 @@ export function advanceSession(
       const pdpExperience = experienceFor(
         "pdp",
         offer.productId,
+        offer.finalPriceMinor,
       );
       websiteEvents.push(
         ...pageCausalEvents({
@@ -744,6 +835,26 @@ export function advanceSession(
         )
       ) {
         addToPersistentCart(customer, offer, timestampMs);
+        if (
+          customer.cart !== undefined &&
+          commercePolicy?.websiteScenario !== undefined
+        ) {
+          const websiteState = resolveWebsiteState(
+            commercePolicy.websiteScenario,
+            timestampMs,
+            session.device,
+            offer.productId,
+            productCategory(runtime, offer.productId),
+          );
+          const persistenceDays =
+            1 +
+            29 *
+              websiteState.cart
+                .persistenceProbability;
+          customer.cart.expiresAtMs =
+            timestampMs +
+            persistenceDays * 86_400_000;
+        }
         const extraUnitProbability = clamp(
           (runtime.merchantWorld.summary.expectedUnitsPerOrder - 1) *
             0.22 *
