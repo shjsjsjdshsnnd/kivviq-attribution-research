@@ -122,6 +122,16 @@ const FORBIDDEN_ACTION_KEYS = new Set([
   "predictedPurchaseProbability",
   "predictedCrossSellRate",
   "predictedUpsellRate",
+  "forecastDemand",
+  "predictedStockoutDate",
+  "predictedSellThrough",
+  "expectedMargin",
+  "predictedSupplierDelay",
+  "futureSales",
+  "futureReturns",
+  "futureRealizedSupplierDelay",
+  "actualReceiptAt",
+  "counterfactualInventory",
   "futureConversion",
   "futureInventory",
   "futureRevenue",
@@ -320,6 +330,37 @@ const ACTION_SCHEMA_1_5_ACTION_TYPES = new Set([
   "merchandising.remove_placement",
   "merchandising.remove_relationship",
   "merchandising.rollback_rank",
+]);
+
+const ACTION_SCHEMA_1_6_TARGET_KINDS = new Set([
+  "inventory_location",
+  "supplier_relationship",
+  "inventory_set",
+]);
+
+const ACTION_SCHEMA_1_6_PARAMETER_KINDS = new Set([
+  "inventory_reorder",
+  "inventory_reorder_quantity",
+  "inventory_reorder_timing",
+  "inventory_policy_control",
+  "inventory_protection",
+  "inventory_backorder_policy",
+  "inventory_clearance",
+  "inventory_acceleration",
+  "inventory_policy_rollback",
+]);
+
+const ACTION_SCHEMA_1_6_ACTION_TYPES = new Set([
+  "inventory.reorder",
+  "inventory.adjust_reorder_quantity",
+  "inventory.adjust_reorder_timing",
+  "inventory.set_safety_stock",
+  "inventory.set_reorder_point",
+  "inventory.protect_inventory",
+  "inventory.set_backorder_policy",
+  "inventory.clearance",
+  "inventory.accelerate_excess_stock",
+  "inventory.rollback_policy",
 ]);
 
 function validateSchemaFeatureCompatibility(
@@ -566,6 +607,40 @@ function validateSchemaFeatureCompatibility(
       add(errors,"SCHEMA_FEATURE_REQUIRES_1_5","reversibility.merchandisingRollback","merchandising rollback semantics require Action schema 1.5.0");
     }
   }
+
+  if (
+    schemaVersion === "1.0.0" ||
+    schemaVersion === "1.1.0" ||
+    schemaVersion === "1.2.0" ||
+    schemaVersion === "1.3.0" ||
+    schemaVersion === "1.4.0" ||
+    schemaVersion === "1.5.0"
+  ) {
+    if (
+      record(input.target) &&
+      ACTION_SCHEMA_1_6_TARGET_KINDS.has(String(input.target.kind))
+    ) {
+      add(errors,"SCHEMA_FEATURE_REQUIRES_1_6","target.kind","this inventory target kind requires Action schema 1.6.0");
+    }
+    if (
+      record(input.parameters) &&
+      ACTION_SCHEMA_1_6_PARAMETER_KINDS.has(String(input.parameters.kind))
+    ) {
+      add(errors,"SCHEMA_FEATURE_REQUIRES_1_6","parameters.kind","this inventory parameter kind requires Action schema 1.6.0");
+    }
+    if (
+      typeof input.actionType === "string" &&
+      ACTION_SCHEMA_1_6_ACTION_TYPES.has(input.actionType)
+    ) {
+      add(errors,"SCHEMA_FEATURE_REQUIRES_1_6","actionType","this inventory Action type requires Action schema 1.6.0");
+    }
+    if (
+      record(input.reversibility) &&
+      input.reversibility.inventoryRollback !== undefined
+    ) {
+      add(errors,"SCHEMA_FEATURE_REQUIRES_1_6","reversibility.inventoryRollback","inventory rollback semantics require Action schema 1.6.0");
+    }
+  }
 }
 
 function validateTarget(
@@ -602,6 +677,9 @@ function validateTarget(
     shipping_policy: ["shippingPolicyId"],
     shipping_offer: ["shippingOfferId"],
     inventory_policy: ["inventoryPolicyId"],
+    inventory_location: ["inventoryLocationId"],
+    supplier_relationship: ["supplierRelationshipId"],
+    inventory_set: ["inventorySetId"],
     experiment: ["experimentId"],
     promotion: ["promotionId"],
     merchandising_placement: ["placementId"],
