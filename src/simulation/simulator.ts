@@ -1526,6 +1526,7 @@ export function simulateWorld(
       const nextNeedMs =
         event.timestampMs +
         nextNeedDelayMs(
+          request,
           customer,
           randomness,
           nextCycle,
