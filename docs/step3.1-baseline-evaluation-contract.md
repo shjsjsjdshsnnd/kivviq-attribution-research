@@ -72,18 +72,23 @@ Each observation record carries:
 
 - observation key;
 - information class;
+- `sourceMinOccurredAt`, the earliest event/snapshot time used to construct it;
 - `sourceMaxOccurredAt`, the latest event/snapshot time used to construct it;
 - `availableAt`, the time the completed observation became available;
 - source reference;
 - value.
 
+The contract freezes an allowlist of observable source-reference families. New source families require an explicit contract change rather than silently becoming operator-visible.
+
 The observation builder fails closed when:
 
 - the information class is not permitted;
+- the source time range is inverted;
 - the latest source event occurs after the decision timestamp;
 - the completed observation becomes available after the decision timestamp;
 - an observation claims to be available before its latest source event;
-- the source event exceeds the allowed history window;
+- the earliest source event exceeds the allowed historical lookback;
+- its source reference is not in the frozen observable-source allowlist;
 - its source reference identifies simulator, GroundTruth, oracle, evaluator, benchmark, or holdout state;
 - latent/God-mode keys are detected recursively;
 - benchmark/world/run identity keys are detected recursively;
