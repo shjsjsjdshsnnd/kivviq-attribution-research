@@ -160,6 +160,7 @@ describe("Step 12 website integration", () => {
       const factual = funnelDiagnostics(
         replay.factual,
         population,
+        world,
       );
       const fixed = funnelDiagnostics(
         replay.counterfactual,
@@ -207,6 +208,12 @@ describe("Step 12 website integration", () => {
             event.friction === "latency",
         ),
       ).toBe(true);
+      expect(factual.byCategory.length).toBeGreaterThan(0);
+      expect(
+        Object.values(
+          factual.abandonmentByStage,
+        ).reduce((sum, value) => sum + value, 0),
+      ).toBeGreaterThan(0);
     },
     90_000,
   );

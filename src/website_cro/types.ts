@@ -237,11 +237,25 @@ export interface FunnelDiagnosticRow {
   readonly checkoutToPurchaseRate: number | null;
 }
 
+export interface FunnelAbandonmentByStage {
+  readonly landing: number;
+  readonly search: number;
+  readonly pdp: number;
+  readonly cart: number;
+  readonly checkout: number;
+}
+
 export interface FunnelDiagnostics {
   readonly overall: FunnelDiagnosticRow;
   readonly byDevice: readonly FunnelDiagnosticRow[];
   readonly byChannel: readonly FunnelDiagnosticRow[];
   readonly byProduct: readonly FunnelDiagnosticRow[];
+  readonly byCategory: readonly FunnelDiagnosticRow[];
+  /**
+   * Weighted observational drop-off counts. These describe where sessions
+   * stopped; they are not causal bottleneck values.
+   */
+  readonly abandonmentByStage: FunnelAbandonmentByStage;
 }
 
 export interface CroCounterfactualDelta {

@@ -1,4 +1,5 @@
 import type { LatentCustomerPopulation } from "../customer_population/types.js";
+import type { GeneratedMerchantWorld } from "../generation/config.js";
 import { defaultAdvertisingAllocation } from "../advertising_economics/evaluator.js";
 import type { Intervention } from "../ground_truth/interventions.js";
 import { simulateWorld } from "../simulation/simulator.js";
@@ -277,9 +278,147 @@ function productDiagnostics(
     );
 }
 
+function categoryDiagnostics(
+  result: SimulationResult,
+  population: LatentCustomerPopulation,
+  sessions: readonly SessionSummary[],
+  merchantWorld?: GeneratedMerchantWorld,
+): readonly FunnelDiagnosticRow[] {
+  if (merchantWorld === undefined) return [];
+
+  const categoryByProduct = new Map(
+    merchantWorld.manifest.productDemandMechanisms.map(
+      (mechanism) =>
+        [mechanism.productId, mechanism.categoryId] as const,
+    ),
+  );
+  const rows = new Map<string, MutableDiagnostic>();
+
+  for (const session of sessions) {
+    const categoryIds = new Set(
+      [...session.productIds]
+        .map((productId) => categoryByProduct.get(productId))
+        .filter(
+          (categoryId): categoryId is string =>
+            categoryId !== undefined,
+        ),
+    );
+    for (const categoryId of categoryIds) {
+      const row = rows.get(categoryId) ?? emptyDiagnostic();
+      row.visits += session.weight;
+      if (
+        session.events.some(
+          (event) =>
+            event.productId !== undefined &&
+            categoryByProduct.get(event.productId) === categoryId &&
+            event.eventType === "product_view",
+        )
+      ) {
+        row.pdpViews += session.weight;
+      }
+      if (
+        session.events.some(
+          (event) =>
+            event.productId !== undefined &&
+            categoryByProduct.get(event.productId) === categoryId &&
+            event.eventType === "add_to_cart",
+        )
+      ) {
+        row.addToCarts += session.weight;
+      }
+      if (
+        session.events.some(
+          (event) => event.eventType === "checkout_start",
+        )
+      ) {
+        row.checkoutStarts += session.weight;
+      }
+      rows.set(categoryId, row);
+    }
+  }
+
+  const weights = populationWeightMap(population);
+  for (const purchase of result.purchases) {
+    const weight = weights.get(purchase.customerId) ?? 1;
+    const categories = new Set(
+      purchase.lines
+        .map((line) => categoryByProduct.get(line.productId))
+        .filter(
+          (categoryId): categoryId is string =>
+            categoryId !== undefined,
+        ),
+    );
+    for (const categoryId of categories) {
+      const row = rows.get(categoryId) ?? emptyDiagnostic();
+      row.purchases += weight;
+      rows.set(categoryId, row);
+    }
+  }
+
+  return [...rows.entries()]
+    .map(([key, row]) => finalizeDiagnostic(key, row))
+    .sort((left, right) =>
+      left.dimension.localeCompare(right.dimension),
+    );
+}
+
+function abandonmentByStage(
+  sessions: readonly SessionSummary[],
+): FunnelDiagnostics["abandonmentByStage"] {
+  const totals = {
+    landing: 0,
+    search: 0,
+    pdp: 0,
+    cart: 0,
+    checkout: 0,
+  };
+
+  for (const session of sessions) {
+    const eventTypes = new Set(
+      session.events.map((event) => event.eventType),
+    );
+    const hasVisit = eventTypes.has("visit");
+    const hasContinuation =
+      eventTypes.has("collection_view") ||
+      eventTypes.has("site_search") ||
+      eventTypes.has("product_view");
+    const hasSearch = eventTypes.has("site_search");
+    const hasSearchSuccess =
+      hasSearch &&
+      eventTypes.has("product_view") &&
+      !(
+        eventTypes.has("search_zero_result") &&
+        !eventTypes.has("search_reformulation")
+      );
+    const hasPdp = eventTypes.has("product_view");
+    const hasAtc = eventTypes.has("add_to_cart");
+    const hasCheckout = eventTypes.has("checkout_start");
+    const hasPurchase = eventTypes.has("purchase");
+
+    if (hasVisit && !hasContinuation) {
+      totals.landing += session.weight;
+    }
+    if (hasSearch && !hasSearchSuccess) {
+      totals.search += session.weight;
+    }
+    if (hasPdp && !hasAtc) {
+      totals.pdp += session.weight;
+    }
+    if (hasAtc && !hasCheckout) {
+      totals.cart += session.weight;
+    }
+    if (hasCheckout && !hasPurchase) {
+      totals.checkout += session.weight;
+    }
+  }
+
+  return totals;
+}
+
 export function funnelDiagnostics(
   result: SimulationResult,
   population: LatentCustomerPopulation,
+  merchantWorld?: GeneratedMerchantWorld,
 ): FunnelDiagnostics {
   const sessions = sessionSummaries(result, population);
   const overall = emptyDiagnostic();
@@ -302,6 +441,14 @@ export function funnelDiagnostics(
       population,
       sessions,
     ),
+    byCategory: categoryDiagnostics(
+      result,
+      population,
+      sessions,
+      merchantWorld,
+    ),
+    abandonmentByStage:
+      abandonmentByStage(sessions),
   };
 }
 
