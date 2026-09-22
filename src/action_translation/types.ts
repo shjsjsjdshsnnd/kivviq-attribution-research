@@ -5,6 +5,7 @@ import type {
   ActionTarget,
   CompoundAction,
   MonetaryValue,
+  MembershipEvaluationBoundary,
   PricingMembershipBoundary,
   ReferenceValue,
   ScalarValue,
@@ -15,9 +16,10 @@ import type {
 } from "../simulator_intervention/types.js";
 
 export const ACTION_TRANSLATION_VERSION = "1.0.0" as const;
-export const TRANSLATION_CONTEXT_SCHEMA_VERSION = "1.1.0" as const;
+export const TRANSLATION_CONTEXT_SCHEMA_VERSION = "1.2.0" as const;
 export const SUPPORTED_TRANSLATION_CONTEXT_SCHEMA_VERSIONS = [
   "1.0.0",
+  "1.1.0",
   TRANSLATION_CONTEXT_SCHEMA_VERSION,
 ] as const;
 
@@ -64,6 +66,26 @@ export interface PricingMembershipBinding {
   readonly members: readonly PricingMembershipMemberBinding[];
 }
 
+
+export interface PromotionMembershipMemberBinding {
+  readonly businessTarget:
+    | Extract<ActionTarget, { readonly kind: "sku" }>
+    | Extract<ActionTarget, { readonly kind: "product" }>;
+  readonly simulatorTarget:
+    | Extract<SimulatorTarget, { readonly kind: "sku" }>
+    | Extract<SimulatorTarget, { readonly kind: "product" }>;
+  readonly sourceRef: string;
+}
+
+export interface PromotionMembershipBinding {
+  readonly promotionId: string;
+  readonly evaluateAt: MembershipEvaluationBoundary;
+  readonly bindingRef: string;
+  readonly snapshotTime: UtcTimestamp;
+  readonly sourceRef: string;
+  readonly members: readonly PromotionMembershipMemberBinding[];
+}
+
 export interface TranslationContext {
   readonly schemaVersion:
     (typeof SUPPORTED_TRANSLATION_CONTEXT_SCHEMA_VERSIONS)[number];
@@ -72,6 +94,7 @@ export interface TranslationContext {
   readonly entityMappings: readonly TranslationEntityMapping[];
   readonly referenceBindings: readonly TranslationReferenceBinding[];
   readonly pricingMembershipBindings?: readonly PricingMembershipBinding[];
+  readonly promotionMembershipBindings?: readonly PromotionMembershipBinding[];
 }
 
 export interface ResolvedCompoundBusinessAction {
