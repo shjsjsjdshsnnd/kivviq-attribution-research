@@ -463,9 +463,17 @@ export type PromotionCustomerEligibility =
   | { readonly kind: "ALL_CUSTOMERS" }
   | { readonly kind: "NEW_CUSTOMERS" }
   | { readonly kind: "RETURNING_CUSTOMERS" }
-  | { readonly kind: "CUSTOMER_SEGMENT"; readonly segmentId: string }
+  | {
+      readonly kind: "CUSTOMER_SEGMENT";
+      readonly segmentId: string;
+      readonly membership: PromotionMembershipSemantics;
+    }
   | { readonly kind: "EMAIL_SUBSCRIBERS" }
-  | { readonly kind: "LOYALTY_SEGMENT"; readonly segmentId: string };
+  | {
+      readonly kind: "LOYALTY_SEGMENT";
+      readonly segmentId: string;
+      readonly membership: PromotionMembershipSemantics;
+    };
 
 export type PromotionPurchaseRequirement =
   | {
