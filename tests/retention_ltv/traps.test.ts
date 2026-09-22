@@ -168,6 +168,53 @@ describe("Step 11 deterministic acceptance traps", () => {
             row.channel ===
             fixture.selectedChannel,
         );
+
+      console.info(
+        "STEP11_SELECTION_COHORT_DIAGNOSTIC",
+        JSON.stringify({
+          selectedChannel:
+            fixture.selectedChannel,
+          comparisonChannel:
+            fixture.comparisonChannel,
+          acquisitionCohortKeys:
+            report.cohorts
+              .filter(
+                (cohort) =>
+                  cohort.dimension ===
+                  "acquisition_channel",
+              )
+              .map((cohort) => ({
+                key: cohort.key,
+                representedCustomers:
+                  cohort.representedCustomers,
+                value:
+                  cohort.averageRealized365dContributionMinor +
+                  cohort.averageExpectedRemainingContributionMinor,
+              })),
+          acquisitionChannelRows:
+            report.acquisitionChannels.map(
+              (row) => ({
+                channel: row.channel,
+                represented:
+                  row.representedAcquiredCustomers,
+                causal:
+                  row.causalTreatmentCustomerWeight,
+              }),
+            ),
+          selectedTraitCount:
+            fixture.evaluation.latentPopulation.customers.filter(
+              (customer) =>
+                customer.lifecycle
+                  .preSimulationHistory === "none" &&
+                customer.channelTraits.some(
+                  (trait) =>
+                    trait.channelId ===
+                    fixture.selectedChannel,
+                ),
+            ).length,
+        }),
+      );
+
       expect(selected).toBeDefined();
       expect(comparison).toBeDefined();
       expect(
