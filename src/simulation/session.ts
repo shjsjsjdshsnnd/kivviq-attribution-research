@@ -381,10 +381,14 @@ function productViewEvent(
     source: session.source,
     device: session.device,
     productId: offer.productId,
-    availability,
-    ...(deliveryEstimateDays === undefined
+    ...(commercePolicy?.websiteScenario === undefined
       ? {}
-      : { deliveryEstimateDays }),
+      : {
+          availability,
+          ...(deliveryEstimateDays === undefined
+            ? {}
+            : { deliveryEstimateDays }),
+        }),
   };
 }
 
@@ -531,15 +535,20 @@ export function advanceSession(
     };
   }
 
-  const stayProbability = clamp(
-    (0.25 +
-      0.36 * intent +
-      0.24 * need +
-      0.08 * customer.brandAffinity) *
-      (startingExperience?.continuationMultiplier ?? 1),
-    0.04,
-    0.94,
-  );
+  const structuralStayProbability =
+    0.25 +
+    0.36 * intent +
+    0.24 * need +
+    0.08 * customer.brandAffinity;
+  const stayProbability =
+    startingExperience === undefined
+      ? clamp(structuralStayProbability, 0.12, 0.92)
+      : clamp(
+          structuralStayProbability *
+            startingExperience.continuationMultiplier,
+          0.04,
+          0.94,
+        );
 
   if (
     session.step > 1 &&
@@ -1012,15 +1021,17 @@ export function advanceSession(
           }
         }
         session.currentPage = "cart";
-        events.push({
-          eventId: eventId(session.sessionId, `cart_${session.step}`),
-          eventType: "cart_view",
-          occurredAt: new Date(timestampMs).toISOString(),
-          anonymousSubjectId: customer.customerId,
-          sessionId: session.sessionId,
-          source: session.source,
-          device: session.device,
-        });
+        if (commercePolicy?.websiteScenario !== undefined) {
+          events.push({
+            eventId: eventId(session.sessionId, `cart_${session.step}`),
+            eventType: "cart_view",
+            occurredAt: new Date(timestampMs).toISOString(),
+            anonymousSubjectId: customer.customerId,
+            sessionId: session.sessionId,
+            source: session.source,
+            device: session.device,
+          });
+        }
         events.push({
           eventId: eventId(session.sessionId, `atc_${session.step}`),
           eventType: "add_to_cart",

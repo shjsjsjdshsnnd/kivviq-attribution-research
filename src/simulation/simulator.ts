@@ -1974,7 +1974,10 @@ export function simulateWorld(
         request.commercePolicy,
       );
 
-      if (customer.cart !== undefined) {
+      if (
+        customer.cart !== undefined &&
+        request.commercePolicy?.websiteScenario !== undefined
+      ) {
         if (
           event.timestampMs >=
           customer.cart.expiresAtMs

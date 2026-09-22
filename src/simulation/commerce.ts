@@ -429,6 +429,7 @@ export function chooseProduct(
                   return Math.max(multiplier, 2.4);
                 }
                 if (
+                  commercePolicy?.websiteScenario !== undefined &&
                   cartDemand?.substitutionProductIds?.includes(
                     productId,
                   ) === true
