@@ -61,14 +61,16 @@ export function resolveCroOrdering(
   if (
     action.actionType !== "cro.reorder_elements" ||
     action.parameters.kind !== "cro_intervention" ||
-    action.parameters.intervention !== "REORDER" ||
-    !action.parameters.ordering
+    action.parameters.intervention !== "REORDER"
   ) {
     return { status: "INVALID", code: "CRO_POSITION_OUT_OF_RANGE" };
   }
 
   const parameters = action.parameters;
   const ordering = parameters.ordering;
+  if (!ordering) {
+    return { status: "INVALID", code: "CRO_POSITION_OUT_OF_RANGE" };
+  }
   if (ordering.kind === "SET_POSITION") {
     return ordering.position > 0
       ? { status: "RESOLVED", targetPosition: ordering.position }
