@@ -1,4 +1,5 @@
 import type { LatentCustomerPopulation } from "../customer_population/types.js";
+import { defaultAdvertisingAllocation } from "../advertising_economics/evaluator.js";
 import type { Intervention } from "../ground_truth/interventions.js";
 import { simulateWorld } from "../simulation/simulator.js";
 import type {
@@ -465,7 +466,60 @@ export interface TrafficVsCroResult {
   readonly cro: SimulationResult;
   readonly traffic: SimulationResult;
   readonly croDelta: CroCounterfactualDelta;
+  /**
+   * Traffic contribution is net of the incremental paid-media allocation
+   * represented by a full-period marketing.<channel>.spend set intervention.
+   * This prevents "more traffic" from being credited with revenue while
+   * silently ignoring the extra acquisition spend that caused it.
+   */
   readonly trafficDelta: CroCounterfactualDelta;
+  readonly incrementalTrafficSpendMinor: number;
+}
+
+function incrementalTrafficSpendMinor(
+  request: TrafficVsCroRequest,
+): number {
+  const match =
+    /^marketing\.([a-z0-9_]+)\.spend$/.exec(
+      request.trafficIntervention.variable,
+    );
+  if (
+    match === null ||
+    request.trafficIntervention.operation !== "set" ||
+    request.trafficIntervention.value.kind !== "number" ||
+    request.trafficIntervention.value.unit !== "money_minor"
+  ) {
+    return 0;
+  }
+  if (
+    request.trafficIntervention.effectiveAt !== undefined ||
+    request.trafficIntervention.durationSeconds !== undefined
+  ) {
+    throw new RangeError(
+      "traffic-vs-CRO economic comparison requires a full-period spend intervention",
+    );
+  }
+
+  const channel = match[1]!;
+  const baseline = defaultAdvertisingAllocation(
+    request.merchantWorld,
+    request.startTime,
+    request.endTime,
+  ).spendMinorByChannel as Readonly<
+    Record<string, number | undefined>
+  >;
+  const baselineSpend = baseline[channel];
+  if (baselineSpend === undefined) {
+    throw new RangeError(
+      `traffic-vs-CRO spend target references inactive or unsupported channel ${channel}`,
+    );
+  }
+  return (
+    Math.max(
+      0,
+      request.trafficIntervention.value.value,
+    ) - baselineSpend
+  );
 }
 
 export function compareTrafficToCro(
@@ -477,6 +531,7 @@ export function compareTrafficToCro(
     simulationSeed: request.simulationSeed,
     startTime: request.startTime,
     endTime: request.endTime,
+    interventions: request.interventions ?? [],
     ...(request.config === undefined
       ? {}
       : { config: request.config }),
@@ -509,6 +564,14 @@ export function compareTrafficToCro(
     commercePolicy: baselinePolicy,
   });
 
+  const rawTrafficDelta = deltaFor(
+    baseline,
+    traffic,
+    request.latentPopulation,
+  );
+  const incrementalSpend =
+    incrementalTrafficSpendMinor(request);
+
   return {
     baseline,
     cro,
@@ -518,10 +581,13 @@ export function compareTrafficToCro(
       cro,
       request.latentPopulation,
     ),
-    trafficDelta: deltaFor(
-      baseline,
-      traffic,
-      request.latentPopulation,
-    ),
+    trafficDelta: {
+      ...rawTrafficDelta,
+      representedContributionProfitMinor:
+        rawTrafficDelta.representedContributionProfitMinor -
+        incrementalSpend,
+    },
+    incrementalTrafficSpendMinor:
+      incrementalSpend,
   };
 }
