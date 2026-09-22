@@ -1,0 +1,72 @@
+name: Step 3.1 Baseline Evaluation Contract CI
+
+on:
+  push:
+    branches:
+      - baseline/step3.1-evaluation-contract
+  pull_request:
+    branches:
+      - action-space/step8-inventory-actions
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - name: Install
+        run: npm install --no-audit --no-fund
+
+      - name: Architecture boundary
+        run: npm run architecture
+
+      - name: Strict typecheck
+        run: npm run typecheck
+
+      - name: Step 3.1 focused tests
+        run: npm run test:baseline-evaluation
+
+      - name: Full inherited and Step 3.1 test suite
+        run: npm test
+
+      - name: Build
+        run: npm run build
+
+      - name: Frozen contract fingerprints
+        run: |
+          node --input-type=module <<'NODE'
+          import {
+            BASELINE_METRIC_SET_VERSION,
+            CANONICAL_BASELINE_EVALUATION_CONTRACT_V1,
+            evaluationFingerprint,
+          } from "./dist/evaluation/index.js";
+
+          console.log(
+            "baseline_contract_fingerprint=" +
+              CANONICAL_BASELINE_EVALUATION_CONTRACT_V1.contractFingerprint,
+          );
+          console.log(
+            "metric_definition_fingerprint=" +
+              evaluationFingerprint(
+                CANONICAL_BASELINE_EVALUATION_CONTRACT_V1.metrics,
+              ),
+          );
+          console.log(
+            "action_ontology_schema_version=" +
+              CANONICAL_BASELINE_EVALUATION_CONTRACT_V1.actionSpace
+                .ontologySchemaVersion,
+          );
+          console.log(
+            "metric_set_version=" + BASELINE_METRIC_SET_VERSION,
+          );
+          NODE
