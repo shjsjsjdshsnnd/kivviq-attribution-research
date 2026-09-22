@@ -100,6 +100,7 @@ export interface CartMechanism extends VersionedWebsiteComponent {
   readonly shippingVisibility: number;
   readonly promotionVisibility: number;
   readonly couponReliability: number;
+  readonly couponExpectationProbability: number;
   readonly crossSellRelevance: number;
   readonly quantityEditingUsability: number;
   readonly persistenceProbability: number;
@@ -296,6 +297,7 @@ export interface CheckoutExperience {
   readonly componentVersion: string;
   readonly websiteVersionId: string;
   readonly completionMultiplier: number;
+  readonly couponAttempted: boolean;
   readonly couponFailed: boolean;
   readonly paymentFailed: boolean;
   readonly addressValidationFailed: boolean;
