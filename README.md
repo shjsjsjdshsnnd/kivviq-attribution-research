@@ -176,6 +176,8 @@ Branch: `step10/pricing-promotions`
 
 Draft PR: #27
 
+Validated Step 10 implementation head: `2ff68e96523e37c6d59c89815bf3950b82db60be`
+
 Frozen base: Step 9 head `269f66e16960f1f1a129fd3ff49acf9d1d7d6c55`
 
 Step 10 makes price and offer interventions causal customer-behavior inputs rather than fixed conversion/revenue multipliers.
@@ -234,3 +236,4 @@ No private Kivviq, Maison Olive data, real merchant/customer data, production sy
 - `docs/step9-inventory-dynamics.md`
 - `docs/step9-inventory-dynamics-acceptance.md`
 - `docs/step10-pricing-promotions.md`
+- `docs/step10-pricing-promotions-acceptance.md`
