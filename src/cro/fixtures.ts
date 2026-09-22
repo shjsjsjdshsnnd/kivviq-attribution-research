@@ -404,6 +404,19 @@ export const modifyCartLayout = croAction({
   capabilities: ["MODIFY_PRESENTATION"],
 });
 
+export const modifyCartCheckoutCtaPresentation = croAction({
+  actionIdValue: "action_cro_cart_checkout_cta_presentation",
+  experienceId: "croexp_cart_checkout_cta",
+  actionTypeValue: "cro.modify_experience",
+  description: "Modify cart checkout CTA presentation.",
+  surface: "CART",
+  targetComponent: component("CHECKOUT_CTA"),
+  intervention: "MODIFY_PRESENTATION",
+  pageScope: { kind: "ALL_SURFACE" },
+  dimensions: ["PROMINENCE", "VISUAL_HIERARCHY"],
+  capabilities: ["MODIFY_PRESENTATION"],
+});
+
 export const addFreeShippingThresholdMessageCart = croAction({
   actionIdValue: "action_cro_cart_add_shipping_threshold_message",
   experienceId: "croexp_cart_shipping_message",
@@ -540,6 +553,27 @@ export const modifyLandingPageCtaNewVisitors = croAction({
   capabilities: ["MODIFY_PRESENTATION"],
 });
 
+export const modifyLandingPageCtaVipSegment = croAction({
+  actionIdValue: "action_cro_landing_cta_vip_segment",
+  experienceId: "croexp_landing_cta_vip",
+  actionTypeValue: "cro.modify_experience",
+  description: "Modify landing-page CTA for canonical VIP segment.",
+  surface: "LANDING_PAGE",
+  targetComponent: component("CTA"),
+  intervention: "MODIFY_PRESENTATION",
+  pageScope: { kind: "LANDING_PAGE", landingPageId: "landing:fall" },
+  audience: {
+    kind: "CUSTOMER_SEGMENT",
+    segmentId: "vip:A",
+    membership: {
+      evaluateAt: "decision_time",
+      bindingRef: "cro-audience:vip-a:decision",
+    },
+  },
+  dimensions: ["PROMINENCE"],
+  capabilities: ["MODIFY_PRESENTATION"],
+});
+
 export const removeLandingPageNavigation = croAction({
   actionIdValue: "action_cro_landing_remove_navigation",
   experienceId: "croexp_landing_navigation",
@@ -593,6 +627,33 @@ export const improveMobilePdpLoadingPerformance = croAction({
   device: "MOBILE",
   dimensions: ["LOAD_PERFORMANCE", "INTERACTION_LATENCY", "IMAGE_LOADING"],
   capabilities: ["MODIFY_PERFORMANCE"],
+});
+
+export const modifyPdpPriceDisplayPresentation = croAction({
+  actionIdValue: "action_cro_pdp_price_display_presentation",
+  experienceId: "croexp_pdp_price_display",
+  actionTypeValue: "cro.modify_experience",
+  description: "Modify PDP price-display presentation without changing product price.",
+  surface: "PDP",
+  targetComponent: component("PRICE_DISPLAY"),
+  intervention: "MODIFY_PRESENTATION",
+  pageScope: { kind: "ALL_PDP" },
+  dimensions: ["PROMINENCE", "VISUAL_HIERARCHY"],
+  capabilities: ["MODIFY_PRESENTATION"],
+});
+
+export const setPdpReviewsPosition2 = croAction({
+  actionIdValue: "action_cro_pdp_reviews_position_2",
+  experienceId: "croexp_pdp_reviews_position_2",
+  actionTypeValue: "cro.reorder_elements",
+  description: "Set PDP reviews component to position 2.",
+  surface: "PDP",
+  targetComponent: component("REVIEWS"),
+  intervention: "REORDER",
+  pageScope: { kind: "ALL_PDP" },
+  dimensions: ["POSITION"],
+  ordering: { kind: "SET_POSITION", position: 2 },
+  capabilities: ["REORDER_COMPONENTS"],
 });
 
 export const modifyPdpDeliveryPresentation = croAction({
@@ -657,7 +718,7 @@ export const temporaryPdpDeliveryReorder = croAction({
     conflictGuard: {
       kind: "REQUIRE_CURRENT_MATCHES_ACTION_OUTPUT",
       sourceActionId: actionId("action_cro_pdp_delivery_temp_reorder"),
-      expectedStateRef: "cro-state:pdp-delivery-position-2",
+      expectedStateRef: "cro-state:pdp-delivery-position-7",
     },
   },
 });
@@ -675,7 +736,7 @@ export const rollbackTemporaryPdpDeliveryReorder = croAction({
   rollbackGuard: {
     kind: "REQUIRE_CURRENT_MATCHES_ACTION_OUTPUT",
     sourceActionId: temporaryPdpDeliveryReorder.actionId,
-    expectedStateRef: "cro-state:pdp-delivery-position-2",
+    expectedStateRef: "cro-state:pdp-delivery-position-7",
   },
 });
 
