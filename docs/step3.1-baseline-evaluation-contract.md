@@ -72,16 +72,21 @@ Each observation record carries:
 
 - observation key;
 - information class;
-- `availableAt` timestamp;
+- `sourceMaxOccurredAt`, the latest event/snapshot time used to construct it;
+- `availableAt`, the time the completed observation became available;
 - source reference;
 - value.
 
 The observation builder fails closed when:
 
 - the information class is not permitted;
-- the information is available after the decision timestamp;
-- it exceeds the allowed history window;
+- the latest source event occurs after the decision timestamp;
+- the completed observation becomes available after the decision timestamp;
+- an observation claims to be available before its latest source event;
+- the source event exceeds the allowed history window;
+- its source reference identifies simulator, GroundTruth, oracle, evaluator, benchmark, or holdout state;
 - latent/God-mode keys are detected recursively;
+- benchmark/world/run identity keys are detected recursively;
 - unrestricted metadata is used as a covert channel.
 
 Equivalent permitted observations are sorted canonically and receive a deterministic observation fingerprint.
@@ -180,7 +185,7 @@ Every comparison uses the same declared world specification, covering:
 - seasonality;
 - external events.
 
-Every run must provide a world ID and world fingerprint.
+Every run must provide a world ID, world fingerprint, and three-letter world currency. Metric money units are explicitly bound to that world currency.
 
 Tests also exercise the existing deterministic merchant-world generator directly: the same generation version, seed, and configuration must reproduce the identical GroundTruth manifest, generation provenance, and merchant summary.
 
@@ -198,7 +203,7 @@ Shared stochastic namespaces are:
 
 Those seeds are shared across operators.
 
-`operator_internal` randomness is explicitly separate and operator-specific. It is excluded from the comparison binding used to prove equivalent environmental randomness.
+`operator_internal` randomness is explicitly separate and operator-specific. Exactly one seed is required for every namespace, and the run artifact verifies that the operator-internal seed is bound to the operator being evaluated. Operator-internal randomness is excluded from the comparison binding used to prove equivalent environmental randomness.
 
 Operator interventions may cause later trajectories to diverge. The contract does not require identical post-intervention state; it requires differences to arise from policy choices and their consequences rather than uncontrolled initialization.
 
@@ -214,9 +219,11 @@ Contract 1.0.0 explicitly declares:
 - 90-day outcome-measurement period;
 - 30-day delayed-effect window.
 
+Given the intervention start, the evaluator deterministically derives and records warm-up start/end, history start/end, intervention start/end, outcome-measurement start/end, and delayed-effect end timestamps.
+
 These values are benchmark-contract semantics, not operator choices. Changing them requires a new contract version or a separately versioned benchmark contract.
 
-No operator may receive more history or a different scoring window inside the same comparison.
+No operator may receive more history or a different scoring window inside the same comparison. Under the canonical daily cadence, the artifact validator also requires every scheduled decision opportunity across the intervention horizon; a missing no-op opportunity invalidates the run.
 
 ## Canonical metric set
 
@@ -270,9 +277,12 @@ The evaluator may use simulator truth to calculate evaluator-only outcomes. The 
 Before comparing two operators, the evaluator creates a deterministic comparison binding containing:
 
 - contract fingerprint;
+- simulator version;
 - world ID;
 - world fingerprint;
+- world currency;
 - horizon fingerprint;
+- exact horizon timestamps;
 - metric-set fingerprint;
 - shared environmental seeds.
 
@@ -312,19 +322,23 @@ The artifact records:
 - evaluation contract ID/version/fingerprint;
 - operator ID/version/fingerprint;
 - simulator version;
-- world/scenario ID and fingerprint;
+- world/scenario ID, fingerprint, and currency;
 - complete seed set;
-- start/end timestamps;
-- every decision opportunity;
-- observation fingerprint at each opportunity;
-- legal-action availability fingerprint;
-- proposed Action fingerprints;
-- accepted/rejected/modified dispositions;
+- the full derived horizon timeline;
+- every decision opportunity, including explicit no-action opportunities;
+- the actual permitted observation snapshot plus its fingerprint;
+- the actual legal-action availability snapshot plus its fingerprint;
+- every raw Action proposal plus its payload fingerprint;
+- canonical Action-space validation result;
+- accepted/rejected/modified constraint disposition;
+- exact executed Action when one exists;
 - outcome summary;
 - metric set version;
 - metric-definition fingerprint;
 - one result slot per canonical metric;
 - artifact fingerprint.
+
+The artifact validator recomputes observation, availability, proposal, Action, and metric-definition fingerprints rather than trusting recorded hashes.
 
 This is sufficient to distinguish a policy-driven outcome difference from a difference in evaluation conditions.
 
@@ -333,8 +347,11 @@ This is sufficient to distinguish a policy-driven outcome difference from a diff
 The contract fails closed against:
 
 - hidden simulator state entering observations;
+- future source events entering backdated observations or derived metrics;
 - future data entering observations;
 - evaluator-only metrics entering observations;
+- simulator/evaluator/oracle/benchmark source references entering observations;
+- benchmark/world/run identity fields entering observations;
 - unrestricted metadata covert channels;
 - non-contract action types;
 - ineligible targets;
@@ -371,8 +388,10 @@ Step 3.1 tests cover:
 - deterministic invalid/infeasible/partial/modified constraint handling;
 - shared-randomness equality with separate operator-internal seeds;
 - evaluator-only metric separation;
-- deterministic machine-readable run artifacts;
-- explicit no-action decision recording;
+- deterministic self-auditing run artifacts;
+- complete fixed-cadence opportunity recording, including no-action decisions;
+- raw Action-attempt, validation, disposition, and executed-Action provenance;
+- artifact tamper rejection;
 - mandatory complete metric-result set;
 - evaluator surface exclusion from the Operator-safe root API.
 
