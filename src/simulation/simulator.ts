@@ -2198,9 +2198,32 @@ export function simulateWorld(
             session.ended = true;
             session.currentPage = "ended";
 
-            const repeatDelay =
+            const retentionScenario =
+              request.commercePolicy
+                ?.retentionScenario;
+            const repeatHazard =
+              retentionScenario === undefined
+                ? 1
+                : repeatPurchaseHazardMultiplier(
+                    request.merchantWorld,
+                    retentionScenario,
+                    retentionCustomerContext(
+                      customer,
+                    ),
+                  );
+            let repeatDelay =
               days(
-                customer.source.expectedPurchaseIntervalDays *
+                (customer.source
+                  .expectedPurchaseIntervalDays /
+                  Math.max(
+                    0.35,
+                    Math.sqrt(
+                      Math.max(
+                        0.05,
+                        repeatHazard,
+                      ),
+                    ),
+                  )) *
                   Math.exp(
                     randomness.normal(
                       `${customer.customerId}:repeat-delay:${ordinal}`,
@@ -2209,20 +2232,84 @@ export function simulateWorld(
                     ),
                   ),
               );
+            let scheduleRepeat = true;
 
-            schedule<NeedPayload>({
-              id: `repeat-need:${customer.customerId}:${ordinal + 1}`,
-              kind: "repeat_need",
-              timestampMs:
-                event.timestampMs +
-                Math.max(days(2), repeatDelay),
-              priority: 10,
-              customerId: customer.customerId,
-              payload: {
-                cycle: 10_000 + ordinal + 1,
-                repeat: true,
-              },
-            });
+            if (
+              retentionScenario?.subscription !==
+                undefined &&
+              request.merchantWorld.summary
+                .businessModel === "subscription"
+            ) {
+              const subscription =
+                retentionScenario.subscription;
+              const cancellationProbability =
+                clamp(
+                  subscription
+                    .cancellationProbabilityPerRenewal *
+                    (1.2 -
+                      customer.source
+                        .repeatPropensity *
+                        0.45),
+                  0,
+                  1,
+                );
+              if (
+                randomness.bool(
+                  `${customer.customerId}:subscription-cancel:${ordinal}`,
+                  cancellationProbability,
+                )
+              ) {
+                customer.lifecycle = "churned";
+                customer.churned = true;
+                customer.retention.trueChurnState =
+                  "permanent_churned";
+                scheduleRepeat = false;
+              } else {
+                if (
+                  randomness.bool(
+                    `${customer.customerId}:subscription-skip:${ordinal}`,
+                    subscription
+                      .skipProbabilityPerRenewal ??
+                      0,
+                  )
+                ) {
+                  repeatDelay *= 2;
+                }
+                if (
+                  randomness.bool(
+                    `${customer.customerId}:subscription-failed-renewal:${ordinal}`,
+                    subscription
+                      .failedRenewalProbability ??
+                      0,
+                  )
+                ) {
+                  repeatDelay += days(
+                    subscription
+                      .failedRenewalRetryDays ??
+                      7,
+                  );
+                }
+              }
+            }
+
+            if (scheduleRepeat) {
+              schedule<NeedPayload>({
+                id: `repeat-need:${customer.customerId}:${ordinal + 1}`,
+                kind: "repeat_need",
+                timestampMs:
+                  event.timestampMs +
+                  Math.max(
+                    days(2),
+                    repeatDelay,
+                  ),
+                priority: 10,
+                customerId: customer.customerId,
+                payload: {
+                  cycle: 10_000 + ordinal + 1,
+                  repeat: true,
+                },
+              });
+            }
           } else if (
             request.commercePolicy?.enableInventoryDynamics === true
           ) {
