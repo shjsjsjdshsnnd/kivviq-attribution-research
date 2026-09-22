@@ -3633,6 +3633,7 @@ function validateInventoryParameters(
 
 
 const CRO_COMPONENTS_BY_SURFACE: Readonly<Record<string, readonly string[]>> = {
+  SITE_WIDE: ["NAVIGATION"],
   HOMEPAGE: [
     "PAGE_LAYOUT","HERO","VALUE_PROPOSITION","FEATURED_PRODUCTS","FEATURED_COLLECTIONS",
     "PROMOTIONAL_BANNER","NAVIGATION","SOCIAL_PROOF","CONTENT_SECTION","CTA",
@@ -3695,7 +3696,7 @@ function validateCroComponentTarget(input:unknown,path:string,errors:ActionValid
 }
 
 function validateCroSurface(input:unknown,path:string,errors:ActionValidationIssue[]):void{
-  if(!["HOMEPAGE","COLLECTION","PDP","CART","CHECKOUT","SITE_SEARCH","LANDING_PAGE"].includes(String(input))){
+  if(!["SITE_WIDE","HOMEPAGE","COLLECTION","PDP","CART","CHECKOUT","SITE_SEARCH","LANDING_PAGE"].includes(String(input))){
     add(errors,"INVALID_CRO_SURFACE",path,"unsupported CRO surface");
   }
 }
