@@ -24,7 +24,8 @@
     "test:promotion": "vitest run tests/promotion --reporter=verbose",
     "test:shipping": "vitest run tests/shipping --reporter=verbose",
     "test:merchandising": "vitest run tests/merchandising --reporter=verbose",
-    "test:inventory": "vitest run tests/inventory --reporter=verbose"
+    "test:inventory": "vitest run tests/inventory --reporter=verbose",
+    "test:baseline-evaluation": "vitest run tests/evaluation --reporter=verbose"
   },
   "exports": {
     ".": "./dist/index.js",
