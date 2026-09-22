@@ -569,6 +569,7 @@ export const accelerateSkuAExcessUntil50 = inventoryAction({
       actionId("action_merchandising_feature_sku_a_clearance"),
     ],
   },
+  duration: { kind: "temporary", durationSeconds: 180 * 24 * 60 * 60 },
   termination: {
     kind: "condition",
     conditionRef: "inventory.available_to_sell_units<=50",
@@ -607,6 +608,7 @@ export const accelerateCollectionXUntil100 = inventoryAction({
       bindingRef: "inventory-membership:collection-x:decision",
     },
   },
+  duration: { kind: "temporary", durationSeconds: 180 * 24 * 60 * 60 },
   termination: {
     kind: "condition",
     conditionRef: "inventory.collection_x.on_hand<=100",
