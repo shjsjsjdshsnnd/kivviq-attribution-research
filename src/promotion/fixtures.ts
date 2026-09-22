@@ -205,6 +205,8 @@ export const startAutomaticCollectionX15FourDays = promotionAction({
         ),
       },
     },
+    stacking: { kind: "STACKABLE" },
+    conflictResolution: { kind: "NONE" },
   }),
 });
 
@@ -230,6 +232,8 @@ export const startProductA100CadOff = promotionAction({
         conditions: [],
       },
     },
+    stacking: { kind: "STACKABLE" },
+    conflictResolution: { kind: "NONE" },
   }),
 });
 
