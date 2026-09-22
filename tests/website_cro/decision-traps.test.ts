@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { utcTimestamp } from "../../src/core/units.js";
+import { validateGroundTruthManifest } from "../../src/ground_truth/manifest.js";
 import type { LatentCustomerPopulation } from "../../src/customer_population/types.js";
 import {
   defaultAdvertisingAllocation,
@@ -70,6 +71,71 @@ function abundantInventory() {
   };
 }
 
+function withPaidSpendReferenceScale(
+  world: ReturnType<typeof baseAdversarialWorld>,
+  channel: "meta",
+  factor: number,
+): ReturnType<typeof baseAdversarialWorld> {
+  const clone = structuredClone(world) as typeof world;
+  const mechanism = clone.manifest.channelIncrementality.find(
+    (candidate) => candidate.channelId === channel,
+  );
+  if (mechanism?.responseCurveId === undefined) {
+    throw new RangeError("traffic sequencing fixture requires a response curve");
+  }
+  const curve = clone.manifest.responseCurves.find(
+    (candidate) => candidate.id === mechanism.responseCurveId,
+  );
+  if (curve === undefined) {
+    throw new RangeError("traffic sequencing response curve is missing");
+  }
+
+  const baselineReference =
+    defaultAdvertisingAllocation(world, START, END)
+      .spendMinorByChannel[channel] ?? 1;
+  const mutable = curve as unknown as {
+    kind: "linear" | "hill" | "threshold" | "piecewise";
+    maxSpend?: number;
+    halfSaturationSpend?: number;
+    thresholdSpend?: number;
+    points?: Array<{ spend: number; outcome: number }>;
+  };
+
+  if (mutable.kind === "linear") {
+    mutable.maxSpend = Math.max(
+      1,
+      Math.round(baselineReference * factor),
+    );
+  } else if (mutable.kind === "hill") {
+    mutable.halfSaturationSpend = Math.max(
+      1,
+      Math.round(
+        (mutable.halfSaturationSpend ?? baselineReference) *
+          factor,
+      ),
+    );
+  } else if (mutable.kind === "threshold") {
+    mutable.thresholdSpend = Math.max(
+      1,
+      Math.round(
+        (mutable.thresholdSpend ?? baselineReference) *
+          factor,
+      ),
+    );
+  } else {
+    mutable.points = (mutable.points ?? []).map((point) => ({
+      ...point,
+      spend:
+        point.spend === 0
+          ? 0
+          : Math.max(1, Math.round(point.spend * factor)),
+    }));
+  }
+
+  validateGroundTruthManifest(clone.manifest);
+  return clone;
+}
+
 function checkoutCompletionInWindow(
   result: SimulationResult,
   start: string,
@@ -101,6 +167,26 @@ function checkoutCompletionInWindow(
     if (purchased.has(sessionId)) completed += 1;
   }
   return completed / Math.max(1, started.size);
+}
+
+function checkoutFailureCountInWindow(
+  result: SimulationResult,
+  start: string,
+  end: string,
+  device: "mobile" | "desktop",
+): number {
+  const startMs = Date.parse(start);
+  const endMs = Date.parse(end);
+  return result.observableEvents.filter((event) => {
+    if (
+      event.eventType !== "address_validation_failure" ||
+      event.device !== device
+    ) {
+      return false;
+    }
+    const at = Date.parse(event.occurredAt);
+    return at >= startMs && at < endMs;
+  }).length;
 }
 
 function preReleaseObservableEvents(
@@ -228,8 +314,15 @@ describe("Step 12 causal decision traps", () => {
           POST_END,
           "mobile",
         );
-      const fixedPost =
-        checkoutCompletionInWindow(
+      const factualPostAddressFailures =
+        checkoutFailureCountInWindow(
+          replay.factual,
+          RELEASE,
+          POST_END,
+          "mobile",
+        );
+      const fixedPostAddressFailures =
+        checkoutFailureCountInWindow(
           replay.counterfactual,
           RELEASE,
           POST_END,
@@ -244,7 +337,10 @@ describe("Step 12 causal decision traps", () => {
         preReleaseObservableEvents(replay.factual),
       );
       expect(factualPost).toBeLessThan(factualPre);
-      expect(fixedPost).toBeGreaterThan(factualPost);
+      expect(factualPostAddressFailures).toBeGreaterThan(0);
+      expect(fixedPostAddressFailures).toBeLessThan(
+        factualPostAddressFailures,
+      );
       expect(
         replay.delta.representedContributionProfitMinor,
       ).toBeGreaterThan(0);
@@ -330,7 +426,7 @@ describe("Step 12 causal decision traps", () => {
       );
       const scale =
         zeroBase.summary.expectedAnnualOrders / 12;
-      const world = withChannelEffects(
+      const causalWorld = withChannelEffects(
         zeroBase,
         {
           meta: scale * 2.5,
@@ -338,6 +434,11 @@ describe("Step 12 causal decision traps", () => {
           pinterest: scale * 0.45,
         },
         { zeroInteractions: true },
+      );
+      const world = withPaidSpendReferenceScale(
+        causalWorld,
+        "meta",
+        0.005,
       );
       const population = populationFor(
         zeroBase,
