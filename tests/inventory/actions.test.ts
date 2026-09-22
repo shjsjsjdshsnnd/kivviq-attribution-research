@@ -16,7 +16,6 @@ import {
   increaseSkuASafetyStock25Percent,
   invalidReorder25Multiple6,
   moveSkuAReorderForwardSevenDays,
-  permanentThreshold150To125 as _notInventory,
   protectSkuAAt20,
   reorderSkuA100,
   reorderSkuAAt30Units,
