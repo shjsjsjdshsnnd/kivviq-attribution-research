@@ -166,18 +166,52 @@ export function startSession(
   timestampMs: number,
   sessionId: string,
   randomness: SharedRandomness,
+  commercePolicy?: SimulationCommercePolicy,
 ): SessionStartResult {
   const device = chooseDevice(
     customer,
     randomness,
     `${sessionId}:device`,
   );
-  const landingType = chooseLandingType(
+  const structuralLandingType = chooseLandingType(
     source,
     customer,
     randomness,
     `${sessionId}:landing`,
   );
+  let landingType = structuralLandingType;
+  if (
+    structuralLandingType === "search_results" &&
+    commercePolicy?.websiteScenario !== undefined
+  ) {
+    const state = resolveWebsiteState(
+      commercePolicy.websiteScenario,
+      timestampMs,
+      device,
+    );
+    const latentSearchUse =
+      customer.source.naturalSelection
+        .searchUseProbability;
+    const searchEntryProbability = clamp(
+      state.search.entryPropensity *
+        (0.35 + latentSearchUse * 1.3),
+      0.002,
+      0.98,
+    );
+    if (
+      !randomness.bool(
+        `${sessionId}:site-search-entry`,
+        searchEntryProbability,
+      )
+    ) {
+      landingType = randomness.bool(
+        `${sessionId}:search-bypass-collection`,
+        0.58,
+      )
+        ? "collection"
+        : "pdp";
+    }
+  }
 
   const session: RuntimeSession = {
     sessionId,
@@ -221,6 +255,21 @@ export function startSession(
       landingType,
     },
   ];
+
+  if (
+    landingType === "search_results" &&
+    commercePolicy?.websiteScenario !== undefined
+  ) {
+    events.push({
+      eventId: eventId(sessionId, "initial_search"),
+      eventType: "site_search",
+      occurredAt: new Date(timestampMs + 300).toISOString(),
+      anonymousSubjectId: customer.customerId,
+      sessionId,
+      source,
+      device,
+    });
+  }
 
   return { session, observableEvents: events };
 }
@@ -539,6 +588,22 @@ export function advanceSession(
       navigationExperience?.transitionMultiplier ?? 1;
     const searchFallback =
       1 + Math.max(0, 1 - navigationProgress) * 0.9;
+    const searchEntryFactor =
+      commercePolicy?.websiteScenario === undefined
+        ? 1
+        : clamp(
+            resolveWebsiteState(
+              commercePolicy.websiteScenario,
+              timestampMs,
+              session.device,
+            ).search.entryPropensity *
+              (0.35 +
+                customer.source.naturalSelection
+                  .searchUseProbability *
+                  1.3),
+            0.002,
+            1.25,
+          );
     const next = randomness.weightedPick(`${stepKey}:landing-next`, [
       {
         value: "collection" as const,
@@ -547,7 +612,11 @@ export function advanceSession(
       },
       {
         value: "search_results" as const,
-        weight: 0.22 * landingProgress * searchFallback,
+        weight:
+          0.22 *
+          landingProgress *
+          searchFallback *
+          searchEntryFactor,
       },
       {
         value: "pdp" as const,
