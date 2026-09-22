@@ -67,6 +67,25 @@ const FORBIDDEN_CONTEXT_KEYS = new Set([
   "variantPayload",
   "futureSessions",
   "futureOrders",
+  "expectedOpenRate",
+  "expectedClickRate",
+  "expectedRepeatPurchase",
+  "expectedRetentionLift",
+  "expectedLTV",
+  "predictedChurnReduction",
+  "predictedOptimalSendTime",
+  "futurePurchase",
+  "futureEngagement",
+  "futureChurn",
+  "futureSegmentMembership",
+  "futureCustomerBehavior",
+  "controlGroup",
+  "statisticalPower",
+  "omnisendWorkflowId",
+  "klaviyoFlowId",
+  "mailchimpCampaignId",
+  "attentiveCampaignId",
+  "shopifyEmailCampaignId",
 ]);
 
 function record(value: unknown): value is any {
@@ -646,6 +665,161 @@ function validateCroExperienceBindings(
   return{ok:true};
 }
 
+
+function validLifecycleChannel(input:unknown):boolean{
+  if(!record(input)||!nonEmpty(input.kind))return false;
+  if(["EMAIL","SMS"].includes(String(input.kind)))return true;
+  return input.kind==="CUSTOM"&&nonEmpty(input.channelId);
+}
+
+function validLifecyclePurpose(input:unknown):boolean{
+  if(!record(input)||!nonEmpty(input.kind))return false;
+  if([
+    "GENERAL_CAMPAIGN","WELCOME","WINBACK","POST_PURCHASE","REPLENISHMENT",
+    "RETENTION","BROWSE_ABANDONMENT","CART_ABANDONMENT","BACK_IN_STOCK",
+    "PRICE_DROP","LOYALTY",
+  ].includes(String(input.kind)))return true;
+  return input.kind==="CUSTOM"&&nonEmpty(input.purposeId);
+}
+
+function validateLifecycleContextBindings(
+  input:any,
+  simulatorClock:string,
+): {readonly ok:true}|{readonly ok:false;readonly message:string}{
+  if(input.lifecycleFlowBindings!==undefined){
+    if(!Array.isArray(input.lifecycleFlowBindings))return{ok:false,message:"lifecycleFlowBindings must be an array"};
+    const ids=new Set<string>();
+    for(const binding of input.lifecycleFlowBindings){
+      if(!record(binding)||!nonEmpty(binding.flowId)||!/^lifecycleflow_[A-Za-z0-9._:-]+$/.test(binding.flowId)||
+         typeof binding.active!=="boolean"||!validLifecyclePurpose(binding.purpose)||
+         !nonEmpty(binding.configurationRef)||!nonEmpty(binding.sourceRef)){
+        return{ok:false,message:"lifecycle flow binding is malformed"};
+      }
+      if(ids.has(binding.flowId))return{ok:false,message:"lifecycle flow bindings must use unique flow IDs"};
+      ids.add(binding.flowId);
+    }
+  }
+
+  if(input.lifecyclePolicyBindings!==undefined){
+    if(!Array.isArray(input.lifecyclePolicyBindings))return{ok:false,message:"lifecyclePolicyBindings must be an array"};
+    const ids=new Set<string>();
+    for(const binding of input.lifecyclePolicyBindings){
+      if(!record(binding)||!nonEmpty(binding.contactPolicyId)||
+         !/^lifecyclepolicy_[A-Za-z0-9._:-]+$/.test(binding.contactPolicyId)||
+         !record(binding.value)||binding.value.kind!=="FREQUENCY_POLICY"||
+         !record(binding.value.policy)||!nonEmpty(binding.value.policy.kind)||
+         !nonEmpty(binding.sourceRef)){
+        return{ok:false,message:"lifecycle policy binding is malformed"};
+      }
+      if(ids.has(binding.contactPolicyId))return{ok:false,message:"lifecycle policy bindings must use unique policy IDs"};
+      ids.add(binding.contactPolicyId);
+    }
+  }
+
+  if(input.lifecycleSegmentDefinitions!==undefined){
+    if(!Array.isArray(input.lifecycleSegmentDefinitions))return{ok:false,message:"lifecycleSegmentDefinitions must be an array"};
+    const ids=new Set<string>();
+    for(const binding of input.lifecycleSegmentDefinitions){
+      if(!record(binding)||!nonEmpty(binding.segmentId)||!nonEmpty(binding.sourceRef)){
+        return{ok:false,message:"lifecycle segment definition is malformed"};
+      }
+      if(ids.has(binding.segmentId))return{ok:false,message:"lifecycle segment definitions must be unique"};
+      ids.add(binding.segmentId);
+    }
+  }
+
+  if(input.lifecycleMembershipSnapshots!==undefined){
+    if(!Array.isArray(input.lifecycleMembershipSnapshots))return{ok:false,message:"lifecycleMembershipSnapshots must be an array"};
+    const refs=new Set<string>();
+    for(const snapshot of input.lifecycleMembershipSnapshots){
+      if(!record(snapshot)||!nonEmpty(snapshot.segmentId)||
+         !["DECISION_TIME","SEND_TIME","TRIGGER_TIME"].includes(String(snapshot.evaluateAt))||
+         !nonEmpty(snapshot.bindingRef)||!nonEmpty(snapshot.sourceRef)||
+         typeof snapshot.snapshotTime!=="string"||!snapshot.snapshotTime.endsWith("Z")||
+         !Number.isFinite(Date.parse(snapshot.snapshotTime))){
+        return{ok:false,message:"lifecycle membership snapshot is malformed"};
+      }
+      if(Date.parse(snapshot.snapshotTime)>Date.parse(simulatorClock)){
+        return{ok:false,message:"lifecycle membership snapshot cannot come from the future"};
+      }
+      if(snapshot.customerIds!==undefined&&
+         (!Array.isArray(snapshot.customerIds)||
+          snapshot.customerIds.some((id:unknown)=>!nonEmpty(id))||
+          new Set(snapshot.customerIds).size!==snapshot.customerIds.length)){
+        return{ok:false,message:"lifecycle membership customer IDs must be unique non-empty strings"};
+      }
+      if(refs.has(snapshot.bindingRef))return{ok:false,message:"lifecycle membership bindingRef values must be unique"};
+      refs.add(snapshot.bindingRef);
+    }
+  }
+
+  if(input.lifecycleChannelCapabilities!==undefined){
+    if(!Array.isArray(input.lifecycleChannelCapabilities))return{ok:false,message:"lifecycleChannelCapabilities must be an array"};
+    const keys=new Set<string>();
+    for(const binding of input.lifecycleChannelCapabilities){
+      if(!record(binding)||!validLifecycleChannel(binding.channel)||
+         typeof binding.sendSupported!=="boolean"||!nonEmpty(binding.sourceRef)){
+        return{ok:false,message:"lifecycle channel capability binding is malformed"};
+      }
+      const key=stableKey(binding.channel);
+      if(keys.has(key))return{ok:false,message:"lifecycle channel capability bindings must be unique"};
+      keys.add(key);
+    }
+  }
+
+  if(input.lifecycleCustomerBindings!==undefined){
+    if(!Array.isArray(input.lifecycleCustomerBindings))return{ok:false,message:"lifecycleCustomerBindings must be an array"};
+    const ids=new Set<string>();
+    for(const binding of input.lifecycleCustomerBindings){
+      if(!record(binding)||!nonEmpty(binding.customerId)||!nonEmpty(binding.sourceRef)){
+        return{ok:false,message:"lifecycle customer binding is malformed"};
+      }
+      if(binding.segmentIds!==undefined&&
+         (!Array.isArray(binding.segmentIds)||binding.segmentIds.some((id:unknown)=>!nonEmpty(id))||
+          new Set(binding.segmentIds).size!==binding.segmentIds.length)){
+        return{ok:false,message:"lifecycle customer segment IDs must be unique strings"};
+      }
+      if(binding.channelStates!==undefined){
+        if(!Array.isArray(binding.channelStates))return{ok:false,message:"lifecycle customer channelStates must be an array"};
+        const keys=new Set<string>();
+        for(const channelState of binding.channelStates){
+          if(!record(channelState)||!validLifecycleChannel(channelState.channel)){
+            return{ok:false,message:"lifecycle customer channel state is malformed"};
+          }
+          for(const field of ["consentEligible","validDestination","channelSuppressed"]){
+            if(channelState[field]!==undefined&&typeof channelState[field]!=="boolean"){
+              return{ok:false,message:"lifecycle customer channel state booleans are malformed"};
+            }
+          }
+          const key=stableKey(channelState.channel);
+          if(keys.has(key))return{ok:false,message:"lifecycle customer channel states must be unique"};
+          keys.add(key);
+        }
+      }
+      if(binding.currentFlowIds!==undefined&&
+         (!Array.isArray(binding.currentFlowIds)||
+          binding.currentFlowIds.some((id:unknown)=>!nonEmpty(id)||!/^lifecycleflow_[A-Za-z0-9._:-]+$/.test(String(id))))){
+        return{ok:false,message:"lifecycle current flow IDs are malformed"};
+      }
+      if(binding.knownEvents!==undefined){
+        if(!Array.isArray(binding.knownEvents))return{ok:false,message:"lifecycle knownEvents must be an array"};
+        for(const event of binding.knownEvents){
+          if(!record(event)||!record(event.event)||!nonEmpty(event.event.kind)||
+             typeof event.occurredAt!=="string"||!event.occurredAt.endsWith("Z")||
+             !Number.isFinite(Date.parse(event.occurredAt))||
+             Date.parse(event.occurredAt)>Date.parse(simulatorClock)){
+            return{ok:false,message:"lifecycle known event is malformed or future-dated"};
+          }
+        }
+      }
+      if(ids.has(binding.customerId))return{ok:false,message:"lifecycle customer bindings must be unique"};
+      ids.add(binding.customerId);
+    }
+  }
+
+  return{ok:true};
+}
+
 export type TranslationContextValidationResult =
   | {
       readonly ok: true;
@@ -789,6 +963,32 @@ export function validateTranslationContext(
     };
   }
 
+
+  if (
+    (input.schemaVersion === "1.0.0" ||
+      input.schemaVersion === "1.1.0" ||
+      input.schemaVersion === "1.2.0" ||
+      input.schemaVersion === "1.3.0" ||
+      input.schemaVersion === "1.4.0" ||
+      input.schemaVersion === "1.5.0") &&
+    (input.lifecycleFlowBindings !== undefined ||
+      input.lifecyclePolicyBindings !== undefined ||
+      input.lifecycleSegmentDefinitions !== undefined ||
+      input.lifecycleMembershipSnapshots !== undefined ||
+      input.lifecycleChannelCapabilities !== undefined ||
+      input.lifecycleCustomerBindings !== undefined)
+  ) {
+    return {
+      ok: false,
+      failure: {
+        status: "MISSING_CONTEXT",
+        code: "TRANSLATION_CONTEXT_FEATURE_REQUIRES_1_6",
+        message:
+          "lifecycle current-state context requires TranslationContext schema 1.6.0.",
+      },
+    };
+  }
+
   if (
     typeof input.simulatorClock !== "string" ||
     !input.simulatorClock.endsWith("Z") ||
@@ -916,6 +1116,21 @@ export function validateTranslationContext(
         status: "MISSING_CONTEXT",
         code: "MALFORMED_CRO_EXPERIENCE_CONTEXT",
         message: croExperienceValidation.message,
+      },
+    };
+  }
+
+  const lifecycleValidation = validateLifecycleContextBindings(
+    input,
+    input.simulatorClock,
+  );
+  if (!lifecycleValidation.ok) {
+    return {
+      ok: false,
+      failure: {
+        status: "MISSING_CONTEXT",
+        code: "MALFORMED_LIFECYCLE_CONTEXT",
+        message: lifecycleValidation.message,
       },
     };
   }
@@ -1227,4 +1442,28 @@ export function resolveCroStructureSnapshot(
   if(matches.length===0)return{status:"missing",ref};
   if(matches.length>1)return{status:"ambiguous",ref};
   return{status:"resolved",binding:matches[0]!};
+}
+
+
+export type LifecyclePolicyResolution =
+  | {
+      readonly status: "resolved";
+      readonly binding: NonNullable<
+        TranslationContext["lifecyclePolicyBindings"]
+      >[number];
+    }
+  | { readonly status: "missing"; readonly ref: string }
+  | { readonly status: "ambiguous"; readonly ref: string };
+
+export function resolveLifecyclePolicy(
+  context: TranslationContext,
+  contactPolicyId: string,
+): LifecyclePolicyResolution {
+  const matches = (context.lifecyclePolicyBindings ?? []).filter(
+    (binding) => binding.contactPolicyId === contactPolicyId,
+  );
+  const ref = "lifecycle-policy:" + contactPolicyId;
+  if (matches.length === 0) return { status: "missing", ref };
+  if (matches.length > 1) return { status: "ambiguous", ref };
+  return { status: "resolved", binding: matches[0]! };
 }
