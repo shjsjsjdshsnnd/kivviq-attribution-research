@@ -3630,6 +3630,240 @@ function validateInventoryParameters(
   }
 }
 
+
+const CRO_COMPONENTS_BY_SURFACE: Readonly<Record<string, readonly string[]>> = {
+  HOMEPAGE: [
+    "HERO","VALUE_PROPOSITION","FEATURED_PRODUCTS","FEATURED_COLLECTIONS",
+    "PROMOTIONAL_BANNER","NAVIGATION","SOCIAL_PROOF","CONTENT_SECTION","CTA",
+  ],
+  COLLECTION: [
+    "PRODUCT_GRID","PRODUCT_CARD","FILTERS","SORTING","COLLECTION_HEADER",
+    "COLLECTION_DESCRIPTION","MERCHANDISING_BLOCK","PAGINATION","NAVIGATION",
+  ],
+  PDP: [
+    "PRODUCT_GALLERY","PRODUCT_TITLE","PRICE_DISPLAY","VARIANT_SELECTOR",
+    "ADD_TO_CART","BUY_NOW","PRODUCT_DESCRIPTION","DELIVERY_INFORMATION",
+    "RETURNS_INFORMATION","REVIEWS","SOCIAL_PROOF","RECOMMENDATIONS",
+    "STOCK_INFORMATION","PAYMENT_INFORMATION","NAVIGATION",
+  ],
+  CART: [
+    "CART_ITEMS","QUANTITY_CONTROL","ORDER_SUMMARY","SHIPPING_MESSAGE",
+    "PROMOTION_ENTRY","CROSS_SELL","CHECKOUT_CTA","NAVIGATION",
+  ],
+  CHECKOUT: [
+    "CONTACT_STEP","SHIPPING_STEP","PAYMENT_STEP","ORDER_SUMMARY","FORM","FIELD",
+    "ERROR_HANDLING","PROGRESS_INDICATOR","EXPRESS_PAYMENT",
+  ],
+  SITE_SEARCH: [
+    "SEARCH_INPUT","AUTOCOMPLETE","SEARCH_RESULTS","FILTERS","SORTING",
+    "NO_RESULTS_STATE","NAVIGATION",
+  ],
+  LANDING_PAGE: [
+    "HERO","CTA","PRODUCT_SECTION","CONTENT_SECTION","FORM","SOCIAL_PROOF","NAVIGATION",
+  ],
+};
+
+const CRO_DIMENSIONS = new Set([
+  "POSITION","PROMINENCE","CONTENT_STRUCTURE","INTERACTION","VISUAL_HIERARCHY",
+  "LAYOUT","DENSITY","PERSISTENCE","REQUIRED_FIELDS","STEP_STRUCTURE",
+  "ERROR_PRESENTATION","PAYMENT_PRESENTATION","PROGRESS_COMMUNICATION",
+  "INFORMATION_HIERARCHY","LOAD_PERFORMANCE","INTERACTION_LATENCY","IMAGE_LOADING",
+  "NAVIGATION_STRUCTURE","FILTER_CONFIGURATION","SORT_CONTROL_PRESENTATION",
+  "NO_RESULTS_HANDLING","AUTOCOMPLETE","SHIPPING_MESSAGE_PRESENTATION",
+  "PROMOTION_MESSAGE_PRESENTATION",
+]);
+
+const CRO_CAPABILITIES = new Set([
+  "ADD_COMPONENT","REMOVE_COMPONENT","REORDER_COMPONENTS","MODIFY_PRESENTATION",
+  "MODIFY_INTERACTION","MODIFY_NAVIGATION","MODIFY_SEARCH_EXPERIENCE",
+  "MODIFY_CHECKOUT_EXPERIENCE","MODIFY_PERFORMANCE","AUTOCOMPLETE","FILTERS",
+  "SORTING","NO_RESULTS_EXPERIENCE",
+]);
+
+function validateCroComponentTarget(input:unknown,path:string,errors:ActionValidationIssue[]):void{
+  if(!record(input)||!nonEmpty(input.component)){
+    add(errors,"INVALID_CRO_COMPONENT",path,"canonical component is required");return;
+  }
+  const all=new Set(Object.values(CRO_COMPONENTS_BY_SURFACE).flat());
+  if(!all.has(String(input.component))){
+    add(errors,"UNKNOWN_CRO_COMPONENT",path+".component","unsupported canonical CRO component");
+  }
+  if(input.instanceId!==undefined&&!nonEmpty(input.instanceId)){
+    add(errors,"INVALID_CRO_COMPONENT_INSTANCE",path+".instanceId","must be non-empty when supplied");
+  }
+}
+
+function validateCroSurface(input:unknown,path:string,errors:ActionValidationIssue[]):void{
+  if(!["HOMEPAGE","COLLECTION","PDP","CART","CHECKOUT","SITE_SEARCH","LANDING_PAGE"].includes(String(input))){
+    add(errors,"INVALID_CRO_SURFACE",path,"unsupported CRO surface");
+  }
+}
+
+function validateCroPageScope(input:unknown,path:string,errors:ActionValidationIssue[],surface?:string):void{
+  if(!record(input)||!nonEmpty(input.kind)){add(errors,"INVALID_CRO_PAGE_SCOPE",path,"page scope is required");return;}
+  switch(input.kind){
+    case "ALL_SURFACE": break;
+    case "ALL_PDP":
+      if(surface!=="PDP") add(errors,"CRO_PAGE_SCOPE_SURFACE_MISMATCH",path,"ALL_PDP requires PDP surface");
+      break;
+    case "ALL_COLLECTIONS":
+      if(surface!=="COLLECTION") add(errors,"CRO_PAGE_SCOPE_SURFACE_MISMATCH",path,"ALL_COLLECTIONS requires COLLECTION surface");
+      break;
+    case "PRODUCT_PDP":
+      if(surface!=="PDP") add(errors,"CRO_PAGE_SCOPE_SURFACE_MISMATCH",path,"PRODUCT_PDP requires PDP surface");
+      if(!nonEmpty(input.productId)) add(errors,"INVALID_CRO_PAGE_SCOPE_ID",path+".productId","required");
+      break;
+    case "CATEGORY_PDP_SET":
+      if(surface!=="PDP") add(errors,"CRO_PAGE_SCOPE_SURFACE_MISMATCH",path,"CATEGORY_PDP_SET requires PDP surface");
+      if(!nonEmpty(input.categoryId)) add(errors,"INVALID_CRO_PAGE_SCOPE_ID",path+".categoryId","required");
+      break;
+    case "PAGE_TEMPLATE":
+      if(!nonEmpty(input.templateId)) add(errors,"INVALID_CRO_PAGE_SCOPE_ID",path+".templateId","required");
+      break;
+    case "SPECIFIC_PAGE":
+      if(!nonEmpty(input.pageId)) add(errors,"INVALID_CRO_PAGE_SCOPE_ID",path+".pageId","required");
+      break;
+    case "LANDING_PAGE":
+      if(surface!=="LANDING_PAGE") add(errors,"CRO_PAGE_SCOPE_SURFACE_MISMATCH",path,"LANDING_PAGE scope requires LANDING_PAGE surface");
+      if(!nonEmpty(input.landingPageId)) add(errors,"INVALID_CRO_PAGE_SCOPE_ID",path+".landingPageId","required");
+      break;
+    default:
+      add(errors,"UNKNOWN_CRO_PAGE_SCOPE",path+".kind","unsupported page scope");
+  }
+}
+
+function validateCroAudience(input:unknown,path:string,errors:ActionValidationIssue[]):void{
+  if(!record(input)||!nonEmpty(input.kind)){add(errors,"INVALID_CRO_AUDIENCE",path,"audience is required");return;}
+  if(["ALL_VISITORS","NEW_VISITORS","RETURNING_VISITORS"].includes(String(input.kind)))return;
+  if(input.kind==="CUSTOMER_SEGMENT"){
+    if(!nonEmpty(input.segmentId)) add(errors,"INVALID_CRO_SEGMENT_ID",path+".segmentId","required");
+    if(!record(input.membership)){
+      add(errors,"INVALID_CRO_SEGMENT_MEMBERSHIP",path+".membership","segment membership semantics are required");
+    } else {
+      if(!["decision_time","translation_time","effective_time"].includes(String(input.membership.evaluateAt))){
+        add(errors,"INVALID_CRO_MEMBERSHIP_BOUNDARY",path+".membership.evaluateAt","unsupported boundary");
+      }
+      if(input.membership.bindingRef!==undefined&&!nonEmpty(input.membership.bindingRef)){
+        add(errors,"INVALID_CRO_MEMBERSHIP_BINDING",path+".membership.bindingRef","must be non-empty");
+      }
+    }
+    return;
+  }
+  add(errors,"UNKNOWN_CRO_AUDIENCE",path+".kind","unsupported CRO audience");
+}
+
+function validateCroConflict(input:unknown,path:string,errors:ActionValidationIssue[]):void{
+  if(!record(input)||!nonEmpty(input.kind)){add(errors,"INVALID_CRO_CONFLICT",path,"conflict semantics are required");return;}
+  if(input.kind==="COEXIST")return;
+  if(input.kind==="PRECEDENCE"){validateNonNegativeInteger(input.precedence,path+".precedence",errors);return;}
+  if(input.kind==="MUTUALLY_EXCLUSIVE_GROUP"){
+    if(!nonEmpty(input.groupId))add(errors,"INVALID_CRO_CONFLICT_GROUP",path+".groupId","groupId is required");
+    if(input.precedence!==undefined)validateNonNegativeInteger(input.precedence,path+".precedence",errors);
+    return;
+  }
+  add(errors,"UNKNOWN_CRO_CONFLICT",path+".kind","unsupported conflict semantics");
+}
+
+function validateCroOrderingSnapshot(input:unknown,path:string,errors:ActionValidationIssue[]):void{
+  if(!record(input)||!nonEmpty(input.bindingRef)){
+    add(errors,"INVALID_CRO_ORDERING_SNAPSHOT",path,"bindingRef is required");return;
+  }
+  if(!["decision_time","translation_time","effective_time"].includes(String(input.evaluateAt))){
+    add(errors,"INVALID_CRO_ORDERING_BOUNDARY",path+".evaluateAt","unsupported boundary");
+  }
+}
+
+function validateCroOrdering(input:unknown,path:string,errors:ActionValidationIssue[]):void{
+  if(!record(input)||!nonEmpty(input.kind)){add(errors,"INVALID_CRO_ORDERING",path,"ordering semantics are required");return;}
+  if(input.kind==="SET_POSITION"){validatePositiveInteger(input.position,path+".position",errors);return;}
+  if(input.kind==="PLACE_BEFORE"||input.kind==="PLACE_AFTER"){
+    validateCroComponentTarget(input.referenceComponent,path+".referenceComponent",errors);
+    validateCroOrderingSnapshot(input.snapshot,path+".snapshot",errors);
+    return;
+  }
+  add(errors,"UNKNOWN_CRO_ORDERING",path+".kind","unsupported ordering semantics");
+}
+
+function validateCroRollbackStrategy(input:unknown,path:string,errors:ActionValidationIssue[]):void{
+  if(!record(input)||!nonEmpty(input.kind)){add(errors,"INVALID_CRO_ROLLBACK_STRATEGY",path,"rollback strategy is required");return;}
+  if(input.kind==="RESTORE_PRE_ACTION_VALUE"){
+    if(!nonEmpty(input.stateSnapshotRef))add(errors,"INVALID_CRO_ROLLBACK_SNAPSHOT",path+".stateSnapshotRef","required");
+    return;
+  }
+  if(input.kind==="SET_EXPLICIT_VALUE"){
+    if(!nonEmpty(input.stateRef))add(errors,"INVALID_CRO_ROLLBACK_STATE",path+".stateRef","required");
+    return;
+  }
+  add(errors,"UNKNOWN_CRO_ROLLBACK_STRATEGY",path+".kind","unsupported rollback strategy");
+}
+
+function validateCroRollbackGuard(input:unknown,path:string,errors:ActionValidationIssue[],originalActionId?:string):void{
+  if(!record(input)||input.kind!=="REQUIRE_CURRENT_MATCHES_ACTION_OUTPUT"){
+    add(errors,"INVALID_CRO_ROLLBACK_GUARD",path,"conflict guard is required");return;
+  }
+  if(!nonEmpty(input.sourceActionId))add(errors,"INVALID_CRO_ROLLBACK_SOURCE",path+".sourceActionId","required");
+  else if(originalActionId&&input.sourceActionId!==originalActionId)add(errors,"CRO_ROLLBACK_SOURCE_MISMATCH",path+".sourceActionId","must reference original CRO Action");
+  if(!nonEmpty(input.expectedStateRef))add(errors,"INVALID_CRO_ROLLBACK_EXPECTED_STATE",path+".expectedStateRef","required");
+}
+
+function validateCroIntervention(input:unknown,path:string,errors:ActionValidationIssue[]):void{
+  if(!record(input)){add(errors,"INVALID_CRO_INTERVENTION",path,"CRO intervention parameters are required");return;}
+  validateCroSurface(input.surface,path+".surface",errors);
+  validateCroComponentTarget(input.component,path+".component",errors);
+  const allowed=CRO_COMPONENTS_BY_SURFACE[String(input.surface)]??[];
+  if(record(input.component)&&nonEmpty(input.component.component)&&!allowed.includes(String(input.component.component))){
+    add(errors,"CRO_COMPONENT_SURFACE_MISMATCH",path+".component.component","component is not canonical for this surface");
+  }
+  if(!["ADD","REMOVE","REORDER","MODIFY_PRESENTATION","MODIFY_INTERACTION","MODIFY_NAVIGATION","MODIFY_SEARCH","MODIFY_CHECKOUT","MODIFY_PERFORMANCE"].includes(String(input.intervention))){
+    add(errors,"INVALID_CRO_INTERVENTION_KIND",path+".intervention","unsupported intervention");
+  }
+  validateCroPageScope(input.pageScope,path+".pageScope",errors,typeof input.surface==="string"?input.surface:undefined);
+  if(!["ALL_DEVICES","MOBILE","DESKTOP"].includes(String(input.device))){
+    add(errors,"INVALID_CRO_DEVICE",path+".device","must be ALL_DEVICES, MOBILE or DESKTOP");
+  }
+  validateCroAudience(input.audience,path+".audience",errors);
+  if(!Array.isArray(input.modifiableDimensions)||input.modifiableDimensions.length===0||
+     input.modifiableDimensions.some((v:unknown)=>!CRO_DIMENSIONS.has(String(v)))||
+     new Set(input.modifiableDimensions).size!==input.modifiableDimensions.length){
+    add(errors,"INVALID_CRO_MODIFIABLE_DIMENSIONS",path+".modifiableDimensions","must be a non-empty unique canonical dimension list");
+  }
+  if(!Array.isArray(input.requiredCapabilities)||input.requiredCapabilities.some((v:unknown)=>!CRO_CAPABILITIES.has(String(v)))||
+     new Set(input.requiredCapabilities).size!==input.requiredCapabilities.length){
+    add(errors,"INVALID_CRO_REQUIRED_CAPABILITIES",path+".requiredCapabilities","must be a unique canonical capability list");
+  }
+  validateCroConflict(input.conflictResolution,path+".conflictResolution",errors);
+
+  if(input.intervention==="REORDER"){
+    if(input.ordering===undefined)add(errors,"CRO_REORDER_REQUIRES_ORDERING",path+".ordering","ordering semantics are required");
+    else validateCroOrdering(input.ordering,path+".ordering",errors);
+    if(!Array.isArray(input.modifiableDimensions)||!input.modifiableDimensions.includes("POSITION")){
+      add(errors,"CRO_REORDER_REQUIRES_POSITION_DIMENSION",path+".modifiableDimensions","POSITION must be modifiable");
+    }
+  } else if(input.ordering!==undefined){
+    add(errors,"CRO_NON_REORDER_HAS_ORDERING",path+".ordering","ordering belongs only to REORDER");
+  }
+
+  if(input.intervention==="ADD"){
+    if(!record(input.addSemantics)||!["REQUIRE_ABSENT","ALLOW_ADDITIONAL_INSTANCE"].includes(String(input.addSemantics.kind))){
+      add(errors,"CRO_ADD_REQUIRES_EXISTENCE_SEMANTICS",path+".addSemantics","ADD requires explicit coexistence/existence semantics");
+    } else if(input.addSemantics.kind==="ALLOW_ADDITIONAL_INSTANCE"&&!nonEmpty(input.addSemantics.instanceId)){
+      add(errors,"CRO_ADD_INSTANCE_ID_REQUIRED",path+".addSemantics.instanceId","additional instance requires stable instanceId");
+    }
+  } else if(input.addSemantics!==undefined){
+    add(errors,"CRO_NON_ADD_HAS_ADD_SEMANTICS",path+".addSemantics","add semantics belong only to ADD");
+  }
+}
+
+function validateCroParameters(input:unknown,path:string,errors:ActionValidationIssue[]):void{
+  if(!record(input)){add(errors,"INVALID_CRO_PARAMETERS",path,"parameters are required");return;}
+  if(input.kind==="cro_intervention"){validateCroIntervention(input,path,errors);return;}
+  if(input.kind==="cro_rollback"){
+    if(!nonEmpty(input.originalActionId))add(errors,"INVALID_CRO_ROLLBACK_ORIGINAL",path+".originalActionId","required");
+    validateCroRollbackStrategy(input.strategy,path+".strategy",errors);
+    validateCroRollbackGuard(input.conflictGuard,path+".conflictGuard",errors,typeof input.originalActionId==="string"?input.originalActionId:undefined);
+    return;
+  }
+}
 function validateParameters(
   input: unknown,
   path: string,
@@ -3843,6 +4077,10 @@ function validateParameters(
       if (!nonEmpty(input.changeId) || !nonEmpty(input.variantRef)) {
         add(errors, "INVALID_PAGE_CHANGE", path, "changeId and variantRef are required");
       }
+      return;
+    case "cro_intervention":
+    case "cro_rollback":
+      validateCroParameters(input,path,errors);
       return;
     case "segment_targeting":
       if (!nonEmpty(input.segmentId) || typeof input.enabled !== "boolean") {
