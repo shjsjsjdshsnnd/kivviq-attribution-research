@@ -670,15 +670,15 @@ function componentQuality(
 }
 
 export function websitePageExperience(input: {
-  readonly scenario?: WebsiteScenario;
+  readonly scenario?: WebsiteScenario | undefined;
   readonly timestampMs: number;
   readonly component: WebsiteComponentName;
   readonly device: WebsiteDevice;
   readonly customer: WebsiteCustomerContext;
-  readonly productId?: string;
-  readonly categoryId?: string;
-  readonly productPriceMinor?: number;
-  readonly expectedAovMinor?: number;
+  readonly productId?: string | undefined;
+  readonly categoryId?: string | undefined;
+  readonly productPriceMinor?: number | undefined;
+  readonly expectedAovMinor?: number | undefined;
 }): PageExperience | undefined {
   if (input.scenario === undefined) return undefined;
   const state = resolveWebsiteState(
@@ -687,8 +687,6 @@ export function websitePageExperience(input: {
     input.device,
     input.productId,
     input.categoryId,
-    input.productPriceMinor,
-    input.expectedAovMinor,
   );
   const component = state[input.component];
   const performance = component.performance[input.device];
@@ -704,6 +702,8 @@ export function websitePageExperience(input: {
     input.customer,
     input.productId,
     input.categoryId,
+    input.productPriceMinor,
+    input.expectedAovMinor,
   );
   const frictions = [...quality.frictions];
   if (performanceResult.latencyFriction) frictions.push("latency");
@@ -738,7 +738,7 @@ export function websitePageExperience(input: {
 }
 
 export function websiteProductDiscoveryMultiplier(input: {
-  readonly scenario?: WebsiteScenario;
+  readonly scenario?: WebsiteScenario | undefined;
   readonly timestampMs: number;
   readonly device: WebsiteDevice;
   readonly surface: "collection" | "search_results" | "pdp";
@@ -782,7 +782,7 @@ export function websiteProductDiscoveryMultiplier(input: {
 }
 
 export function zeroResultSearchProbability(input: {
-  readonly scenario?: WebsiteScenario;
+  readonly scenario?: WebsiteScenario | undefined;
   readonly timestampMs: number;
   readonly device: WebsiteDevice;
   readonly intent: number;
@@ -811,7 +811,7 @@ export interface CheckoutRandomness {
 }
 
 export function resolveCheckoutExperience(input: {
-  readonly scenario?: WebsiteScenario;
+  readonly scenario?: WebsiteScenario | undefined;
   readonly timestampMs: number;
   readonly device: WebsiteDevice;
   readonly customer: WebsiteCustomerContext;
@@ -960,8 +960,8 @@ export function websiteCustomerContext(input: {
 }
 
 export function pageCausalEvents(input: {
-  readonly experience?: PageExperience;
-  readonly scenario?: WebsiteScenario;
+  readonly experience?: PageExperience | undefined;
+  readonly scenario?: WebsiteScenario | undefined;
   readonly customerId: string;
   readonly sessionId: string;
   readonly timestampMs: number;
@@ -972,7 +972,7 @@ export function pageCausalEvents(input: {
     | "pdp_to_atc"
     | "atc_to_checkout";
   readonly source?: import("../simulation/types.js").ObservableSource;
-  readonly productId?: string;
+  readonly productId?: string | undefined;
 }): readonly WebsiteCausalEvent[] {
   if (input.experience === undefined || input.scenario === undefined) return [];
   return input.experience.frictions.map((friction, index) => ({
@@ -996,8 +996,8 @@ export function pageCausalEvents(input: {
 }
 
 export function checkoutCausalEvents(input: {
-  readonly experience?: CheckoutExperience;
-  readonly scenario?: WebsiteScenario;
+  readonly experience?: CheckoutExperience | undefined;
+  readonly scenario?: WebsiteScenario | undefined;
   readonly customerId: string;
   readonly sessionId: string;
   readonly timestampMs: number;
