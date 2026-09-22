@@ -121,6 +121,7 @@ function validateState(state: WebsiteState): void {
     [state.cart.shippingVisibility, "cart.shippingVisibility"],
     [state.cart.promotionVisibility, "cart.promotionVisibility"],
     [state.cart.couponReliability, "cart.couponReliability"],
+    [state.cart.couponExpectationProbability, "cart.couponExpectationProbability"],
     [state.cart.crossSellRelevance, "cart.crossSellRelevance"],
     [state.cart.quantityEditingUsability, "cart.quantityEditingUsability"],
     [state.cart.persistenceProbability, "cart.persistenceProbability"],
@@ -870,7 +871,20 @@ export function resolveCheckoutExperience(input: {
     customer: input.customer,
   })!;
 
-  const couponFailureProbability = input.promotionExpected
+  const couponAttemptProbability = clamp(
+    state.cart.couponExpectationProbability *
+      (input.promotionExpected ? 1.35 : 0.6) *
+      (0.72 +
+        0.28 *
+          clamp(
+            input.customer.promotionSensitivityMultiplier / 2,
+          )),
+  );
+  const couponAttempted = input.randomness.bool(
+    `${input.key}:coupon-attempt`,
+    couponAttemptProbability,
+  );
+  const couponFailureProbability = couponAttempted
     ? clamp(
         (1 - state.cart.couponReliability) *
           (0.35 +
@@ -970,6 +984,7 @@ export function resolveCheckoutExperience(input: {
     componentVersion: state.checkout.componentVersion,
     websiteVersionId: state.versionId,
     completionMultiplier: clamp(completionMultiplier, 0.02, 1.15),
+    couponAttempted,
     couponFailed,
     paymentFailed,
     addressValidationFailed,
