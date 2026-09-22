@@ -2984,6 +2984,25 @@ function validateInventoryReorder(
         path + ".expectedArrivalAt",
         "expected arrival must be grounded in a known decision-time lead-time assumption",
       );
+    } else if (
+      record(input.leadTimeAssumption) &&
+      Number.isInteger(input.leadTimeAssumption.durationSeconds) &&
+      typeof input.orderPlacementTime === "string" &&
+      typeof input.expectedArrivalAt === "string" &&
+      Number.isFinite(Date.parse(input.orderPlacementTime)) &&
+      Number.isFinite(Date.parse(input.expectedArrivalAt))
+    ) {
+      const assumed =
+        Date.parse(input.orderPlacementTime) +
+        Number(input.leadTimeAssumption.durationSeconds) * 1000;
+      if (Date.parse(input.expectedArrivalAt) !== assumed) {
+        add(
+          errors,
+          "EXPECTED_ARRIVAL_LEAD_TIME_MISMATCH",
+          path + ".expectedArrivalAt",
+          "expected arrival must equal order placement plus the stated known lead-time assumption",
+        );
+      }
     }
   }
 
@@ -3006,6 +3025,26 @@ function validateInventoryReorder(
       path + ".procurementEconomics",
       errors,
     );
+    if (
+      record(input.procurementEconomics) &&
+      record(input.procurementEconomics.unitProcurementCost) &&
+      record(input.procurementEconomics.minimumOrderValue) &&
+      input.procurementEconomics.unitProcurementCost.currency ===
+        input.procurementEconomics.minimumOrderValue.currency &&
+      Number.isInteger(input.procurementEconomics.unitProcurementCost.amountMinor) &&
+      Number.isInteger(input.procurementEconomics.minimumOrderValue.amountMinor) &&
+      Number.isInteger(input.quantity) &&
+      Number(input.quantity) *
+          Number(input.procurementEconomics.unitProcurementCost.amountMinor) <
+        Number(input.procurementEconomics.minimumOrderValue.amountMinor)
+    ) {
+      add(
+        errors,
+        "REORDER_BELOW_MINIMUM_ORDER_VALUE",
+        path + ".procurementEconomics.minimumOrderValue",
+        "known unit procurement value does not satisfy the supplier minimum order value",
+      );
+    }
   }
 }
 
