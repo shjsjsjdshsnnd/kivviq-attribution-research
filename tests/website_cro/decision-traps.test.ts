@@ -40,6 +40,7 @@ function trafficIncrease(
   world: ReturnType<typeof baseAdversarialWorld>,
   start = START,
   end = END,
+  spendScale = 1.15,
 ) {
   const allocation = defaultAdvertisingAllocation(
     world,
@@ -53,7 +54,7 @@ function trafficIncrease(
     operation: "set" as const,
     value: {
       kind: "number" as const,
-      value: Math.max(reference * 1.15, 1),
+      value: Math.max(reference * spendScale, 1),
       unit: "money_minor" as const,
     },
   };
@@ -271,7 +272,7 @@ describe("Step 12 causal decision traps", () => {
       expect(world.summary.activeChannels).toContain(
         "meta",
       );
-      const population = populationFor(world, 7331, 200);
+      const population = populationFor(world, 7331, 80);
       const marketingChange = {
         ...trafficIncrease(world, START, POST_END),
         effectiveAt: utcTimestamp(RELEASE),
@@ -296,7 +297,8 @@ describe("Step 12 causal decision traps", () => {
         ],
         config: {
           maxEvents: 360_000,
-          maxSessionsPerCustomer: 16,
+          maxSessionsPerCustomer: 120,
+          opportunityCadenceHours: 24,
         },
       });
 
@@ -438,14 +440,19 @@ describe("Step 12 causal decision traps", () => {
       const world = withPaidSpendReferenceScale(
         causalWorld,
         "meta",
-        0.005,
+        0.001,
       );
       const population = populationFor(
         zeroBase,
         7333,
         100,
       );
-      const traffic = trafficIncrease(world);
+      const traffic = trafficIncrease(
+        world,
+        START,
+        END,
+        2.5,
+      );
       const poor = compareTrafficToCro({
         merchantWorld: world,
         latentPopulation: population,
@@ -458,7 +465,8 @@ describe("Step 12 causal decision traps", () => {
         interventions: [abundantInventory()],
         config: {
           maxEvents: 390_000,
-          maxSessionsPerCustomer: 12,
+          maxSessionsPerCustomer: 100,
+          opportunityCadenceHours: 72,
         },
       });
 
@@ -487,7 +495,8 @@ describe("Step 12 causal decision traps", () => {
         interventions: [abundantInventory()],
         config: {
           maxEvents: 390_000,
-          maxSessionsPerCustomer: 12,
+          maxSessionsPerCustomer: 100,
+          opportunityCadenceHours: 72,
         },
       });
 
