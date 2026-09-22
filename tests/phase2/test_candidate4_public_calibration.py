@@ -12,3 +12,12 @@ def test_public_calibration_is_deterministic_and_separates_limitations() -> None
     assert any(record["finite_sample_limited"] for record in records)
     assert any(record["measurement_limited"] for record in records)
     assert all("true_propensity" not in record["observable_diagnostics"] for record in records)
+    assert {
+        "propensity_min",
+        "propensity_max",
+        "fraction_005_095",
+        "fraction_010_090",
+        "normalized_treated_ess",
+        "normalized_control_ess",
+        "overlap_weighted_ess",
+    } <= set(records[0]["observable_diagnostics"])

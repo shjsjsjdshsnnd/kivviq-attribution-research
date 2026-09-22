@@ -42,6 +42,7 @@ def _record(level: str, n: int, measurement: str, latent: float, seed: int) -> d
     propensities = [_sigmoid(intercept + slope * value) for value in covariates]
     prevalence = mean(propensities)
     central = sum(0.10 <= value <= 0.90 for value in propensities) / n
+    fraction_005_095 = sum(0.05 <= value <= 0.95 for value in propensities) / n
     normalized_overlap = 4.0 * mean(value * (1.0 - value) for value in propensities)
     treated_ess = (n * prevalence) * (1.0 - min(0.75, slope / 4.0))
     control_ess = (n * (1.0 - prevalence)) * (1.0 - min(0.75, slope / 4.0))
@@ -61,10 +62,17 @@ def _record(level: str, n: int, measurement: str, latent: float, seed: int) -> d
         "measurement_limited": damaged,
         "observable_diagnostics": {
             "treatment_prevalence": prevalence,
+            "propensity_min": min(propensities),
+            "propensity_max": max(propensities),
+            "fraction_005_095": fraction_005_095,
+            "fraction_010_090": observed_central,
             "central_fraction_010_090": observed_central,
             "normalized_overlap_mass": normalized_overlap,
             "treated_ess": treated_ess,
             "control_ess": control_ess,
+            "normalized_treated_ess": treated_ess / n,
+            "normalized_control_ess": control_ess / n,
+            "overlap_weighted_ess": n * normalized_overlap,
         },
         "evaluator_diagnostic_only": {
             "latent_confounding_present": latent > 0.0,
