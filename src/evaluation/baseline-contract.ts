@@ -1799,6 +1799,16 @@ export function createEvaluationRunArtifact(
     input.metricResults.map((result) => result.metricId),
     "metric result IDs",
   );
+  requireCondition(
+    input.metricResults.length === contract.metrics.length,
+    "every frozen metric definition must have exactly one result slot",
+  );
+  for (const metric of contract.metrics) {
+    requireCondition(
+      input.metricResults.some((result) => result.metricId === metric.metricId),
+      "missing metric result: " + metric.metricId,
+    );
+  }
   for (const result of input.metricResults) {
     requireCondition(
       contract.metrics.some((metric) => metric.metricId === result.metricId),
