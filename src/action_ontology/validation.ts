@@ -2305,6 +2305,13 @@ function validateParameters(
         add(errors, "UNKNOWN_OPERATION", path + ".operation.kind", "unsupported");
       }
       return;
+    case "shipping_offer_set":
+    case "shipping_offer_modify":
+    case "shipping_offer_stop":
+    case "shipping_policy_adjustment":
+    case "shipping_policy_rollback":
+      validateShippingParameters(input, path, errors, decisionTime);
+      return;
     case "page_change":
       if (!nonEmpty(input.changeId) || !nonEmpty(input.variantRef)) {
         add(errors, "INVALID_PAGE_CHANGE", path, "changeId and variantRef are required");
@@ -3077,6 +3084,25 @@ function validateReversibility(
       errors,
     );
   }
+  if (input.shippingRollback !== undefined) {
+    if (!record(input.shippingRollback) || typeof input.shippingRollback.available !== "boolean") {
+      add(errors,"INVALID_SHIPPING_ROLLBACK_CONTRACT",path+".shippingRollback","available must be explicit");
+    } else if (input.shippingRollback.available === false) {
+      if (!nonEmpty(input.shippingRollback.reason)) add(errors,"INVALID_SHIPPING_ROLLBACK_REASON",path+".shippingRollback.reason","reason required");
+    } else {
+      validateShippingRollbackStrategy(input.shippingRollback.strategy,path+".shippingRollback.strategy",errors);
+      if (!record(input.shippingRollback.trigger) || !nonEmpty(input.shippingRollback.trigger.kind)) {
+        add(errors,"INVALID_SHIPPING_ROLLBACK_TRIGGER",path+".shippingRollback.trigger","trigger required");
+      } else if (input.shippingRollback.trigger.kind==="AT") {
+        validateTimestamp(input.shippingRollback.trigger.at,path+".shippingRollback.trigger.at",errors);
+      } else if (input.shippingRollback.trigger.kind!=="ON_TERMINATION") {
+        add(errors,"INVALID_SHIPPING_ROLLBACK_TRIGGER",path+".shippingRollback.trigger.kind","unsupported trigger");
+      }
+      validateNonNegativeInteger(input.shippingRollback.delaySeconds,path+".shippingRollback.delaySeconds",errors);
+      validateKnownOrUnknown(input.shippingRollback.cost,path+".shippingRollback.cost",errors,(v,p)=>validateMoney(v,p,errors));
+      validateShippingRollbackGuard(input.shippingRollback.conflictGuard,path+".shippingRollback.conflictGuard",errors);
+    }
+  }
 }
 
 function validateRiskDimensions(
@@ -3536,6 +3562,51 @@ function validatePromotionActionSemantics(
   }
 }
 
+
+function validateShippingActionSemantics(input:any,errors:ActionValidationIssue[]):void{
+  const offerTypes=["shipping.set_offer","shipping.modify_offer","shipping.stop_offer"];
+  if(offerTypes.includes(String(input.actionType))){
+    if(!record(input.target)||input.target.kind!=="shipping_offer"){
+      add(errors,"SHIPPING_OFFER_ACTION_REQUIRES_OFFER_TARGET","target.kind","shipping offer Actions require shipping_offer target");return;
+    }
+    if(!nonEmpty(input.target.shippingOfferId)||!SHIPPING_OFFER_ID_PATTERN.test(input.target.shippingOfferId)){
+      add(errors,"INVALID_SHIPPING_OFFER_ID","target.shippingOfferId","shipping offer ID must begin shipoffer_");
+    }
+    if(record(input.parameters)){
+      const ref=input.parameters.kind==="shipping_offer_set"?input.parameters.shippingOfferId:
+        input.parameters.kind==="shipping_offer_modify"||input.parameters.kind==="shipping_offer_stop"?input.parameters.targetShippingOfferId:undefined;
+      if(typeof ref==="string"&&ref!==input.target.shippingOfferId) add(errors,"SHIPPING_OFFER_ID_MISMATCH","parameters","shipping offer reference must match target");
+      if(typeof ref==="string"&&!SHIPPING_OFFER_ID_PATTERN.test(ref)) add(errors,"INVALID_SHIPPING_OFFER_ID","parameters","shipping offer ID must begin shipoffer_");
+    }
+    if(input.actionType!=="shipping.set_offer"&&(!record(input.duration)||input.duration.kind!=="instantaneous")){
+      add(errors,"SHIPPING_LIFECYCLE_ACTION_MUST_BE_INSTANTANEOUS","duration","modify/stop offer must be instantaneous");
+    }
+    if(record(input.reversibility)&&input.reversibility.shippingRollback!==undefined){
+      add(errors,"SHIPPING_OFFER_CANNOT_USE_POLICY_ROLLBACK","reversibility.shippingRollback","overlay offer termination deactivates the offer");
+    }
+  }
+
+  if(input.actionType==="shipping.adjust_policy"){
+    if(!record(input.target)||input.target.kind!=="shipping_policy") add(errors,"SHIPPING_POLICY_ACTION_REQUIRES_POLICY_TARGET","target.kind","shipping policy adjustment requires shipping_policy target");
+    const temporary=record(input.duration)&&input.duration.kind==="temporary";
+    if(temporary&&(!record(input.reversibility)||!record(input.reversibility.shippingRollback)||input.reversibility.shippingRollback.available!==true)){
+      add(errors,"TEMPORARY_SHIPPING_POLICY_REQUIRES_SAFE_ROLLBACK","reversibility.shippingRollback","temporary policy change requires conflict-safe rollback");
+    }
+    if(record(input.reversibility)&&record(input.reversibility.shippingRollback)&&input.reversibility.shippingRollback.available===true&&
+       record(input.reversibility.shippingRollback.conflictGuard)&&input.reversibility.shippingRollback.conflictGuard.sourceActionId!==input.actionId){
+      add(errors,"SHIPPING_ROLLBACK_SOURCE_MISMATCH","reversibility.shippingRollback.conflictGuard.sourceActionId","must reference this policy Action");
+    }
+  }
+
+  if(input.actionType==="shipping.rollback_policy"){
+    if(!record(input.target)||input.target.kind!=="shipping_policy") add(errors,"SHIPPING_POLICY_ACTION_REQUIRES_POLICY_TARGET","target.kind","shipping rollback requires shipping_policy target");
+    if(record(input.parameters)&&input.parameters.kind==="shipping_policy_rollback"){
+      if(!nonEmpty(input.reversalOfActionId)) add(errors,"SHIPPING_ROLLBACK_REQUIRES_REVERSAL_REFERENCE","reversalOfActionId","required");
+      else if(input.reversalOfActionId!==input.parameters.originalActionId) add(errors,"SHIPPING_ROLLBACK_ORIGINAL_ACTION_MISMATCH","reversalOfActionId","must match originalActionId");
+    }
+  }
+}
+
 function deepFreeze<T>(value: T): T {
   if (typeof value !== "object" || value === null || Object.isFrozen(value)) return value;
   Object.freeze(value);
@@ -3688,6 +3759,7 @@ export function validateAction(
   validateProvenance(input.provenance, "provenance", errors);
   validatePricingActionSemantics(input, errors);
   validatePromotionActionSemantics(input, errors);
+  validateShippingActionSemantics(input, errors);
 
   if (input.reversalOfActionId !== undefined) {
     if (!nonEmpty(input.reversalOfActionId)) {
