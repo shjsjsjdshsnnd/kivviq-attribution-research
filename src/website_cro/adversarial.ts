@@ -125,6 +125,54 @@ export function healthyWebsiteScenario(
   };
 }
 
+export function deviceNeutralWebsiteScenario(
+  deployedAt: string,
+): WebsiteScenario {
+  const state = healthyWebsiteState(deployedAt);
+  const neutral: DevicePerformance = {
+    mobile: performance(700, 0.96),
+    desktop: performance(700, 0.96),
+    tablet: performance(700, 0.96),
+  };
+  return {
+    scenarioId: "device-neutral-control",
+    states: [
+      {
+        ...state,
+        homepage: {
+          ...state.homepage,
+          performance: structuredClone(neutral),
+        },
+        navigation: {
+          ...state.navigation,
+          performance: structuredClone(neutral),
+        },
+        collection: {
+          ...state.collection,
+          performance: structuredClone(neutral),
+        },
+        search: {
+          ...state.search,
+          performance: structuredClone(neutral),
+        },
+        pdp: {
+          ...state.pdp,
+          performance: structuredClone(neutral),
+        },
+        cart: {
+          ...state.cart,
+          performance: structuredClone(neutral),
+        },
+        checkout: {
+          ...state.checkout,
+          performance: structuredClone(neutral),
+          mobileUsability: 0.93,
+        },
+      },
+    ],
+  };
+}
+
 export function slowMobilePdpScenario(
   deployedAt: string,
 ): WebsiteScenario {
