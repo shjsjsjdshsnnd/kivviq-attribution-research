@@ -35,10 +35,8 @@ import {
 import { WORLD_SIMULATOR_VERSION } from "../../src/simulation/kernel.js";
 import { simulateWorld } from "../../src/simulation/simulator.js";
 import type { SimulationResult } from "../../src/simulation/types.js";
-import {
-  baseAdversarialWorld,
-  populationFor,
-} from "../simulation/fixture.js";
+import { generateCustomerPopulation } from "../../src/customer_population/generator.js";
+import { generateMerchantWorldRecord } from "../../src/generation/generator.js";
 
 const contract = CANONICAL_BASELINE_EVALUATION_CONTRACT_V1;
 const INTERVENTION_START = "2026-05-01T00:00:00.000Z";
@@ -417,8 +415,22 @@ describe("Step 3.2 canonical DO_NOTHING baseline", () => {
   it(
     "proves no operator intervention is distinct from no business activity and produces a complete canonical artifact",
     () => {
-      const world = baseAdversarialWorld(62002);
-      const population = populationFor(world, 7102, 160);
+      const world = generateMerchantWorldRecord({
+        seed: 62002,
+        archetype: "replenishment_heavy",
+        scale: "growth",
+        complexity: "normal",
+      });
+      const population = generateCustomerPopulation({
+        merchantWorld: world,
+        populationSeed: 7102,
+        populationConfig: {
+          maxExplicitAgents: 180,
+          complexity: "normal",
+          maxCategoryPreferences: 4,
+          maxProductPreferences: 6,
+        },
+      });
       const horizon = deriveEvaluationHorizonTimestamps(
         contract,
         INTERVENTION_START,
