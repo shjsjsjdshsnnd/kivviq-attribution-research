@@ -1830,27 +1830,42 @@ function acquisitionChannelRows(
   observed: EcommerceEconomicReport,
   full: EcommerceEconomicReport,
 ): readonly AcquisitionChannelEconomics[] {
+  const acquired = ledgers.filter(
+    (ledger) =>
+      ledger.origin ===
+        "acquired_in_simulation" &&
+      ledger.acquisitionSource !== null,
+  );
+  const channelSet = new Set<ObservableSource>(
+    acquired.map(
+      (ledger) =>
+        ledger.acquisitionSource!,
+    ),
+  );
+  for (const channel of request.merchantWorld.summary.activeChannels) {
+    if (isPaidMarketingChannel(channel)) {
+      channelSet.add(channel);
+    }
+  }
+
   const groups = new Map<
     ObservableSource,
     CustomerEconomicLedger[]
   >();
-  for (const ledger of ledgers) {
-    if (
-      ledger.origin !==
-        "acquired_in_simulation" ||
-      ledger.acquisitionSource === null
-    ) {
-      continue;
-    }
-    const group =
-      groups.get(
-        ledger.acquisitionSource,
-      ) ?? [];
-    group.push(ledger);
-    groups.set(
-      ledger.acquisitionSource,
-      group,
+  for (const channel of channelSet) {
+    const paid =
+      isPaidMarketingChannel(channel);
+    const customers = acquired.filter(
+      (ledger) =>
+        ledger.acquisitionSource === channel ||
+        (paid &&
+          ledger.causalAcquisitionChannels.includes(
+            channel,
+          )),
     );
+    if (customers.length > 0) {
+      groups.set(channel, customers);
+    }
   }
 
   const fullOrders =
@@ -2450,6 +2465,22 @@ export function evaluateAcquisitionChannelCounterfactual(
       representedAcquiredCustomers(
         counterfactual,
       ),
+    incrementalFirstOrderCacMinor:
+      representedAcquiredCustomers(
+        factual,
+      ) -
+        representedAcquiredCustomers(
+          counterfactual,
+        ) >
+      0
+        ? incrementalSpend /
+          (representedAcquiredCustomers(
+            factual,
+          ) -
+            representedAcquiredCustomers(
+              counterfactual,
+            ))
+        : null,
     incrementalFirstOrderContributionMinor:
       Math.round(
         representedFirstOrderContribution(
