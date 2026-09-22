@@ -6,7 +6,7 @@ module.exports = {
         "Operator-facing modules must never depend on GroundTruth, generation, latent customers, simulation, advertising economics, cross-channel interactions, ecommerce economics, product economics, evaluator/oracle, or other God-mode internals.",
       severity: "error",
       from: {
-        path: "^(src/(observation|operator|operator_safe|action_ontology|action_translation|simulator_intervention|paid_media|pricing|promotion)(/|$)|src/index\\.ts$)",
+        path: "^(src/(observation|operator|operator_safe|action_ontology|action_translation|simulator_intervention|paid_media|pricing|promotion|shipping)(/|$)|src/index\\.ts$)",
       },
       to: {
         path: "^src/(ground_truth|generation|customer_population|simulation|advertising_economics|cross_channel|ecommerce_economics|product_economics|evaluation|oracle|god_mode)(/|$)",
@@ -67,6 +67,18 @@ module.exports = {
       severity: "error",
       from: {
         path: "^src/promotion(/|$)",
+      },
+      to: {
+        path: "^src/(action_translation|simulator_intervention|simulation|evaluation|oracle|god_mode|ground_truth|product_economics)(/|$)",
+      },
+    },
+    {
+      name: "shipping-business-language-cannot-depend-on-simulator",
+      comment:
+        "Shipping business Actions, eligibility, rollback and conflict contracts may depend on canonical Action contracts but not simulator internals, evaluator/oracle, optimizer, provider execution or Step 8 God-mode economics.",
+      severity: "error",
+      from: {
+        path: "^src/shipping(/|$)",
       },
       to: {
         path: "^src/(action_translation|simulator_intervention|simulation|evaluation|oracle|god_mode|ground_truth|product_economics)(/|$)",

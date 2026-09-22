@@ -754,6 +754,37 @@ function unsupportedPromotionLifecycleTranslator(
   };
 }
 
+
+function unsupportedShippingTranslator(
+  actionType:
+    | "shipping.set_offer"
+    | "shipping.modify_offer"
+    | "shipping.stop_offer"
+    | "shipping.adjust_policy"
+    | "shipping.rollback_policy",
+): ActionTranslator {
+  return {
+    actionType,
+    translatorId: "translator." + actionType.replace(".", "_") + "_boundary.v1",
+    translationVersion: ACTION_TRANSLATION_VERSION,
+    supportedTargetKinds:
+      actionType === "shipping.set_offer" ||
+      actionType === "shipping.modify_offer" ||
+      actionType === "shipping.stop_offer"
+        ? ["shipping_offer"]
+        : ["shipping_policy"],
+    translate(action) {
+      return {
+        status: "UNSUPPORTED_SIMULATOR_CAPABILITY",
+        actionId: action.actionId,
+        code: "SHIPPING_CAPABILITY_UNSUPPORTED_BY_SIMULATOR",
+        message:
+          "Current simulator has no native shipping offer, deactivation, threshold or rollback intervention. Shipping Actions are not translated into price or promotion discounts.",
+      };
+    },
+  };
+}
+
 const merchandisingTranslator: ActionTranslator = {
   actionType: "merchandising.move_product",
   translatorId: "translator.merchandising_position.v1",
@@ -854,6 +885,11 @@ export const CORE_ACTION_TRANSLATORS: readonly ActionTranslator[] = Object.freez
   promotionStartTranslator,
   unsupportedPromotionLifecycleTranslator("promotion.stop"),
   unsupportedPromotionLifecycleTranslator("promotion.modify"),
+  unsupportedShippingTranslator("shipping.set_offer"),
+  unsupportedShippingTranslator("shipping.modify_offer"),
+  unsupportedShippingTranslator("shipping.stop_offer"),
+  unsupportedShippingTranslator("shipping.adjust_policy"),
+  unsupportedShippingTranslator("shipping.rollback_policy"),
   merchandisingTranslator,
   noCausalInterventionTranslator(
     "no_op.do_nothing",
