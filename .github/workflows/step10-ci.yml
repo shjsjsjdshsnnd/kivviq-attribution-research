@@ -1,0 +1,38 @@
+name: Step 10 Pricing Promotions CI
+
+on:
+  push:
+    branches:
+      - step10/pricing-promotions
+  pull_request:
+    branches:
+      - step9/inventory-dynamics
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: Install
+        run: npm install --no-audit --no-fund
+      - name: Architecture boundary
+        run: npm run architecture
+      - name: Typecheck
+        run: npm run typecheck
+      - name: Step 10 tests
+        run: npm run test:step10 -- --maxWorkers=1
+      - name: Test
+        # Step 9+10 counterfactual suites are CPU-heavy. Keep the inherited
+        # suite intact and serialize workers to avoid hosted-runner RPC stalls.
+        run: npm test -- --maxWorkers=1
+      - name: Build
+        run: npm run build

@@ -37,7 +37,11 @@ function roundMoney(value: number): number {
 function customerShippingRevenueMinor(
   merchandiseRevenueMinor: number,
   policy: EcommercePolicy,
+  overrideMinor?: number,
 ): number {
+  if (overrideMinor !== undefined) {
+    return Math.max(0, Math.round(overrideMinor));
+  }
   if (policy.customerShippingChargeMinor <= 0) return 0;
   if (policy.freeShippingThresholdMinor === null) {
     return policy.customerShippingChargeMinor;
@@ -144,6 +148,7 @@ export function buildOrderEconomics(
     customerShippingRevenueMinor(
       revenueAfterDiscountsMinor,
       policy,
+      purchase.customerShippingChargeOverrideMinor,
     );
   const shippingSubsidyMinor =
     merchantShippingCostMinor - customerShippingRevenue;

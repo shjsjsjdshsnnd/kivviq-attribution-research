@@ -9,8 +9,14 @@ import type { SimulationInterventionState } from "./interventions.js";
 import {
   addToPersistentCart,
   chooseProduct,
+  offerForProduct,
+  pricingCustomerContext,
   type ProductOffer,
 } from "./commerce.js";
+import {
+  bundleAttachmentOpportunity,
+  effectiveFreeShippingThreshold,
+} from "../pricing_promotions/runtime.js";
 
 export type SessionPage =
   | "landing"
@@ -454,9 +460,12 @@ export function advanceSession(
         addToPersistentCart(customer, offer, timestampMs);
         const extraUnitProbability = clamp(
           (runtime.merchantWorld.summary.expectedUnitsPerOrder - 1) *
-            0.22,
+            0.22 *
+            (offer.stockpilingMultiplier ?? 1),
           0,
-          0.45,
+          commercePolicy?.pricingPromotionScenario === undefined
+            ? 0.45
+            : 0.78,
         );
         if (
           commercePolicy?.enableEnhancedBasketEconomics === true &&
@@ -467,6 +476,74 @@ export function advanceSession(
           )
         ) {
           addToPersistentCart(customer, offer, timestampMs);
+        }
+
+        const bundleAttachment =
+          bundleAttachmentOpportunity(
+            commercePolicy?.pricingPromotionScenario,
+            pricingCustomerContext(customer),
+            timestampMs,
+            customer.cart?.lines.map(
+              (line) => line.productId,
+            ) ?? [offer.productId],
+          );
+        if (
+          bundleAttachment !== undefined &&
+          randomness.bool(
+            `${stepKey}:bundle-attachment:${bundleAttachment.promotionId}`,
+            bundleAttachment.probability,
+          )
+        ) {
+          const attachedOffer = offerForProduct(
+            runtime,
+            customer,
+            bundleAttachment.productId,
+            timestampMs,
+            intervention,
+            randomness,
+            commercePolicy,
+          );
+          const attachedInventoryMechanism =
+            runtime.merchantWorld.manifest.inventoryMechanisms.find(
+              (item) =>
+                item.productId === attachedOffer.productId,
+            );
+          const attachedBackorderEligible =
+            intervention.inventoryOverrideUnits === undefined &&
+            commercePolicy?.executeInventoryLifecycle === true &&
+            attachedInventoryMechanism?.allowBackorders === true &&
+            attachedInventoryMechanism.stockoutBehavior ===
+              "backorder";
+
+          if (
+            attachedOffer.availableUnits > 0 ||
+            attachedBackorderEligible
+          ) {
+            addToPersistentCart(
+              customer,
+              attachedOffer,
+              timestampMs,
+            );
+            events.push({
+              eventId: eventId(
+                session.sessionId,
+                `bundle_atc_${session.step}`,
+              ),
+              eventType: "add_to_cart",
+              occurredAt: new Date(
+                timestampMs,
+              ).toISOString(),
+              anonymousSubjectId:
+                customer.customerId,
+              sessionId: session.sessionId,
+              source: session.source,
+              device: session.device,
+              productId: attachedOffer.productId,
+              quantity: 1,
+              amountMinor:
+                attachedOffer.finalPriceMinor,
+            });
+          }
         }
         session.currentPage = "cart";
         events.push({
@@ -508,7 +585,12 @@ export function advanceSession(
         0,
       ) ?? 0;
     const threshold =
-      commercePolicy?.freeShippingThresholdMinor;
+      effectiveFreeShippingThreshold(
+        commercePolicy?.pricingPromotionScenario,
+        pricingCustomerContext(customer),
+        timestampMs,
+        commercePolicy?.freeShippingThresholdMinor,
+      );
     const shippingCharge =
       commercePolicy?.customerShippingChargeMinor ?? 0;
     const belowThreshold =

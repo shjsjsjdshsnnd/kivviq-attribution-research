@@ -3,6 +3,7 @@ import type { GeneratedMerchantWorld, MarketingChannel } from "../generation/con
 import type { LatentCustomerPopulation } from "../customer_population/types.js";
 import type { RuntimeLifecycleState } from "./state.js";
 import type { InventoryGodModeTruth } from "../inventory_dynamics/types.js";
+import type { PricingPromotionScenario } from "../pricing_promotions/runtime-types.js";
 
 export type ObservableJourneyEventKind =
   | "impression"
@@ -64,6 +65,12 @@ export interface PurchaseLine {
   readonly revenueMinor: number;
   readonly estimatedCogsMinor: number;
   readonly fulfillmentMinor: number;
+  /**
+   * Step 10 promotion identity and explicitly causal return response.
+   * Omitted on frozen Step 1-9 execution paths.
+   */
+  readonly promotionIds?: readonly string[];
+  readonly returnProbabilityMultiplier?: number;
 }
 
 export interface RealizedPurchase {
@@ -83,6 +90,11 @@ export interface RealizedPurchase {
   readonly allocatedMarketingSpendMinor: number;
   readonly contributionProfitMinor: number;
   readonly repeatPurchase: boolean;
+  /**
+   * Step 10 order-specific shipping terms. Absent means Step 7 policy applies.
+   */
+  readonly customerShippingChargeOverrideMinor?: number;
+  readonly freeShippingPromotionIds?: readonly string[];
 }
 
 export type CausalEffectKind =
@@ -223,6 +235,11 @@ export interface SimulationCommercePolicy {
    */
   readonly enableInventoryDynamics?: boolean;
   readonly inventoryReservationTimeoutMinutes?: number;
+  /**
+   * Opt-in Step 10 causal pricing/promotion sidecar. It is not part of the
+   * frozen GroundTruth schema and is never exposed through the Operator root.
+   */
+  readonly pricingPromotionScenario?: PricingPromotionScenario;
   /**
    * Step 9 physical-return parameters are supplied by the Step 7 economic
    * profiles so inventory and return accounting use the same product truth.

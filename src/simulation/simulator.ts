@@ -15,6 +15,7 @@ import {
   checkoutPurchaseProbability,
   completePurchase,
   markCartInventoryDemandAbandoned,
+  pricingCustomerContext,
   promotionState,
   reserveCheckoutInventory,
 } from "./commerce.js";
@@ -44,6 +45,11 @@ import {
 import {
   buildSimulationInterventionState,
 } from "./interventions.js";
+import {
+  majorEventDemandMultiplier,
+  marketingCompetitionMultiplier,
+  promotionPullForwardOpportunityTimestamp,
+} from "../pricing_promotions/runtime.js";
 import {
   days,
   hours,
@@ -80,6 +86,12 @@ import type {
 interface NeedPayload {
   readonly cycle: number;
   readonly repeat: boolean;
+  /**
+   * Step 10 side-event that can form the same future need early during a
+   * promotion. It never advances the baseline need clock; the original
+   * same-cycle need remains scheduled and can be suppressed by a purchase.
+   */
+  readonly pullForwardOnly?: boolean;
 }
 
 interface OpportunityPayload {
@@ -259,6 +271,10 @@ function needStrength(
 ): number {
   const seasonal = seasonalityMultiplier(request, timestampMs);
   const shock = shockDemandMultiplier(request, timestampMs);
+  const majorEvent = majorEventDemandMultiplier(
+    request.commercePolicy?.pricingPromotionScenario,
+    timestampMs,
+  );
   const lifecycleMultiplier =
     customer.lifecycle === "dormant"
       ? 0.65
@@ -280,6 +296,7 @@ function needStrength(
       )) *
       seasonal *
       shock *
+      majorEvent *
       lifecycleMultiplier,
     0.02,
     1,
@@ -763,11 +780,13 @@ export function simulateWorld(
       1.55,
     );
     const promotionMultiplier =
-      line.discountMinor > 0
-        ? 1 +
-          customer.source.promotionSensitivityMultiplier *
-            0.08
-        : 1;
+      request.commercePolicy?.pricingPromotionScenario === undefined
+        ? line.discountMinor > 0
+          ? 1 +
+            customer.source.promotionSensitivityMultiplier *
+              0.08
+          : 1
+        : line.returnProbabilityMultiplier ?? 1;
     const returnProbability = clamp(
       profile.returnProbability *
         customerMultiplier *
@@ -920,14 +939,42 @@ export function simulateWorld(
             0,
           );
 
+    const initialNeedMs =
+      clock.startMs + initialDelay;
+
     schedule<NeedPayload>({
       id: `need:${customer.customerId}:0`,
       kind: "need_formation",
-      timestampMs: clock.startMs + initialDelay,
+      timestampMs: initialNeedMs,
       priority: 10,
       customerId: customer.customerId,
       payload: { cycle: 0, repeat: false },
     });
+
+    const pulledInitialNeedMs =
+      promotionPullForwardOpportunityTimestamp(
+        request.merchantWorld,
+        request.commercePolicy?.pricingPromotionScenario,
+        pricingCustomerContext(customer),
+        initialNeedMs,
+      );
+    if (
+      pulledInitialNeedMs !== undefined &&
+      pulledInitialNeedMs >= clock.startMs
+    ) {
+      schedule<NeedPayload>({
+        id: `need-pull-forward:${customer.customerId}:0`,
+        kind: "need_formation",
+        timestampMs: pulledInitialNeedMs,
+        priority: 9,
+        customerId: customer.customerId,
+        payload: {
+          cycle: 0,
+          repeat: false,
+          pullForwardOnly: true,
+        },
+      });
+    }
 
     schedule<LifecyclePayload>({
       id: `lifecycle:${customer.customerId}:0`,
@@ -1405,6 +1452,14 @@ export function simulateWorld(
         });
       }
 
+      if (payload.pullForwardOnly === true) {
+        // Keep the original same-cycle need event as the baseline clock.
+        // If the early promotional need converts, nextNeedEligibleMs will
+        // suppress that later event and the post-promotion dip emerges from
+        // customer timing rather than an explicit demand subtraction.
+        continue;
+      }
+
       const nextCycle = payload.cycle + 1;
       const nextNeedMs =
         event.timestampMs +
@@ -1413,6 +1468,8 @@ export function simulateWorld(
           randomness,
           nextCycle,
         );
+      const nextRepeat =
+        customer.purchaseCount > 0;
 
       schedule<NeedPayload>({
         id: `need:${customer.customerId}:${nextCycle}`,
@@ -1422,9 +1479,34 @@ export function simulateWorld(
         customerId: customer.customerId,
         payload: {
           cycle: nextCycle,
-          repeat: customer.purchaseCount > 0,
+          repeat: nextRepeat,
         },
       });
+
+      const pulledNextNeedMs =
+        promotionPullForwardOpportunityTimestamp(
+          request.merchantWorld,
+          request.commercePolicy?.pricingPromotionScenario,
+          pricingCustomerContext(customer),
+          nextNeedMs,
+        );
+      if (
+        pulledNextNeedMs !== undefined &&
+        pulledNextNeedMs > event.timestampMs
+      ) {
+        schedule<NeedPayload>({
+          id: `need-pull-forward:${customer.customerId}:${nextCycle}`,
+          kind: nextRepeat ? "repeat_need" : "need_formation",
+          timestampMs: pulledNextNeedMs,
+          priority: 9,
+          customerId: customer.customerId,
+          payload: {
+            cycle: nextCycle,
+            repeat: nextRepeat,
+            pullForwardOnly: true,
+          },
+        });
+      }
       continue;
     }
 
@@ -1446,6 +1528,7 @@ export function simulateWorld(
         interventionState,
         event.timestampMs,
         randomness,
+        request.commercePolicy,
       );
       const interactionContext = {
         timestampMs: event.timestampMs,
@@ -1545,7 +1628,11 @@ export function simulateWorld(
               customer,
               channel,
               interactionContext,
-            ),
+            ) /
+              marketingCompetitionMultiplier(
+                request.commercePolicy?.pricingPromotionScenario,
+                event.timestampMs,
+              ),
           );
 
         const exposureKey = `${customer.customerId}:exposure:${payload.cycle}:${payload.ordinal}:${channel}`;
@@ -1603,6 +1690,7 @@ export function simulateWorld(
         interventionState,
         event.timestampMs,
         randomness,
+        request.commercePolicy,
       );
       const interactionContext = {
         timestampMs: event.timestampMs,
@@ -1797,6 +1885,7 @@ export function simulateWorld(
           interventionState,
           event.timestampMs,
           randomness,
+          request.commercePolicy,
         );
         const interactionContext = {
           timestampMs: event.timestampMs,
@@ -1851,6 +1940,7 @@ export function simulateWorld(
               interactionContext,
             ),
             request.commercePolicy,
+            session.source,
           );
 
         const ordinal =

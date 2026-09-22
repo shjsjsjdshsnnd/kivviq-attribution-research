@@ -170,6 +170,46 @@ Hard Step 9 traps cover:
 
 Step 9 remains opt-in through `enableInventoryDynamics`; the frozen Step 1–8 execution path is unchanged when the flag is off.
 
+### Step 10 — pricing & promotion economics
+
+Branch: `step10/pricing-promotions`
+
+Draft PR: #27
+
+Validated Step 10 implementation head: `2ff68e96523e37c6d59c89815bf3950b82db60be`
+
+Frozen base: Step 9 head `269f66e16960f1f1a129fd3ff49acf9d1d7d6c55`
+
+Step 10 makes price and offer interventions causal customer-behavior inputs rather than fixed conversion/revenue multipliers.
+
+Implemented research contracts include:
+
+- authoritative SKU/variant price state;
+- constant and piecewise nonlinear elasticity;
+- customer-specific price response and latent reservation-price thresholds;
+- sparse cross-price effects;
+- price increases and discounts;
+- sitewide/category/collection/product-family/SKU promotion scopes;
+- percentage/fixed discounts, coupons, free shipping, threshold replacement, bundles, loyalty/member offers and clearance;
+- exact allocation of fixed/bundle discounts to underlying SKU lines;
+- promotion awareness/redemption;
+- pull-forward, post-promotion need suppression and replenishment stockpiling;
+- sparse promotion habituation;
+- synthetic major-event demand separated from merchant promotion;
+- promotion × Step 6 channel interactions;
+- promotion × Step 9 inventory;
+- explicitly causal promotion-return modifiers;
+- same-seed no-promotion counterfactuals;
+- evaluator-only promotion attribution/incrementality diagnostics;
+- product-level economic reconciliation;
+- price and promotion response curves;
+- evaluator-only contribution-profit oracle grids;
+- clearance vs wait economics including carrying cost and obsolescence.
+
+No pricing optimizer, promotion optimizer or Operator decision policy is implemented.
+
+Step 10 remains available only through the explicit `./pricing-promotions` evaluator/God-mode package subpath. It is not exported by the Operator-safe root.
+
 ### Research isolation
 
 No private Kivviq, Maison Olive data, real merchant/customer data, production systems, credentials or private implementation details are used.
@@ -195,3 +235,5 @@ No private Kivviq, Maison Olive data, real merchant/customer data, production sy
 - `docs/step8-product-economics-acceptance.md`
 - `docs/step9-inventory-dynamics.md`
 - `docs/step9-inventory-dynamics-acceptance.md`
+- `docs/step10-pricing-promotions.md`
+- `docs/step10-pricing-promotions-acceptance.md`
