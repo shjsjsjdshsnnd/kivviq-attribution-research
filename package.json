@@ -24,7 +24,8 @@
     "test:promotion": "vitest run tests/promotion --reporter=verbose",
     "test:shipping": "vitest run tests/shipping --reporter=verbose",
     "test:merchandising": "vitest run tests/merchandising --reporter=verbose",
-    "test:inventory": "vitest run tests/inventory --reporter=verbose"
+    "test:inventory": "vitest run tests/inventory --reporter=verbose",
+    "test:cro": "vitest run tests/cro --reporter=verbose"
   },
   "exports": {
     ".": "./dist/index.js",
@@ -45,7 +46,8 @@
     "./promotion": "./dist/promotion/index.js",
     "./shipping": "./dist/shipping/index.js",
     "./merchandising": "./dist/merchandising/index.js",
-    "./inventory": "./dist/inventory/index.js"
+    "./inventory": "./dist/inventory/index.js",
+    "./cro": "./dist/cro/index.js"
   },
   "devDependencies": {
     "typescript": "^5.9.2",
