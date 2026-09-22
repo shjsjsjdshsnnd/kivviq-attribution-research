@@ -302,7 +302,7 @@ export const CORE_ACTION_TYPE_CONTRACTS: readonly ActionTypeContract[] = [
   {
     actionType: "inventory.rollback_policy",
     category: "inventory",
-    allowedTargetKinds: ["sku", "inventory_policy"],
+    allowedTargetKinds: ["sku", "product", "inventory_policy"],
     parameterKind: "inventory_policy_rollback",
   },
   {
