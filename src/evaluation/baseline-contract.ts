@@ -1901,12 +1901,107 @@ export interface OperatorIdentity {
   readonly operatorFingerprint: string;
 }
 
+export interface EvaluationActionAttemptRecord {
+  readonly rawProposal: unknown;
+  readonly rawProposalFingerprint: string;
+  readonly actionValidation: ActionSpaceValidationResult;
+  readonly constraintDisposition?: ActionExecutionDisposition;
+  readonly executedAction?: Action;
+}
+
+export function createEvaluationActionAttemptRecord(
+  contract: BaselineEvaluationContract,
+  opportunity: DecisionOpportunity,
+  availability: ActionAvailabilitySnapshot,
+  rawProposal: unknown,
+  constraintIssues: readonly ConstraintIssue[] = [],
+  explicitModifiedAction?: Action,
+): EvaluationActionAttemptRecord {
+  const rawProposalCopy = cloneJson(rawProposal);
+  const rawProposalFingerprint = evaluationFingerprint(rawProposalCopy);
+  const actionValidation = validateActionAtDecision(
+    contract,
+    opportunity,
+    availability,
+    rawProposalCopy,
+  );
+
+  if (!actionValidation.valid) {
+    return deepFreezeEvaluation({
+      rawProposal: rawProposalCopy,
+      rawProposalFingerprint,
+      actionValidation,
+    });
+  }
+
+  let modifiedAction = explicitModifiedAction;
+  let disposition: ActionExecutionDisposition;
+
+  if (
+    explicitModifiedAction !== undefined &&
+    constraintIssues.every((issue) => issue.kind === "PARTIALLY_FEASIBLE")
+  ) {
+    const modifiedValidation = validateActionAtDecision(
+      contract,
+      opportunity,
+      availability,
+      explicitModifiedAction,
+    );
+    if (!modifiedValidation.valid) {
+      disposition = deepFreezeEvaluation({
+        status: "REJECTED" as const,
+        proposedActionFingerprint: actionValidation.fingerprint,
+        issues: [
+          ...cloneJson(constraintIssues),
+          {
+            kind: "INVALID_ACTION" as const,
+            constraintRef: "explicit_modified_action",
+            reason:
+              "modified Action failed the frozen action-space contract: " +
+              modifiedValidation.reason,
+          },
+        ],
+      });
+      modifiedAction = undefined;
+    } else {
+      modifiedAction = modifiedValidation.action;
+      disposition = resolveActionConstraintAssessment(
+        contract,
+        actionValidation.action,
+        constraintIssues,
+        modifiedAction,
+      );
+    }
+  } else {
+    disposition = resolveActionConstraintAssessment(
+      contract,
+      actionValidation.action,
+      constraintIssues,
+      explicitModifiedAction,
+    );
+  }
+
+  const executedAction =
+    disposition.status === "ACCEPTED"
+      ? actionValidation.action
+      : disposition.status === "MODIFIED" && modifiedAction !== undefined
+        ? modifiedAction
+        : undefined;
+
+  return deepFreezeEvaluation({
+    rawProposal: rawProposalCopy,
+    rawProposalFingerprint,
+    actionValidation,
+    constraintDisposition: disposition,
+    ...(executedAction === undefined ? {} : { executedAction }),
+  });
+}
+
 export interface EvaluationDecisionRecord {
   readonly opportunity: DecisionOpportunity;
-  readonly observationFingerprint: string;
-  readonly availabilityFingerprint: string;
-  readonly proposedActionFingerprints: readonly string[];
-  readonly dispositions: readonly ActionExecutionDisposition[];
+  readonly observation: OperatorObservationSnapshot;
+  readonly availability: ActionAvailabilitySnapshot;
+  readonly actionAttempts: readonly EvaluationActionAttemptRecord[];
 }
 
 export interface MetricResult {
@@ -1925,9 +2020,9 @@ export interface EvaluationRunArtifact {
   readonly simulatorVersion: string;
   readonly worldId: string;
   readonly worldFingerprint: string;
+  readonly worldCurrency: string;
   readonly seeds: readonly EvaluationSeedValue[];
-  readonly startTime: string;
-  readonly endTime: string;
+  readonly horizonTimestamps: EvaluationHorizonTimestamps;
   readonly decisionRecords: readonly EvaluationDecisionRecord[];
   readonly outcomeSummary: Readonly<Record<string, number | string | boolean | null>>;
   readonly metricSetVersion: typeof BASELINE_METRIC_SET_VERSION;
@@ -1941,12 +2036,98 @@ export interface EvaluationRunArtifactInput {
   readonly simulatorVersion: string;
   readonly worldId: string;
   readonly worldFingerprint: string;
+  readonly worldCurrency: string;
   readonly seeds: readonly EvaluationSeedValue[];
-  readonly startTime: string;
-  readonly endTime: string;
+  readonly interventionStartTime: string;
   readonly decisionRecords: readonly EvaluationDecisionRecord[];
   readonly outcomeSummary: Readonly<Record<string, number | string | boolean | null>>;
   readonly metricResults: readonly MetricResult[];
+}
+
+function validateActionAttemptRecord(
+  contract: BaselineEvaluationContract,
+  record: EvaluationDecisionRecord,
+  attempt: EvaluationActionAttemptRecord,
+): void {
+  requireCondition(
+    attempt.rawProposalFingerprint ===
+      evaluationFingerprint(attempt.rawProposal),
+    "Action attempt raw proposal fingerprint mismatch",
+  );
+
+  const revalidated = validateActionAtDecision(
+    contract,
+    record.opportunity,
+    record.availability,
+    attempt.rawProposal,
+  );
+  requireCondition(
+    stableEvaluationJson(revalidated) ===
+      stableEvaluationJson(attempt.actionValidation),
+    "Action attempt validation record does not match frozen contract validation",
+  );
+
+  if (!revalidated.valid) {
+    requireCondition(
+      attempt.constraintDisposition === undefined &&
+        attempt.executedAction === undefined,
+      "invalid Action attempt cannot carry a constraint disposition or executed Action",
+    );
+    return;
+  }
+
+  requireCondition(
+    attempt.constraintDisposition !== undefined,
+    "valid Action attempt must record its constraint disposition",
+  );
+  const disposition = attempt.constraintDisposition;
+  requireCondition(
+    disposition.proposedActionFingerprint === revalidated.fingerprint,
+    "constraint disposition does not reference the validated proposed Action",
+  );
+
+  if (disposition.status === "REJECTED") {
+    requireCondition(
+      attempt.executedAction === undefined,
+      "rejected Action attempt cannot carry an executed Action",
+    );
+    return;
+  }
+
+  requireCondition(
+    attempt.executedAction !== undefined,
+    "accepted or modified Action attempt must carry the executed Action",
+  );
+  const executedValidation = validateActionAtDecision(
+    contract,
+    record.opportunity,
+    record.availability,
+    attempt.executedAction,
+  );
+  requireCondition(
+    executedValidation.valid,
+    "executed Action must satisfy the frozen action-space contract",
+  );
+  if (!executedValidation.valid) return;
+
+  requireCondition(
+    disposition.executedActionFingerprint ===
+      executedValidation.fingerprint,
+    "executed Action fingerprint does not match constraint disposition",
+  );
+  if (disposition.status === "ACCEPTED") {
+    requireCondition(
+      disposition.executedActionFingerprint ===
+        disposition.proposedActionFingerprint,
+      "accepted Action must execute the validated proposal unchanged",
+    );
+  } else {
+    requireCondition(
+      disposition.executedActionFingerprint !==
+        disposition.proposedActionFingerprint,
+      "modified Action must be an explicit semantically different Action",
+    );
+  }
 }
 
 export function createEvaluationRunArtifact(
@@ -1960,12 +2141,33 @@ export function createEvaluationRunArtifact(
   requireCondition(input.simulatorVersion.trim().length > 0, "simulatorVersion is required");
   requireCondition(input.worldId.trim().length > 0, "worldId is required");
   requireCondition(input.worldFingerprint.trim().length > 0, "worldFingerprint is required");
+  requireCondition(
+    /^[A-Z]{3}$/.test(input.worldCurrency),
+    "worldCurrency must be an ISO-4217-style code",
+  );
 
-  const startMs = parseTime(input.startTime, "evaluation startTime");
-  const endMs = parseTime(input.endTime, "evaluation endTime");
-  requireCondition(endMs > startMs, "evaluation endTime must be after startTime");
+  const horizonTimestamps = deriveEvaluationHorizonTimestamps(
+    contract,
+    input.interventionStartTime,
+  );
+  const interventionStartMs = parseTime(
+    horizonTimestamps.interventionStart,
+    "intervention start",
+  );
+  const interventionEndMs = parseTime(
+    horizonTimestamps.interventionEnd,
+    "intervention end",
+  );
 
   const seeds = validateEvaluationSeeds(contract, input.seeds);
+  const operatorSeed = seeds.find(
+    (seed) => seed.namespace === "operator_internal",
+  );
+  requireCondition(
+    operatorSeed?.operatorId === input.operator.operatorId,
+    "operator_internal seed must be bound to the evaluated operator",
+  );
+
   unique(
     input.metricResults.map((result) => result.metricId),
     "metric result IDs",
@@ -1991,10 +2193,90 @@ export function createEvaluationRunArtifact(
     );
   }
 
+  unique(
+    input.decisionRecords.map(
+      (record) => record.opportunity.opportunityId,
+    ),
+    "decision opportunity IDs",
+  );
+
+  if (contract.cadence.kind === "fixed_interval") {
+    const expectedOpportunities = Math.ceil(
+      contract.horizon.interventionSeconds /
+        contract.cadence.intervalSeconds,
+    );
+    requireCondition(
+      input.decisionRecords.length === expectedOpportunities,
+      "fixed-cadence evaluation must record every decision opportunity",
+    );
+    for (
+      let sequence = 0;
+      sequence < expectedOpportunities;
+      sequence += 1
+    ) {
+      const expected = createFixedIntervalDecisionOpportunity(
+        contract,
+        horizonTimestamps.interventionStart,
+        sequence,
+      );
+      const actual = input.decisionRecords[sequence]?.opportunity;
+      requireCondition(
+        actual !== undefined &&
+          stableEvaluationJson(actual) === stableEvaluationJson(expected),
+        "decision opportunity sequence is incomplete or out of cadence at index " +
+          sequence,
+      );
+    }
+  }
+
   for (const record of input.decisionRecords) {
     assertDecisionOpportunityAllowed(contract, record.opportunity);
-    requireCondition(record.observationFingerprint.trim().length > 0, "decision record observation fingerprint is required");
-    requireCondition(record.availabilityFingerprint.trim().length > 0, "decision record availability fingerprint is required");
+    const decisionMs = parseTime(
+      record.opportunity.at,
+      "decision opportunity timestamp",
+    );
+    requireCondition(
+      decisionMs >= interventionStartMs && decisionMs < interventionEndMs,
+      "decision opportunity falls outside the intervention horizon",
+    );
+    requireCondition(
+      record.observation.opportunityId ===
+        record.opportunity.opportunityId,
+      "observation snapshot belongs to a different decision opportunity",
+    );
+    requireCondition(
+      parseTime(record.observation.decisionTime, "observation decisionTime") ===
+        decisionMs,
+      "observation snapshot decisionTime differs from decision opportunity",
+    );
+    requireCondition(
+      record.availability.opportunityId ===
+        record.opportunity.opportunityId,
+      "Action availability belongs to a different decision opportunity",
+    );
+    requireCondition(
+      record.observation.observationFingerprint ===
+        evaluationFingerprint({
+          opportunityId: record.observation.opportunityId,
+          decisionTime: record.observation.decisionTime,
+          records: record.observation.records,
+        }),
+      "observation snapshot fingerprint mismatch",
+    );
+    requireCondition(
+      record.availability.availabilityFingerprint ===
+        evaluationFingerprint({
+          opportunityId: record.availability.opportunityId,
+          rules: record.availability.rules,
+          mutualExclusionGroups:
+            record.availability.mutualExclusionGroups,
+        }),
+      "Action availability fingerprint mismatch",
+    );
+
+    for (const attempt of record.actionAttempts) {
+      validateActionAttemptRecord(contract, record, attempt);
+    }
   }
 
   const runIdentity = {
@@ -2003,9 +2285,9 @@ export function createEvaluationRunArtifact(
     simulatorVersion: input.simulatorVersion,
     worldId: input.worldId,
     worldFingerprint: input.worldFingerprint,
+    worldCurrency: input.worldCurrency,
     seeds,
-    startTime: input.startTime,
-    endTime: input.endTime,
+    horizonTimestamps,
   };
   const evaluationRunId =
     "eval_" + evaluationFingerprint(runIdentity).replace("fnv1a64:", "");
@@ -2021,9 +2303,9 @@ export function createEvaluationRunArtifact(
     simulatorVersion: input.simulatorVersion,
     worldId: input.worldId,
     worldFingerprint: input.worldFingerprint,
+    worldCurrency: input.worldCurrency,
     seeds,
-    startTime: input.startTime,
-    endTime: input.endTime,
+    horizonTimestamps,
     decisionRecords: cloneJson(input.decisionRecords),
     outcomeSummary: cloneJson(input.outcomeSummary),
     metricSetVersion: BASELINE_METRIC_SET_VERSION,
