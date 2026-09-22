@@ -124,7 +124,7 @@ Stacking is explicitly one of:
 Conflict policy can be:
 
 - NONE;
-- PRIORITY;
+- PRIORITY with explicit business precedence;
 - BEST_DISCOUNT;
 - MUTUALLY_EXCLUSIVE_GROUP.
 
