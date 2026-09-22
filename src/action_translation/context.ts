@@ -293,6 +293,36 @@ export function validateTranslationContext(
     };
   }
 
+
+  if (
+    input.schemaVersion === "1.0.0" &&
+    input.pricingMembershipBindings !== undefined
+  ) {
+    return {
+      ok: false,
+      failure: {
+        status: "MISSING_CONTEXT",
+        code: "TRANSLATION_CONTEXT_FEATURE_REQUIRES_1_1",
+        message: "pricingMembershipBindings require TranslationContext schema 1.1.0 or newer.",
+      },
+    };
+  }
+
+  if (
+    (input.schemaVersion === "1.0.0" ||
+      input.schemaVersion === "1.1.0") &&
+    input.promotionMembershipBindings !== undefined
+  ) {
+    return {
+      ok: false,
+      failure: {
+        status: "MISSING_CONTEXT",
+        code: "TRANSLATION_CONTEXT_FEATURE_REQUIRES_1_2",
+        message: "promotionMembershipBindings require TranslationContext schema 1.2.0.",
+      },
+    };
+  }
+
   if (
     typeof input.simulatorClock !== "string" ||
     !input.simulatorClock.endsWith("Z") ||
