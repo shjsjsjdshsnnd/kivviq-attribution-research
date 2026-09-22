@@ -1910,6 +1910,218 @@ function validatePromotionParameters(
   }
 }
 
+
+function validateShippingServiceSelector(input: unknown,path: string,errors: ActionValidationIssue[]): void {
+  if (!record(input) || !nonEmpty(input.kind)) {
+    add(errors,"INVALID_SHIPPING_SERVICE",path,"shipping service kind is required"); return;
+  }
+  if (["STANDARD","EXPRESS","OVERSIZED","WHITE_GLOVE","LOCAL_DELIVERY"].includes(String(input.kind))) return;
+  if (input.kind === "CUSTOM") {
+    if (!nonEmpty(input.serviceId)) add(errors,"INVALID_SHIPPING_SERVICE_ID",path+".serviceId","serviceId is required");
+    return;
+  }
+  add(errors,"UNKNOWN_SHIPPING_SERVICE",path+".kind","unsupported shipping service");
+}
+
+function validateShippingServiceScope(input: unknown,path: string,errors: ActionValidationIssue[]): void {
+  if (!record(input)) { add(errors,"INVALID_SHIPPING_SERVICE_SCOPE",path,"service scope is required"); return; }
+  if (!Array.isArray(input.include) || input.include.length === 0) {
+    add(errors,"SHIPPING_SERVICE_INCLUDE_REQUIRED",path+".include","at least one service is required");
+  } else input.include.forEach((v:unknown,i:number)=>validateShippingServiceSelector(v,path+".include["+i+"]",errors));
+  if (!Array.isArray(input.exclude)) add(errors,"INVALID_SHIPPING_SERVICE_EXCLUDE",path+".exclude","exclude must be an array");
+  else input.exclude.forEach((v:unknown,i:number)=>validateShippingServiceSelector(v,path+".exclude["+i+"]",errors));
+  if (input.exclusionPrecedence !== "EXCLUDE_OVERRIDES_INCLUDE") {
+    add(errors,"INVALID_SHIPPING_SERVICE_PRECEDENCE",path+".exclusionPrecedence","EXCLUDE_OVERRIDES_INCLUDE is required");
+  }
+}
+
+function validateShippingGeographySelector(input: unknown,path: string,errors: ActionValidationIssue[]): void {
+  if (!record(input) || !nonEmpty(input.kind)) { add(errors,"INVALID_SHIPPING_GEOGRAPHY",path,"geography kind is required"); return; }
+  switch(input.kind) {
+    case "COUNTRY":
+      if (!nonEmpty(input.countryCode)) add(errors,"INVALID_COUNTRY_CODE",path+".countryCode","required");
+      return;
+    case "PROVINCE_STATE":
+      if (!nonEmpty(input.countryCode)) add(errors,"INVALID_COUNTRY_CODE",path+".countryCode","required");
+      if (!nonEmpty(input.regionCode)) add(errors,"INVALID_REGION_CODE",path+".regionCode","required");
+      return;
+    case "SHIPPING_ZONE":
+    case "MERCHANT_SHIPPING_ZONE":
+      if (!nonEmpty(input.shippingZoneId)) add(errors,"INVALID_SHIPPING_ZONE",path+".shippingZoneId","required");
+      return;
+    case "POSTAL_REGION":
+      if (!nonEmpty(input.countryCode)) add(errors,"INVALID_COUNTRY_CODE",path+".countryCode","required");
+      if (!nonEmpty(input.postalRegionId)) add(errors,"INVALID_POSTAL_REGION",path+".postalRegionId","required");
+      return;
+    default:
+      add(errors,"UNKNOWN_SHIPPING_GEOGRAPHY",path+".kind","unsupported geography selector");
+  }
+}
+
+function validateShippingGeographyScope(input: unknown,path: string,errors: ActionValidationIssue[]): void {
+  if (!record(input)) { add(errors,"INVALID_SHIPPING_GEOGRAPHY_SCOPE",path,"geography scope is required"); return; }
+  if (!Array.isArray(input.include) || input.include.length === 0) {
+    add(errors,"SHIPPING_GEOGRAPHY_INCLUDE_REQUIRED",path+".include","at least one geography include is required");
+  } else input.include.forEach((v:unknown,i:number)=>validateShippingGeographySelector(v,path+".include["+i+"]",errors));
+  if (!Array.isArray(input.exclude)) add(errors,"INVALID_SHIPPING_GEOGRAPHY_EXCLUDE",path+".exclude","exclude must be an array");
+  else input.exclude.forEach((v:unknown,i:number)=>validateShippingGeographySelector(v,path+".exclude["+i+"]",errors));
+  if (input.exclusionPrecedence !== "EXCLUDE_OVERRIDES_INCLUDE") add(errors,"INVALID_SHIPPING_GEOGRAPHY_PRECEDENCE",path+".exclusionPrecedence","EXCLUDE_OVERRIDES_INCLUDE is required");
+}
+
+function validateShippingProductSelector(input: unknown,path: string,errors: ActionValidationIssue[]): void {
+  validatePromotionEntitySelector(input,path,errors);
+}
+
+function validateShippingMembership(input: unknown,path: string,errors: ActionValidationIssue[]): void {
+  validatePromotionMembership(input,path,errors);
+}
+
+function validateShippingMixedCart(input: unknown,path: string,errors: ActionValidationIssue[]): void {
+  if (!record(input) || !nonEmpty(input.kind)) { add(errors,"INVALID_SHIPPING_MIXED_CART",path,"mixed-cart semantics are required"); return; }
+  if (["ENTIRE_ORDER_IF_ANY_ELIGIBLE_ITEM","ENTIRE_ORDER_IF_ALL_ITEMS_ELIGIBLE","ELIGIBLE_ITEMS_ONLY"].includes(String(input.kind))) return;
+  if (input.kind === "QUALIFYING_SUBTOTAL_THRESHOLD") {
+    validateMoney(input.threshold,path+".threshold",errors);
+    if (input.thresholdBasis !== "QUALIFYING_PRODUCT_SUBTOTAL") add(errors,"INVALID_SHIPPING_QUALIFYING_THRESHOLD_BASIS",path+".thresholdBasis","must be QUALIFYING_PRODUCT_SUBTOTAL");
+    return;
+  }
+  add(errors,"UNKNOWN_SHIPPING_MIXED_CART",path+".kind","unsupported mixed-cart semantics");
+}
+
+function validateShippingProductScope(input: unknown,path: string,errors: ActionValidationIssue[]): void {
+  if (!record(input)) { add(errors,"INVALID_SHIPPING_PRODUCT_SCOPE",path,"product scope is required"); return; }
+  if (!Array.isArray(input.include) || input.include.length === 0) add(errors,"SHIPPING_PRODUCT_INCLUDE_REQUIRED",path+".include","at least one inclusion is required");
+  else input.include.forEach((v:unknown,i:number)=>validateShippingProductSelector(v,path+".include["+i+"]",errors));
+  if (!Array.isArray(input.exclude)) add(errors,"INVALID_SHIPPING_PRODUCT_EXCLUDE",path+".exclude","exclude must be an array");
+  else input.exclude.forEach((v:unknown,i:number)=>validateShippingProductSelector(v,path+".exclude["+i+"]",errors));
+  if (input.exclusionPrecedence !== "EXCLUDE_OVERRIDES_INCLUDE") add(errors,"INVALID_SHIPPING_PRODUCT_PRECEDENCE",path+".exclusionPrecedence","EXCLUDE_OVERRIDES_INCLUDE is required");
+  validateShippingMixedCart(input.mixedCart,path+".mixedCart",errors);
+  const mutable = [...(Array.isArray(input.include)?input.include:[]),...(Array.isArray(input.exclude)?input.exclude:[])].some((v:unknown)=>record(v)&&["category","collection","product_set","brand"].includes(String(v.kind)));
+  if (mutable && input.membership===undefined) add(errors,"MISSING_SHIPPING_MEMBERSHIP_SEMANTICS",path+".membership","mutable shipping scope requires explicit membership boundary");
+  if (input.membership!==undefined) validateShippingMembership(input.membership,path+".membership",errors);
+  if (!Array.isArray(input.conditions)) add(errors,"INVALID_SHIPPING_PRODUCT_CONDITIONS",path+".conditions","conditions must be an array");
+  else input.conditions.forEach((v:unknown,i:number)=>{
+    const p=path+".conditions["+i+"]";
+    if(!record(v)||!nonEmpty(v.kind)){add(errors,"INVALID_SHIPPING_PRODUCT_CONDITION",p,"kind required");return;}
+    if(["NOT_OVERSIZED","NOT_FREIGHT_ONLY","NOT_WHITE_GLOVE_ONLY"].includes(String(v.kind))) return;
+    if(v.kind==="SHIPPING_CLASS_IN"){
+      if(!Array.isArray(v.shippingClassIds)||v.shippingClassIds.length===0||v.shippingClassIds.some((x:unknown)=>!nonEmpty(x))) add(errors,"INVALID_SHIPPING_CLASS_IDS",p+".shippingClassIds","non-empty shipping class IDs required");
+      return;
+    }
+    add(errors,"UNKNOWN_SHIPPING_PRODUCT_CONDITION",p+".kind","unsupported shipping product condition");
+  });
+}
+
+function validateShippingCustomerEligibility(input: unknown,path: string,errors: ActionValidationIssue[]): void {
+  if(!record(input)||!nonEmpty(input.kind)){add(errors,"INVALID_SHIPPING_CUSTOMER_ELIGIBILITY",path,"kind required");return;}
+  if(["ALL_CUSTOMERS","NEW_CUSTOMERS","RETURNING_CUSTOMERS"].includes(String(input.kind))) return;
+  if(["CUSTOMER_SEGMENT","LOYALTY_SEGMENT"].includes(String(input.kind))){
+    if(!nonEmpty(input.segmentId)) add(errors,"INVALID_SHIPPING_CUSTOMER_SEGMENT",path+".segmentId","segmentId required");
+    validateShippingMembership(input.membership,path+".membership",errors); return;
+  }
+  add(errors,"UNKNOWN_SHIPPING_CUSTOMER_ELIGIBILITY",path+".kind","unsupported customer eligibility");
+}
+
+function validateShippingCartRequirement(input: unknown,path: string,errors: ActionValidationIssue[]): void {
+  if(!record(input)||!nonEmpty(input.kind)){add(errors,"INVALID_SHIPPING_CART_REQUIREMENT",path,"kind required");return;}
+  if(input.kind==="MIN_SUBTOTAL"){
+    validateMoney(input.value,path+".value",errors);
+    if(!["PRE_DISCOUNT_SUBTOTAL","POST_DISCOUNT_SUBTOTAL","QUALIFYING_PRODUCT_SUBTOTAL"].includes(String(input.basis))) add(errors,"INVALID_SHIPPING_THRESHOLD_BASIS",path+".basis","explicit threshold basis required");
+    return;
+  }
+  if(input.kind==="MIN_QUANTITY"){
+    validatePositiveInteger(input.quantity,path+".quantity",errors);
+    if(input.target!==undefined) validateShippingProductSelector(input.target,path+".target",errors);
+    return;
+  }
+  if(input.kind==="REQUIRED_TARGET"){
+    validateShippingProductSelector(input.target,path+".target",errors);
+    validatePositiveInteger(input.quantity,path+".quantity",errors); return;
+  }
+  add(errors,"UNKNOWN_SHIPPING_CART_REQUIREMENT",path+".kind","unsupported cart requirement");
+}
+
+function validateShippingBenefit(input: unknown,path: string,errors: ActionValidationIssue[]): void {
+  if(!record(input)||!nonEmpty(input.kind)){add(errors,"INVALID_SHIPPING_BENEFIT",path,"benefit kind required");return;}
+  if(input.kind==="FREE_SHIPPING") return;
+  if(input.kind==="FLAT_RATE"){validateMoney(input.customerShippingCharge,path+".customerShippingCharge",errors);return;}
+  if(input.kind==="SHIPPING_CREDIT"){validateMoney(input.customerShippingCredit,path+".customerShippingCredit",errors);return;}
+  add(errors,"UNKNOWN_SHIPPING_BENEFIT",path+".kind","unsupported shipping benefit");
+}
+
+function validateShippingConflict(input: unknown,path: string,errors: ActionValidationIssue[]): void {
+  if(!record(input)||!nonEmpty(input.kind)){add(errors,"INVALID_SHIPPING_CONFLICT",path,"conflict kind required");return;}
+  if(["NONE","BEST_BENEFIT"].includes(String(input.kind))) return;
+  if(input.kind==="PRECEDENCE"){validateNonNegativeInteger(input.precedence,path+".precedence",errors);return;}
+  if(input.kind==="MUTUALLY_EXCLUSIVE_GROUP"){
+    if(!nonEmpty(input.groupId)) add(errors,"INVALID_SHIPPING_CONFLICT_GROUP",path+".groupId","groupId required");
+    if(input.precedence!==undefined) validateNonNegativeInteger(input.precedence,path+".precedence",errors);
+    return;
+  }
+  add(errors,"UNKNOWN_SHIPPING_CONFLICT",path+".kind","unsupported conflict resolution");
+}
+
+function validateShippingOfferDefinition(input: unknown,path: string,errors: ActionValidationIssue[]): void {
+  if(!record(input)){add(errors,"INVALID_SHIPPING_OFFER_DEFINITION",path,"definition required");return;}
+  validateShippingBenefit(input.benefit,path+".benefit",errors);
+  validateShippingServiceScope(input.services,path+".services",errors);
+  validateShippingGeographyScope(input.geography,path+".geography",errors);
+  if(input.products!==undefined) validateShippingProductScope(input.products,path+".products",errors);
+  validateShippingCustomerEligibility(input.customerEligibility,path+".customerEligibility",errors);
+  if(!Array.isArray(input.cartRequirements)) add(errors,"INVALID_SHIPPING_CART_REQUIREMENTS",path+".cartRequirements","must be an array");
+  else input.cartRequirements.forEach((v:unknown,i:number)=>validateShippingCartRequirement(v,path+".cartRequirements["+i+"]",errors));
+  if(!record(input.stacking)||!["COEXIST","NON_STACKABLE"].includes(String(input.stacking.kind))) add(errors,"INVALID_SHIPPING_STACKING",path+".stacking","must be COEXIST or NON_STACKABLE");
+  validateShippingConflict(input.conflictResolution,path+".conflictResolution",errors);
+  if(input.terminationBehavior!=="DEACTIVATE_SHIPPING_OFFER") add(errors,"INVALID_SHIPPING_TERMINATION_BEHAVIOR",path+".terminationBehavior","offer termination must deactivate the offer");
+}
+
+function validateShippingPolicyDefinition(input: unknown,path: string,errors: ActionValidationIssue[],decisionTime?: string): void {
+  if(!record(input)||input.kind!=="FREE_SHIPPING_THRESHOLD"){add(errors,"INVALID_SHIPPING_POLICY_DEFINITION",path,"FREE_SHIPPING_THRESHOLD policy required");return;}
+  validateShippingServiceSelector(input.service,path+".service",errors);
+  if(!["PRE_DISCOUNT_SUBTOTAL","POST_DISCOUNT_SUBTOTAL","QUALIFYING_PRODUCT_SUBTOTAL"].includes(String(input.thresholdBasis))) add(errors,"INVALID_SHIPPING_THRESHOLD_BASIS",path+".thresholdBasis","explicit threshold basis required");
+  validateOperation(input.operation,path+".operation",errors,"money",decisionTime);
+  if(input.operation && record(input.operation) && input.operation.kind==="DELTA" && record(input.operation.amount) && record(input.operation.reference) && input.operation.reference.kind==="explicit_baseline" && record(input.operation.reference.value)){
+    if(input.operation.amount.currency!==input.operation.reference.value.currency) add(errors,"SHIPPING_THRESHOLD_CURRENCY_MISMATCH",path+".operation","threshold DELTA amount and baseline currency must match");
+    if(input.operation.direction==="decrease"&&Number(input.operation.amount.amountMinor)>Number(input.operation.reference.value.amountMinor)) add(errors,"SHIPPING_THRESHOLD_WOULD_BECOME_NEGATIVE",path+".operation","threshold decrease cannot exceed baseline");
+  }
+  validateShippingGeographyScope(input.geography,path+".geography",errors);
+  if(input.products!==undefined) validateShippingProductScope(input.products,path+".products",errors);
+  validateShippingCustomerEligibility(input.customerEligibility,path+".customerEligibility",errors);
+}
+
+function validateShippingRollbackStrategy(input: unknown,path: string,errors: ActionValidationIssue[],decisionTime?: string): void {
+  if(!record(input)||!nonEmpty(input.kind)){add(errors,"INVALID_SHIPPING_ROLLBACK_STRATEGY",path,"strategy required");return;}
+  if(input.kind==="RESTORE_PRE_ACTION_VALUE"){validateReference(input.preActionThreshold,path+".preActionThreshold",errors,decisionTime,"money");return;}
+  if(input.kind==="SET_EXPLICIT_VALUE"){validateMoney(input.value,path+".value",errors);return;}
+  add(errors,"UNKNOWN_SHIPPING_ROLLBACK_STRATEGY",path+".kind","unsupported rollback strategy");
+}
+
+function validateShippingRollbackGuard(input: unknown,path: string,errors: ActionValidationIssue[],originalActionId?:string): void {
+  if(!record(input)||input.kind!=="REQUIRE_CURRENT_MATCHES_ACTION_OUTPUT"){add(errors,"INVALID_SHIPPING_ROLLBACK_GUARD",path,"conflict guard required");return;}
+  if(!nonEmpty(input.sourceActionId)) add(errors,"INVALID_SHIPPING_ROLLBACK_SOURCE",path+".sourceActionId","required");
+  else if(originalActionId&&input.sourceActionId!==originalActionId) add(errors,"SHIPPING_ROLLBACK_SOURCE_MISMATCH",path+".sourceActionId","must reference original Action");
+  validateMoney(input.expectedThreshold,path+".expectedThreshold",errors);
+}
+
+function validateShippingParameters(input: unknown,path: string,errors: ActionValidationIssue[],decisionTime?:string): void {
+  if(!record(input)){add(errors,"INVALID_SHIPPING_PARAMETERS",path,"parameters required");return;}
+  if(input.kind==="shipping_offer_set"){
+    if(!nonEmpty(input.shippingOfferId)) add(errors,"INVALID_SHIPPING_OFFER_ID",path+".shippingOfferId","required");
+    validateShippingOfferDefinition(input.definition,path+".definition",errors); return;
+  }
+  if(input.kind==="shipping_offer_modify"){
+    if(!nonEmpty(input.targetShippingOfferId)) add(errors,"INVALID_SHIPPING_OFFER_ID",path+".targetShippingOfferId","required");
+    validateShippingOfferDefinition(input.definition,path+".definition",errors); return;
+  }
+  if(input.kind==="shipping_offer_stop"){
+    if(!nonEmpty(input.targetShippingOfferId)) add(errors,"INVALID_SHIPPING_OFFER_ID",path+".targetShippingOfferId","required"); return;
+  }
+  if(input.kind==="shipping_policy_adjustment"){validateShippingPolicyDefinition(input.definition,path+".definition",errors,decisionTime);return;}
+  if(input.kind==="shipping_policy_rollback"){
+    if(!nonEmpty(input.originalActionId)) add(errors,"INVALID_SHIPPING_ROLLBACK_ORIGINAL",path+".originalActionId","required");
+    validateShippingRollbackStrategy(input.strategy,path+".strategy",errors,decisionTime);
+    validateShippingRollbackGuard(input.conflictGuard,path+".conflictGuard",errors,typeof input.originalActionId==="string"?input.originalActionId:undefined);return;
+  }
+}
 function validateParameters(
   input: unknown,
   path: string,
