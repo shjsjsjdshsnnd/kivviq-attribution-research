@@ -1,4 +1,8 @@
-import type { Action } from "../action_ontology/types.js";
+import type {
+  Action,
+  ActionTarget,
+  PromotionEntitySelector,
+} from "../action_ontology/types.js";
 import type {
   SimulatorOperation,
   SimulatorScalarValue,
@@ -18,6 +22,8 @@ import {
 } from "./helpers.js";
 import {
   resolvePricingMembership,
+  resolvePromotionMembership,
+  resolveSimulatorTarget,
 } from "./context.js";
 
 function translated(interventions: AtomicTranslatorResult extends infer _T ? any : never): AtomicTranslatorResult {
@@ -451,6 +457,303 @@ const promotionTranslator: ActionTranslator = {
   },
 };
 
+
+function promotionSelectorTarget(
+  selector: PromotionEntitySelector,
+): ActionTarget {
+  switch (selector.kind) {
+    case "sku":
+      return {
+        kind: "sku",
+        skuId: selector.skuId,
+        ...(selector.productId ? { productId: selector.productId } : {}),
+      };
+    case "product":
+      return { kind: "product", productId: selector.productId };
+    case "category":
+      return { kind: "category", categoryId: selector.categoryId };
+    case "collection":
+      return { kind: "collection", collectionId: selector.collectionId };
+    case "product_set":
+      return { kind: "product_set", productSetId: selector.productSetId };
+    case "brand":
+      return { kind: "brand", brandId: selector.brandId };
+  }
+}
+
+function unsupportedPromotionCapability(
+  action: Action,
+  code: string,
+  message: string,
+): AtomicTranslatorResult {
+  return {
+    status: "UNSUPPORTED_SIMULATOR_CAPABILITY",
+    actionId: action.actionId,
+    code,
+    message,
+  };
+}
+
+const promotionStartTranslator: ActionTranslator = {
+  actionType: "promotion.start",
+  translatorId: "translator.promotion_start.v1",
+  translationVersion: ACTION_TRANSLATION_VERSION,
+  supportedTargetKinds: ["promotion"],
+  requiredCapability: "promotion_discount",
+  translate(action, context, origin) {
+    if (action.parameters.kind !== "promotion_start") {
+      return {
+        status: "INVALID_ACTION",
+        actionId: action.actionId,
+        code: "PROMOTION_START_PARAMETER_MISMATCH",
+        message: "promotion.start requires promotion_start parameters.",
+      };
+    }
+
+    const definition = action.parameters.definition;
+    const mechanism = definition.mechanism;
+
+    if (
+      mechanism.kind !== "DISCOUNT" ||
+      !["PERCENTAGE", "FIXED_AMOUNT"].includes(mechanism.discount.kind)
+    ) {
+      return unsupportedPromotionCapability(
+        action,
+        "PROMOTION_MECHANISM_UNSUPPORTED_BY_SIMULATOR",
+        "Current simulator promotion capability supports only percentage and fixed-amount discounts.",
+      );
+    }
+
+    if (
+      definition.redemption.kind !== "AUTOMATIC" ||
+      definition.customerEligibility.kind !== "ALL_CUSTOMERS" ||
+      definition.purchaseRequirements.length !== 0 ||
+      Object.keys(definition.usageLimits).length !== 0 ||
+      definition.stacking.kind !== "STACKABLE" ||
+      definition.conflictResolution.kind !== "NONE"
+    ) {
+      return unsupportedPromotionCapability(
+        action,
+        "PROMOTION_POLICY_UNSUPPORTED_BY_SIMULATOR",
+        "Coupon, customer eligibility, purchase requirements, usage limits, stacking restrictions and conflict policies are not represented by the current simulator promotion capability.",
+      );
+    }
+
+    if (definition.applicationScope.kind !== "PRODUCT_SCOPE") {
+      return unsupportedPromotionCapability(
+        action,
+        "PROMOTION_SCOPE_UNSUPPORTED_BY_SIMULATOR",
+        "Current simulator promotion capability requires a product-scoped promotion.",
+      );
+    }
+
+    const productScope = definition.applicationScope.products;
+    if (
+      productScope.include.length !== 1 ||
+      productScope.exclude.length !== 0 ||
+      productScope.conditions.length !== 0
+    ) {
+      return unsupportedPromotionCapability(
+        action,
+        "PROMOTION_SCOPE_RULES_UNSUPPORTED_BY_SIMULATOR",
+        "Current simulator promotion capability cannot preserve exclusions or product eligibility conditions.",
+      );
+    }
+
+    const time = requireTime(action);
+    if (!time.ok) return time.failure;
+
+    const operation: SimulatorOperation =
+      mechanism.discount.kind === "PERCENTAGE"
+        ? {
+            kind: "SET",
+            value: {
+              kind: "percentage",
+              basisPoints: mechanism.discount.basisPoints,
+            },
+          }
+        : {
+            kind: "SET",
+            value: {
+              kind: "money",
+              amountMinor: mechanism.discount.value.amountMinor,
+              currency: mechanism.discount.value.currency,
+            },
+          };
+
+    const selector = productScope.include[0]!;
+    const promotionId = action.parameters.promotionId;
+
+    if (selector.kind === "sku" || selector.kind === "product") {
+      const targetResolution = resolveSimulatorTarget(
+        context,
+        promotionSelectorTarget(selector),
+      );
+      if (targetResolution.status === "missing") {
+        return {
+          status: "MISSING_CONTEXT",
+          actionId: action.actionId,
+          code: "MISSING_PROMOTION_TARGET_MAPPING",
+          message: "No simulator target mapping exists for the promotion scope.",
+          missingContextRefs: [targetResolution.ref],
+        };
+      }
+      if (targetResolution.status === "ambiguous") {
+        return {
+          status: "AMBIGUOUS_TRANSLATION",
+          actionId: action.actionId,
+          code: "AMBIGUOUS_PROMOTION_TARGET_MAPPING",
+          message: "Multiple simulator targets match the promotion scope.",
+          missingContextRefs: [targetResolution.ref],
+        };
+      }
+
+      return {
+        status: "TRANSLATED",
+        interventions: [
+          buildIntervention(
+            action,
+            origin,
+            "translator.promotion_start.v1",
+            "promotion_discount",
+            targetResolution.target,
+            operation,
+            0,
+            1,
+            undefined,
+            { promotionId },
+          ),
+        ],
+      };
+    }
+
+    const membership = productScope.membership;
+    if (!membership) {
+      return {
+        status: "MISSING_CONTEXT",
+        actionId: action.actionId,
+        code: "MISSING_PROMOTION_MEMBERSHIP_SEMANTICS",
+        message:
+          "Mutable promotion scope requires explicit membership semantics.",
+        missingContextRefs: ["parameters.definition.applicationScope.products.membership"],
+      };
+    }
+
+    const resolution = resolvePromotionMembership(
+      context,
+      promotionId,
+      membership.evaluateAt,
+      membership.bindingRef,
+    );
+    if (resolution.status === "missing") {
+      return {
+        status: "MISSING_CONTEXT",
+        actionId: action.actionId,
+        code: "MISSING_PROMOTION_MEMBERSHIP",
+        message:
+          "Promotion translation requires a deterministic membership snapshot.",
+        missingContextRefs: [resolution.ref],
+      };
+    }
+    if (resolution.status === "ambiguous") {
+      return {
+        status: "AMBIGUOUS_TRANSLATION",
+        actionId: action.actionId,
+        code: "AMBIGUOUS_PROMOTION_MEMBERSHIP",
+        message:
+          "More than one promotion membership snapshot matches the Action.",
+        missingContextRefs: [resolution.ref],
+      };
+    }
+
+    const binding = resolution.binding;
+    if (
+      membership.evaluateAt === "decision_time" &&
+      binding.snapshotTime !== action.timing.decisionTime
+    ) {
+      return {
+        status: "MISSING_CONTEXT",
+        actionId: action.actionId,
+        code: "PROMOTION_MEMBERSHIP_SNAPSHOT_TIME_MISMATCH",
+        message:
+          "Decision-time promotion membership must use the Action decision-time snapshot.",
+        missingContextRefs: [binding.sourceRef],
+      };
+    }
+    if (
+      membership.evaluateAt === "translation_time" &&
+      binding.snapshotTime !== context.simulatorClock
+    ) {
+      return {
+        status: "MISSING_CONTEXT",
+        actionId: action.actionId,
+        code: "PROMOTION_MEMBERSHIP_SNAPSHOT_TIME_MISMATCH",
+        message:
+          "Translation-time promotion membership must use the translation clock snapshot.",
+        missingContextRefs: [binding.sourceRef],
+      };
+    }
+    if (
+      membership.evaluateAt === "effective_time" &&
+      action.timing.effectiveStart.kind === "known" &&
+      binding.snapshotTime !== action.timing.effectiveStart.at
+    ) {
+      return {
+        status: "MISSING_CONTEXT",
+        actionId: action.actionId,
+        code: "PROMOTION_MEMBERSHIP_SNAPSHOT_TIME_MISMATCH",
+        message:
+          "Effective-time promotion membership must use the effective-time snapshot.",
+        missingContextRefs: [binding.sourceRef],
+      };
+    }
+
+    return {
+      status: "TRANSLATED",
+      interventions: binding.members.map((member, index) =>
+        buildIntervention(
+          action,
+          origin,
+          "translator.promotion_start.v1",
+          "promotion_discount",
+          member.simulatorTarget,
+          operation,
+          index,
+          binding.members.length,
+          {
+            membershipSourceRef: binding.sourceRef,
+            membershipBindingRef: binding.bindingRef,
+            membershipBoundary: binding.evaluateAt,
+            membershipSnapshotTime: binding.snapshotTime,
+          },
+          { promotionId },
+        ),
+      ),
+    };
+  },
+};
+
+function unsupportedPromotionLifecycleTranslator(
+  actionType: "promotion.stop" | "promotion.modify",
+): ActionTranslator {
+  return {
+    actionType,
+    translatorId:
+      actionType === "promotion.stop"
+        ? "translator.promotion_stop_boundary.v1"
+        : "translator.promotion_modify_boundary.v1",
+    translationVersion: ACTION_TRANSLATION_VERSION,
+    supportedTargetKinds: ["promotion"],
+    translate(action) {
+      return unsupportedPromotionCapability(
+        action,
+        "PROMOTION_LIFECYCLE_UNSUPPORTED_BY_SIMULATOR",
+        "Current simulator has no native promotion deactivation/modification intervention.",
+      );
+    },
+  };
+}
+
 const merchandisingTranslator: ActionTranslator = {
   actionType: "merchandising.move_product",
   translatorId: "translator.merchandising_position.v1",
@@ -548,6 +851,9 @@ export const CORE_ACTION_TRANSLATORS: readonly ActionTranslator[] = Object.freez
   paidMediaDeliveryTranslator,
   priceTranslator,
   promotionTranslator,
+  promotionStartTranslator,
+  unsupportedPromotionLifecycleTranslator("promotion.stop"),
+  unsupportedPromotionLifecycleTranslator("promotion.modify"),
   merchandisingTranslator,
   noCausalInterventionTranslator(
     "no_op.do_nothing",
