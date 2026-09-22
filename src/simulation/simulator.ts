@@ -1971,6 +1971,7 @@ export function simulateWorld(
         event.timestampMs,
         sessionId,
         randomness,
+        request.commercePolicy,
       );
 
       if (customer.cart !== undefined) {
