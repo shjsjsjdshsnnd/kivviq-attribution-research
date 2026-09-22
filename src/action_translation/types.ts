@@ -6,6 +6,8 @@ import type {
   CompoundAction,
   MonetaryValue,
   MembershipEvaluationBoundary,
+  MerchandisingEntityTarget,
+  MerchandisingSurface,
   PricingMembershipBoundary,
   ReferenceValue,
   ScalarValue,
