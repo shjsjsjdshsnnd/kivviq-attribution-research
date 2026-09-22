@@ -181,7 +181,9 @@ function request(
       method: "continuous",
       timeUnit: "year",
     },
-    interventions,
+    ...(interventions === undefined
+      ? {}
+      : { interventions }),
     simulationConfig: {
       maxEvents: 280_000,
       maxSessionsPerCustomer: 26,
