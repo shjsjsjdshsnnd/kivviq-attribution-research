@@ -2813,6 +2813,10 @@ export function simulateWorld(
               states:
                 request.commercePolicy
                   .websiteScenario.states,
+              interventions:
+                request.commercePolicy
+                  .websiteScenario.interventions ??
+                [],
               causalEvents: websiteTruth,
             },
           }),
