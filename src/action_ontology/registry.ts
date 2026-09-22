@@ -126,6 +126,24 @@ export const CORE_ACTION_TYPE_CONTRACTS: readonly ActionTypeContract[] = [
     parameterKind: "promotion",
   },
   {
+    actionType: "promotion.start",
+    category: "promotion",
+    allowedTargetKinds: ["promotion"],
+    parameterKind: "promotion_start",
+  },
+  {
+    actionType: "promotion.stop",
+    category: "promotion",
+    allowedTargetKinds: ["promotion"],
+    parameterKind: "promotion_stop",
+  },
+  {
+    actionType: "promotion.modify",
+    category: "promotion",
+    allowedTargetKinds: ["promotion"],
+    parameterKind: "promotion_modify",
+  },
+  {
     actionType: "shipping.change_policy",
     category: "shipping",
     allowedTargetKinds: ["shipping_policy", "merchant"],
