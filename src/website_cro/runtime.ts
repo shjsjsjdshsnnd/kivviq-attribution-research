@@ -280,6 +280,11 @@ function applyIntervention(
       mobileUsability: number;
       addressValidationReliability: number;
       paymentReliability: number;
+      excessiveSteps: number;
+      contactUsability: number;
+      shippingUsability: number;
+      paymentUsability: number;
+      reviewUsability: number;
       shippingCostVisibility:
         | "pdp"
         | "cart"
@@ -386,6 +391,28 @@ function applyIntervention(
         intervention,
       );
       return;
+    case "website.checkout.fix_defect": {
+      if (
+        intervention.operation !== "set" ||
+        intervention.value.kind !== "boolean"
+      ) {
+        throw new RangeError(
+          "website.checkout.fix_defect must be a boolean set intervention",
+        );
+      }
+      if (intervention.value.value) {
+        mutable.checkout.formUsability = 0.95;
+        mutable.checkout.mobileUsability = 0.94;
+        mutable.checkout.addressValidationReliability = 0.998;
+        mutable.checkout.paymentReliability = 0.998;
+        mutable.checkout.excessiveSteps = 0.04;
+        mutable.checkout.contactUsability = 0.95;
+        mutable.checkout.shippingUsability = 0.95;
+        mutable.checkout.paymentUsability = 0.95;
+        mutable.checkout.reviewUsability = 0.95;
+      }
+      return;
+    }
     case "website.checkout.shipping_cost_visibility": {
       if (intervention.value.kind !== "category") {
         throw new RangeError(
