@@ -2229,6 +2229,25 @@ export function simulateWorld(
             device: session.device,
           });
           if (
+            checkoutExperience?.couponAttempted ===
+            true
+          ) {
+            observableEvents.push({
+              eventId:
+                `coupon-attempt:${session.sessionId}:${session.step}`,
+              eventType: "coupon_attempt",
+              occurredAt: new Date(
+                event.timestampMs,
+              ).toISOString(),
+              anonymousSubjectId:
+                customer.customerId,
+              sessionId:
+                session.sessionId,
+              source: session.source,
+              device: session.device,
+            });
+          }
+          if (
             checkoutExperience?.couponFailed ===
             true
           ) {
