@@ -313,6 +313,34 @@ export function shippingSurpriseScenario(
   };
 }
 
+export function poorCheckoutScenario(
+  deployedAt: string,
+): WebsiteScenario {
+  const state = healthyWebsiteState(deployedAt);
+  return {
+    scenarioId: "poor-checkout-trap",
+    states: [
+      {
+        ...state,
+        checkout: {
+          ...state.checkout,
+          componentVersion: "checkout_poor_v1",
+          contactUsability: 0.55,
+          shippingUsability: 0.5,
+          paymentUsability: 0.52,
+          reviewUsability: 0.6,
+          formUsability: 0.42,
+          mobileUsability: 0.4,
+          accountRequirementFriction: 0.6,
+          addressValidationReliability: 0.72,
+          paymentReliability: 0.78,
+          excessiveSteps: 0.62,
+        },
+      },
+    ],
+  };
+}
+
 export function checkoutRegressionScenario(
   initialDeployedAt: string,
   regressionDeployedAt: string,
