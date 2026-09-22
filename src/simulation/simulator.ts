@@ -50,6 +50,7 @@ import {
   majorEventDemandMultiplier,
   marketingCompetitionMultiplier,
   promotionPullForwardOpportunityTimestamp,
+  resolveCartShippingTerms,
 } from "../pricing_promotions/runtime.js";
 import {
   lifecycleMarketingMultipliers,
@@ -80,6 +81,16 @@ import {
   startSession,
   type RuntimeSession,
 } from "./session.js";
+import {
+  checkoutCausalEvents,
+  resolveCheckoutExperience,
+  validateWebsiteScenario,
+  websiteCustomerContext,
+} from "../website_cro/runtime.js";
+import {
+  WEBSITE_CRO_VERSION,
+  type WebsiteCausalEvent,
+} from "../website_cro/types.js";
 import type {
   ExposureCausalTruth,
   PerfectObservableJourneyEvent,
@@ -730,6 +741,15 @@ export function simulateWorld(
     );
   }
 
+  if (
+    request.commercePolicy?.websiteScenario !==
+    undefined
+  ) {
+    validateWebsiteScenario(
+      request.commercePolicy.websiteScenario,
+    );
+  }
+
   const runtime = createRuntimeWorldState(
     request.merchantWorld,
     request.latentPopulation,
@@ -746,6 +766,7 @@ export function simulateWorld(
   const observableEvents: PerfectObservableJourneyEvent[] = [];
   const exposureTruth: ExposureCausalTruth[] = [];
   const interactionTruth: InteractionCausalTruth[] = [];
+  const websiteTruth: WebsiteCausalEvent[] = [];
   const purchases: RealizedPurchase[] = [];
   const sessions = new Map<string, RuntimeSession>();
   const sessionCount = new Map<string, number>();
@@ -1987,6 +2008,7 @@ export function simulateWorld(
         request.commercePolicy,
       );
       observableEvents.push(...step.observableEvents);
+      websiteTruth.push(...(step.websiteCausalEvents ?? []));
 
       if (step.checkoutReady) {
         const promotion = promotionState(
@@ -2035,7 +2057,180 @@ export function simulateWorld(
           }
         }
 
-        const purchaseProbability =
+        const rawCartLines =
+          customer.cart?.lines ?? [];
+        const cartValueMinor = rawCartLines.reduce(
+          (sum, line) =>
+            sum +
+            line.quantity * line.unitPriceMinor,
+          0,
+        );
+        const shippingTerms =
+          resolveCartShippingTerms(
+            request.commercePolicy
+              ?.pricingPromotionScenario,
+            pricingCustomerContext(customer),
+            event.timestampMs,
+            cartValueMinor,
+            request.commercePolicy
+              ?.freeShippingThresholdMinor,
+          );
+        const actualShippingChargeMinor =
+          shippingTerms.freeShipping
+            ? 0
+            : request.commercePolicy
+                ?.customerShippingChargeMinor ?? 0;
+        const checkoutExperience =
+          resolveCheckoutExperience({
+            scenario:
+              request.commercePolicy
+                ?.websiteScenario,
+            timestampMs: event.timestampMs,
+            device: session.device,
+            customer: websiteCustomerContext({
+              customerId:
+                customer.customerId,
+              intent: customer.intent,
+              need: customer.need,
+              brandAffinity:
+                customer.brandAffinity,
+              priceSensitivityMultiplier:
+                customer.source
+                  .priceSensitivityMultiplier,
+              promotionSensitivityMultiplier:
+                customer.source
+                  .promotionSensitivityMultiplier,
+              purchaseCount:
+                customer.purchaseCount,
+            }),
+            randomness,
+            key:
+              `${session.sessionId}:checkout:${session.step}`,
+            actualShippingChargeMinor,
+            cartValueMinor,
+            expectedAovMinor:
+              request.merchantWorld.summary
+                .expectedAovMinor,
+            promotionExpected:
+              promotion.active,
+          });
+        websiteTruth.push(
+          ...checkoutCausalEvents({
+            experience: checkoutExperience,
+            scenario:
+              request.commercePolicy
+                ?.websiteScenario,
+            customerId:
+              customer.customerId,
+            sessionId:
+              session.sessionId,
+            timestampMs: event.timestampMs,
+            device: session.device,
+            source: session.source,
+          }),
+        );
+
+        if (
+          request.commercePolicy?.websiteScenario !==
+          undefined
+        ) {
+          observableEvents.push({
+            eventId:
+              `checkout-stage:${session.sessionId}:${session.step}`,
+            eventType: "checkout_stage",
+            occurredAt: new Date(
+              event.timestampMs,
+            ).toISOString(),
+            anonymousSubjectId:
+              customer.customerId,
+            sessionId:
+              session.sessionId,
+            source: session.source,
+            device: session.device,
+          });
+          if (
+            checkoutExperience?.couponFailed ===
+            true
+          ) {
+            observableEvents.push({
+              eventId:
+                `coupon-error:${session.sessionId}:${session.step}`,
+              eventType: "coupon_error",
+              occurredAt: new Date(
+                event.timestampMs,
+              ).toISOString(),
+              anonymousSubjectId:
+                customer.customerId,
+              sessionId:
+                session.sessionId,
+              source: session.source,
+              device: session.device,
+            });
+          }
+          if (
+            checkoutExperience
+              ?.shippingSurprise === true
+          ) {
+            observableEvents.push({
+              eventId:
+                `shipping-reveal:${session.sessionId}:${session.step}`,
+              eventType:
+                "shipping_cost_reveal",
+              occurredAt: new Date(
+                event.timestampMs,
+              ).toISOString(),
+              anonymousSubjectId:
+                customer.customerId,
+              sessionId:
+                session.sessionId,
+              source: session.source,
+              device: session.device,
+              amountMinor:
+                actualShippingChargeMinor,
+            });
+          }
+          if (
+            checkoutExperience?.paymentFailed ===
+            true
+          ) {
+            observableEvents.push({
+              eventId:
+                `payment-failure:${session.sessionId}:${session.step}`,
+              eventType: "payment_failure",
+              occurredAt: new Date(
+                event.timestampMs,
+              ).toISOString(),
+              anonymousSubjectId:
+                customer.customerId,
+              sessionId:
+                session.sessionId,
+              source: session.source,
+              device: session.device,
+            });
+          }
+          if (
+            checkoutExperience
+              ?.addressValidationFailed === true
+          ) {
+            observableEvents.push({
+              eventId:
+                `address-validation-failure:${session.sessionId}:${session.step}`,
+              eventType:
+                "address_validation_failure",
+              occurredAt: new Date(
+                event.timestampMs,
+              ).toISOString(),
+              anonymousSubjectId:
+                customer.customerId,
+              sessionId:
+                session.sessionId,
+              source: session.source,
+              device: session.device,
+            });
+          }
+        }
+
+        const baselinePurchaseProbability =
           checkoutPurchaseProbability(
             runtime,
             customer,
@@ -2051,6 +2246,13 @@ export function simulateWorld(
             request.commercePolicy,
             session.source,
           );
+        const purchaseProbability = clamp(
+          baselinePurchaseProbability *
+            (checkoutExperience
+              ?.completionMultiplier ?? 1),
+          0.001,
+          0.98,
+        );
 
         const ordinal =
           purchaseCount.get(customer.customerId) ?? 0;
@@ -2518,6 +2720,22 @@ export function simulateWorld(
     },
     godMode: {
       exposureEffects: exposureTruth,
+      ...(request.commercePolicy
+        ?.websiteScenario === undefined
+        ? {}
+        : {
+            website: {
+              version: WEBSITE_CRO_VERSION,
+              godModeOnly: true as const,
+              scenarioId:
+                request.commercePolicy
+                  .websiteScenario.scenarioId,
+              states:
+                request.commercePolicy
+                  .websiteScenario.states,
+              causalEvents: websiteTruth,
+            },
+          }),
       ...(request.commercePolicy?.enableInventoryDynamics === true
         ? {
             inventory: finalizeInventoryGodMode(
