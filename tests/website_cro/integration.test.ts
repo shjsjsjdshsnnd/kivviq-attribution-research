@@ -81,31 +81,47 @@ function compositionSkewedPopulation(
   );
   const mobileIds = new Set(
     ordered
-      .slice(0, Math.floor(ordered.length / 2))
+      .slice(0, Math.floor(ordered.length * 0.35))
+      .map((customer) => customer.customerId),
+  );
+  const desktopIds = new Set(
+    ordered
+      .slice(Math.ceil(ordered.length * 0.65))
       .map((customer) => customer.customerId),
   );
 
   return {
     ...population,
-    customers: population.customers.map((customer) =>
-      mobileIds.has(customer.customerId)
-        ? {
-            ...customer,
-            devicePreference: {
-              mobileProbability: 0.995,
-              desktopProbability: 0.004,
-              tabletProbability: 0.001,
-            },
-          }
-        : {
-            ...customer,
-            devicePreference: {
-              mobileProbability: 0.004,
-              desktopProbability: 0.995,
-              tabletProbability: 0.001,
-            },
+    customers: population.customers.map((customer) => {
+      if (mobileIds.has(customer.customerId)) {
+        return {
+          ...customer,
+          devicePreference: {
+            mobileProbability: 0.998,
+            desktopProbability: 0.001,
+            tabletProbability: 0.001,
           },
-    ),
+        };
+      }
+      if (desktopIds.has(customer.customerId)) {
+        return {
+          ...customer,
+          devicePreference: {
+            mobileProbability: 0.001,
+            desktopProbability: 0.998,
+            tabletProbability: 0.001,
+          },
+        };
+      }
+      return {
+        ...customer,
+        devicePreference: {
+          mobileProbability: 0.001,
+          desktopProbability: 0.001,
+          tabletProbability: 0.998,
+        },
+      };
+    }),
   };
 }
 
@@ -275,6 +291,19 @@ describe("Step 12 website integration", () => {
 
       expect(mobile.pdpToAtcRate).not.toBeNull();
       expect(desktop.pdpToAtcRate).not.toBeNull();
+      expect(
+        customerIntentByObservedDevice(
+          population,
+          replay.factual,
+          "mobile",
+        ),
+      ).toBeLessThan(
+        customerIntentByObservedDevice(
+          population,
+          replay.factual,
+          "desktop",
+        ),
+      );
       expect(mobile.pdpToAtcRate!).toBeLessThan(
         desktop.pdpToAtcRate!,
       );

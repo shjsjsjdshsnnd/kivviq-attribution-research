@@ -208,7 +208,10 @@ describe("Step 12 causal decision traps", () => {
           abundantInventory(),
           marketingChange,
         ],
-        config: { maxEvents: 300_000 },
+        config: {
+          maxEvents: 360_000,
+          maxSessionsPerCustomer: 16,
+        },
       });
 
       const factualPre =
@@ -352,7 +355,10 @@ describe("Step 12 causal decision traps", () => {
         croIntervention: FIX_CHECKOUT_DEFECT,
         trafficIntervention: traffic,
         interventions: [abundantInventory()],
-        config: { maxEvents: 330_000 },
+        config: {
+          maxEvents: 390_000,
+          maxSessionsPerCustomer: 12,
+        },
       });
 
       expect(
@@ -378,7 +384,10 @@ describe("Step 12 causal decision traps", () => {
         croIntervention: FIX_CHECKOUT_DEFECT,
         trafficIntervention: traffic,
         interventions: [abundantInventory()],
-        config: { maxEvents: 330_000 },
+        config: {
+          maxEvents: 390_000,
+          maxSessionsPerCustomer: 12,
+        },
       });
 
       expect(
