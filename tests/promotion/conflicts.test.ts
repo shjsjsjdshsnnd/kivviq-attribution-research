@@ -43,7 +43,7 @@ describe("Step 5 promotion overlap/conflict contracts", () => {
     left.parameters.promotionId = "promo_priority_left";
     left.parameters.definition.conflictResolution = {
       kind: "PRIORITY",
-      priority: 20,
+      precedence: 20,
     };
 
     const right = clone(overlappingCollection20NonStackable);
@@ -52,7 +52,7 @@ describe("Step 5 promotion overlap/conflict contracts", () => {
     right.parameters.promotionId = "promo_priority_right";
     right.parameters.definition.conflictResolution = {
       kind: "PRIORITY",
-      priority: 10,
+      precedence: 10,
     };
 
     expect(
