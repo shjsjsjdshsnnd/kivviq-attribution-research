@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { utcTimestamp } from "../../src/core/units.js";
 import {
   healthyWebsiteScenario,
   slowMobilePdpScenario,
@@ -120,7 +121,9 @@ describe("Step 12 website runtime", () => {
             value: 1.1,
             unit: "seconds",
           },
-          effectiveAt: "2026-02-01T00:00:00.000Z",
+          effectiveAt: utcTimestamp(
+            "2026-02-01T00:00:00.000Z",
+          ),
           population: { devices: ["mobile"] },
         },
       ],
