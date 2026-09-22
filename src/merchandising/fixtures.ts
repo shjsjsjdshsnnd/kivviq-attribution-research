@@ -488,9 +488,6 @@ export const exclusiveHomepageProductX = feature(
   product("product:X"),
   homepage("hero"),
   { kind: "NAMED_SLOT", slotId: "hero-1" },
-  {
-    parameters: undefined as never,
-  } as any,
 );
 
 export const exclusiveHomepageCollectionY = feature(
