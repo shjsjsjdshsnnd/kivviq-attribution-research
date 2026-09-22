@@ -31,6 +31,8 @@ export function evaluateMerchandisingRollbackReadiness(
     };
   }
 
+  const parameters = action.parameters;
+
   if (context.currentPosition === undefined) {
     return {
       status: "MISSING_CONTEXT",
@@ -42,7 +44,7 @@ export function evaluateMerchandisingRollbackReadiness(
 
   if (
     context.currentPosition !==
-    action.parameters.conflictGuard.expectedPosition
+    parameters.conflictGuard.expectedPosition
   ) {
     return {
       status: "CONFLICT",
@@ -53,12 +55,12 @@ export function evaluateMerchandisingRollbackReadiness(
     };
   }
 
-  if (action.parameters.strategy.kind === "SET_EXPLICIT_VALUE") {
+  if (parameters.strategy.kind === "SET_EXPLICIT_VALUE") {
     return {
       status: "READY",
       rollbackActionId: action.actionId,
-      originalActionId: action.parameters.originalActionId,
-      position: action.parameters.strategy.position,
+      originalActionId: parameters.originalActionId,
+      position: parameters.strategy.position,
       sourceRef: "action:explicit-merchandising-rollback-position",
     };
   }
@@ -66,7 +68,7 @@ export function evaluateMerchandisingRollbackReadiness(
   const snapshot = context.rankingSnapshots?.find(
     (candidate) =>
       candidate.bindingRef ===
-      action.parameters.strategy.rankingSnapshotRef,
+      parameters.strategy.rankingSnapshotRef,
   );
   if (!snapshot) {
     return {
@@ -93,7 +95,7 @@ export function evaluateMerchandisingRollbackReadiness(
   return {
     status: "READY",
     rollbackActionId: action.actionId,
-    originalActionId: action.parameters.originalActionId,
+    originalActionId: parameters.originalActionId,
     position: index + 1,
     sourceRef: snapshot.sourceRef,
   };
