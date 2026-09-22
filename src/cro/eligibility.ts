@@ -24,7 +24,7 @@ function experienceFor(
   action: Action,
   context: CroEligibilityContext,
 ): CroExperienceState | undefined {
-  if (parameters.kind !== "cro_intervention") return undefined;
+  if (action.parameters.kind !== "cro_intervention") return undefined;
   const parameters = action.parameters;
   return context.experiences?.find(
     (experience) =>
@@ -39,7 +39,7 @@ export function evaluateCroEligibility(
   action: Action,
   context: CroEligibilityContext,
 ): CroEligibilityDecision {
-  if (parameters.kind !== "cro_intervention") {
+  if (action.parameters.kind !== "cro_intervention") {
     return {
       status: "ineligible",
       reasonCodes: ["NOT_CRO_INTERVENTION"],
