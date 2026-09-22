@@ -4,7 +4,7 @@ import type {
   UtcTimestamp,
 } from "../core/units.js";
 
-export const ACTION_SCHEMA_VERSION = "1.6.0" as const;
+export const ACTION_SCHEMA_VERSION = "1.7.0" as const;
 export const SUPPORTED_ACTION_SCHEMA_VERSIONS = [
   "1.0.0",
   "1.1.0",
@@ -12,6 +12,7 @@ export const SUPPORTED_ACTION_SCHEMA_VERSIONS = [
   "1.3.0",
   "1.4.0",
   "1.5.0",
+  "1.6.0",
   ACTION_SCHEMA_VERSION,
 ] as const;
 export type ActionSchemaVersion =
@@ -116,6 +117,7 @@ export type ActionTarget =
   | { readonly kind: "inventory_location"; readonly inventoryLocationId: string }
   | { readonly kind: "supplier_relationship"; readonly supplierRelationshipId: string }
   | { readonly kind: "inventory_set"; readonly inventorySetId: string }
+  | { readonly kind: "cro_experience"; readonly experienceId: string }
   | { readonly kind: "experiment"; readonly experimentId: string }
   | { readonly kind: "promotion"; readonly promotionId: string }
   | { readonly kind: "merchandising_placement"; readonly placementId: string }
@@ -1028,6 +1030,218 @@ export type InventoryRollbackContract =
       readonly conflictGuard:InventoryRollbackConflictGuard;
     };
 
+
+export type CroSurface =
+  | "SITE_WIDE"
+  | "HOMEPAGE"
+  | "COLLECTION"
+  | "PDP"
+  | "CART"
+  | "CHECKOUT"
+  | "SITE_SEARCH"
+  | "LANDING_PAGE";
+
+export type CroDevice = "ALL_DEVICES" | "MOBILE" | "DESKTOP";
+
+export type CroComponent =
+  | "PAGE_LAYOUT"
+  | "HERO"
+  | "VALUE_PROPOSITION"
+  | "FEATURED_PRODUCTS"
+  | "FEATURED_COLLECTIONS"
+  | "PROMOTIONAL_BANNER"
+  | "NAVIGATION"
+  | "SOCIAL_PROOF"
+  | "CONTENT_SECTION"
+  | "PRODUCT_GRID"
+  | "PRODUCT_CARD"
+  | "FILTERS"
+  | "SORTING"
+  | "COLLECTION_HEADER"
+  | "COLLECTION_DESCRIPTION"
+  | "MERCHANDISING_BLOCK"
+  | "PAGINATION"
+  | "PRODUCT_GALLERY"
+  | "PRODUCT_TITLE"
+  | "PRICE_DISPLAY"
+  | "VARIANT_SELECTOR"
+  | "ADD_TO_CART"
+  | "BUY_NOW"
+  | "PRODUCT_DESCRIPTION"
+  | "DELIVERY_INFORMATION"
+  | "RETURNS_INFORMATION"
+  | "REVIEWS"
+  | "RECOMMENDATIONS"
+  | "STOCK_INFORMATION"
+  | "PAYMENT_INFORMATION"
+  | "CART_ITEMS"
+  | "QUANTITY_CONTROL"
+  | "ORDER_SUMMARY"
+  | "SHIPPING_MESSAGE"
+  | "PROMOTION_ENTRY"
+  | "CROSS_SELL"
+  | "CHECKOUT_CTA"
+  | "CONTACT_STEP"
+  | "SHIPPING_STEP"
+  | "PAYMENT_STEP"
+  | "FORM"
+  | "FIELD"
+  | "ERROR_HANDLING"
+  | "PROGRESS_INDICATOR"
+  | "EXPRESS_PAYMENT"
+  | "SEARCH_INPUT"
+  | "AUTOCOMPLETE"
+  | "SEARCH_RESULTS"
+  | "NO_RESULTS_STATE"
+  | "CTA"
+  | "PRODUCT_SECTION";
+
+export interface CroComponentTarget {
+  readonly component: CroComponent;
+  readonly instanceId?: string;
+}
+
+export type CroPageScope =
+  | { readonly kind: "ALL_SURFACE" }
+  | { readonly kind: "ALL_PDP" }
+  | { readonly kind: "ALL_COLLECTIONS" }
+  | { readonly kind: "PRODUCT_PDP"; readonly productId: string }
+  | { readonly kind: "CATEGORY_PDP_SET"; readonly categoryId: string }
+  | { readonly kind: "PAGE_TEMPLATE"; readonly templateId: string }
+  | { readonly kind: "SPECIFIC_PAGE"; readonly pageId: string }
+  | { readonly kind: "LANDING_PAGE"; readonly landingPageId: string };
+
+export type CroAudience =
+  | { readonly kind: "ALL_VISITORS" }
+  | { readonly kind: "NEW_VISITORS" }
+  | { readonly kind: "RETURNING_VISITORS" }
+  | {
+      readonly kind: "CUSTOMER_SEGMENT";
+      readonly segmentId: string;
+      readonly membership: {
+        readonly evaluateAt: MembershipEvaluationBoundary;
+        readonly bindingRef?: string;
+      };
+    };
+
+export type CroModifiableDimension =
+  | "POSITION"
+  | "PROMINENCE"
+  | "CONTENT_STRUCTURE"
+  | "INTERACTION"
+  | "VISUAL_HIERARCHY"
+  | "LAYOUT"
+  | "DENSITY"
+  | "PERSISTENCE"
+  | "REQUIRED_FIELDS"
+  | "STEP_STRUCTURE"
+  | "ERROR_PRESENTATION"
+  | "PAYMENT_PRESENTATION"
+  | "PROGRESS_COMMUNICATION"
+  | "INFORMATION_HIERARCHY"
+  | "LOAD_PERFORMANCE"
+  | "INTERACTION_LATENCY"
+  | "IMAGE_LOADING"
+  | "NAVIGATION_STRUCTURE"
+  | "FILTER_CONFIGURATION"
+  | "SORT_CONTROL_PRESENTATION"
+  | "NO_RESULTS_HANDLING"
+  | "AUTOCOMPLETE"
+  | "SHIPPING_MESSAGE_PRESENTATION"
+  | "PROMOTION_MESSAGE_PRESENTATION";
+
+export type CroInterventionKind =
+  | "ADD"
+  | "REMOVE"
+  | "REORDER"
+  | "MODIFY_PRESENTATION"
+  | "MODIFY_INTERACTION"
+  | "MODIFY_NAVIGATION"
+  | "MODIFY_SEARCH"
+  | "MODIFY_CHECKOUT"
+  | "MODIFY_PERFORMANCE";
+
+export interface CroOrderingSnapshotRef {
+  readonly bindingRef: string;
+  readonly evaluateAt: MembershipEvaluationBoundary;
+}
+
+export type CroOrderingOperation =
+  | {
+      readonly kind: "SET_POSITION";
+      readonly position: number;
+    }
+  | {
+      readonly kind: "PLACE_BEFORE";
+      readonly referenceComponent: CroComponentTarget;
+      readonly snapshot: CroOrderingSnapshotRef;
+    }
+  | {
+      readonly kind: "PLACE_AFTER";
+      readonly referenceComponent: CroComponentTarget;
+      readonly snapshot: CroOrderingSnapshotRef;
+    };
+
+export type CroAddSemantics =
+  | { readonly kind: "REQUIRE_ABSENT" }
+  | { readonly kind: "ALLOW_ADDITIONAL_INSTANCE"; readonly instanceId: string };
+
+export type CroConflictResolution =
+  | { readonly kind: "COEXIST" }
+  | { readonly kind: "PRECEDENCE"; readonly precedence: number }
+  | {
+      readonly kind: "MUTUALLY_EXCLUSIVE_GROUP";
+      readonly groupId: string;
+      readonly precedence?: number;
+    };
+
+export type CroCapability =
+  | "ADD_COMPONENT"
+  | "REMOVE_COMPONENT"
+  | "REORDER_COMPONENTS"
+  | "MODIFY_PRESENTATION"
+  | "MODIFY_INTERACTION"
+  | "MODIFY_NAVIGATION"
+  | "MODIFY_SEARCH_EXPERIENCE"
+  | "MODIFY_CHECKOUT_EXPERIENCE"
+  | "MODIFY_PERFORMANCE"
+  | "AUTOCOMPLETE"
+  | "FILTERS"
+  | "SORTING"
+  | "NO_RESULTS_EXPERIENCE";
+
+export type CroRollbackStrategy =
+  | {
+      readonly kind: "RESTORE_PRE_ACTION_VALUE";
+      readonly stateSnapshotRef: string;
+    }
+  | {
+      readonly kind: "SET_EXPLICIT_VALUE";
+      readonly stateRef: string;
+    };
+
+export interface CroRollbackConflictGuard {
+  readonly kind: "REQUIRE_CURRENT_MATCHES_ACTION_OUTPUT";
+  readonly sourceActionId: ActionId;
+  readonly expectedStateRef: string;
+}
+
+export type CroRollbackContract =
+  | {
+      readonly available: false;
+      readonly reason: string;
+    }
+  | {
+      readonly available: true;
+      readonly strategy: CroRollbackStrategy;
+      readonly trigger:
+        | { readonly kind: "ON_TERMINATION" }
+        | { readonly kind: "AT"; readonly at: UtcTimestamp };
+      readonly delaySeconds: number;
+      readonly cost: KnownOrUnknown<MonetaryValue>;
+      readonly conflictGuard: CroRollbackConflictGuard;
+    };
+
 export type ActionParameters =
   | {
       readonly kind: "budget_adjustment";
@@ -1241,6 +1455,26 @@ export type ActionParameters =
       readonly kind: "page_change";
       readonly changeId: string;
       readonly variantRef: string;
+    }
+  | {
+      readonly kind: "cro_intervention";
+      readonly surface: CroSurface;
+      readonly component: CroComponentTarget;
+      readonly intervention: CroInterventionKind;
+      readonly pageScope: CroPageScope;
+      readonly device: CroDevice;
+      readonly audience: CroAudience;
+      readonly modifiableDimensions: readonly CroModifiableDimension[];
+      readonly ordering?: CroOrderingOperation;
+      readonly addSemantics?: CroAddSemantics;
+      readonly requiredCapabilities: readonly CroCapability[];
+      readonly conflictResolution: CroConflictResolution;
+    }
+  | {
+      readonly kind: "cro_rollback";
+      readonly originalActionId: ActionId;
+      readonly strategy: CroRollbackStrategy;
+      readonly conflictGuard: CroRollbackConflictGuard;
     }
   | {
       readonly kind: "segment_targeting";
@@ -1468,6 +1702,7 @@ export interface ActionReversibility {
   readonly shippingRollback?: ShippingRollbackContract;
   readonly merchandisingRollback?: MerchandisingRollbackContract;
   readonly inventoryRollback?: InventoryRollbackContract;
+  readonly croRollback?: CroRollbackContract;
 }
 
 export const RISK_DIMENSIONS = [
@@ -1516,6 +1751,8 @@ export const OUTCOME_FAMILIES = [
   "customer_value",
   "retention",
   "return_rate",
+  "engagement",
+  "experience_performance",
 ] as const;
 
 export type OutcomeFamily = (typeof OUTCOME_FAMILIES)[number];

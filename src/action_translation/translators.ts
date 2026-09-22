@@ -883,6 +883,37 @@ function unsupportedInventoryTranslator(
   };
 }
 
+
+function unsupportedCroTranslator(
+  actionType:
+    | "cro.modify_experience"
+    | "cro.add_element"
+    | "cro.remove_element"
+    | "cro.reorder_elements"
+    | "cro.modify_interaction"
+    | "cro.modify_navigation"
+    | "cro.modify_search"
+    | "cro.modify_checkout"
+    | "cro.rollback_experience",
+): ActionTranslator {
+  return {
+    actionType,
+    translatorId:
+      "translator." + actionType.replace(".", "_") + "_boundary.v1",
+    translationVersion: ACTION_TRANSLATION_VERSION,
+    supportedTargetKinds: ["cro_experience"],
+    translate(action) {
+      return {
+        status: "UNSUPPORTED_SIMULATOR_CAPABILITY",
+        actionId: action.actionId,
+        code: "CRO_CAPABILITY_UNSUPPORTED_BY_SIMULATOR",
+        message:
+          "Current simulator has no native page-component, page-ordering, interaction, performance, search-experience or checkout-experience intervention that preserves CRO semantics. CRO Actions are not translated into conversion propensity, purchase probability, revenue or demand mutations.",
+      };
+    },
+  };
+}
+
 const merchandisingTranslator: ActionTranslator = {
   actionType: "merchandising.move_product",
   translatorId: "translator.merchandising_position.v1",
@@ -1007,6 +1038,15 @@ export const CORE_ACTION_TRANSLATORS: readonly ActionTranslator[] = Object.freez
   unsupportedInventoryTranslator("inventory.clearance"),
   unsupportedInventoryTranslator("inventory.accelerate_excess_stock"),
   unsupportedInventoryTranslator("inventory.rollback_policy"),
+  unsupportedCroTranslator("cro.modify_experience"),
+  unsupportedCroTranslator("cro.add_element"),
+  unsupportedCroTranslator("cro.remove_element"),
+  unsupportedCroTranslator("cro.reorder_elements"),
+  unsupportedCroTranslator("cro.modify_interaction"),
+  unsupportedCroTranslator("cro.modify_navigation"),
+  unsupportedCroTranslator("cro.modify_search"),
+  unsupportedCroTranslator("cro.modify_checkout"),
+  unsupportedCroTranslator("cro.rollback_experience"),
   merchandisingTranslator,
   noCausalInterventionTranslator(
     "no_op.do_nothing",

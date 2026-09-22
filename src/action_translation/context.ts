@@ -50,6 +50,23 @@ const FORBIDDEN_CONTEXT_KEYS = new Set([
   "futureReturns",
   "futureRealizedSupplierDelay",
   "counterfactualInventory",
+  "expectedConversionRate",
+  "expectedConversionLift",
+  "expectedRevenue",
+  "expectedAOV",
+  "expectedBounceReduction",
+  "expectedCheckoutCompletion",
+  "expectedCTR",
+  "predictedLift",
+  "predictedRevenue",
+  "counterfactualConversion",
+  "trafficAllocation",
+  "randomizationUnit",
+  "significanceThreshold",
+  "experimentResult",
+  "variantPayload",
+  "futureSessions",
+  "futureOrders",
 ]);
 
 function record(value: unknown): value is any {
@@ -514,6 +531,121 @@ function validateInventoryStateBindings(
   return { ok: true };
 }
 
+
+const CRO_CONTEXT_SURFACES = new Set([
+  "SITE_WIDE","HOMEPAGE","COLLECTION","PDP","CART","CHECKOUT","SITE_SEARCH","LANDING_PAGE",
+]);
+const CRO_CONTEXT_DEVICES = new Set(["ALL_DEVICES","MOBILE","DESKTOP"]);
+const CRO_CONTEXT_COMPONENTS = new Set([
+  "PAGE_LAYOUT","HERO","VALUE_PROPOSITION","FEATURED_PRODUCTS","FEATURED_COLLECTIONS",
+  "PROMOTIONAL_BANNER","NAVIGATION","SOCIAL_PROOF","CONTENT_SECTION","PRODUCT_GRID",
+  "PRODUCT_CARD","FILTERS","SORTING","COLLECTION_HEADER","COLLECTION_DESCRIPTION",
+  "MERCHANDISING_BLOCK","PAGINATION","PRODUCT_GALLERY","PRODUCT_TITLE","PRICE_DISPLAY",
+  "VARIANT_SELECTOR","ADD_TO_CART","BUY_NOW","PRODUCT_DESCRIPTION","DELIVERY_INFORMATION",
+  "RETURNS_INFORMATION","REVIEWS","RECOMMENDATIONS","STOCK_INFORMATION",
+  "PAYMENT_INFORMATION","CART_ITEMS","QUANTITY_CONTROL","ORDER_SUMMARY","SHIPPING_MESSAGE",
+  "PROMOTION_ENTRY","CROSS_SELL","CHECKOUT_CTA","CONTACT_STEP","SHIPPING_STEP",
+  "PAYMENT_STEP","FORM","FIELD","ERROR_HANDLING","PROGRESS_INDICATOR","EXPRESS_PAYMENT",
+  "SEARCH_INPUT","AUTOCOMPLETE","SEARCH_RESULTS","NO_RESULTS_STATE","CTA","PRODUCT_SECTION",
+]);
+const CRO_CONTEXT_CAPABILITIES = new Set([
+  "ADD_COMPONENT","REMOVE_COMPONENT","REORDER_COMPONENTS","MODIFY_PRESENTATION",
+  "MODIFY_INTERACTION","MODIFY_NAVIGATION","MODIFY_SEARCH_EXPERIENCE",
+  "MODIFY_CHECKOUT_EXPERIENCE","MODIFY_PERFORMANCE","AUTOCOMPLETE","FILTERS",
+  "SORTING","NO_RESULTS_EXPERIENCE",
+]);
+
+function validCroPageScope(scope:unknown):boolean{
+  if(!record(scope)||!nonEmpty(scope.kind))return false;
+  switch(scope.kind){
+    case "ALL_SURFACE":
+    case "ALL_PDP":
+    case "ALL_COLLECTIONS":
+      return true;
+    case "PRODUCT_PDP": return nonEmpty(scope.productId);
+    case "CATEGORY_PDP_SET": return nonEmpty(scope.categoryId);
+    case "PAGE_TEMPLATE": return nonEmpty(scope.templateId);
+    case "SPECIFIC_PAGE": return nonEmpty(scope.pageId);
+    case "LANDING_PAGE": return nonEmpty(scope.landingPageId);
+    default:return false;
+  }
+}
+
+function validCroComponentTarget(component:unknown):boolean{
+  return record(component)&&
+    CRO_CONTEXT_COMPONENTS.has(String(component.component))&&
+    (component.instanceId===undefined||nonEmpty(component.instanceId));
+}
+
+function validateCroStructureSnapshots(
+  input:unknown,
+): {readonly ok:true}|{readonly ok:false;readonly message:string}{
+  if(input===undefined)return{ok:true};
+  if(!Array.isArray(input))return{ok:false,message:"croStructureSnapshots must be an array"};
+  const refs=new Set<string>();
+  for(const snapshot of input){
+    if(!record(snapshot)||
+       !nonEmpty(snapshot.bindingRef)||
+       !["decision_time","translation_time","effective_time"].includes(String(snapshot.evaluateAt))||
+       typeof snapshot.snapshotTime!=="string"||
+       !snapshot.snapshotTime.endsWith("Z")||
+       !Number.isFinite(Date.parse(snapshot.snapshotTime))||
+       !nonEmpty(snapshot.sourceRef)||
+       !CRO_CONTEXT_SURFACES.has(String(snapshot.surface))||
+       !validCroPageScope(snapshot.pageScope)||
+       !CRO_CONTEXT_DEVICES.has(String(snapshot.device))||
+       !Array.isArray(snapshot.orderedComponents)||
+       snapshot.orderedComponents.length===0||
+       snapshot.orderedComponents.some((component:unknown)=>!validCroComponentTarget(component))){
+      return{ok:false,message:"CRO structure snapshot is malformed"};
+    }
+    if(refs.has(snapshot.bindingRef))return{ok:false,message:"CRO structure bindingRef values must be unique"};
+    refs.add(snapshot.bindingRef);
+    const keys=snapshot.orderedComponents.map(stableKey);
+    if(new Set(keys).size!==keys.length)return{ok:false,message:"CRO structure snapshot contains duplicate component identities"};
+  }
+  return{ok:true};
+}
+
+function validateCroExperienceBindings(
+  input:unknown,
+): {readonly ok:true}|{readonly ok:false;readonly message:string}{
+  if(input===undefined)return{ok:true};
+  if(!Array.isArray(input))return{ok:false,message:"croExperienceBindings must be an array"};
+  const identities=new Set<string>();
+  for(const binding of input){
+    if(!record(binding)||
+       !CRO_CONTEXT_SURFACES.has(String(binding.surface))||
+       !validCroPageScope(binding.pageScope)||
+       !CRO_CONTEXT_DEVICES.has(String(binding.device))||
+       !nonEmpty(binding.sourceRef)||
+       !Array.isArray(binding.presentComponents)||
+       binding.presentComponents.some((component:unknown)=>!validCroComponentTarget(component))||
+       !Array.isArray(binding.capabilities)||
+       binding.capabilities.some((capability:unknown)=>!CRO_CONTEXT_CAPABILITIES.has(String(capability)))||
+       new Set(binding.capabilities).size!==binding.capabilities.length){
+      return{ok:false,message:"CRO experience binding is malformed"};
+    }
+    const componentKeys=binding.presentComponents.map(stableKey);
+    if(new Set(componentKeys).size!==componentKeys.length){
+      return{ok:false,message:"CRO experience present components must be unique"};
+    }
+    if(binding.componentStates!==undefined){
+      if(!Array.isArray(binding.componentStates)||
+         binding.componentStates.some((state:unknown)=>!record(state)||!validCroComponentTarget(state.component)||!nonEmpty(state.stateRef))){
+        return{ok:false,message:"CRO component state bindings are malformed"};
+      }
+    }
+    if(binding.performanceConfigurationRef!==undefined&&!nonEmpty(binding.performanceConfigurationRef)){
+      return{ok:false,message:"CRO performanceConfigurationRef must be non-empty"};
+    }
+    const key=stableKey({surface:binding.surface,pageScope:binding.pageScope,device:binding.device});
+    if(identities.has(key))return{ok:false,message:"CRO experience bindings must be unique by surface/pageScope/device"};
+    identities.add(key);
+  }
+  return{ok:true};
+}
+
 export type TranslationContextValidationResult =
   | {
       readonly ok: true;
@@ -636,6 +768,27 @@ export function validateTranslationContext(
     };
   }
 
+
+  if (
+    (input.schemaVersion === "1.0.0" ||
+      input.schemaVersion === "1.1.0" ||
+      input.schemaVersion === "1.2.0" ||
+      input.schemaVersion === "1.3.0" ||
+      input.schemaVersion === "1.4.0") &&
+    (input.croStructureSnapshots !== undefined ||
+      input.croExperienceBindings !== undefined)
+  ) {
+    return {
+      ok: false,
+      failure: {
+        status: "MISSING_CONTEXT",
+        code: "TRANSLATION_CONTEXT_FEATURE_REQUIRES_1_5",
+        message:
+          "CRO structure/experience context requires TranslationContext schema 1.5.0.",
+      },
+    };
+  }
+
   if (
     typeof input.simulatorClock !== "string" ||
     !input.simulatorClock.endsWith("Z") ||
@@ -735,6 +888,34 @@ export function validateTranslationContext(
         status: "MISSING_CONTEXT",
         code: "MALFORMED_INVENTORY_STATE_CONTEXT",
         message: inventoryStateValidation.message,
+      },
+    };
+  }
+
+  const croStructureValidation = validateCroStructureSnapshots(
+    input.croStructureSnapshots,
+  );
+  if (!croStructureValidation.ok) {
+    return {
+      ok: false,
+      failure: {
+        status: "MISSING_CONTEXT",
+        code: "MALFORMED_CRO_STRUCTURE_CONTEXT",
+        message: croStructureValidation.message,
+      },
+    };
+  }
+
+  const croExperienceValidation = validateCroExperienceBindings(
+    input.croExperienceBindings,
+  );
+  if (!croExperienceValidation.ok) {
+    return {
+      ok: false,
+      failure: {
+        status: "MISSING_CONTEXT",
+        code: "MALFORMED_CRO_EXPERIENCE_CONTEXT",
+        message: croExperienceValidation.message,
       },
     };
   }
@@ -1022,4 +1203,28 @@ export function resolveInventoryState(
   if (matches.length === 0) return { status: "missing", ref };
   if (matches.length > 1) return { status: "ambiguous", ref };
   return { status: "resolved", binding: matches[0]! };
+}
+
+
+export type CroStructureResolution =
+  | {
+      readonly status: "resolved";
+      readonly binding: NonNullable<
+        TranslationContext["croStructureSnapshots"]
+      >[number];
+    }
+  | { readonly status: "missing"; readonly ref: string }
+  | { readonly status: "ambiguous"; readonly ref: string };
+
+export function resolveCroStructureSnapshot(
+  context:TranslationContext,
+  bindingRef:string,
+):CroStructureResolution{
+  const matches=(context.croStructureSnapshots??[]).filter(
+    (snapshot)=>snapshot.bindingRef===bindingRef,
+  );
+  const ref="cro-structure:"+bindingRef;
+  if(matches.length===0)return{status:"missing",ref};
+  if(matches.length>1)return{status:"ambiguous",ref};
+  return{status:"resolved",binding:matches[0]!};
 }
