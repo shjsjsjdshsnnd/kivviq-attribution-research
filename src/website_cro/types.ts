@@ -209,6 +209,7 @@ export interface WebsiteGodModeTruth {
   readonly godModeOnly: true;
   readonly scenarioId: string;
   readonly states: readonly WebsiteState[];
+  readonly interventions: readonly Intervention[];
   readonly causalEvents: readonly WebsiteCausalEvent[];
 }
 
