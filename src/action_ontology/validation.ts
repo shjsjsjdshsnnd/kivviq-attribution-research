@@ -5865,6 +5865,50 @@ function validateCroActionSemantics(
 
   if (!record(input.parameters) || input.parameters.kind !== "cro_intervention") return;
 
+  const deviceDimension =
+    record(input.scope) && Array.isArray(input.scope.dimensions)
+      ? input.scope.dimensions.find(
+          (dimension: unknown) =>
+            record(dimension) && dimension.kind === "device",
+        )
+      : undefined;
+  if (input.parameters.device === "MOBILE") {
+    if (
+      !record(deviceDimension) ||
+      !Array.isArray(deviceDimension.devices) ||
+      deviceDimension.devices.length !== 1 ||
+      deviceDimension.devices[0] !== "mobile"
+    ) {
+      add(
+        errors,
+        "CRO_DEVICE_SCOPE_MISMATCH",
+        "scope",
+        "MOBILE CRO Action requires mobile-only device scope",
+      );
+    }
+  } else if (input.parameters.device === "DESKTOP") {
+    if (
+      !record(deviceDimension) ||
+      !Array.isArray(deviceDimension.devices) ||
+      deviceDimension.devices.length !== 1 ||
+      deviceDimension.devices[0] !== "desktop"
+    ) {
+      add(
+        errors,
+        "CRO_DEVICE_SCOPE_MISMATCH",
+        "scope",
+        "DESKTOP CRO Action requires desktop-only device scope",
+      );
+    }
+  } else if (deviceDimension !== undefined) {
+    add(
+      errors,
+      "CRO_DEVICE_SCOPE_MISMATCH",
+      "scope",
+      "ALL_DEVICES CRO Action must not silently restrict canonical device scope",
+    );
+  }
+
   const expected: Readonly<Record<string, readonly string[]>> = {
     "cro.modify_experience": ["MODIFY_PRESENTATION","MODIFY_PERFORMANCE"],
     "cro.add_element": ["ADD"],
