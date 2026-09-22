@@ -109,6 +109,7 @@ function noActionDecisionRecords() {
         {
           observationKey: "orders.trailing_7d",
           informationClass: "derived_observable_metric" as const,
+          sourceMinOccurredAt: decision.at,
           sourceMaxOccurredAt: decision.at,
           availableAt: decision.at,
           sourceRef: "merchant-observations:v1",
@@ -227,6 +228,7 @@ describe("Step 3.1 baseline evaluation contract", () => {
       {
         observationKey: "orders.trailing_7d",
         informationClass: "derived_observable_metric" as const,
+        sourceMinOccurredAt: decision.at,
         sourceMaxOccurredAt: decision.at,
         availableAt: decision.at,
         sourceRef: "merchant-observations:v1",
@@ -235,6 +237,7 @@ describe("Step 3.1 baseline evaluation contract", () => {
       {
         observationKey: "budget.google.current",
         informationClass: "current_state_information" as const,
+        sourceMinOccurredAt: decision.at,
         sourceMaxOccurredAt: decision.at,
         availableAt: decision.at,
         sourceRef: "merchant-state:v1",
@@ -270,6 +273,7 @@ describe("Step 3.1 baseline evaluation contract", () => {
         {
           observationKey: "future.orders",
           informationClass: "observable_merchant_data",
+          sourceMinOccurredAt: decision.at,
           sourceMaxOccurredAt: decision.at,
           availableAt: future,
           sourceRef: "merchant-observations:v1",
@@ -283,6 +287,7 @@ describe("Step 3.1 baseline evaluation contract", () => {
         {
           observationKey: "latent.intent",
           informationClass: "simulator_latent_state",
+          sourceMinOccurredAt: decision.at,
           sourceMaxOccurredAt: decision.at,
           availableAt: decision.at,
           sourceRef: "merchant-observations:v1",
@@ -296,6 +301,7 @@ describe("Step 3.1 baseline evaluation contract", () => {
         {
           observationKey: "true.incremental.profit",
           informationClass: "evaluator_only_metric",
+          sourceMinOccurredAt: decision.at,
           sourceMaxOccurredAt: decision.at,
           availableAt: decision.at,
           sourceRef: "merchant-observations:v1",
@@ -309,6 +315,7 @@ describe("Step 3.1 baseline evaluation contract", () => {
         {
           observationKey: "apparently.safe",
           informationClass: "current_state_information",
+          sourceMinOccurredAt: decision.at,
           sourceMaxOccurredAt: decision.at,
           availableAt: decision.at,
           sourceRef: "merchant-state:v1",
@@ -323,6 +330,7 @@ describe("Step 3.1 baseline evaluation contract", () => {
         {
           observationKey: "benchmark.identity",
           informationClass: "current_state_information",
+          sourceMinOccurredAt: decision.at,
           sourceMaxOccurredAt: decision.at,
           availableAt: decision.at,
           sourceRef: "merchant-state:v1",
@@ -336,6 +344,7 @@ describe("Step 3.1 baseline evaluation contract", () => {
         {
           observationKey: "bad.source",
           informationClass: "current_state_information",
+          sourceMinOccurredAt: decision.at,
           sourceMaxOccurredAt: decision.at,
           availableAt: decision.at,
           sourceRef: "evaluator:oracle",
@@ -343,6 +352,38 @@ describe("Step 3.1 baseline evaluation contract", () => {
         },
       ]),
     ).toThrow(/evaluator\/God-mode only/);
+
+    const outsideHistory = new Date(
+      Date.parse(decision.at) -
+        (contract.observation.maxHistorySeconds + 1) * 1_000,
+    ).toISOString();
+    expect(() =>
+      buildOperatorObservationSnapshot(contract, decision, [
+        {
+          observationKey: "too.old.metric",
+          informationClass: "historical_information",
+          sourceMinOccurredAt: outsideHistory,
+          sourceMaxOccurredAt: decision.at,
+          availableAt: decision.at,
+          sourceRef: "historical-observable:v1",
+          value: { orders: 1_000 },
+        },
+      ]),
+    ).toThrow(/history window/);
+
+    expect(() =>
+      buildOperatorObservationSnapshot(contract, decision, [
+        {
+          observationKey: "unknown.source",
+          informationClass: "current_state_information",
+          sourceMinOccurredAt: decision.at,
+          sourceMaxOccurredAt: decision.at,
+          availableAt: decision.at,
+          sourceRef: "mystery-system:v1",
+          value: { safe: true },
+        },
+      ]),
+    ).toThrow(/not in the frozen allowlist/);
 
     const futureSource = new Date(
       Date.parse(decision.at) + 2_000,
@@ -352,6 +393,7 @@ describe("Step 3.1 baseline evaluation contract", () => {
         {
           observationKey: "backdated.derived.metric",
           informationClass: "derived_observable_metric",
+          sourceMinOccurredAt: futureSource,
           sourceMaxOccurredAt: futureSource,
           availableAt: futureSource,
           sourceRef: "derived-observable:v1",
