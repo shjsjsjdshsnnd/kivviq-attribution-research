@@ -4,13 +4,14 @@ import type {
   UtcTimestamp,
 } from "../core/units.js";
 
-export const ACTION_SCHEMA_VERSION = "1.5.0" as const;
+export const ACTION_SCHEMA_VERSION = "1.6.0" as const;
 export const SUPPORTED_ACTION_SCHEMA_VERSIONS = [
   "1.0.0",
   "1.1.0",
   "1.2.0",
   "1.3.0",
   "1.4.0",
+  "1.5.0",
   ACTION_SCHEMA_VERSION,
 ] as const;
 export type ActionSchemaVersion =
