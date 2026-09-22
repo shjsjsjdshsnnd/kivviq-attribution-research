@@ -217,6 +217,7 @@ export interface SimulationWorldSpecification {
   readonly worldSetId: string;
   readonly specificationVersion: string;
   readonly requiredComponents: readonly SimulationWorldComponent[];
+  readonly currencyBinding: "world_manifest";
   readonly worldIdRequired: true;
   readonly worldFingerprintRequired: true;
   readonly materiallyDifferentWorldsForbiddenWithinComparison: true;
@@ -285,7 +286,7 @@ export interface OutcomeMetricDefinition {
   readonly unit: MetricUnit;
   readonly aggregation: MetricAggregation;
   readonly currency:
-    | "contract_currency"
+    | "world_currency"
     | "not_applicable";
   readonly visibility:
     | "operator_observable_if_separately_permitted"
@@ -416,7 +417,7 @@ export const CANONICAL_OUTCOME_METRICS_V1: readonly OutcomeMetricDefinition[] =
       window: "outcome_measurement",
       unit: "money_minor",
       aggregation: "sum",
-      currency: "contract_currency",
+      currency: "world_currency",
       visibility: "operator_observable_if_separately_permitted",
     },
     {
@@ -427,7 +428,7 @@ export const CANONICAL_OUTCOME_METRICS_V1: readonly OutcomeMetricDefinition[] =
       window: "outcome_measurement",
       unit: "money_minor",
       aggregation: "sum",
-      currency: "contract_currency",
+      currency: "world_currency",
       visibility: "operator_observable_if_separately_permitted",
     },
     {
@@ -439,7 +440,7 @@ export const CANONICAL_OUTCOME_METRICS_V1: readonly OutcomeMetricDefinition[] =
       window: "outcome_measurement",
       unit: "money_minor",
       aggregation: "sum",
-      currency: "contract_currency",
+      currency: "world_currency",
       visibility: "operator_observable_if_separately_permitted",
     },
     {
@@ -472,7 +473,7 @@ export const CANONICAL_OUTCOME_METRICS_V1: readonly OutcomeMetricDefinition[] =
       window: "outcome_measurement",
       unit: "money_minor",
       aggregation: "ratio",
-      currency: "contract_currency",
+      currency: "world_currency",
       visibility: "operator_observable_if_separately_permitted",
     },
     {
@@ -483,7 +484,7 @@ export const CANONICAL_OUTCOME_METRICS_V1: readonly OutcomeMetricDefinition[] =
       window: "outcome_measurement",
       unit: "money_minor",
       aggregation: "ratio",
-      currency: "contract_currency",
+      currency: "world_currency",
       visibility: "operator_observable_if_separately_permitted",
     },
     {
@@ -505,7 +506,7 @@ export const CANONICAL_OUTCOME_METRICS_V1: readonly OutcomeMetricDefinition[] =
       window: "outcome_measurement",
       unit: "money_minor",
       aggregation: "sum",
-      currency: "contract_currency",
+      currency: "world_currency",
       visibility: "operator_observable_if_separately_permitted",
     },
     {
@@ -549,7 +550,7 @@ export const CANONICAL_OUTCOME_METRICS_V1: readonly OutcomeMetricDefinition[] =
       window: "outcome_plus_delayed_effect",
       unit: "money_minor",
       aggregation: "cohort_sum",
-      currency: "contract_currency",
+      currency: "world_currency",
       visibility: "operator_observable_if_separately_permitted",
     },
     {
@@ -604,7 +605,7 @@ export const CANONICAL_OUTCOME_METRICS_V1: readonly OutcomeMetricDefinition[] =
       window: "outcome_measurement",
       unit: "money_minor",
       aggregation: "sum",
-      currency: "contract_currency",
+      currency: "world_currency",
       visibility: "operator_observable_if_separately_permitted",
     },
     {
@@ -615,7 +616,7 @@ export const CANONICAL_OUTCOME_METRICS_V1: readonly OutcomeMetricDefinition[] =
       window: "outcome_measurement",
       unit: "money_minor",
       aggregation: "sum",
-      currency: "contract_currency",
+      currency: "world_currency",
       visibility: "operator_observable_if_separately_permitted",
     },
     {
@@ -626,7 +627,7 @@ export const CANONICAL_OUTCOME_METRICS_V1: readonly OutcomeMetricDefinition[] =
       window: "outcome_plus_delayed_effect",
       unit: "money_minor",
       aggregation: "sum",
-      currency: "contract_currency",
+      currency: "world_currency",
       visibility: "operator_observable_if_separately_permitted",
     },
     {
@@ -637,7 +638,7 @@ export const CANONICAL_OUTCOME_METRICS_V1: readonly OutcomeMetricDefinition[] =
       window: "outcome_plus_delayed_effect",
       unit: "money_minor",
       aggregation: "sum",
-      currency: "contract_currency",
+      currency: "world_currency",
       visibility: "evaluator_only",
     },
     {
@@ -659,7 +660,7 @@ export const CANONICAL_OUTCOME_METRICS_V1: readonly OutcomeMetricDefinition[] =
       window: "outcome_plus_delayed_effect",
       unit: "money_minor",
       aggregation: "sum",
-      currency: "contract_currency",
+      currency: "world_currency",
       visibility: "evaluator_only",
     },
   ] satisfies readonly OutcomeMetricDefinition[]);
@@ -1035,6 +1036,7 @@ export const CANONICAL_BASELINE_EVALUATION_CONTRACT_V1 =
       worldSetId: "growth-operator-baseline-world-suite-v1",
       specificationVersion: "1.0.0",
       requiredComponents: REQUIRED_WORLD_COMPONENTS,
+      currencyBinding: "world_manifest",
       worldIdRequired: true,
       worldFingerprintRequired: true,
       materiallyDifferentWorldsForbiddenWithinComparison: true,
@@ -1759,56 +1761,125 @@ export function validateEvaluationSeeds(
     "evaluation seed bindings",
   );
 
+  for (const seed of seeds) {
+    requireCondition(
+      contract.seedPolicy.namespaces.some(
+        (policy) => policy.namespace === seed.namespace,
+      ),
+      "seed namespace is not part of the frozen contract: " +
+        String(seed.namespace),
+    );
+  }
+
   for (const policy of contract.seedPolicy.namespaces) {
     const matches = seeds.filter((seed) => seed.namespace === policy.namespace);
-    requireCondition(matches.length > 0, "missing seed namespace " + policy.namespace);
-    for (const seed of matches) {
+    requireCondition(
+      matches.length === 1,
+      "seed namespace must have exactly one binding: " + policy.namespace,
+    );
+    const seed = matches[0]!;
+    requireCondition(
+      Number.isSafeInteger(seed.value),
+      "seed values must be safe integers",
+    );
+    if (policy.sharing === "shared_across_operators") {
       requireCondition(
-        Number.isSafeInteger(seed.value),
-        "seed values must be safe integers",
+        seed.operatorId === undefined,
+        policy.namespace + " seed must not be operator-specific",
       );
-      if (policy.sharing === "shared_across_operators") {
-        requireCondition(
-          seed.operatorId === undefined,
-          policy.namespace + " seed must not be operator-specific",
-        );
-      } else {
-        requireCondition(
-          seed.operatorId !== undefined && seed.operatorId.trim().length > 0,
-          "operator_internal seeds require operatorId",
-        );
-      }
+    } else {
+      requireCondition(
+        seed.operatorId !== undefined && seed.operatorId.trim().length > 0,
+        "operator_internal seeds require operatorId",
+      );
     }
   }
 
   return deepFreezeEvaluation(cloneJson(seeds));
 }
 
+export interface EvaluationHorizonTimestamps {
+  readonly warmUpStart: string;
+  readonly warmUpEnd: string;
+  readonly historyStart: string;
+  readonly historyEnd: string;
+  readonly interventionStart: string;
+  readonly interventionEnd: string;
+  readonly outcomeMeasurementStart: string;
+  readonly outcomeMeasurementEnd: string;
+  readonly delayedEffectEnd: string;
+}
+
+export function deriveEvaluationHorizonTimestamps(
+  contract: BaselineEvaluationContract,
+  interventionStart: string,
+): EvaluationHorizonTimestamps {
+  const startMs = parseTime(interventionStart, "interventionStart");
+  const secondMs = 1_000;
+  const historyStartMs =
+    startMs - contract.horizon.historySeconds * secondMs;
+  const warmUpStartMs =
+    historyStartMs - contract.horizon.warmUpSeconds * secondMs;
+  const interventionEndMs =
+    startMs + contract.horizon.interventionSeconds * secondMs;
+  const outcomeEndMs =
+    startMs + contract.horizon.outcomeMeasurementSeconds * secondMs;
+  const delayedEndMs =
+    Math.max(interventionEndMs, outcomeEndMs) +
+    contract.horizon.delayedEffectSeconds * secondMs;
+
+  return deepFreezeEvaluation({
+    warmUpStart: new Date(warmUpStartMs).toISOString(),
+    warmUpEnd: new Date(historyStartMs).toISOString(),
+    historyStart: new Date(historyStartMs).toISOString(),
+    historyEnd: new Date(startMs).toISOString(),
+    interventionStart: new Date(startMs).toISOString(),
+    interventionEnd: new Date(interventionEndMs).toISOString(),
+    outcomeMeasurementStart: new Date(startMs).toISOString(),
+    outcomeMeasurementEnd: new Date(outcomeEndMs).toISOString(),
+    delayedEffectEnd: new Date(delayedEndMs).toISOString(),
+  });
+}
+
 export interface EvaluationComparisonBinding {
   readonly contractFingerprint: string;
+  readonly simulatorVersion: string;
   readonly worldId: string;
   readonly worldFingerprint: string;
+  readonly worldCurrency: string;
   readonly horizonFingerprint: string;
+  readonly horizonTimestamps: EvaluationHorizonTimestamps;
   readonly metricSetFingerprint: string;
   readonly sharedSeeds: readonly EvaluationSeedValue[];
 }
 
 export function createEvaluationComparisonBinding(
   contract: BaselineEvaluationContract,
+  simulatorVersion: string,
   worldId: string,
   worldFingerprint: string,
+  worldCurrency: string,
+  interventionStart: string,
   seeds: readonly EvaluationSeedValue[],
 ): EvaluationComparisonBinding {
+  requireCondition(simulatorVersion.trim().length > 0, "simulatorVersion is required");
   requireCondition(worldId.trim().length > 0, "worldId is required");
   requireCondition(worldFingerprint.trim().length > 0, "worldFingerprint is required");
+  requireCondition(/^[A-Z]{3}$/.test(worldCurrency), "worldCurrency must be an ISO-4217-style code");
   const validatedSeeds = validateEvaluationSeeds(contract, seeds);
   const sharedSeeds = validatedSeeds.filter((seed) => seed.operatorId === undefined);
 
   return deepFreezeEvaluation({
     contractFingerprint: contract.contractFingerprint,
+    simulatorVersion,
     worldId,
     worldFingerprint,
+    worldCurrency,
     horizonFingerprint: evaluationFingerprint(contract.horizon),
+    horizonTimestamps: deriveEvaluationHorizonTimestamps(
+      contract,
+      interventionStart,
+    ),
     metricSetFingerprint: evaluationFingerprint(contract.metrics),
     sharedSeeds,
   });
