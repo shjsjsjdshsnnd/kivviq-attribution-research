@@ -4540,6 +4540,28 @@ function validateReversibility(
       validateMerchandisingRollbackGuard(input.merchandisingRollback.conflictGuard,path+".merchandisingRollback.conflictGuard",errors);
     }
   }
+
+  if (input.inventoryRollback !== undefined) {
+    if (!record(input.inventoryRollback) || typeof input.inventoryRollback.available !== "boolean") {
+      add(errors,"INVALID_INVENTORY_ROLLBACK_CONTRACT",path+".inventoryRollback","available must be explicit");
+    } else if (input.inventoryRollback.available === false) {
+      if (!nonEmpty(input.inventoryRollback.reason)) {
+        add(errors,"INVALID_INVENTORY_ROLLBACK_REASON",path+".inventoryRollback.reason","reason is required");
+      }
+    } else {
+      validateInventoryRollbackStrategy(input.inventoryRollback.strategy,path+".inventoryRollback.strategy",errors);
+      if (!record(input.inventoryRollback.trigger) || !nonEmpty(input.inventoryRollback.trigger.kind)) {
+        add(errors,"INVALID_INVENTORY_ROLLBACK_TRIGGER",path+".inventoryRollback.trigger","trigger is required");
+      } else if (input.inventoryRollback.trigger.kind === "AT") {
+        validateTimestamp(input.inventoryRollback.trigger.at,path+".inventoryRollback.trigger.at",errors);
+      } else if (input.inventoryRollback.trigger.kind !== "ON_TERMINATION") {
+        add(errors,"INVALID_INVENTORY_ROLLBACK_TRIGGER",path+".inventoryRollback.trigger.kind","unsupported trigger");
+      }
+      validateNonNegativeInteger(input.inventoryRollback.delaySeconds,path+".inventoryRollback.delaySeconds",errors);
+      validateKnownOrUnknown(input.inventoryRollback.cost,path+".inventoryRollback.cost",errors,(v,p)=>validateMoney(v,p,errors));
+      validateInventoryRollbackGuard(input.inventoryRollback.conflictGuard,path+".inventoryRollback.conflictGuard",errors);
+    }
+  }
 }
 
 function validateRiskDimensions(
@@ -5247,6 +5269,181 @@ function validateMerchandisingActionSemantics(
   }
 }
 
+
+function validateInventoryActionSemantics(
+  input: any,
+  errors: ActionValidationIssue[],
+): void {
+  if (input.actionType === "inventory.reorder") {
+    if (!record(input.target) || input.target.kind !== "sku") {
+      add(errors,"INVENTORY_REORDER_REQUIRES_SKU_TARGET","target.kind","reorder must target a physical SKU");
+    }
+    if (
+      record(input.parameters) &&
+      input.parameters.kind === "inventory_reorder" &&
+      record(input.parameters.reorder)
+    ) {
+      if (
+        canonicalRuntimeKey(input.parameters.reorder.sku) !==
+        canonicalRuntimeKey(input.target)
+      ) {
+        add(errors,"INVENTORY_REORDER_SKU_TARGET_MISMATCH","parameters.reorder.sku","reorder SKU must match Action target");
+      }
+      if (
+        record(input.timing) &&
+        record(input.timing.effectiveStart) &&
+        input.timing.effectiveStart.kind === "known" &&
+        typeof input.parameters.reorder.orderPlacementTime === "string" &&
+        input.timing.effectiveStart.at !==
+          input.parameters.reorder.orderPlacementTime
+      ) {
+        add(errors,"INVENTORY_ORDER_TIME_MISMATCH","parameters.reorder.orderPlacementTime","order placement time must match Action effective start");
+      }
+    }
+    if (!record(input.duration) || input.duration.kind !== "instantaneous") {
+      add(errors,"INVENTORY_REORDER_MUST_BE_INSTANTANEOUS_DECISION","duration","reorder Action represents order placement, not future receipt");
+    }
+  }
+
+  if (input.actionType === "inventory.set_safety_stock") {
+    if (
+      !record(input.parameters) ||
+      input.parameters.kind !== "inventory_policy_control" ||
+      !record(input.parameters.policy) ||
+      input.parameters.policy.kind !== "SAFETY_STOCK"
+    ) {
+      add(errors,"INVENTORY_POLICY_TYPE_MISMATCH","parameters.policy.kind","set_safety_stock requires SAFETY_STOCK policy");
+    }
+  }
+
+  if (input.actionType === "inventory.set_reorder_point") {
+    if (
+      !record(input.parameters) ||
+      input.parameters.kind !== "inventory_policy_control" ||
+      !record(input.parameters.policy) ||
+      input.parameters.policy.kind !== "REORDER_POINT"
+    ) {
+      add(errors,"INVENTORY_POLICY_TYPE_MISMATCH","parameters.policy.kind","set_reorder_point requires REORDER_POINT policy");
+    }
+  }
+
+  const rollbackPolicyActions = [
+    "inventory.set_safety_stock",
+    "inventory.set_reorder_point",
+    "inventory.set_backorder_policy",
+  ];
+  if (rollbackPolicyActions.includes(String(input.actionType))) {
+    const temporary =
+      record(input.duration) && input.duration.kind === "temporary";
+    if (
+      temporary &&
+      (!record(input.reversibility) ||
+        !record(input.reversibility.inventoryRollback) ||
+        input.reversibility.inventoryRollback.available !== true)
+    ) {
+      add(
+        errors,
+        "TEMPORARY_INVENTORY_POLICY_REQUIRES_SAFE_ROLLBACK",
+        "reversibility.inventoryRollback",
+        "temporary inventory policy change requires conflict-safe rollback",
+      );
+    }
+    if (
+      record(input.reversibility) &&
+      record(input.reversibility.inventoryRollback) &&
+      input.reversibility.inventoryRollback.available === true &&
+      record(input.reversibility.inventoryRollback.conflictGuard) &&
+      input.reversibility.inventoryRollback.conflictGuard.sourceActionId !==
+        input.actionId
+    ) {
+      add(
+        errors,
+        "INVENTORY_ROLLBACK_SOURCE_MISMATCH",
+        "reversibility.inventoryRollback.conflictGuard.sourceActionId",
+        "inventory rollback must reference this policy Action",
+      );
+    }
+  }
+
+  if (
+    (input.actionType === "inventory.clearance" ||
+      input.actionType === "inventory.accelerate_excess_stock") &&
+    record(input.parameters) &&
+    canonicalRuntimeKey(input.parameters.target) !==
+      canonicalRuntimeKey(input.target)
+  ) {
+    add(
+      errors,
+      "INVENTORY_STRATEGY_TARGET_MISMATCH",
+      "parameters.target",
+      "inventory strategy target must match Action target",
+    );
+  }
+
+  if (
+    input.actionType === "inventory.protect_inventory" &&
+    record(input.parameters) &&
+    input.parameters.kind === "inventory_protection" &&
+    Array.isArray(input.parameters.coordinatedActionIds) &&
+    input.parameters.coordinatedActionIds.includes(input.actionId)
+  ) {
+    add(
+      errors,
+      "INVENTORY_COORDINATION_SELF_REFERENCE",
+      "parameters.coordinatedActionIds",
+      "inventory strategy cannot coordinate itself",
+    );
+  }
+
+  if (
+    (input.actionType === "inventory.clearance" ||
+      input.actionType === "inventory.accelerate_excess_stock") &&
+    record(input.parameters) &&
+    Array.isArray(input.parameters.coordinatedActionIds) &&
+    input.parameters.coordinatedActionIds.includes(input.actionId)
+  ) {
+    add(
+      errors,
+      "INVENTORY_COORDINATION_SELF_REFERENCE",
+      "parameters.coordinatedActionIds",
+      "inventory strategy cannot coordinate itself",
+    );
+  }
+
+  if (input.actionType === "inventory.rollback_policy") {
+    if (
+      !record(input.parameters) ||
+      input.parameters.kind !== "inventory_policy_rollback"
+    ) return;
+
+    if (!nonEmpty(input.reversalOfActionId)) {
+      add(
+        errors,
+        "INVENTORY_ROLLBACK_REQUIRES_REVERSAL_REFERENCE",
+        "reversalOfActionId",
+        "rollback Action must reference original inventory policy Action",
+      );
+    } else if (
+      input.reversalOfActionId !== input.parameters.originalActionId
+    ) {
+      add(
+        errors,
+        "INVENTORY_ROLLBACK_ORIGINAL_ACTION_MISMATCH",
+        "reversalOfActionId",
+        "rollback references must identify the same original inventory Action",
+      );
+    }
+    if (!record(input.duration) || input.duration.kind !== "instantaneous") {
+      add(
+        errors,
+        "INVENTORY_ROLLBACK_MUST_BE_INSTANTANEOUS",
+        "duration",
+        "inventory rollback is an instantaneous policy state change",
+      );
+    }
+  }
+}
+
 function deepFreeze<T>(value: T): T {
   if (typeof value !== "object" || value === null || Object.isFrozen(value)) return value;
   Object.freeze(value);
@@ -5401,6 +5598,7 @@ export function validateAction(
   validatePromotionActionSemantics(input, errors);
   validateShippingActionSemantics(input, errors);
   validateMerchandisingActionSemantics(input, errors);
+  validateInventoryActionSemantics(input, errors);
 
   if (input.reversalOfActionId !== undefined) {
     if (!nonEmpty(input.reversalOfActionId)) {
