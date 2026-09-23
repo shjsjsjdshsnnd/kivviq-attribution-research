@@ -49,6 +49,13 @@ Separate contracts provide:
 
 ## Population boundary
 
+Every CompoundAction now declares populationBindingLevel explicitly:
+
+- COMPOUND_LEVEL requires defaultPopulation plus defaultPopulationBindingTime; every component still declares INHERIT, OVERRIDE or NOT_APPLICABLE.
+- COMPONENT_LEVEL forbids a compound default and forbids INHERIT; each applicable population must be bound on the component.
+
+This makes hidden population inheritance structurally invalid.
+
 Step 13 does not create a second population system.
 
 The repository's `action-space/step11-customer-targeting` branch currently contains no implemented Step 11 population subsystem. Compound population handling therefore preserves explicit canonical references and binding times and fails closed when membership resolution is unavailable.
@@ -136,10 +143,12 @@ Additional fixtures cover active Actions coordinated with INVESTIGATE and WAIT/O
 
 ## Semantic identity
 
+Compound semantic equality is based on business meaning, not record identity. Compound IDs, component IDs, dependency IDs, atomic Action IDs, descriptions, intent text, provenance timestamps/evidence and measurement-plan metadata are excluded from semantic equality. Relational IDs are canonicalized to stable component/dependency references before comparison.
+
 Compound fingerprints incorporate:
 
-- atomic Action IDs and atomic business semantics
-- component IDs and roles
+- atomic business semantics
+- component roles
 - ordering where semantic
 - concurrency
 - dependencies
@@ -149,9 +158,13 @@ Compound fingerprints incorporate:
 - failure/completion policy
 - compound constraints
 - rollback semantics
-- compound measurement semantics
-
 They exclude mutable runtime state, readiness/evaluation results and predictions.
+
+Compound constraints are closed, typed and machine-evaluable. Unknown constraint kinds, soft constraints, duplicate constraint IDs and malformed units are rejected. The canonical set includes monetary conservation, incremental-media caps, discount-exposure/contribution guardrails and typed TOTAL_RESOURCE_LTE caps. Static violations are rejected when all required values are known; unresolved business-state constraints remain an explicit readiness concern.
+
+Rollback readiness reports the governing policy, rollbackable components, irreversible components, conflicts, missing/unknown context, required order, compensation requirements and whether automatic rollback is currently allowed. It remains a readiness contract only and never executes rollback.
+
+Dependency-gated translation first resolves every atomic translation capability, then applies compound dependencies in topological order. Unordered component serialization order therefore cannot change translation readiness.
 
 Unordered component collections and dependency/constraint collections are canonically serialized. Full canonical serialization round-trips exactly.
 
