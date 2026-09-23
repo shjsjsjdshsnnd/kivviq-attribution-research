@@ -2149,6 +2149,18 @@ export function simulateWorld(
                 .expectedAovMinor,
             promotionExpected:
               promotion.active,
+            validCouponAvailable:
+              request.commercePolicy
+                ?.pricingPromotionScenario === undefined
+                ? promotion.active
+                : request.commercePolicy.pricingPromotionScenario.promotions.some(
+                    (candidate) =>
+                      candidate.mechanic === "coupon" &&
+                      event.timestampMs >=
+                        Date.parse(candidate.start) &&
+                      event.timestampMs <
+                        Date.parse(candidate.end),
+                  ),
           });
         websiteTruth.push(
           ...checkoutCausalEvents({
@@ -2233,6 +2245,25 @@ export function simulateWorld(
             device: session.device,
           });
           if (
+            checkoutExperience?.couponSearched ===
+            true
+          ) {
+            observableEvents.push({
+              eventId:
+                `coupon-search:${session.sessionId}:${session.step}`,
+              eventType: "coupon_search",
+              occurredAt: new Date(
+                event.timestampMs,
+              ).toISOString(),
+              anonymousSubjectId:
+                customer.customerId,
+              sessionId:
+                session.sessionId,
+              source: session.source,
+              device: session.device,
+            });
+          }
+          if (
             checkoutExperience?.couponAttempted ===
             true
           ) {
@@ -2240,6 +2271,25 @@ export function simulateWorld(
               eventId:
                 `coupon-attempt:${session.sessionId}:${session.step}`,
               eventType: "coupon_attempt",
+              occurredAt: new Date(
+                event.timestampMs,
+              ).toISOString(),
+              anonymousSubjectId:
+                customer.customerId,
+              sessionId:
+                session.sessionId,
+              source: session.source,
+              device: session.device,
+            });
+          }
+          if (
+            checkoutExperience?.couponInvalid ===
+            true
+          ) {
+            observableEvents.push({
+              eventId:
+                `coupon-invalid:${session.sessionId}:${session.step}`,
+              eventType: "coupon_invalid",
               occurredAt: new Date(
                 event.timestampMs,
               ).toISOString(),

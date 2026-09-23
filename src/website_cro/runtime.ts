@@ -902,6 +902,7 @@ export function resolveCheckoutExperience(input: {
   readonly cartValueMinor: number;
   readonly expectedAovMinor: number;
   readonly promotionExpected: boolean;
+  readonly validCouponAvailable?: boolean;
 }): CheckoutExperience | undefined {
   if (input.scenario === undefined) return undefined;
 
@@ -918,29 +919,44 @@ export function resolveCheckoutExperience(input: {
     customer: input.customer,
   })!;
 
+  const validCouponAvailable =
+    input.validCouponAvailable ??
+    input.promotionExpected;
+  const promotionSensitivity = clamp(
+    input.customer.promotionSensitivityMultiplier / 2,
+  );
+  const couponSearchProbability = clamp(
+    state.cart.couponExpectationProbability *
+      (validCouponAvailable ? 0.18 : 0.55) *
+      (0.68 + promotionSensitivity * 0.42),
+    0,
+    0.72,
+  );
+  const couponSearched = input.randomness.bool(
+    `${input.key}:coupon-search`,
+    couponSearchProbability,
+  );
   const couponAttemptProbability = clamp(
     state.cart.couponExpectationProbability *
-      (input.promotionExpected ? 1.35 : 0.6) *
-      (0.72 +
-        0.28 *
-          clamp(
-            input.customer.promotionSensitivityMultiplier / 2,
-          )),
+      (validCouponAvailable ? 1.35 : 0.45) *
+      (0.72 + 0.28 * promotionSensitivity) +
+      (couponSearched ? 0.32 : 0),
   );
   const couponAttempted = input.randomness.bool(
     `${input.key}:coupon-attempt`,
     couponAttemptProbability,
   );
-  const couponFailureProbability = couponAttempted
-    ? clamp(
-        (1 - state.cart.couponReliability) *
-          (0.35 +
-            0.45 *
-              clamp(
-                input.customer.promotionSensitivityMultiplier / 2,
-              )),
-      )
-    : 0;
+  const invalidCouponProbability =
+    couponAttempted && !validCouponAvailable
+      ? clamp(0.28 + promotionSensitivity * 0.34, 0, 0.72)
+      : 0;
+  const couponDefectProbability =
+    couponAttempted && validCouponAvailable
+      ? clamp(
+          (1 - state.cart.couponReliability) *
+            (0.35 + 0.45 * promotionSensitivity),
+        )
+      : 0;
 
   const paymentFailureProbability = clamp(
     (1 - state.checkout.paymentReliability) *
@@ -970,10 +986,16 @@ export function resolveCheckoutExperience(input: {
         )
       : 0;
 
-  const couponFailed = input.randomness.bool(
-    `${input.key}:coupon-failure`,
-    couponFailureProbability,
+  const couponInvalid = input.randomness.bool(
+    `${input.key}:coupon-invalid`,
+    invalidCouponProbability,
   );
+  const couponDefect = input.randomness.bool(
+    `${input.key}:coupon-defect`,
+    couponDefectProbability,
+  );
+  const couponFailed =
+    couponInvalid || couponDefect;
   const paymentFailed = input.randomness.bool(
     `${input.key}:payment-failure`,
     paymentFailureProbability,
@@ -1073,7 +1095,8 @@ export function resolveCheckoutExperience(input: {
   if (stageQualities.review < 0.68) {
     frictions.push("checkout_review_friction");
   }
-  if (couponFailed) frictions.push("broken_coupon");
+  if (couponInvalid) frictions.push("invalid_coupon");
+  if (couponDefect) frictions.push("broken_coupon");
   if (paymentFailed) frictions.push("payment_failure");
   if (addressValidationFailed) {
     frictions.push("address_validation_failure");
@@ -1085,7 +1108,9 @@ export function resolveCheckoutExperience(input: {
     websiteVersionId: state.versionId,
     completionMultiplier: clamp(completionMultiplier, 0.02, 1.15),
     stageQualities,
+    couponSearched,
     couponAttempted,
+    couponInvalid,
     couponFailed,
     paymentFailed,
     addressValidationFailed,

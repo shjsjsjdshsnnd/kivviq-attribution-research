@@ -193,6 +193,7 @@ export type WebsiteFrictionKind =
   | "unclear_delivery"
   | "cart_friction"
   | "broken_coupon"
+  | "invalid_coupon"
   | "checkout_friction"
   | "checkout_contact_friction"
   | "checkout_shipping_friction"
@@ -345,7 +346,9 @@ export interface CheckoutExperience {
     payment: number;
     review: number;
   }>;
+  readonly couponSearched: boolean;
   readonly couponAttempted: boolean;
+  readonly couponInvalid: boolean;
   readonly couponFailed: boolean;
   readonly paymentFailed: boolean;
   readonly addressValidationFailed: boolean;

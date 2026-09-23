@@ -154,7 +154,9 @@ Cross-sell behavior uses the existing product complementarity/substitution struc
 
 ## Coupon behavior
 
-Coupon attempts are customer- and promotion-dependent. A failed expected coupon can reduce checkout completion but does not deterministically force abandonment.
+Coupon behavior is customer- and promotion-dependent. The simulator distinguishes coupon search, an invalid code when no valid coupon is available, and a genuine functionality defect where a valid expected coupon fails. Either failure can reduce checkout completion but does not deterministically force abandonment.
+
+When a Step 10 pricing/promotion scenario is present, active `coupon` mechanics determine whether a valid coupon is available at checkout; general promotions can still induce coupon searching without being treated as valid coupon truth.
 
 The broken-coupon trap keeps promotional traffic, ATC and checkout entry healthy while completion deteriorates because expected coupon functionality fails.
 
