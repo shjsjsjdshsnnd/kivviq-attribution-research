@@ -563,6 +563,7 @@ export function validateActionTiming(input: unknown): TimingValidationResult {
       effectiveMs !== undefined &&
       endMs !== undefined &&
       durationMs !== undefined &&
+      duration.kind === "ELAPSED" &&
       duration.anchor === "EFFECTIVE_START" &&
       endMs !== effectiveMs + durationMs
     ) {
