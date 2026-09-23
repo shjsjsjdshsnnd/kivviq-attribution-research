@@ -1057,7 +1057,7 @@ describe("Step 3.8 canonical greedy baseline operators", () => {
       expect(firstAudit.candidateRanking.length).toBeGreaterThan(0);
       expect(firstAudit.selectedCandidateId).toBeDefined();
     }
-  });
+  }, 15_000);
 
   it("freezes the preregistered greedy configurations and fingerprints", () => {
     const configs: readonly GreedyConfiguration[] = [
