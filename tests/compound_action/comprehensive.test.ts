@@ -206,7 +206,7 @@ describe("Step 13 readiness and rollback",()=>{
       {componentId:"promotion",eligibility:"ELIGIBLE",structuralValid:true,contextAvailable:true,populationResolved:true,timingResolved:true,simulatorCapability:true},
       {componentId:"email",eligibility:"ELIGIBLE",structuralValid:true,contextAvailable:true,populationResolved:true,timingResolved:true,simulatorCapability:true},
     ],{unknownConstraintIds:["future_context_required"]});
-    expect(unknown.state).toBe("PARTIALLY_READY");
+    expect(unknown.state).toBe("UNKNOWN");\n    expect(unknown.unknownConstraintIds).toEqual(["future_context_required"]);
   });
   it("uses reverse dependency order for rollback",()=>{
     const result=deriveCompoundRollbackReadiness(fixture06PromotionBeforeEmail);
