@@ -1,11 +1,14 @@
 import { validateAction } from "../action_ontology/validation.js";
 import { validateActionTiming, validateTimingDependencyGraph } from "../action_timing/validation.js";
+import { actionTimingFingerprint } from "../action_timing/canonical.js";
 import { COMPOUND_ACTION_SCHEMA_VERSION, type CompoundAction, type CompoundConstraint } from "./types.js";
 
 export interface CompoundValidationIssue {readonly code:string;readonly path:string;readonly message:string}
 export type CompoundValidationResult={readonly ok:true;readonly compound:CompoundAction;readonly issues:readonly []}|{readonly ok:false;readonly issues:readonly CompoundValidationIssue[]};
 
-const FORBIDDEN=new Set(["expectedRevenue","expectedProfit","expectedROAS","expectedLift","expectedSynergy","predictedInteractionEffect","predictedConversions","futureDemand","counterfactualRevenue","recommendationScore","confidenceScore","bestAction","evaluationResult","executionStatus","trafficAllocation","randomization","significanceThreshold","statisticalPower","experimentResult"]);
+const TOP_LEVEL_FIELDS=new Set(["kind","compoundActionId","schemaVersion","description","intent","components","ordering","concurrency","dependencies","atomicity","failurePolicy","completionRule","defaultPopulation","timing","constraints","rollback","measurement","provenance"]);
+const COMPONENT_ROLES=new Set(["SOURCE","DESTINATION","PRIMARY","SUPPORTING","TRIGGER","DEPENDENT","CONTROL"]);
+const FORBIDDEN=new Set(["expectedRevenue","expectedProfit","expectedROAS","expectedLift","expectedSynergy","predictedInteractionEffect","predictedConversions","futureDemand","counterfactualRevenue","recommendationScore","confidenceScore","bestAction","evaluationResult","executionStatus","trafficAllocation","randomization","significanceThreshold","statisticalPower","experimentResult","executionState","lifecycleState","executedAt","failedAt","rolledBackAt","partiallyExecuted"]);
 function record(v:unknown):v is any{return typeof v==="object"&&v!==null&&!Array.isArray(v)}
 function add(a:CompoundValidationIssue[],code:string,path:string,message:string):void{a.push({code,path,message})}
 function leakage(v:unknown,path:string,a:CompoundValidationIssue[]):void{
@@ -38,6 +41,7 @@ export function validateCompoundAction(input:unknown):CompoundValidationResult{
   const a:CompoundValidationIssue[]=[];
   if(!record(input))return{ok:false,issues:[{code:"INVALID_COMPOUND_ACTION",path:"$",message:"CompoundAction must be an object"}]};
   leakage(input,"$",a);
+  for(const key of Object.keys(input))if(!TOP_LEVEL_FIELDS.has(key))add(a,"UNKNOWN_COMPOUND_FIELD",key,"unknown CompoundAction fields are rejected rather than interpreted implicitly");
   if(input.kind!=="compound_action")add(a,"INVALID_COMPOUND_KIND","kind","must be compound_action");
   if(input.schemaVersion!==COMPOUND_ACTION_SCHEMA_VERSION)add(a,"UNSUPPORTED_COMPOUND_SCHEMA","schemaVersion","unsupported CompoundAction schema");
   if(typeof input.compoundActionId!=="string"||!/^compound_[A-Za-z0-9._:-]+$/.test(input.compoundActionId))add(a,"INVALID_COMPOUND_ID","compoundActionId","must begin with compound_");
@@ -50,13 +54,17 @@ export function validateCompoundAction(input:unknown):CompoundValidationResult{
     const p="components["+i+"]";
     if(!record(c)||typeof c.componentId!=="string"||!c.componentId){add(a,"INVALID_COMPONENT_ID",p+".componentId","component identity is required");return}
     if(ids.has(c.componentId))add(a,"DUPLICATE_COMPONENT_ID",p+".componentId","component IDs must be unique");ids.add(c.componentId);
+    if(c.role!==undefined&&!COMPONENT_ROLES.has(c.role))add(a,"INVALID_COMPONENT_ROLE",p+".role","unsupported component role");
     const v=validateAction(c.action);if(!v.ok)add(a,"INVALID_ATOMIC_COMPONENT",p+".action","component must be a valid canonical atomic Action");
     else if(v.action.parameters.kind==="no_op"&&c.role!=="CONTROL")add(a,"NO_OP_COMPONENT_REQUIRES_CONTROL_ROLE",p+".role","NO_OP requires explicit CONTROL role");
     if(!record(c.population)||!["INHERIT","OVERRIDE","NOT_APPLICABLE"].includes(c.population.kind))add(a,"INVALID_POPULATION_BINDING",p+".population","explicit population binding is required");
     if(c.population?.kind==="INHERIT"&&!input.defaultPopulation)add(a,"MISSING_DEFAULT_POPULATION",p+".population","INHERIT requires defaultPopulation");
+    if(c.population?.kind==="OVERRIDE"&&(typeof c.population.populationRef!=="string"||!c.population.populationRef.trim()))add(a,"INVALID_POPULATION_OVERRIDE",p+".population.populationRef","override requires a population reference");
+    if(c.population?.kind==="NOT_APPLICABLE"&&(typeof c.population.reason!=="string"||!c.population.reason.trim()))add(a,"INVALID_POPULATION_NOT_APPLICABLE",p+".population.reason","NOT_APPLICABLE requires a reason");
     if(!record(c.timing)||!["INHERIT","OVERRIDE","DEPENDENT"].includes(c.timing.kind))add(a,"INVALID_TIMING_BINDING",p+".timing","explicit timing binding is required");
     if(c.timing?.kind==="INHERIT"&&!input.timing)add(a,"MISSING_COMPOUND_TIMING",p+".timing","INHERIT requires compound timing");
     if(c.timing?.kind==="OVERRIDE"&&!validateActionTiming(c.timing.timing).ok)add(a,"INVALID_COMPONENT_TIMING",p+".timing","timing override is invalid");
+    if(c.timing?.kind==="DEPENDENT"&&(!Array.isArray(c.timing.dependencyIds)||c.timing.dependencyIds.length===0))add(a,"EMPTY_DEPENDENT_TIMING",p+".timing.dependencyIds","DEPENDENT timing requires at least one dependency ID");
   });
 
   if(!record(input.ordering)||!["UNORDERED","ORDERED"].includes(input.ordering.kind))add(a,"INVALID_COMPOUND_ORDERING","ordering","ordering semantics are required");
@@ -67,19 +75,42 @@ export function validateCompoundAction(input:unknown):CompoundValidationResult{
 
   if(!Array.isArray(input.dependencies))add(a,"INVALID_COMPOUND_DEPENDENCIES","dependencies","dependencies must be an array");
   else{
+    const dependencyIds=new Set<string>();
     for(const [i,d] of input.dependencies.entries()){
       const p="dependencies["+i+"]";
       if(!record(d)||!["START_AFTER","EFFECTIVE_AFTER","COMPLETE_AFTER","REQUIRES","END_WITH"].includes(d.type))add(a,"INVALID_COMPONENT_DEPENDENCY",p,"invalid dependency");
-      else{if(!ids.has(d.componentId)||!ids.has(d.dependsOnComponentId))add(a,"MISSING_DEPENDENCY_COMPONENT",p,"dependency must reference existing components");if(d.componentId===d.dependsOnComponentId)add(a,"SELF_COMPONENT_DEPENDENCY",p,"self-dependency is impossible")}
+      else{
+        if(typeof d.dependencyId!=="string"||!d.dependencyId.trim())add(a,"INVALID_DEPENDENCY_ID",p+".dependencyId","dependency identity is required");
+        else if(dependencyIds.has(d.dependencyId))add(a,"DUPLICATE_DEPENDENCY_ID",p+".dependencyId","dependency IDs must be unique");
+        else dependencyIds.add(d.dependencyId);
+        if(!ids.has(d.componentId)||!ids.has(d.dependsOnComponentId))add(a,"MISSING_DEPENDENCY_COMPONENT",p,"dependency must reference existing components");
+        if(d.componentId===d.dependsOnComponentId)add(a,"SELF_COMPONENT_DEPENDENCY",p,"self-dependency is impossible");
+      }
     }
     if(Array.isArray(input.components)){
+      for(const [i,component] of input.components.entries()){
+        if(component?.timing?.kind==="DEPENDENT"){
+          for(const depId of component.timing.dependencyIds??[])if(!dependencyIds.has(depId))add(a,"UNKNOWN_TIMING_DEPENDENCY_ID","components["+i+"].timing.dependencyIds","DEPENDENT timing must reference declared dependencies");
+        }
+      }
       const graph=validateTimingDependencyGraph(input.components.map((c:any)=>({actionId:c.componentId,dependencies:input.dependencies.filter((d:any)=>d.componentId===c.componentId).map((d:any)=>({kind:"START_AFTER_ACTION_COMPLETED" as const,actionId:d.dependsOnComponentId}))})));
       if(!graph.ok)add(a,"COMPOUND_DEPENDENCY_CYCLE","dependencies","component dependency graph contains a cycle");
     }
   }
   if(input.timing!==undefined&&!validateActionTiming(input.timing).ok)add(a,"INVALID_COMPOUND_TIMING","timing","shared timing is invalid");
+  if(input.concurrency==="EFFECTIVE_TOGETHER"&&Array.isArray(input.components)){
+    const overrides=input.components.filter((x:any)=>x?.timing?.kind==="OVERRIDE").map((x:any)=>actionTimingFingerprint(x.timing.timing));
+    if(new Set(overrides).size>1)add(a,"EFFECTIVE_TOGETHER_TIMING_CONFLICT","components","EFFECTIVE_TOGETHER components cannot declare conflicting timing overrides");
+  }
   if(!Array.isArray(input.constraints))add(a,"INVALID_COMPOUND_CONSTRAINTS","constraints","constraints must be an array");else input.constraints.forEach((c:any,i:number)=>validateConstraint(c,input as CompoundAction,a,i));
   if(!record(input.rollback)||!["ROLLBACK_ALL_REVERSIBLE_COMPONENTS","ROLLBACK_COMPLETED_COMPONENTS","ROLLBACK_DEPENDENT_COMPONENTS","NO_AUTOMATIC_ROLLBACK"].includes(input.rollback.policy))add(a,"INVALID_ROLLBACK_POLICY","rollback","rollback policy is required");
+  else{
+    if(!["REVERSE_DEPENDENCY_ORDER","EXPLICIT","UNORDERED"].includes(input.rollback.order))add(a,"INVALID_ROLLBACK_ORDER","rollback.order","rollback order semantics are required");
+    if(input.rollback.order==="EXPLICIT"){
+      const order=input.rollback.explicitComponentOrder;
+      if(!Array.isArray(order)||order.length!==ids.size||new Set(order).size!==ids.size||order.some((id:any)=>!ids.has(id)))add(a,"INVALID_EXPLICIT_ROLLBACK_ORDER","rollback.explicitComponentOrder","explicit rollback order must contain every component exactly once");
+    }
+  }
   if(!record(input.measurement)||!Number.isInteger(input.measurement.primaryEvaluationSeconds)||input.measurement.primaryEvaluationSeconds<=0)add(a,"INVALID_COMPOUND_MEASUREMENT","measurement","compound measurement horizon is required");
   if(!record(input.provenance)||typeof input.provenance.createdAt!=="string")add(a,"INVALID_COMPOUND_PROVENANCE","provenance","provenance is required");
   return a.length?{ok:false,issues:a}:{ok:true,compound:input as CompoundAction,issues:[]};
