@@ -521,12 +521,18 @@ describe("Step 3.4 simple advertising heuristic baselines", () => {
 
   describe("HIGHEST_OBSERVED_ROAS", () => {
     it("reallocates a fixed increment from lowest observed ROAS to clear winner", () => {
+      const channels = [
+        channel("google_ads", 600_000, 100_000, 400_000),
+        channel("meta_ads", 300_000, 100_000, 200_000),
+        channel("pinterest_ads", 200_000, 100_000, 100_000),
+      ];
       const { output, audit } = decision(
         HIGHEST_OBSERVED_ROAS_OPERATOR,
+        channels,
       );
       expect(targetBudgets(output.actions)).toEqual({
         google_ads: 700_000,
-        pinterest_ads: 0,
+        pinterest_ads: 100_000,
       });
       expect((audit?.payload as any).selectedChannel).toBe(
         "google_ads",
@@ -583,9 +589,17 @@ describe("Step 3.4 simple advertising heuristic baselines", () => {
     });
 
     it("conserves total budget exactly", () => {
-      const { output } = decision(HIGHEST_OBSERVED_ROAS_OPERATOR);
+      const channels = [
+        channel("google_ads", 600_000, 100_000, 400_000),
+        channel("meta_ads", 300_000, 100_000, 200_000),
+        channel("pinterest_ads", 200_000, 100_000, 100_000),
+      ];
+      const { output } = decision(
+        HIGHEST_OBSERVED_ROAS_OPERATOR,
+        channels,
+      );
       const budgets = targetBudgets(output.actions);
-      const before = 600_000 + 100_000;
+      const before = 600_000 + 200_000;
       expect(budgets["google_ads"]! + budgets["pinterest_ads"]!).toBe(before);
     });
   });
