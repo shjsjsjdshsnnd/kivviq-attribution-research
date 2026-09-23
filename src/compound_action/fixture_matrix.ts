@@ -73,6 +73,7 @@ function compound(
     atomicity:"BEST_EFFORT",
     failurePolicy:"CONTINUE_INDEPENDENT_COMPONENTS",
     completionRule:"ALL_COMPONENTS_COMPLETE",
+    populationBindingLevel:"COMPONENT_LEVEL",
     timing:fridaySevenDayBudgetTiming,
     constraints:[],
     rollback:{policy:"ROLLBACK_ALL_REVERSIBLE_COMPONENTS",order:"REVERSE_DEPENDENCY_ORDER",irreversibleComponentPolicy:"REPORT_AND_CONTINUE"},
@@ -248,7 +249,7 @@ export const fixture09InheritedPopulationOverride=compound(
     component("vip_promotion",startVipSegmentA20,{population:{kind:"INHERIT"}}),
     component("segment_email",sendEmailSegmentAFriday10,{population:{kind:"OVERRIDE",populationRef:"population:segment-a",bindingTime:"SEND_TIME"}}),
   ],
-  {defaultPopulation:"population:vip-a",defaultPopulationBindingTime:"EFFECTIVE_TIME"},
+  {populationBindingLevel:"COMPOUND_LEVEL",defaultPopulation:"population:vip-a",defaultPopulationBindingTime:"EFFECTIVE_TIME"},
 );
 
 export const fixture10InheritedTimingDelayedDependent=compound(
