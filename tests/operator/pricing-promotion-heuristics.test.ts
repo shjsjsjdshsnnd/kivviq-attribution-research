@@ -621,7 +621,7 @@ describe("Step 3.6 simple pricing and promotion heuristic baselines", () => {
         throw new Error("unexpected promotion Action");
       }
       expect(action.parameters.promotionId).toBe(
-        "heuristic_calendar_fall_a_v1",
+        "promo_heuristic_calendar_fall_a_v1",
       );
       expect(action.duration).toEqual({
         kind: "temporary",
@@ -637,9 +637,9 @@ describe("Step 3.6 simple pricing and promotion heuristic baselines", () => {
       const result = decision(
         FIXED_PROMOTIONAL_CALENDAR_OPERATOR,
         sku({
-          activePromotionIds: ["heuristic_calendar_fall_a_v1"],
+          activePromotionIds: ["promo_heuristic_calendar_fall_a_v1"],
           promotionOwners: {
-            heuristic_calendar_fall_a_v1: "heuristic",
+            promo_heuristic_calendar_fall_a_v1: "heuristic",
           },
         }),
         { sequence: 5 },
@@ -654,9 +654,9 @@ describe("Step 3.6 simple pricing and promotion heuristic baselines", () => {
       const result = decision(
         FIXED_PROMOTIONAL_CALENDAR_OPERATOR,
         sku({
-          activePromotionIds: ["heuristic_calendar_fall_a_v1"],
+          activePromotionIds: ["promo_heuristic_calendar_fall_a_v1"],
           promotionOwners: {
-            heuristic_calendar_fall_a_v1: "heuristic",
+            promo_heuristic_calendar_fall_a_v1: "heuristic",
           },
         }),
         { sequence: 6 },
@@ -668,7 +668,7 @@ describe("Step 3.6 simple pricing and promotion heuristic baselines", () => {
         throw new Error("unexpected promotion Action");
       }
       expect(action.parameters.promotionId).toBe(
-        "heuristic_calendar_overlap_b_v1",
+        "promo_heuristic_calendar_overlap_b_v1",
       );
       expect(action.parameters.definition.stacking).toEqual({
         kind: "STACKABLE",
@@ -683,12 +683,12 @@ describe("Step 3.6 simple pricing and promotion heuristic baselines", () => {
         FIXED_PROMOTIONAL_CALENDAR_OPERATOR,
         sku({
           activePromotionIds: [
-            "heuristic_calendar_fall_a_v1",
-            "heuristic_calendar_overlap_b_v1",
+            "promo_heuristic_calendar_fall_a_v1",
+            "promo_heuristic_calendar_overlap_b_v1",
           ],
           promotionOwners: {
-            heuristic_calendar_fall_a_v1: "heuristic",
-            heuristic_calendar_overlap_b_v1: "heuristic",
+            promo_heuristic_calendar_fall_a_v1: "heuristic",
+            promo_heuristic_calendar_overlap_b_v1: "heuristic",
           },
         }),
         { sequence: 8 },
@@ -721,9 +721,9 @@ describe("Step 3.6 simple pricing and promotion heuristic baselines", () => {
         const result = decision(
           FIXED_PROMOTIONAL_CALENDAR_OPERATOR,
           sku({
-            activePromotionIds: ["heuristic_calendar_fall_a_v1"],
+            activePromotionIds: ["promo_heuristic_calendar_fall_a_v1"],
             promotionOwners: {
-              heuristic_calendar_fall_a_v1: owner,
+              promo_heuristic_calendar_fall_a_v1: owner,
             },
           }),
           { sequence: 4 },
@@ -1094,23 +1094,23 @@ describe("Step 3.6 simple pricing and promotion heuristic baselines", () => {
         if (operator.metadata.operatorId === FIXED_PROMOTIONAL_CALENDAR_OPERATOR.metadata.operatorId) {
           if (sequence === 5) {
             item = sku({
-              activePromotionIds: ["heuristic_calendar_fall_a_v1"],
+              activePromotionIds: ["promo_heuristic_calendar_fall_a_v1"],
               promotionOwners: {
-                heuristic_calendar_fall_a_v1: "heuristic",
+                promo_heuristic_calendar_fall_a_v1: "heuristic",
               },
             });
           } else if (sequence === 6 || sequence === 7) {
             item = sku({
-              activePromotionIds: ["heuristic_calendar_fall_a_v1"],
+              activePromotionIds: ["promo_heuristic_calendar_fall_a_v1"],
               promotionOwners: {
-                heuristic_calendar_fall_a_v1: "heuristic",
+                promo_heuristic_calendar_fall_a_v1: "heuristic",
               },
             });
           } else if (sequence === 8 || sequence === 9) {
             item = sku({
-              activePromotionIds: ["heuristic_calendar_overlap_b_v1"],
+              activePromotionIds: ["promo_heuristic_calendar_overlap_b_v1"],
               promotionOwners: {
-                heuristic_calendar_overlap_b_v1: "heuristic",
+                promo_heuristic_calendar_overlap_b_v1: "heuristic",
               },
             });
           }
