@@ -1,4 +1,4 @@
-import { translateBusinessAction } from "../action_translation/translate.js";
+import { translateAtomicBusinessActionWithOrigin } from "../action_translation/translate.js";
 import type { TranslationContext, TranslationResult } from "../action_translation/types.js";
 import type { SimulatorIntervention } from "../simulator_intervention/types.js";
 import type { CompoundAction } from "./types.js";
@@ -22,7 +22,7 @@ export function translateCompoundAction(c:CompoundAction,context:TranslationCont
   const validation=validateCompoundAction(c);
   if(!validation.ok)return{compoundActionId:c.compoundActionId,status:"INVALID_COMPOUND",components:[],interventions:[],omittedComponentIds:c.components.map(x=>x.componentId)};
   const components=flattenCompoundAction(c).map(component=>{
-    const result=translateBusinessAction(component.action,context);
+    const result=translateAtomicBusinessActionWithOrigin(component.action,context,{originatingBusinessActionId:c.compoundActionId,sourceActionId:component.action.actionId,componentIndex:component.componentIndex,componentCount:c.components.length});
     return{componentId:component.componentId,actionId:component.action.actionId,result,interventions:result.status==="TRANSLATED"?result.interventions:[]};
   });
   const failed=components.filter(x=>x.result.status!=="TRANSLATED");
