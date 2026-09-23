@@ -81,7 +81,16 @@ export interface OperatorDecisionOutput {
   readonly actions: readonly Action[];
 }
 
+export interface OperatorDecisionAudit {
+  readonly auditType: string;
+  readonly payload: OperatorJson;
+}
+
 export interface CanonicalOperator {
   readonly metadata: CanonicalOperatorMetadata;
   decide(input: Readonly<OperatorDecisionInput>): OperatorDecisionOutput;
+  auditDecision?(
+    input: Readonly<OperatorDecisionInput>,
+    output: Readonly<OperatorDecisionOutput>,
+  ): OperatorDecisionAudit;
 }

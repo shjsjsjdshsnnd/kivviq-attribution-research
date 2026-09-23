@@ -1,0 +1,74 @@
+name: Step 3.3 STATUS_QUO Baseline CI
+
+on:
+  push:
+    branches:
+      - baseline/step3.3-status-quo
+  pull_request:
+    branches:
+      - baseline/step3.2-do-nothing
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - name: Install
+        run: npm install --no-audit --no-fund
+
+      - name: Architecture boundary
+        run: npm run architecture
+
+      - name: Strict typecheck
+        run: npm run typecheck
+
+      - name: Step 3.3 focused tests
+        run: npm run test:status-quo
+
+      - name: Full inherited and Step 3.3 suite
+        run: npm test
+
+      - name: Build
+        run: npm run build
+
+      - name: Frozen Step 3.3 fingerprints
+        run: |
+          node --input-type=module <<'NODE'
+          import {
+            STATUS_QUO_FROZEN_STEP_3_1_COMMIT,
+            STATUS_QUO_FROZEN_STEP_3_2_COMMIT,
+            STATUS_QUO_IMPLEMENTATION_FINGERPRINT,
+            STATUS_QUO_OPERATOR_ID,
+            STATUS_QUO_OPERATOR_VERSION,
+            MERCHANT_POLICY_SCHEMA_VERSION,
+          } from "./dist/operator/index.js";
+          import {
+            CANONICAL_BASELINE_EVALUATION_CONTRACT_V1,
+            BASELINE_METRIC_SET_VERSION,
+          } from "./dist/evaluation/index.js";
+          import {
+            WORLD_SIMULATOR_VERSION,
+          } from "./dist/simulation/kernel.js";
+
+          console.log("status_quo_operator_id=" + STATUS_QUO_OPERATOR_ID);
+          console.log("status_quo_operator_version=" + STATUS_QUO_OPERATOR_VERSION);
+          console.log("status_quo_implementation_fingerprint=" + STATUS_QUO_IMPLEMENTATION_FINGERPRINT);
+          console.log("merchant_policy_schema_version=" + MERCHANT_POLICY_SCHEMA_VERSION);
+          console.log("step3_1_frozen_commit=" + STATUS_QUO_FROZEN_STEP_3_1_COMMIT);
+          console.log("step3_2_frozen_commit=" + STATUS_QUO_FROZEN_STEP_3_2_COMMIT);
+          console.log("step3_1_contract_fingerprint=" + CANONICAL_BASELINE_EVALUATION_CONTRACT_V1.contractFingerprint);
+          console.log("action_ontology_version=" + CANONICAL_BASELINE_EVALUATION_CONTRACT_V1.actionSpace.ontologySchemaVersion);
+          console.log("metric_set_version=" + BASELINE_METRIC_SET_VERSION);
+          console.log("validation_simulator_version=" + WORLD_SIMULATOR_VERSION);
+          NODE
