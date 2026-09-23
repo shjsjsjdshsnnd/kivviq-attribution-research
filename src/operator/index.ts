@@ -5,3 +5,5 @@ export * from "./merchant-policy.js";
 export * from "./status-quo.js";
 
 export * from "./advertising-heuristics.js";
+
+export * from "./inventory-heuristics.js";
