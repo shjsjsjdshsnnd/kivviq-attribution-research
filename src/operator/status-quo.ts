@@ -61,6 +61,7 @@ export interface StatusQuoRuleEvaluation {
     | "supported_by_frozen_translation"
     | "unsupported_by_frozen_simulator";
   readonly incompatibilityReason?: string;
+  readonly preservedPolicyValue?: OperatorJson;
 }
 
 export interface StatusQuoPolicyDecision {
@@ -72,6 +73,12 @@ export interface StatusQuoPolicyDecision {
     readonly policySchemaVersion: typeof MERCHANT_POLICY_SCHEMA_VERSION;
     readonly coverage: Readonly<
       Record<MerchantPolicyDomain, "defined" | "undefined">
+    >;
+    readonly componentFingerprints: Readonly<
+      Record<MerchantPolicyDomain, string>
+    >;
+    readonly componentParameters: Readonly<
+      Record<MerchantPolicyDomain, OperatorJson>
     >;
     readonly evaluatedRules: readonly StatusQuoRuleEvaluation[];
     readonly triggeredRuleIds: readonly string[];
@@ -178,6 +185,7 @@ function evaluateRule(
         ownership: rule.ownership,
         status: "MAINTAIN_STATE_NO_ACTION",
         emittedActionIds: [],
+        preservedPolicyValue: rule.preservedPolicyValue,
       },
       actions: [],
     };
@@ -402,6 +410,18 @@ export function evaluateStatusQuoPolicy(
       ) as Readonly<
         Record<MerchantPolicyDomain, "defined" | "undefined">
       >,
+      componentFingerprints: Object.fromEntries(
+        DOMAINS.map((domain) => [
+          domain,
+          policy.components[domain].componentFingerprint,
+        ]),
+      ) as Readonly<Record<MerchantPolicyDomain, string>>,
+      componentParameters: Object.fromEntries(
+        DOMAINS.map((domain) => [
+          domain,
+          policy.components[domain].parameters,
+        ]),
+      ) as Readonly<Record<MerchantPolicyDomain, OperatorJson>>,
       evaluatedRules: evaluations,
       triggeredRuleIds: triggered.map((entry) => entry.ruleId),
       emittedActionIds: actions.map((action) =>
@@ -432,6 +452,10 @@ const STATUS_QUO_IMPLEMENTATION_SEMANTICS = deepFreezeOperator({
   merchantPolicySchemaVersion: MERCHANT_POLICY_SCHEMA_VERSION,
   decisionAlgorithm:
     "evaluate only frozen merchant-policy rules against permitted operator observations and the current decision timestamp; emit canonical Actions required by that pre-existing policy; never optimize; explicitly mark a decision incompatible when a required triggered policy Action cannot be faithfully represented by the frozen simulator",
+  decisionAudit:
+    "record policy coverage, component fingerprints, component parameters, preserved maintain-state values, evaluated rules, triggered rules and incompatibilities deterministically",
+  configurationFingerprint:
+    "fingerprint the frozen policy-bound deterministic configuration body independently from the implementation fingerprint",
   randomness: "none_unless_future_policy_schema_explicitly_versions_and_seeds_it",
 } as const);
 
