@@ -382,6 +382,15 @@ export const activeWithWaitObserveCompound=compound(
   [component("active",increaseGoogleShoppingBudget20),component("wait",waitObserveAction,{role:"SUPPORTING"})],
 );
 
+export const requiredCompoundFixtures:readonly unknown[]=[
+  fixture01BudgetReallocation,fixture02Campaign,fixture03FullCampaign,fixture04InventoryProtection,fixture05ClearanceAcceleration,
+  fixture06PromotionBeforeEmail,fixture07ConcurrentPaidMedia,fixture08DifferentPopulations,fixture09InheritedPopulationOverride,
+  fixture10InheritedTimingDelayedDependent,fixture11StateTermination,fixture12RecurringWeekend,fixture13UnsupportedSimulatorComponent,
+  fixture14AllOrNothingUnsupported,fixture15BestEffortUnsupported,fixture16MixedReversibility,fixture17RollbackAllSafe,
+  fixture18RollbackConflict,fixture19RollbackAfterEmailSent,fixture20InvalidCircularDependency,fixture21InvalidConservation,
+  fixture22MediaBudgetConstraintViolation,fixture23SameActionsDifferentOrder,fixture24UnknownEligibility,fixture25NoOpControl,
+];
+
 export const canonicalCompoundFixtures:readonly CompoundAction[]=[
   fixture01BudgetReallocation,fixture02Campaign,fixture03FullCampaign,fixture04InventoryProtection,fixture05ClearanceAcceleration,
   fixture06PromotionBeforeEmail,fixture07ConcurrentPaidMedia,fixture08DifferentPopulations,fixture09InheritedPopulationOverride,
