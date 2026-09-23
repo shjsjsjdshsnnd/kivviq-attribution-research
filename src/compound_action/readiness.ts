@@ -1,5 +1,5 @@
 import type { Action } from "../action_ontology/types.js";
-import type { CompoundAction,CompoundActionReadiness,CompoundComponentReadiness,CompoundRollbackReadiness } from "./types.js";
+import type { CompoundAction,CompoundActionReadiness,CompoundComponentReadiness,CompoundRollbackReadiness,CompoundRollbackComponentReadiness } from "./types.js";
 
 export interface CompoundReadinessEvidence {
   readonly componentId:string;
@@ -82,7 +82,7 @@ export function deriveCompoundRollbackReadiness(c:CompoundAction,conflicts:reado
   const missing=new Set(options.missingContextComponentIds??[]);
   const unknown=new Set(options.unknownComponentIds??[]);
   const components=orderedComponents.map(x=>{
-    const state=conflicts.includes(x.componentId)?"CONFLICT":missing.has(x.componentId)?"MISSING_CONTEXT":unknown.has(x.componentId)?"UNKNOWN":reversible(x.action)?"ROLLBACKABLE":"IRREVERSIBLE";
+    const state:CompoundRollbackComponentReadiness["state"]=conflicts.includes(x.componentId)?"CONFLICT":missing.has(x.componentId)?"MISSING_CONTEXT":unknown.has(x.componentId)?"UNKNOWN":reversible(x.action)?"ROLLBACKABLE":"IRREVERSIBLE";
     const reasons=state==="CONFLICT"?["DOMAIN_ROLLBACK_CONFLICT"]:state==="MISSING_CONTEXT"?["ROLLBACK_CONTEXT_MISSING"]:state==="UNKNOWN"?["ROLLBACK_READINESS_UNKNOWN"]:state==="IRREVERSIBLE"?["ATOMIC_ACTION_IRREVERSIBLE"]:[];
     return{componentId:x.componentId,actionId:x.action.actionId,state,reasons};
   });
