@@ -716,6 +716,10 @@ describe("Step 3.3 canonical STATUS_QUO baseline", () => {
       "performance.cac": { value: 999999 },
       "performance.conversion": { value: 0.00001 },
       "performance.margin": { value: -1 },
+      "inventory.sku_a.available_units": { availableUnits: 1 },
+      "inventory.sku_c.available_units": { availableUnits: 10000 },
+      "performance.product_b_profitability": { value: 999999 },
+      "performance.promotion_roas": { value: 0.01 },
     });
     const normalWorld = invoke(policy, 3, {
       "inventory.sku_b.available_units": { availableUnits: 20 },
@@ -723,6 +727,10 @@ describe("Step 3.3 canonical STATUS_QUO baseline", () => {
       "performance.cac": { value: 10 },
       "performance.conversion": { value: 0.03 },
       "performance.margin": { value: 0.4 },
+      "inventory.sku_a.available_units": { availableUnits: 100 },
+      "inventory.sku_c.available_units": { availableUnits: 100 },
+      "performance.product_b_profitability": { value: 1 },
+      "performance.promotion_roas": { value: 2 },
     });
     expect(badWorld.invocation.outputFingerprint).toBe(normalWorld.invocation.outputFingerprint);
     expect(badWorld.decisionRecord.actionAttempts).toEqual([]);
