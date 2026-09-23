@@ -28,6 +28,7 @@ jobs:
         run: npm run architecture
       - name: Typecheck
         run: npm run typecheck
+      # Long causal trap files stay below Vitest 3's fixed worker RPC timeout.
       - name: Step 12 tests
         run: npm run test:step12 -- --maxWorkers=1
       - name: Test
