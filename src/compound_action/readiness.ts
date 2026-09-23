@@ -71,21 +71,24 @@ function reverseDependencyOrder(c:CompoundAction):readonly string[]{
   }
   return topo.length===ids.length?topo.reverse():[...ids].reverse();
 }
-export function deriveCompoundRollbackReadiness(c:CompoundAction,conflicts:readonly string[]=[]):CompoundRollbackReadiness{
+export interface CompoundRollbackReadinessOptions { readonly missingContextComponentIds?:readonly string[]; readonly unknownComponentIds?:readonly string[]; }
+export function deriveCompoundRollbackReadiness(c:CompoundAction,conflicts:readonly string[]=[],options:CompoundRollbackReadinessOptions={}):CompoundRollbackReadiness{
   const order=c.rollback.order==="REVERSE_DEPENDENCY_ORDER"
     ? reverseDependencyOrder(c)
     : c.rollback.order==="EXPLICIT"
       ? c.rollback.explicitComponentOrder??[]
       : [];
   const orderedComponents=order.length?order.map(id=>c.components.find(x=>x.componentId===id)!).filter(Boolean):[...c.components];
-  const components=orderedComponents.map(x=>({
-    componentId:x.componentId,
-    actionId:x.action.actionId,
-    state:(conflicts.includes(x.componentId)?"CONFLICT":reversible(x.action)?"ROLLBACKABLE":"IRREVERSIBLE") as "CONFLICT"|"ROLLBACKABLE"|"IRREVERSIBLE",
-    reasons:conflicts.includes(x.componentId)?["DOMAIN_ROLLBACK_CONFLICT"]:reversible(x.action)?[]:["ATOMIC_ACTION_IRREVERSIBLE"],
-  }));
+  const missing=new Set(options.missingContextComponentIds??[]);
+  const unknown=new Set(options.unknownComponentIds??[]);
+  const components=orderedComponents.map(x=>{
+    const state=conflicts.includes(x.componentId)?"CONFLICT":missing.has(x.componentId)?"MISSING_CONTEXT":unknown.has(x.componentId)?"UNKNOWN":reversible(x.action)?"ROLLBACKABLE":"IRREVERSIBLE";
+    const reasons=state==="CONFLICT"?["DOMAIN_ROLLBACK_CONFLICT"]:state==="MISSING_CONTEXT"?["ROLLBACK_CONTEXT_MISSING"]:state==="UNKNOWN"?["ROLLBACK_READINESS_UNKNOWN"]:state==="IRREVERSIBLE"?["ATOMIC_ACTION_IRREVERSIBLE"]:[];
+    return{componentId:x.componentId,actionId:x.action.actionId,state,reasons};
+  });
   const irreversible=components.filter(x=>x.state==="IRREVERSIBLE").length;
   const conflictCount=components.filter(x=>x.state==="CONFLICT").length;
+  const unresolvedCount=components.filter(x=>x.state==="MISSING_CONTEXT"||x.state==="UNKNOWN").length;
   const compensationRequirements=components.filter(x=>x.state==="IRREVERSIBLE").map(x=>({
     componentId:x.componentId,
     actionId:x.actionId,
@@ -95,13 +98,13 @@ export function deriveCompoundRollbackReadiness(c:CompoundAction,conflicts:reado
   const blockedByIrreversible=c.rollback.irreversibleComponentPolicy==="BLOCK_AUTOMATIC_ROLLBACK"&&irreversible>0;
   return{
     compoundActionId:c.compoundActionId,
-    overall:blockedByIrreversible?"BLOCKED":conflictCount?"PARTIAL":irreversible&&irreversible<components.length?"PARTIAL":irreversible===components.length?"BLOCKED":"READY",
+    overall:blockedByIrreversible?"BLOCKED":conflictCount?"PARTIAL":unresolvedCount===components.length?"UNKNOWN":unresolvedCount?"PARTIAL":irreversible&&irreversible<components.length?"PARTIAL":irreversible===components.length?"BLOCKED":"READY",
     reversibility:irreversible===0?"FULLY_REVERSIBLE":irreversible===components.length?"IRREVERSIBLE":"PARTIALLY_REVERSIBLE",
     components,
     requiredRollbackOrder:order,
     compensationRequired:compensationRequirements.some(x=>x.required),
     compensationRequirements,
-    missingContext:[],
+    missingContext:components.filter(x=>x.state==="MISSING_CONTEXT").map(x=>x.componentId),
     conflicts:[...conflicts],
   };
 }
