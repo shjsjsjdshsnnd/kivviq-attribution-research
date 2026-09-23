@@ -3,6 +3,7 @@ import { metaToGoogleCompound,orderedMetaThenGoogleCompound } from "../../src/co
 import { validateCompoundAction } from "../../src/compound_action/validation.js";
 import { compoundFingerprint,compoundsSemanticallyEqual,flattenCompoundAction } from "../../src/compound_action/semantics.js";
 import { deriveCompoundRollbackReadiness,evaluateCompoundReadiness } from "../../src/compound_action/readiness.js";
+import { serializeCompoundAction,deserializeCompoundAction } from "../../src/compound_action/serialization.js";
 
 describe("Step 13 canonical CompoundAction",()=>{
   it("validates conserved ALL_OR_NOTHING budget reallocation",()=>expect(validateCompoundAction(metaToGoogleCompound)).toMatchObject({ok:true}));
@@ -55,5 +56,11 @@ describe("Step 13 canonical CompoundAction",()=>{
   it("derives rollback readiness without bypassing component conflict",()=>{
     const r=deriveCompoundRollbackReadiness(metaToGoogleCompound,["google_destination"]);
     expect(r.overall).toBe("PARTIAL");expect(r.conflicts).toEqual(["google_destination"]);expect(r.components.some(x=>x.state==="CONFLICT")).toBe(true);
+  });
+  it("round-trips canonical serialization without losing meaning",()=>{
+    const serialized=serializeCompoundAction(metaToGoogleCompound);
+    const restored=deserializeCompoundAction(serialized);
+    expect(compoundsSemanticallyEqual(metaToGoogleCompound,restored)).toBe(true);
+    expect(serializeCompoundAction(restored)).toBe(serialized);
   });
 });
