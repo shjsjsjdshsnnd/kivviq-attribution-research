@@ -30,7 +30,6 @@ import {
   materializeMerchantPolicyAction,
   type MerchantPolicy,
   type MerchantPolicyComponentInputs,
-  type MerchantPolicyComponents,
   type MerchantPolicyRule,
 } from "../../src/operator/merchant-policy.js";
 import {
@@ -435,7 +434,7 @@ function seeds(worldSeed: number, populationSeed: number, simulationSeed: number
 describe("Step 3.3 canonical STATUS_QUO baseline", () => {
   it("freezes a complete explicit merchant-policy representation and deterministic fingerprint", () => {
     const policy = representativePolicy();
-    expect(policy.schemaVersion).toBe("1.0.0");
+    expect(policy.schemaVersion).toBe("1.1.0");
     expect(policy.policyFingerprint).toMatch(/^fnv1a64:[0-9a-f]{16}$/);
     console.log(
       "STEP3_3_STATUS_QUO_REPRESENTATIVE_POLICY",
@@ -444,6 +443,14 @@ describe("Step 3.3 canonical STATUS_QUO baseline", () => {
         policyVersion: policy.policyVersion,
         policyFingerprint: policy.policyFingerprint,
         policySchemaVersion: policy.schemaVersion,
+        configurationFingerprint:
+          statusQuoConfigurationFingerprint(policy),
+        componentFingerprints: Object.fromEntries(
+          Object.entries(policy.components).map(([domain, component]) => [
+            domain,
+            component.componentFingerprint,
+          ]),
+        ),
       }),
     );
     expect(Object.keys(policy.components)).toEqual([
@@ -454,6 +461,59 @@ describe("Step 3.3 canonical STATUS_QUO baseline", () => {
       "inventory",
     ]);
     expect(Object.isFrozen(policy)).toBe(true);
+  });
+
+  it("freezes provenance and fingerprints for every merchant-policy domain component", () => {
+    const policy = representativePolicy();
+    for (const [domain, componentValue] of Object.entries(policy.components)) {
+      const component = componentValue as any;
+      expect(component.domain).toBe(domain);
+      expect(component.componentVersion).toBe("1.0.0");
+      expect(component.sourceRef).toContain("merchant-policy-fixture:");
+      expect(component.effectivePeriod).toEqual({ start: START });
+      expect(component.componentFingerprint).toMatch(
+        /^fnv1a64:[0-9a-f]{16}$/,
+      );
+      expect(component.parameters).toBeDefined();
+    }
+  });
+
+  it("freezes a separate deterministic STATUS_QUO configuration fingerprint", () => {
+    const policy = representativePolicy();
+    const operator = createStatusQuoOperator(policy);
+    const configuration = operator.metadata.deterministicConfiguration as any;
+    expect(configuration.configurationSchemaVersion).toBe("1.0.0");
+    expect(configuration.configurationFingerprint).toBe(
+      statusQuoConfigurationFingerprint(policy),
+    );
+    expect(configuration.configurationFingerprint).toMatch(
+      /^fnv1a64:[0-9a-f]{16}$/,
+    );
+    expect(configuration.componentFingerprints.advertising).toBe(
+      policy.components.advertising.componentFingerprint,
+    );
+  });
+
+  it("preserves the merchant's explicit frozen advertising allocation policy", () => {
+    const policy = representativePolicy();
+    const rule = policy.components.advertising.rules.find(
+      (entry) => entry.ruleId === "advertising.maintain_existing_allocation",
+    ) as any;
+    expect(rule.kind).toBe("maintain_state");
+    expect(rule.preservedPolicyValue).toEqual({
+      policyKind: "fixed_channel_allocation",
+      channelSharesBasisPoints: {
+        meta_ads: 5000,
+        google_ads: 3500,
+        pinterest_ads: 1500,
+      },
+    });
+
+    const decision = invoke(policy, 0, {
+      "performance.roas": { google: 100, meta: 0.1, pinterest: 0.01 },
+      "inventory.sku_b.available_units": { availableUnits: 20 },
+    });
+    expect(decision.decisionRecord.actionAttempts).toEqual([]);
   });
 
   it("rejects merchant policy captured after the evaluation policy has begun", () => {
@@ -471,6 +531,7 @@ describe("Step 3.3 canonical STATUS_QUO baseline", () => {
     const operator = createStatusQuoOperator(representativePolicy());
     expect(STATUS_QUO_FROZEN_STEP_3_1_COMMIT).toBe("c74e9a4ba32f16aa016f06782cbb60e07e765af6");
     expect(STATUS_QUO_FROZEN_STEP_3_2_COMMIT).toBe("a540ffd87d1ff43b96ad481aeae9d62a07b55362");
+    expect(STATUS_QUO_OPERATOR_VERSION).toBe("1.1.0");
     expect(operator.metadata.supportedEvaluationContract.contractFingerprint).toBe(contract.contractFingerprint);
     expect(operator.metadata.implementationFingerprint).toBe(STATUS_QUO_IMPLEMENTATION_FINGERPRINT);
   });
@@ -505,7 +566,50 @@ describe("Step 3.3 canonical STATUS_QUO baseline", () => {
     );
     const promotion = decision.actions.find((action) => String(action.actionType) === "promotion.apply_discount");
     expect(promotion).toBeDefined();
-    expect(promotion?.duration).toEqual({ kind: "temporary", durationSeconds: 4 * 24 * 60 * 60 });
+    expect(promotion?.duration).toEqual({
+      kind: "temporary",
+      durationSeconds: 4 * 24 * 60 * 60,
+    });
+    expect(promotion?.termination).toEqual({
+      kind: "fixed_duration",
+      durationSeconds: 4 * 24 * 60 * 60,
+    });
+  });
+
+  it("executes the predetermined merchandising change only at its frozen schedule", () => {
+    const before = evaluateStatusQuoPolicy(
+      representativePolicy(),
+      toOperatorDecisionInput(
+        opportunity(1),
+        observation(1, {
+          "inventory.sku_b.available_units": { availableUnits: 20 },
+        }),
+        availability(1),
+      ),
+    );
+    const due = evaluateStatusQuoPolicy(
+      representativePolicy(),
+      toOperatorDecisionInput(
+        opportunity(2),
+        observation(2, {
+          "inventory.sku_b.available_units": { availableUnits: 20 },
+        }),
+        availability(2),
+      ),
+    );
+    expect(
+      before.actions.some((action) =>
+        String(action.actionType).startsWith("merchandising."),
+      ),
+    ).toBe(false);
+    expect(
+      due.actions.filter((action) =>
+        String(action.actionType).startsWith("merchandising."),
+      ),
+    ).toHaveLength(1);
+    expect(due.policyAudit.incompatibleRuleIds).toContain(
+      "merchandising.scheduled_homepage_feature",
+    );
   });
 
   it("maintains merchandising ordering when no scheduled change is due", () => {
@@ -534,6 +638,11 @@ describe("Step 3.3 canonical STATUS_QUO baseline", () => {
     );
     expect(highInventoryActions).toHaveLength(0);
     expect(lowInventoryActions).toHaveLength(1);
+    const reorderAction = lowInventoryActions[0]!.actionValidation;
+    expect(reorderAction.valid).toBe(true);
+    if (reorderAction.valid) {
+      expect((reorderAction.action.parameters as any).reorder.quantity).toBe(50);
+    }
 
     const lowAudit = low.invocation.decisionAudit?.payload as any;
     expect(lowAudit.incompatibleRuleIds).toContain(
