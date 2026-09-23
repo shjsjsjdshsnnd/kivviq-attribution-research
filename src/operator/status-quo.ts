@@ -27,7 +27,7 @@ import {
 } from "./types.js";
 
 export const STATUS_QUO_OPERATOR_ID = "baseline.status_quo" as const;
-export const STATUS_QUO_OPERATOR_VERSION = "1.0.0" as const;
+export const STATUS_QUO_OPERATOR_VERSION = "1.1.0" as const;
 export const STATUS_QUO_FROZEN_STEP_3_1_COMMIT =
   "c74e9a4ba32f16aa016f06782cbb60e07e765af6" as const;
 export const STATUS_QUO_FROZEN_STEP_3_2_COMMIT =
@@ -438,10 +438,36 @@ const STATUS_QUO_IMPLEMENTATION_SEMANTICS = deepFreezeOperator({
 export const STATUS_QUO_IMPLEMENTATION_FINGERPRINT =
   operatorFingerprint(STATUS_QUO_IMPLEMENTATION_SEMANTICS);
 
+export function statusQuoConfigurationFingerprint(
+  policyInput: MerchantPolicy,
+): string {
+  const policy = assertValidMerchantPolicy(policyInput);
+  return operatorFingerprint({
+    configurationSchemaVersion: "1.0.0",
+    merchantPolicySchemaVersion: policy.schemaVersion,
+    merchantPolicyId: policy.policyId,
+    merchantPolicyVersion: policy.policyVersion,
+    merchantPolicyFingerprint: policy.policyFingerprint,
+    componentFingerprints: {
+      advertising: policy.components.advertising.componentFingerprint,
+      pricing: policy.components.pricing.componentFingerprint,
+      promotions: policy.components.promotions.componentFingerprint,
+      merchandising: policy.components.merchandising.componentFingerprint,
+      inventory: policy.components.inventory.componentFingerprint,
+    },
+    frozenStep32InterfaceCommit:
+      STATUS_QUO_FROZEN_STEP_3_2_COMMIT,
+    optimizationObjective: null,
+    policyRandomness: false,
+  });
+}
+
 export function createStatusQuoOperator(
   policyInput: MerchantPolicy,
 ): CanonicalOperator {
   const policy = assertValidMerchantPolicy(policyInput);
+  const configurationFingerprint =
+    statusQuoConfigurationFingerprint(policy);
 
   const metadata: CanonicalOperatorMetadata = deepFreezeOperator({
     interfaceVersion: OPERATOR_INTERFACE_VERSION,
@@ -458,10 +484,19 @@ export function createStatusQuoOperator(
     },
     supportedActionOntologyVersion: ACTION_SCHEMA_VERSION,
     deterministicConfiguration: {
+      configurationSchemaVersion: "1.0.0",
+      configurationFingerprint,
       merchantPolicySchemaVersion: policy.schemaVersion,
       merchantPolicyId: policy.policyId,
       merchantPolicyVersion: policy.policyVersion,
       merchantPolicyFingerprint: policy.policyFingerprint,
+      componentFingerprints: {
+        advertising: policy.components.advertising.componentFingerprint,
+        pricing: policy.components.pricing.componentFingerprint,
+        promotions: policy.components.promotions.componentFingerprint,
+        merchandising: policy.components.merchandising.componentFingerprint,
+        inventory: policy.components.inventory.componentFingerprint,
+      },
       frozenStep32InterfaceCommit:
         STATUS_QUO_FROZEN_STEP_3_2_COMMIT,
       optimizationObjective: null,
