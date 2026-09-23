@@ -1,6 +1,7 @@
 import { actionId } from "../action_ontology/identity.js";
 import { actionFingerprint } from "../action_ontology/semantics.js";
 import type { Action } from "../action_ontology/types.js";
+import type { OperatorJson } from "./types.js";
 import { assertValidAction } from "../action_ontology/validation.js";
 import { utcTimestamp } from "../core/units.js";
 import {
@@ -8,7 +9,7 @@ import {
   operatorFingerprint,
 } from "./identity.js";
 
-export const MERCHANT_POLICY_SCHEMA_VERSION = "1.0.0" as const;
+export const MERCHANT_POLICY_SCHEMA_VERSION = "1.1.0" as const;
 
 export type MerchantPolicyDomain =
   | "advertising"
@@ -53,6 +54,7 @@ export interface MaintainStatePolicyRule
   readonly ownership: "environment_owned";
   readonly cadence: "continuous";
   readonly stateRef: string;
+  readonly preservedPolicyValue: OperatorJson;
 }
 
 export interface EnvironmentBehaviorPolicyRule
@@ -107,10 +109,27 @@ export type MerchantPolicyRule =
   | ScheduledActionPolicyRule
   | ObservationTriggeredActionPolicyRule;
 
-export interface MerchantPolicyComponent {
+export interface MerchantPolicyComponentInput {
   readonly domain: MerchantPolicyDomain;
   readonly coverage: MerchantPolicyCoverage;
+  readonly componentVersion: string;
+  readonly sourceRef: string;
+  readonly effectivePeriod: MerchantPolicyEffectivePeriod;
+  readonly parameters: OperatorJson;
   readonly rules: readonly MerchantPolicyRule[];
+}
+
+export interface MerchantPolicyComponent
+  extends MerchantPolicyComponentInput {
+  readonly componentFingerprint: string;
+}
+
+export interface MerchantPolicyComponentInputs {
+  readonly advertising: MerchantPolicyComponentInput;
+  readonly pricing: MerchantPolicyComponentInput;
+  readonly promotions: MerchantPolicyComponentInput;
+  readonly merchandising: MerchantPolicyComponentInput;
+  readonly inventory: MerchantPolicyComponentInput;
 }
 
 export interface MerchantPolicyComponents {
@@ -139,7 +158,7 @@ export interface MerchantPolicyInput {
   readonly description: string;
   readonly source: MerchantPolicySource;
   readonly effectivePeriod: MerchantPolicyEffectivePeriod;
-  readonly components: MerchantPolicyComponents;
+  readonly components: MerchantPolicyComponentInputs;
 }
 
 export class MerchantPolicyValidationError extends Error {
@@ -183,6 +202,25 @@ function componentFor(
   domain: MerchantPolicyDomain,
 ): MerchantPolicyComponent {
   return components[domain];
+}
+
+function normalizeComponent(
+  component: MerchantPolicyComponentInput,
+): MerchantPolicyComponent {
+  const body = {
+    domain: component.domain,
+    coverage: component.coverage,
+    componentVersion: component.componentVersion,
+    sourceRef: component.sourceRef,
+    effectivePeriod: cloneJson(component.effectivePeriod),
+    parameters: cloneJson(component.parameters),
+    rules: cloneJson(component.rules),
+  };
+
+  return {
+    ...body,
+    componentFingerprint: operatorFingerprint(body),
+  };
 }
 
 function validateRule(
@@ -239,6 +277,13 @@ function validateRule(
       rule.ownership === "environment_owned",
       "non-Action policy behavior must be environment-owned",
     );
+    if (rule.kind === "maintain_state") {
+      requireCondition(
+        rule.stateRef.trim().length > 0,
+        "maintain-state rule stateRef is required",
+      );
+      stableOperatorJson(rule.preservedPolicyValue);
+    }
     return;
   }
 
@@ -357,6 +402,48 @@ function validatePolicyBody(
       component.domain === domain,
       "policy component domain mismatch for " + domain,
     );
+    requireCondition(
+      semver(component.componentVersion),
+      "policy component version must be semantic for " + domain,
+    );
+    requireCondition(
+      component.sourceRef.trim().length > 0,
+      "policy component sourceRef is required for " + domain,
+    );
+    const componentStart = parseTime(
+      component.effectivePeriod.start,
+      domain + " component effectivePeriod.start",
+    );
+    const componentEnd =
+      component.effectivePeriod.end === undefined
+        ? undefined
+        : parseTime(
+            component.effectivePeriod.end,
+            domain + " component effectivePeriod.end",
+          );
+    requireCondition(
+      componentStart >= policyStart,
+      "policy component cannot begin before merchant policy: " + domain,
+    );
+    if (componentEnd !== undefined) {
+      requireCondition(
+        componentEnd > componentStart,
+        "policy component effective end must follow start: " + domain,
+      );
+      if (policyEnd !== undefined) {
+        requireCondition(
+          componentEnd <= policyEnd,
+          "policy component cannot end after merchant policy: " + domain,
+        );
+      }
+    }
+    stableOperatorJson(component.parameters);
+    const { componentFingerprint, ...componentBody } = component;
+    requireCondition(
+      componentFingerprint === operatorFingerprint(componentBody),
+      "policy component fingerprint mismatch for " + domain,
+    );
+
     if (component.coverage === "undefined") {
       requireCondition(
         component.rules.length === 0,
@@ -365,6 +452,28 @@ function validatePolicyBody(
     }
 
     for (const rule of component.rules) {
+      const ruleStart = parseTime(
+        rule.effectivePeriod.start,
+        "rule effectivePeriod.start",
+      );
+      const ruleEnd =
+        rule.effectivePeriod.end === undefined
+          ? undefined
+          : parseTime(
+              rule.effectivePeriod.end,
+              "rule effectivePeriod.end",
+            );
+      requireCondition(
+        ruleStart >= componentStart,
+        "rule cannot begin before policy component: " + rule.ruleId,
+      );
+      if (componentEnd !== undefined && ruleEnd !== undefined) {
+        requireCondition(
+          ruleEnd <= componentEnd,
+          "rule cannot end after policy component: " + rule.ruleId,
+        );
+      }
+
       requireCondition(
         rule.domain === domain,
         "rule domain must match its policy component",
@@ -421,7 +530,13 @@ export function createMerchantPolicy(
     description: input.description,
     source: cloneJson(input.source),
     effectivePeriod: cloneJson(input.effectivePeriod),
-    components: cloneJson(input.components),
+    components: {
+      advertising: normalizeComponent(input.components.advertising),
+      pricing: normalizeComponent(input.components.pricing),
+      promotions: normalizeComponent(input.components.promotions),
+      merchandising: normalizeComponent(input.components.merchandising),
+      inventory: normalizeComponent(input.components.inventory),
+    },
   };
 
   validatePolicyBody(body);
