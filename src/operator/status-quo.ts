@@ -77,6 +77,9 @@ export interface StatusQuoPolicyDecision {
     readonly triggeredRuleIds: readonly string[];
     readonly emittedActionIds: readonly string[];
     readonly incompatibleRuleIds: readonly string[];
+    readonly benchmarkCompatibility:
+      | "compatible_with_frozen_simulator"
+      | "incompatible_required_policy_semantics";
   };
 }
 
@@ -375,8 +378,13 @@ export function evaluateStatusQuoPolicy(
       entry.status === "SCHEDULED_ACTION_TRIGGERED" ||
       entry.status === "TRIGGERED_ACTION",
   );
-  const incompatible = evaluations.filter((entry) =>
-    entry.status.startsWith("INCOMPATIBLE_"),
+  const incompatible = evaluations.filter(
+    (entry) =>
+      entry.status.startsWith("INCOMPATIBLE_") ||
+      (entry.simulatorCompatibility ===
+        "unsupported_by_frozen_simulator" &&
+        (entry.status === "SCHEDULED_ACTION_TRIGGERED" ||
+          entry.status === "TRIGGERED_ACTION")),
   );
 
   return deepFreezeOperator({
@@ -402,6 +410,10 @@ export function evaluateStatusQuoPolicy(
       incompatibleRuleIds: incompatible.map(
         (entry) => entry.ruleId,
       ),
+      benchmarkCompatibility:
+        incompatible.length === 0
+          ? "compatible_with_frozen_simulator"
+          : "incompatible_required_policy_semantics",
     },
   });
 }
@@ -419,7 +431,7 @@ const STATUS_QUO_IMPLEMENTATION_SEMANTICS = deepFreezeOperator({
   supportedActionOntologyVersion: ACTION_SCHEMA_VERSION,
   merchantPolicySchemaVersion: MERCHANT_POLICY_SCHEMA_VERSION,
   decisionAlgorithm:
-    "evaluate only frozen merchant-policy rules against permitted operator observations and the current decision timestamp; emit canonical Actions required by that pre-existing policy; never optimize",
+    "evaluate only frozen merchant-policy rules against permitted operator observations and the current decision timestamp; emit canonical Actions required by that pre-existing policy; never optimize; explicitly mark a decision incompatible when a required triggered policy Action cannot be faithfully represented by the frozen simulator",
   randomness: "none_unless_future_policy_schema_explicitly_versions_and_seeds_it",
 } as const);
 
