@@ -385,6 +385,17 @@ describe("Step 3.3 canonical STATUS_QUO baseline", () => {
     expect(Object.isFrozen(policy)).toBe(true);
   });
 
+  it("rejects merchant policy captured after the evaluation policy has begun", () => {
+    const policy = representativePolicy();
+    const input: any = JSON.parse(JSON.stringify(policy));
+    delete input.policyFingerprint;
+    input.source.capturedAt = day(1);
+
+    expect(() => createMerchantPolicy(input)).toThrow(
+      /captured before or at its effective start/,
+    );
+  });
+
   it("uses the frozen Step 3.1 contract and frozen Step 3.2 canonical operator interface", () => {
     const operator = createStatusQuoOperator(representativePolicy());
     expect(STATUS_QUO_FROZEN_STEP_3_1_COMMIT).toBe("c74e9a4ba32f16aa016f06782cbb60e07e765af6");
@@ -452,12 +463,23 @@ describe("Step 3.3 canonical STATUS_QUO baseline", () => {
     );
     expect(highInventoryActions).toHaveLength(0);
     expect(lowInventoryActions).toHaveLength(1);
+
+    const lowAudit = low.invocation.decisionAudit?.payload as any;
+    expect(lowAudit.incompatibleRuleIds).toContain(
+      "inventory.reorder_sku_b_below_10",
+    );
+    expect(lowAudit.benchmarkCompatibility).toBe(
+      "incompatible_required_policy_semantics",
+    );
   });
 
   it("identifies a policy/observation incompatibility rather than leaking hidden inventory truth", () => {
     const result = invoke(representativePolicy(), 3, {});
     const audit = result.invocation.decisionAudit?.payload as any;
     expect(audit.incompatibleRuleIds).toContain("inventory.reorder_sku_b_below_10");
+    expect(audit.benchmarkCompatibility).toBe(
+      "incompatible_required_policy_semantics",
+    );
     expect(result.decisionRecord.actionAttempts).toHaveLength(0);
   });
 
