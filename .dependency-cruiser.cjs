@@ -6,11 +6,19 @@ module.exports = {
         "Operator-facing modules must never depend on GroundTruth, generation, latent customers, simulation, advertising economics, cross-channel interactions, ecommerce economics, product economics, evaluator/oracle, or other God-mode internals.",
       severity: "error",
       from: {
-        path: "^(src/(observation|operator|operator_safe|action_ontology|action_timing|action_translation|simulator_intervention|paid_media|pricing|promotion|shipping|merchandising|inventory|cro|lifecycle)(/|$)|src/index\\.ts$)",
+        path: "^(src/(observation|operator|operator_safe|action_ontology|action_timing|compound_action|action_translation|simulator_intervention|paid_media|pricing|promotion|shipping|merchandising|inventory|cro|lifecycle)(/|$)|src/index\\.ts$)",
       },
       to: {
         path: "^src/(ground_truth|generation|customer_population|simulation|advertising_economics|cross_channel|ecommerce_economics|product_economics|evaluation|oracle|god_mode)(/|$)",
       },
+    },
+    {
+      name: "compound-action-cannot-depend-on-decision-or-simulator-internals",
+      comment:
+        "CompoundAction may coordinate canonical Actions and timing but cannot depend on evaluation, optimizer, GroundTruth, simulator internals or provider execution.",
+      severity: "error",
+      from: { path: "^src/compound_action(/|$)" },
+      to: { path: "^src/(evaluation|oracle|god_mode|ground_truth|generation|simulation|advertising_economics|product_economics)(/|$)" },
     },
     {
       name: "action-timing-cannot-depend-on-translation-or-intervention",
