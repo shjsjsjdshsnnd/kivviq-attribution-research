@@ -486,6 +486,57 @@ describe("Step 3.6 simple pricing and promotion heuristic baselines", () => {
     });
   });
 
+  it("honors configured SKU exclusions even when the observation flag is false", () => {
+    const operator = createPricingPromotionHeuristicOperator({
+      ...FIXED_DISCOUNT_CONFIG,
+      excludedSkuIds: ["sku:A"],
+    });
+    const result = decision(
+      operator as any,
+      sku({ excluded: false }),
+      { sequence: 2 },
+    );
+    expect(result.output.actions).toEqual([]);
+    expect((result.audit?.payload as any).fallbackReason).toBe(
+      "SKU_EXCLUDED",
+    );
+  });
+
+  it("fails closed for missing price, unknown promotion state, and inactive SKU", () => {
+    const missingPrice = decision(
+      FIXED_DISCOUNT_OPERATOR,
+      sku({ currentPriceMinor: null }),
+      { sequence: 2 },
+    );
+    expect(missingPrice.output.actions).toEqual([]);
+    expect((missingPrice.audit?.payload as any).fallbackReason).toBe(
+      "PRICE_STATE_MISSING",
+    );
+
+    const unknownPromotionState = decision(
+      NEVER_DISCOUNT_OPERATOR,
+      sku({
+        currentPriceMinor: FIXED_DISCOUNT_PRICE,
+        currentDiscountBasisPoints: 1000,
+        currentDiscountOwner: null,
+      }),
+    );
+    expect(unknownPromotionState.output.actions).toEqual([]);
+    expect(
+      (unknownPromotionState.audit?.payload as any).fallbackReason,
+    ).toBe("PRICE_OR_DISCOUNT_STATE_MISSING");
+
+    const inactive = decision(
+      FIXED_DISCOUNT_OPERATOR,
+      sku({ active: false }),
+      { sequence: 2 },
+    );
+    expect(inactive.output.actions).toEqual([]);
+    expect((inactive.audit?.payload as any).fallbackReason).toBe(
+      "SKU_INACTIVE",
+    );
+  });
+
   describe("EXCESS_INVENTORY_DISCOUNT", () => {
     it.each([
       [99, 0, "BELOW_EXCESS_THRESHOLD_NO_DISCOUNT"],
