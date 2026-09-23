@@ -133,13 +133,13 @@ Calendar semantics:
 Frozen entries:
 
 1. `calendar.fall_a`
-   - promotion: `heuristic_calendar_fall_a_v1`
+   - promotion: `promo_heuristic_calendar_fall_a_v1`
    - SKU A
    - 10%
    - 2026-10-05 00:00 UTC → 2026-10-09 00:00 UTC
 
 2. `calendar.overlap_b`
-   - promotion: `heuristic_calendar_overlap_b_v1`
+   - promotion: `promo_heuristic_calendar_overlap_b_v1`
    - SKU A
    - 15%
    - 2026-10-07 00:00 UTC → 2026-10-11 00:00 UTC
