@@ -28,7 +28,8 @@
     "test:baseline-evaluation": "vitest run tests/evaluation --reporter=verbose",
     "test:do-nothing": "vitest run tests/operator --reporter=verbose",
     "test:status-quo": "vitest run tests/operator/status-quo.test.ts --reporter=verbose",
-    "test:advertising-heuristics": "vitest run tests/operator/advertising-heuristics.test.ts --reporter=verbose"
+    "test:advertising-heuristics": "vitest run tests/operator/advertising-heuristics.test.ts --reporter=verbose",
+    "test:inventory-heuristics": "vitest run tests/operator/inventory-heuristics.test.ts --reporter=verbose"
   },
   "exports": {
     ".": "./dist/index.js",
