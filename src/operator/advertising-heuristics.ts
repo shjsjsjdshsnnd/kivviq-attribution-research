@@ -1151,7 +1151,7 @@ export function createAdvertisingHeuristicOperator(
       suiteVersion: ADVERTISING_HEURISTIC_SUITE_VERSION,
       heuristicType: config.heuristicType,
       configurationFingerprint,
-      configuration: config,
+      configuration: config as unknown as OperatorJson,
       metricSetVersion: ADVERTISING_HEURISTIC_METRIC_SET_VERSION,
       advertisingEconomicsVersion:
         ADVERTISING_HEURISTIC_ADVERTISING_ECONOMICS_VERSION,
