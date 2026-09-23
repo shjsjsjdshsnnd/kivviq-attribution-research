@@ -1,0 +1,80 @@
+name: Step 3.7 Merchandising Heuristic Baselines CI
+
+on:
+  push:
+    branches:
+      - baseline/step3.7-merchandising-heuristics
+  pull_request:
+    branches:
+      - baseline/step3.6-pricing-promotion-heuristics
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - name: Install
+        run: npm install --no-audit --no-fund
+
+      - name: Architecture boundary
+        run: npm run architecture
+
+      - name: Strict typecheck
+        run: npm run typecheck
+
+      - name: Step 3.7 focused tests
+        run: npm run test:merchandising-heuristics
+
+      - name: Full inherited and Step 3.7 suite
+        run: npm test
+
+      - name: Build
+        run: npm run build
+
+      - name: Frozen Step 3.7 fingerprints
+        run: |
+          node --input-type=module <<'NODE'
+          import {
+            MERCHANDISING_HEURISTIC_BASELINE_OPERATORS,
+            MERCHANDISING_HEURISTIC_IMPLEMENTATION_FINGERPRINTS,
+            MERCHANDISING_HEURISTIC_FROZEN_STEP_3_1_COMMIT,
+            MERCHANDISING_HEURISTIC_FROZEN_STEP_3_6_COMMIT,
+            MERCHANDISING_HEURISTIC_METRIC_SET_VERSION,
+            MERCHANDISING_HEURISTIC_SIMULATOR_VERSION,
+            MERCHANDISING_HEURISTIC_ECOMMERCE_ECONOMICS_VERSION,
+            MERCHANDISING_HEURISTIC_PRODUCT_ECONOMICS_VERSION,
+            FROZEN_MERCHANDISING_HEURISTIC_CONFIGURATIONS,
+            merchandisingHeuristicConfigurationFingerprint,
+          } from "./dist/operator/index.js";
+          import {
+            CANONICAL_BASELINE_EVALUATION_CONTRACT_V1,
+          } from "./dist/evaluation/index.js";
+
+          console.log("step3_1_frozen_commit=" + MERCHANDISING_HEURISTIC_FROZEN_STEP_3_1_COMMIT);
+          console.log("step3_6_frozen_commit=" + MERCHANDISING_HEURISTIC_FROZEN_STEP_3_6_COMMIT);
+          console.log("step3_1_contract_fingerprint=" + CANONICAL_BASELINE_EVALUATION_CONTRACT_V1.contractFingerprint);
+          console.log("action_ontology_version=" + CANONICAL_BASELINE_EVALUATION_CONTRACT_V1.actionSpace.ontologySchemaVersion);
+          console.log("metric_set_version=" + MERCHANDISING_HEURISTIC_METRIC_SET_VERSION);
+          console.log("ecommerce_economics_version=" + MERCHANDISING_HEURISTIC_ECOMMERCE_ECONOMICS_VERSION);
+          console.log("product_economics_version=" + MERCHANDISING_HEURISTIC_PRODUCT_ECONOMICS_VERSION);
+          console.log("simulator_version=" + MERCHANDISING_HEURISTIC_SIMULATOR_VERSION);
+
+          for (const [name, operator] of Object.entries(MERCHANDISING_HEURISTIC_BASELINE_OPERATORS)) {
+            console.log(name + "_operator_id=" + operator.metadata.operatorId);
+            console.log(name + "_operator_version=" + operator.metadata.operatorVersion);
+            console.log(name + "_implementation_fingerprint=" + MERCHANDISING_HEURISTIC_IMPLEMENTATION_FINGERPRINTS[name]);
+            console.log(name + "_configuration_fingerprint=" + merchandisingHeuristicConfigurationFingerprint(FROZEN_MERCHANDISING_HEURISTIC_CONFIGURATIONS[name]));
+            console.log(name + "_configuration=" + JSON.stringify(FROZEN_MERCHANDISING_HEURISTIC_CONFIGURATIONS[name]));
+          }
+          NODE
