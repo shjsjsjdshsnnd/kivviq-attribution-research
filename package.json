@@ -6,7 +6,7 @@
   "description": "Synthetic-only research contracts for the future Kivviq Growth Operator.",
   "scripts": {
     "typecheck": "tsc --noEmit",
-    "test": "vitest run",
+    "test": "vitest run --maxWorkers=1",
     "build": "tsc -p tsconfig.build.json",
     "check": "npm run architecture && npm run typecheck && npm test && npm run build",
     "architecture": "depcruise --config .dependency-cruiser.cjs src",
@@ -40,7 +40,7 @@
   },
   "devDependencies": {
     "typescript": "^5.9.2",
-    "vitest": "^3.2.4",
+    "vitest": "^5.0.1",
     "dependency-cruiser": "^16.10.4"
   },
   "dependencies": {
