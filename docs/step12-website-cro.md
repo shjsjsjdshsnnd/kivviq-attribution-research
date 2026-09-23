@@ -175,6 +175,8 @@ Checkout is separate from cart and models stage-specific mechanics:
 - shipping-cost visibility;
 - performance.
 
+The evaluator preserves typed contact, shipping, payment and review stage qualities. A weak stage emits a distinct God-mode causal friction label, so stage-specific defects are not collapsed into a single hidden checkout-quality number. Completion still uses a minimum causal abstraction rather than recreating a real checkout UI.
+
 Checkout defects produce explicit hidden causal friction events and observable diagnostic events such as coupon errors, payment failures, address-validation failures and shipping-cost reveals.
 
 Customers can still complete after some failures, reflecting retry/tolerance/alternative-path behavior. Existing multi-session logic can also create later returns after abandonment.

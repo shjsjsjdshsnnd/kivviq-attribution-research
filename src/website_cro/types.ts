@@ -194,6 +194,10 @@ export type WebsiteFrictionKind =
   | "cart_friction"
   | "broken_coupon"
   | "checkout_friction"
+  | "checkout_contact_friction"
+  | "checkout_shipping_friction"
+  | "checkout_payment_friction"
+  | "checkout_review_friction"
   | "shipping_surprise"
   | "payment_failure"
   | "address_validation_failure";
@@ -335,6 +339,12 @@ export interface CheckoutExperience {
   readonly componentVersion: string;
   readonly websiteVersionId: string;
   readonly completionMultiplier: number;
+  readonly stageQualities: Readonly<{
+    contact: number;
+    shipping: number;
+    payment: number;
+    review: number;
+  }>;
   readonly couponAttempted: boolean;
   readonly couponFailed: boolean;
   readonly paymentFailed: boolean;

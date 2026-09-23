@@ -993,9 +993,50 @@ export function resolveCheckoutExperience(input: {
     input.device,
     input.customer,
   ).quality;
+  const mobileUsability =
+    input.device === "mobile"
+      ? state.checkout.mobileUsability
+      : 1;
+  const stageQualities = {
+    contact: clamp(
+      state.checkout.contactUsability * 0.58 +
+        state.checkout.formUsability * 0.22 +
+        mobileUsability * 0.12 +
+        (1 -
+          state.checkout.accountRequirementFriction) *
+          0.08,
+    ),
+    shipping: clamp(
+      state.checkout.shippingUsability * 0.62 +
+        state.checkout.formUsability * 0.18 +
+        mobileUsability * 0.1 +
+        (1 - state.checkout.excessiveSteps) *
+          0.1,
+    ),
+    payment: clamp(
+      state.checkout.paymentUsability * 0.52 +
+        state.checkout.paymentReliability * 0.24 +
+        state.checkout.formUsability * 0.12 +
+        mobileUsability * 0.12,
+    ),
+    review: clamp(
+      state.checkout.reviewUsability * 0.62 +
+        state.checkout.formUsability * 0.16 +
+        state.checkout.shippingUsability * 0.12 +
+        mobileUsability * 0.1,
+    ),
+  };
+  const weakestStage = Math.min(
+    stageQualities.contact,
+    stageQualities.shipping,
+    stageQualities.payment,
+    stageQualities.review,
+  );
+  const stageDrag = 0.74 + weakestStage * 0.26;
   let completionMultiplier =
     nonlinearQualityMultiplier(quality) *
-    page.continuationMultiplier;
+    page.continuationMultiplier *
+    stageDrag;
 
   if (couponFailed) {
     completionMultiplier *= clamp(
@@ -1020,6 +1061,18 @@ export function resolveCheckoutExperience(input: {
   }
 
   const frictions: WebsiteFrictionKind[] = [...page.frictions];
+  if (stageQualities.contact < 0.68) {
+    frictions.push("checkout_contact_friction");
+  }
+  if (stageQualities.shipping < 0.68) {
+    frictions.push("checkout_shipping_friction");
+  }
+  if (stageQualities.payment < 0.68) {
+    frictions.push("checkout_payment_friction");
+  }
+  if (stageQualities.review < 0.68) {
+    frictions.push("checkout_review_friction");
+  }
   if (couponFailed) frictions.push("broken_coupon");
   if (paymentFailed) frictions.push("payment_failure");
   if (addressValidationFailed) {
@@ -1031,6 +1084,7 @@ export function resolveCheckoutExperience(input: {
     componentVersion: state.checkout.componentVersion,
     websiteVersionId: state.versionId,
     completionMultiplier: clamp(completionMultiplier, 0.02, 1.15),
+    stageQualities,
     couponAttempted,
     couponFailed,
     paymentFailed,
