@@ -6,6 +6,10 @@ on:
     branches: [action-space/step12-timing-semantics]
 permissions:
   contents: read
+
+concurrency:
+  group: step13-compound-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
 jobs:
   validate:
     runs-on: ubuntu-latest
