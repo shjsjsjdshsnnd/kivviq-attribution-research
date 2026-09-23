@@ -2167,9 +2167,12 @@ export interface AtomicAction {
 }
 
 /**
- * Step 1 deliberately keeps canonical Action atomic. This readiness contract
- * proves that a later phase can group atomic actions without changing their
- * meaning or embedding execution policy into them.
+ * Legacy Step 1 readiness contract.
+ *
+ * @deprecated Step 13's canonical composition model is exported from
+ * `./compound-action`. This minimal ID-list shape remains only so historical
+ * Step 1–10 artifacts and translators retain their original schema meaning.
+ * New coordinated decisions must use the Step 13 CompoundAction contract.
  */
 export interface CompoundAction {
   readonly kind: "compound_action";
@@ -2178,6 +2181,8 @@ export interface CompoundAction {
   readonly description: string;
   readonly componentActionIds: readonly ActionId[];
 }
+
+export type LegacyCompoundActionReadinessContract = CompoundAction;
 
 export type Action = AtomicAction;
 

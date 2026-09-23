@@ -314,3 +314,14 @@ export function translateBusinessAction(
 
   return translateAtomic(input, context, registry);
 }
+
+export function translateAtomicBusinessActionWithOrigin(
+  input:unknown,
+  contextInput:unknown,
+  origin:TranslationOrigin,
+  registry:TranslationRegistry=CORE_TRANSLATION_REGISTRY,
+):TranslationResult{
+  const contextValidation=validateTranslationContext(contextInput);
+  if(!contextValidation.ok)return contextValidation.failure;
+  return translateAtomic(input,contextValidation.context,registry,origin);
+}

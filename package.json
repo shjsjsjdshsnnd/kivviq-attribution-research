@@ -27,7 +27,8 @@
     "test:inventory": "vitest run tests/inventory --reporter=verbose",
     "test:cro": "vitest run tests/cro --reporter=verbose",
     "test:lifecycle": "vitest run tests/lifecycle --reporter=verbose",
-    "test:action-timing": "vitest run tests/action_timing --reporter=verbose"
+    "test:action-timing": "vitest run tests/action_timing --reporter=verbose",
+    "test:compound-action": "vitest run tests/compound_action --reporter=verbose"
   },
   "exports": {
     ".": "./dist/index.js",
@@ -51,7 +52,8 @@
     "./inventory": "./dist/inventory/index.js",
     "./cro": "./dist/cro/index.js",
     "./lifecycle": "./dist/lifecycle/index.js",
-    "./action-timing": "./dist/action_timing/index.js"
+    "./action-timing": "./dist/action_timing/index.js",
+    "./compound-action": "./dist/compound_action/index.js"
   },
   "devDependencies": {
     "typescript": "^5.9.2",
