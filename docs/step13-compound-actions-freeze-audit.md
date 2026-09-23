@@ -1,83 +1,83 @@
-# Step 13 — 63-Requirement Freeze Audit
+# Step 13 — Exact 63-Requirement Freeze Audit
 
-This document is the explicit completion gate for **Step 13 — Canonical Compound Actions** on `action-space/step13-compound-actions`.
+This document is the explicit completion gate for **Step 13 — Build Compound Actions** on `action-space/step13-compound-actions`.
 
-It does not introduce a new design. It maps the Step 13 contract to concrete implementation and test evidence. A requirement may be frozen only when its implementation exists, the cited focused coverage passes, the full inherited suite passes, and the architecture/typecheck/build gates pass.
+The numbering below follows the original Step 13 specification. It is not a replacement specification: every row maps the original requirement to concrete implementation and verification evidence on this branch.
 
-| # | Requirement | Verification evidence | Status |
+| # | Original requirement | Verification evidence | Status |
 |---:|---|---|:---:|
-| 1 | CompoundAction is a canonical typed and versioned contract. | `src/compound_action/types.ts`; schema-version rejection in `comprehensive.test.ts`. | PASS |
-| 2 | Compound identity is stable and separate from component and atomic Action identity. | `CompoundActionId`; stable-ID edge case; flatten/provenance tests. | PASS |
-| 3 | Every component has its own stable component identity. | component validation in `validation.ts`; duplicate component IDs rejected. | PASS |
-| 4 | Every component preserves the canonical atomic Action identity. | duplicate atomic Action IDs rejected; atomic identity and translation provenance tests. | PASS |
-| 5 | Compound components are canonical atomic Actions, not ad-hoc intervention records. | `validateAction` is required for every component. | PASS |
-| 6 | Recursive/nested CompoundActions are rejected. | nested-compound adversarial case in `comprehensive.test.ts`. | PASS |
-| 7 | A CompoundAction represents a genuine multi-component decision. | validation requires at least two atomic components. | PASS |
-| 8 | Component roles are typed and closed. | SOURCE/DESTINATION/PRIMARY/SUPPORTING/TRIGGER/DEPENDENT/CONTROL in `types.ts`; invalid roles rejected. | PASS |
-| 9 | Composition is generic across Action families rather than combination-specific. | cross-family campaign/inventory/clearance fixtures and cross-family coverage test. | PASS |
-| 10 | Ordered compounds have explicit complete component order. | ORDERED validation and deterministic flattening tests. | PASS |
-| 11 | Unordered compounds remain semantically unordered and canonically deterministic. | canonical component ordering, serialization, and unordered dependency audit. | PASS |
-| 12 | START_TOGETHER concurrency is representable without building a scheduler. | typed concurrency contract and recurring-weekend fixture. | PASS |
-| 13 | EFFECTIVE_TOGETHER concurrency is representable and validated. | budget reallocation/concurrent paid-media fixtures; timing contradiction edge case. | PASS |
-| 14 | INDEPENDENT_TIMING concurrency is representable. | typed contract and dependency-gated unordered translation audit. | PASS |
-| 15 | Component dependencies use a closed typed vocabulary. | START_AFTER/EFFECTIVE_AFTER/COMPLETE_AFTER/REQUIRES/END_WITH. | PASS |
-| 16 | Dependencies have stable identity and must reference existing components. | dependency ID/reference validation in `validation.ts`. | PASS |
-| 17 | Self, duplicate, unknown, and cyclic dependency structures fail closed. | circular dependency fixture plus dependency validation/adversarial tests. | PASS |
-| 18 | Coordination semantics change semantic identity even when atomic Actions are the same. | fixture 23 and semantic-identity tests. | PASS |
-| 19 | Completion semantics are explicit and closed. | ALL_COMPONENTS_COMPLETE / ALL_REQUIRED_COMPONENTS_COMPLETE; invalid completion audit. | PASS |
-| 20 | Compound constraints are closed, typed, hard, and machine-evaluable rather than arbitrary expressions. | `CompoundConstraint`; arbitrary/soft constraint rejection audit. | PASS |
-| 21 | Monetary reallocation conservation is enforceable. | SUM_MONETARY_DELTAS_EQUALS; valid CAD 2,000/week reallocation and invalid conservation fixture. | PASS |
-| 22 | Compound incremental paid-media caps are enforceable when values are statically known. | TOTAL_INCREMENTAL_MEDIA_BUDGET_LTE and fixture 22. | PASS |
-| 23 | Discount-exposure guardrails are representable as typed hard constraints. | TOTAL_DISCOUNT_EXPOSURE_LTE contract and strict constraint validation. | PASS |
-| 24 | Minimum-contribution guardrails are representable without embedding prediction or optimizer logic. | MINIMUM_CONTRIBUTION_GTE contract; unresolved business-state constraints remain readiness evidence. | PASS |
-| 25 | Typed resource caps are enforceable with unit compatibility. | TOTAL_RESOURCE_LTE and final-audit resource-cap test. | PASS |
-| 26 | Unknown constraint kinds, soft constraints, duplicate IDs, malformed units, and incompatible units fail closed. | validation plus final-audit/edge-case coverage. | PASS |
-| 27 | Known hard-constraint failures block readiness and unresolved hard constraints remain UNKNOWN. | readiness tests and unresolved-global-constraint final audit. | PASS |
-| 28 | Population binding level is explicit on every CompoundAction. | COMPOUND_LEVEL / COMPONENT_LEVEL contract and final population audit. | PASS |
-| 29 | COMPOUND_LEVEL population binding requires an explicit default population and binding time. | validation plus missing-binding-time final audit. | PASS |
-| 30 | COMPONENT_LEVEL binding forbids hidden compound defaults and inheritance. | validation plus hidden-inheritance tests. | PASS |
-| 31 | Component population inheritance is explicit rather than implicit. | INHERIT binding and inherited-population fixture. | PASS |
-| 32 | Population override carries an explicit reference and binding time. | OVERRIDE contract; different-population and override fixtures. | PASS |
-| 33 | Population NOT_APPLICABLE is explicit and requires a reason. | population-binding validation and paid-media fixtures. | PASS |
-| 34 | Population membership resolution is external, snapshot-bindable, and fail-closed when missing or ambiguous. | `resolveCompoundPopulations`; snapshot and unavailable-binding tests. | PASS |
-| 35 | Compound timing reuses the canonical Step 12 ActionTiming contract. | `ActionTiming` integration in `types.ts` / `resolution.ts`. | PASS |
-| 36 | Timing INHERIT is explicit and requires compound-level timing. | timing-binding validation and inherited-timing fixture. | PASS |
-| 37 | Timing OVERRIDE is explicit and must itself be a valid ActionTiming. | override validation and same-start/different-duration audit. | PASS |
-| 38 | Timing DEPENDENT is explicit and must reference declared dependency IDs targeting that component. | dependency-ID validation and dependent-timing edge case. | PASS |
-| 39 | Contradictory coordinated timing fails closed. | EFFECTIVE_TOGETHER contradiction edge case. | PASS |
-| 40 | Shared starts do not force identical component durations. | final audit for same effective start with different durations. | PASS |
-| 41 | State-based termination remains representable at compound timing level. | required fixture 11. | PASS |
-| 42 | Recurring coordinated initiatives remain one CompoundAction rather than being expanded into unrelated decisions. | required fixture 12 and recurrence resolution test. | PASS |
-| 43 | ALL_OR_NOTHING atomicity is explicit and prevents partial simulation. | fixtures/tests for unsupported component and no partial interventions. | PASS |
-| 44 | BEST_EFFORT atomicity is explicit and preserves partial capability state. | fixtures 13/15 and partial readiness/translation tests. | PASS |
-| 45 | DEPENDENCY_GATED atomicity is explicit. | inventory-protection/dependent-email fixtures and translation tests. | PASS |
-| 46 | Failure policy is explicit and semantic. | ABORT_COMPOUND / CONTINUE_INDEPENDENT_COMPONENTS / ROLLBACK_COMPLETED_COMPONENTS / PAUSE_DEPENDENTS; edge-case identity test. | PASS |
-| 47 | Per-component readiness preserves structural, eligibility, context, population, timing, simulator, and execution capability state. | `CompoundComponentReadiness` and readiness tests. | PASS |
-| 48 | Compound readiness distinguishes READY, PARTIALLY_READY, BLOCKED, and UNKNOWN without collapsing unknown eligibility. | readiness implementation and UNKNOWN audit. | PASS |
-| 49 | Unsupported simulator/execution capability is explicit; unsupported components are never silently dropped. | readiness + translation results, ALL_OR_NOTHING/BEST_EFFORT coverage. | PASS |
-| 50 | Compound rollback policy is separate from each atomic Action's domain rollback contract. | rollback contract in `types.ts`; semantic identity and readiness tests. | PASS |
-| 51 | Reverse dependency rollback order is derivable without executing rollback. | rollback readiness implementation and reverse-order test. | PASS |
-| 52 | Explicit rollback order must cover components exactly once. | rollback-order edge case. | PASS |
-| 53 | Rollback readiness explicitly reports rollbackable, irreversible, and unknown components. | `CompoundRollbackReadiness`; final rollback audit. | PASS |
-| 54 | Later legitimate domain conflicts are preserved and block automatic rollback rather than being overwritten. | conflict fixture/tests. | PASS |
-| 55 | Missing/unknown rollback context is explicit and automatic-rollback eligibility is reported separately. | rollback missing-context and automatic-allowed tests. | PASS |
-| 56 | Irreversible effects use explicit compensation requirements without pretending compensation is causal rollback. | mixed reversible/irreversible fixtures and compensation tests. | PASS |
-| 57 | The canonical acceptance matrix covers all 25 required scenarios plus active+INVESTIGATE and active+WAIT/OBSERVE. | `fixture_matrix.ts`; required-fixture count and validity tests. | PASS |
-| 58 | Compound evidence summaries aggregate only compatible additive costs/resources and retain risk categorically without inventing a numeric score. | `aggregates.ts`; cost/resource/risk tests and incompatible-unit/currency edge cases. | PASS |
-| 59 | Compound measurement horizon and provenance remain explicit while component measurement/provenance and causal identity are preserved. | typed measurement/provenance; component measurement edge case; flatten/translation provenance audits. | PASS |
-| 60 | Semantic equality is based on business meaning, excluding record IDs/descriptions/intent/provenance/evaluation metadata while retaining coordination meaning. | `semantics.ts`; renamed-ID final audit and coordination-change audit. | PASS |
-| 61 | Fingerprinting, canonical serialization, round-trip deserialization, and flattening are deterministic; unordered collections are canonicalized. | `semantics.ts`, `serialization.ts`; round-trip and deterministic flattening tests. | PASS |
-| 62 | Translation reuses existing atomic translators, preserves compound+atomic provenance and one-to-many intervention indexes, resolves dependency gating topologically, and handles unsupported components conservatively. | `translation.ts`; comprehensive translation suite and unordered dependency final audit. | PASS |
-| 63 | Architectural boundaries are preserved: NO_OP/WAIT/OBSERVE/INVESTIGATE do not invent causal interventions, RUN_EXPERIMENT remains an engine boundary, and CompoundAction rejects prediction/evaluation/runtime leakage and contains no optimizer, recommender, execution orchestrator, transaction manager, or experiment-assignment system. | zero-intervention/boundary tests, forbidden-field validation, dependency-cruiser rule, full architecture gate. | PASS |
+| 1 | Define the canonical, versioned `CompoundAction` contract with identity, description, components, coordination/timing, constraints/dependencies, failure/rollback semantics, measurement horizon and provenance. | `src/compound_action/types.ts`; schema-version and structural validation tests. | PASS |
+| 2 | Preserve every component as a fully valid canonical atomic `Action`, including its own identity and semantics. | Every component passes `validateAction`; atomic identity and translation tests. | PASS |
+| 3 | Keep `compoundActionId` separate from component IDs and atomic `actionId` values. | Branded compound ID, component IDs, duplicate-ID validation, flatten/provenance tests. | PASS |
+| 4 | Represent component ordering explicitly as `UNORDERED` or `ORDERED`. | `CompoundOrdering`; exhaustive ORDERED validation and deterministic flattening. | PASS |
+| 5 | Represent concurrency explicitly as `START_TOGETHER`, `EFFECTIVE_TOGETHER` or `INDEPENDENT_TIMING`. | Closed concurrency type, timing/concurrency fixtures and edge cases. | PASS |
+| 6 | Use typed inter-component dependencies: START_AFTER, EFFECTIVE_AFTER, COMPLETE_AFTER, REQUIRES and END_WITH. | `ComponentDependencyType` and canonical dependency fixtures. | PASS |
+| 7 | Validate dependency references/types, reject self-dependencies/cycles, and preserve timing resolution relationships. | `validation.ts`, circular fixture 20, timing/dependency resolution tests. | PASS |
+| 8 | Support generic cross-family coordination rather than combination-specific compound schemas. | Campaign, inventory-protection and clearance fixtures span paid media, promotion, lifecycle, merchandising, pricing and inventory. | PASS |
+| 9 | Make Meta -$2,000/week + Google +$2,000/week a canonical conserved budget-reallocation CompoundAction, not unrelated recommendations. | Fixture 1, SOURCE/DESTINATION roles and conservation test. | PASS |
+| 10 | Generalize conservation/guardrail constraints as typed machine-evaluable compound constraints, never arbitrary executable expressions. | Closed `CompoundConstraint` union; conservation, media-cap, resource-cap and arbitrary-expression rejection tests. | PASS |
+| 11 | Support a coordinated campaign CompoundAction (promotion + lifecycle email + paid-media increase + merchandising feature) while preserving every atomic component. | Required fixtures 2 and 3 plus cross-family coverage test. | PASS |
+| 12 | Permit shared human-readable intent but exclude predicted outcomes/rankings from the Action definition. | `intent` is descriptive; leakage validator rejects expected revenue/profit/ROAS/lift/synergy and recommendation fields. | PASS |
+| 13 | Make population semantics explicit: components may target the same, different or no populations, with COMPOUND_LEVEL or COMPONENT_LEVEL binding. | Population-binding contract, fixtures 8/9 and final population audit. | PASS |
+| 14 | If a compound has a default population, every component explicitly chooses INHERIT, OVERRIDE or NOT_APPLICABLE; no silent attachment. | Population validation, hidden-inheritance rejection and override tests. | PASS |
+| 15 | Reuse Step 12 `ActionTiming` for shared compound timing; do not invent a parallel compound-only time model. | `ActionTiming` is imported directly into CompoundAction and timing resolution. | PASS |
+| 16 | Make component timing inheritance explicit as INHERIT, OVERRIDE or DEPENDENT. | `ComponentTimingBinding`, validation and inherited/dependent timing fixtures. | PASS |
+| 17 | Represent a compound business-level active window while allowing narrower component windows. | Compound `timing` plus component timing overrides; same-start/different-duration final audit. | PASS |
+| 18 | Make compound completion semantics explicit. | `CompoundCompletionRule`; invalid completion semantics rejected. | PASS |
+| 19 | Make compound atomicity explicit: ALL_OR_NOTHING, BEST_EFFORT or DEPENDENCY_GATED. | Type contract plus unsupported/partial/dependency-gated fixtures and tests. | PASS |
+| 20 | Keep preflight/readiness outside the immutable CompoundAction definition. | Separate `CompoundActionReadiness` and evaluator inputs; no runtime readiness fields in CompoundAction. | PASS |
+| 21 | Represent compound readiness as READY, PARTIALLY_READY, BLOCKED or UNKNOWN. | `CompoundReadinessState` and readiness tests. | PASS |
+| 22 | Compose atomic eligibility conservatively, preserving UNKNOWN rather than treating it as ineligible. | Per-component tri-state eligibility evidence and UNKNOWN readiness tests. | PASS |
+| 23 | Make compound failure semantics explicit. | Closed failure policies; failure policy participates in semantic identity. | PASS |
+| 24 | Preserve two rollback levels: atomic/domain rollback contracts plus compound rollback coordination. | Embedded atomic Actions remain unchanged; separate compound rollback contract/readiness. | PASS |
+| 25 | Do not replace domain-specific rollback safety with generic compound restoration. | Rollback readiness delegates component reversibility and preserves domain conflicts. | PASS |
+| 26 | Make compound rollback policy explicit. | Closed `CompoundRollbackPolicy` and identity/readiness tests. | PASS |
+| 27 | Represent partial reversibility explicitly. | `PARTIALLY_REVERSIBLE` summary and mixed reversible/irreversible fixture. | PASS |
+| 28 | Preserve irreversible components explicitly. | Irreversible component IDs/states in rollback readiness and email-send fixtures. | PASS |
+| 29 | Keep compensation separate from rollback. | `CompensationRequirement` and mixed-reversibility tests. | PASS |
+| 30 | Make rollback ordering explicit and dependency-safe. | REVERSE_DEPENDENCY_ORDER / EXPLICIT / UNORDERED; reverse-order and explicit-order tests. | PASS |
+| 31 | Protect later legitimate decisions from rollback conflicts. | Conflict evidence remains explicit and disables automatic rollback. | PASS |
+| 32 | Expose a separate `CompoundRollbackReadiness` contract rather than executing rollback. | Versioned type surface plus readiness derivation/final audit; no rollback executor exists. | PASS |
+| 33 | Derive compound cost without inventing unsupported arithmetic. | `summarizeCompoundCosts`; only compatible known monetary dimensions aggregate. | PASS |
+| 34 | Derive compound resource requirements with unit/currency compatibility. | `summarizeCompoundResources`; unknown/incompatible units fail aggregation. | PASS |
+| 35 | Preserve compound-level constraints independently from component constraints. | Typed `constraints` on CompoundAction, validation/readiness and semantic identity. | PASS |
+| 36 | Preserve compound risk without manufacturing a numeric score. | `summarizeCompoundRisk` keeps component risk dimensions categorically. | PASS |
+| 37 | Define an explicit compound measurement horizon without replacing component measurement semantics. | `CompoundMeasurementHorizon`; component-vs-compound measurement edge case. | PASS |
+| 38 | Preserve causal attribution boundaries between the compound business decision, atomic Actions and simulator interventions. | Flatten/translation provenance keeps compound ID as origin and atomic actionId as source. | PASS |
+| 39 | Keep predicted interaction/synergy effects out of CompoundAction. | Explicit leakage keys plus separate evaluation envelope; final evaluation-boundary test. | PASS |
+| 40 | Preserve careful NO_OP semantics inside compounds without inventing treatment effects or assignment. | Explicit CONTROL role; zero-intervention NO_OP translation; no traffic allocation. | PASS |
+| 41 | Allow WAIT/OBSERVE and INVESTIGATE components while preserving their zero-causal-intervention meaning. | Dedicated active+WAIT and active+INVESTIGATE fixtures/tests. | PASS |
+| 42 | Keep RUN_EXPERIMENT as an experiment-engine boundary; do not embed experiment assignment/design. | Translation returns EXPERIMENT_REQUIRES_ENGINE; experiment fields rejected. | PASS |
+| 43 | Keep CompoundAction components atomic by default and reject arbitrary recursive nested compounds. | Nested-compound adversarial test and atomic component validation. | PASS |
+| 44 | Flatten deterministically while preserving compound/component/atomic provenance, dependencies, timing and population bindings. | `flattenCompoundAction` and comprehensive/final provenance tests. | PASS |
+| 45 | Support typed component roles such as SOURCE, DESTINATION, PRIMARY, SUPPORTING, TRIGGER, DEPENDENT and CONTROL. | Closed role union, role validation and fixture coverage. | PASS |
+| 46 | Define semantic equality over component business semantics, roles, ordering, dependencies, timing, populations, constraints, failure/rollback policy and atomicity. | Canonical semantic projection plus coordination-change tests. | PASS |
+| 47 | Make compound fingerprints deterministic and exclude runtime/evaluation/prediction state and record-only IDs. | FNV-1a semantic fingerprint and renamed-ID/evaluation-metadata tests. | PASS |
+| 48 | Provide deterministic canonical serialization with exact semantic round-trip. | `serializeCompoundAction` / `deserializeCompoundAction`; unordered canonicalization and round-trip tests. | PASS |
+| 49 | Keep lifecycle/execution status outside immutable CompoundAction. | Runtime status fields are absent from the type and explicitly rejected by leakage validation. | PASS |
+| 50 | Keep `CompoundActionEvaluation` separate from `CompoundAction`; evaluation may carry predictions, expected economics, uncertainty, interactions, risks and recommendation ranking. | Separate versioned evaluation envelope in `types.ts`; final boundary test proves its fields are rejected from CompoundAction. | PASS |
+| 51 | Extend translation by translating atomic components and preserve compound provenance/dependencies. | `translateCompoundAction` reuses atomic translators and attaches coordination/provenance. | PASS |
+| 52 | Preserve one-to-many translation across compound -> atomic Action -> SimulatorIntervention levels. | Component/intervention index/count provenance and one-to-many promotion test. | PASS |
+| 53 | Return explicit per-component translation results. | `CompoundComponentTranslationResult` surface and comprehensive translation assertions. | PASS |
+| 54 | Represent unsupported simulator/execution capability explicitly. | Unsupported status is preserved in readiness and translation results. | PASS |
+| 55 | Never approximate an unsupported component through a different simulator mechanism. | ALL_OR_NOTHING/BEST_EFFORT tests; unsupported lifecycle/CRO/etc. remain unsupported rather than mutated through proxies. | PASS |
+| 56 | Reuse Step 12 timing resolution for compound/component timing instead of creating a scheduler. | `resolveCompoundTiming` delegates to ActionTiming resolution and preserves relational dependencies. | PASS |
+| 57 | Preserve recurring CompoundActions as one coordinated merchant decision. | Recurring-weekend fixture and recurrence test; no expansion into unrelated Actions. | PASS |
+| 58 | Resolve compound populations through external canonical population bindings and fail closed when unavailable. | `resolveCompoundPopulations` and snapshot/binding-time tests. | PASS |
+| 59 | Reject prediction/evaluation/GroundTruth-style leakage from the CompoundAction definition. | Recursive forbidden-information validation plus evaluation-boundary and prediction-leakage tests. | PASS |
+| 60 | Provide the required 25 canonical CompoundAction fixtures. | `requiredCompoundFixtures` is asserted at exactly 25; all valid fixtures validate and required invalid fixtures fail correctly. | PASS |
+| 61 | Test semantic identity adversarially, including same Actions with different coordination and renamed record IDs with unchanged meaning. | `compound.test.ts`, `edge-cases.test.ts`, `final-audit.test.ts`. | PASS |
+| 62 | Provide comprehensive tests for validation, readiness, rollback, cost/resources/risk, timing/population resolution, translation, serialization and boundaries, while retaining inherited tests. | Focused CompoundAction suite plus full repository suite in CI. | PASS |
+| 63 | Preserve architectural boundaries: no optimizer, recommender, decision policy, execution orchestrator, transaction manager, experiment-assignment engine, prediction layer or hidden evaluator logic in CompoundAction. | Dependency-cruiser boundary, forbidden-field validation, zero-intervention/experiment tests and full architecture gate. | PASS |
 
 ## Freeze rule
 
-Step 13 is frozen only after all 63 rows above are PASS **and** the final branch head passes:
+Step 13 is frozen only when all 63 rows above are PASS and the exact frozen branch head passes:
 
 - architecture boundary validation
 - strict TypeScript typecheck
-- the focused Step 13 CompoundAction suite
-- the full inherited repository test suite
+- focused Step 13 CompoundAction tests
+- full inherited repository test suite
 - production build
 
-The pull request remains draft, open, mergeable, and unmerged. Freezing this step records a verified research contract; it does not merge, deploy, execute, optimize, rank, or recommend CompoundActions.
+The pull request remains draft, open and unmerged. Freezing records a verified research contract; it does not merge, deploy, execute, optimize, rank or recommend CompoundActions.

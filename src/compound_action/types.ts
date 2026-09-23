@@ -1,7 +1,7 @@
 import type { Action, MonetaryValue, QuantityValue } from "../action_ontology/types.js";
 import type { ActionTiming } from "../action_timing/types.js";
 
-export const COMPOUND_ACTION_SCHEMA_VERSION = "1.0.0" as const;
+export const COMPOUND_ACTION_SCHEMA_VERSION = "1.0.0" as const;\nexport const COMPOUND_ACTION_EVALUATION_SCHEMA_VERSION = "1.0.0" as const;
 export type CompoundActionId = string & { readonly __brand: "CompoundActionId" };
 export type CompoundComponentRole = "SOURCE"|"DESTINATION"|"PRIMARY"|"SUPPORTING"|"TRIGGER"|"DEPENDENT"|"CONTROL";
 export type PopulationBindingLevel = "COMPOUND_LEVEL"|"COMPONENT_LEVEL";
@@ -81,6 +81,49 @@ export interface CompoundAction {
   readonly measurement:CompoundMeasurementHorizon;
   readonly provenance:CompoundProvenance;
 }
+export type CompoundActionEvaluationUncertainty =
+  | {readonly kind:"INTERVAL";readonly lower:number;readonly upper:number;readonly confidenceLevel?:number}
+  | {readonly kind:"QUALITATIVE";readonly summary:string}
+  | {readonly kind:"UNKNOWN";readonly reason:string};
+export interface CompoundActionPredictedOutcome {
+  readonly metricId:string;
+  readonly horizonSeconds:number;
+  readonly estimate:number;
+  readonly unit:string;
+  readonly uncertainty?:CompoundActionEvaluationUncertainty;
+}
+export interface CompoundActionInteractionEvaluation {
+  readonly interactionId:string;
+  readonly componentIds:readonly string[];
+  readonly metricId:string;
+  readonly estimate:number;
+  readonly unit:string;
+  readonly uncertainty?:CompoundActionEvaluationUncertainty;
+}
+export interface CompoundActionEvaluationRisk {
+  readonly dimension:string;
+  readonly assessment:string;
+  readonly uncertainty?:CompoundActionEvaluationUncertainty;
+}
+export interface CompoundActionEvaluation {
+  readonly kind:"compound_action_evaluation";
+  readonly schemaVersion:typeof COMPOUND_ACTION_EVALUATION_SCHEMA_VERSION;
+  readonly evaluationId:string;
+  readonly compoundActionId:CompoundActionId;
+  readonly evaluatedAt:string;
+  readonly predictedOutcomes:readonly CompoundActionPredictedOutcome[];
+  readonly expectedRevenue?:MonetaryValue;
+  readonly expectedProfit?:MonetaryValue;
+  readonly expectedROAS?:number;
+  readonly expectedLift?:number;
+  readonly expectedSynergy?:number;
+  readonly uncertainty?:CompoundActionEvaluationUncertainty;
+  readonly interactionEffects:readonly CompoundActionInteractionEvaluation[];
+  readonly risks:readonly CompoundActionEvaluationRisk[];
+  readonly recommendationRanking?:{readonly rank:number;readonly score?:number;readonly rationale?:string};
+  readonly evidenceRefs:readonly string[];
+}
+
 export type ComponentReadinessState="READY"|"INELIGIBLE"|"UNKNOWN"|"UNSUPPORTED_SIMULATOR_CAPABILITY"|"UNSUPPORTED_EXECUTION_CAPABILITY"|"MISSING_CONTEXT"|"UNRESOLVED_POPULATION"|"UNRESOLVED_TIMING"|"INVALID";
 export interface CompoundComponentReadiness {readonly componentId:string;readonly actionId:string;readonly state:ComponentReadinessState;readonly reasons:readonly string[]}
 export type CompoundReadinessState="READY"|"PARTIALLY_READY"|"BLOCKED"|"UNKNOWN";

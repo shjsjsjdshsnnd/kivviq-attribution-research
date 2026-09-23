@@ -15,7 +15,7 @@ import {
 import { validateCompoundAction } from "../../src/compound_action/validation.js";
 import { compoundFingerprint,compoundsSemanticallyEqual,flattenCompoundAction } from "../../src/compound_action/semantics.js";
 import { evaluateCompoundReadiness,deriveCompoundRollbackReadiness } from "../../src/compound_action/readiness.js";
-import { translateCompoundAction } from "../../src/compound_action/translation.js";
+import { translateCompoundAction } from "../../src/compound_action/translation.js";\nimport { COMPOUND_ACTION_EVALUATION_SCHEMA_VERSION,type CompoundActionEvaluation } from "../../src/compound_action/types.js";
 
 const CAD=currencyCode("CAD");
 const clock=utcTimestamp("2026-09-23T12:00:00.000Z");
@@ -55,6 +55,54 @@ describe("Step 13 final contract audit",()=>{
       defaultPopulationBindingTime:undefined,
     };
     expect(issueCodes(missingBindingTime)).toContain("MISSING_DEFAULT_POPULATION_BINDING_TIME");
+  });
+
+  it("keeps evaluation output in a separate versioned contract and rejects evaluation leakage from CompoundAction",()=>{
+    const evaluation:CompoundActionEvaluation={
+      kind:"compound_action_evaluation",
+      schemaVersion:COMPOUND_ACTION_EVALUATION_SCHEMA_VERSION,
+      evaluationId:"compound-evaluation:fixture-02",
+      compoundActionId:fixture02Campaign.compoundActionId,
+      evaluatedAt:clock,
+      predictedOutcomes:[{
+        metricId:"contribution_profit",
+        horizonSeconds:604_800,
+        estimate:125_000,
+        unit:"CAD_minor",
+        uncertainty:{kind:"INTERVAL",lower:100_000,upper:150_000,confidenceLevel:0.9},
+      }],
+      expectedRevenue:{kind:"money",amountMinor:250_000,currency:CAD},
+      expectedProfit:{kind:"money",amountMinor:125_000,currency:CAD},
+      expectedROAS:3.2,
+      expectedLift:0.08,
+      expectedSynergy:0.03,
+      uncertainty:{kind:"QUALITATIVE",summary:"Synthetic evaluator-output example only."},
+      interactionEffects:[{
+        interactionId:"interaction:promotion-email",
+        componentIds:["promotion","email"],
+        metricId:"conversion_rate",
+        estimate:0.02,
+        unit:"absolute_rate",
+        uncertainty:{kind:"UNKNOWN",reason:"No interaction estimator is implemented in Step 13."},
+      }],
+      risks:[{dimension:"measurement_uncertainty",assessment:"Attribution may be incomplete."}],
+      recommendationRanking:{rank:2,score:0.62,rationale:"External evaluator-output example only."},
+      evidenceRefs:["synthetic:evaluation-boundary"],
+    };
+    expect(evaluation.compoundActionId).toBe(fixture02Campaign.compoundActionId);
+
+    const leakedFields:Record<string,unknown>={
+      predictedOutcomes:evaluation.predictedOutcomes,
+      expectedRevenue:evaluation.expectedRevenue,
+      expectedProfit:evaluation.expectedProfit,
+      interactionEffects:evaluation.interactionEffects,
+      recommendationRanking:evaluation.recommendationRanking,
+      counterfactualRevenue:{kind:"money",amountMinor:275_000,currency:CAD},
+    };
+    for(const [field,value] of Object.entries(leakedFields)){
+      const leaked={...fixture02Campaign,[field]:value};
+      expect(issueCodes(leaked)).toContain("FORBIDDEN_COMPOUND_INFORMATION");
+    }
   });
 
   it("treats IDs and evaluation metadata as identity metadata, not business semantics",()=>{
