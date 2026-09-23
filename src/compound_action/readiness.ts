@@ -1,5 +1,5 @@
 import type { Action } from "../action_ontology/types.js";
-import type { CompoundAction, CompoundActionReadiness, CompoundComponentReadiness, CompoundRollbackReadiness } from "./types.js";
+import type { CompoundAction,CompoundActionReadiness,CompoundComponentReadiness,CompoundRollbackReadiness } from "./types.js";
 
 export interface CompoundReadinessEvidence {
   readonly componentId:string;
@@ -12,26 +12,91 @@ export interface CompoundReadinessEvidence {
   readonly executionCapability?:boolean;
 }
 function componentState(e:CompoundReadinessEvidence):CompoundComponentReadiness["state"]{
-  if(!e.structuralValid)return"INVALID";if(e.eligibility==="INELIGIBLE")return"INELIGIBLE";if(e.eligibility==="UNKNOWN")return"UNKNOWN";
-  if(!e.contextAvailable)return"MISSING_CONTEXT";if(!e.populationResolved)return"UNRESOLVED_POPULATION";if(!e.timingResolved)return"UNRESOLVED_TIMING";if(!e.simulatorCapability)return"UNSUPPORTED_SIMULATOR_CAPABILITY";if(e.executionCapability===false)return"UNSUPPORTED_EXECUTION_CAPABILITY";return"READY";
+  if(!e.structuralValid)return"INVALID";
+  if(e.eligibility==="INELIGIBLE")return"INELIGIBLE";
+  if(e.eligibility==="UNKNOWN")return"UNKNOWN";
+  if(!e.contextAvailable)return"MISSING_CONTEXT";
+  if(!e.populationResolved)return"UNRESOLVED_POPULATION";
+  if(!e.timingResolved)return"UNRESOLVED_TIMING";
+  if(!e.simulatorCapability)return"UNSUPPORTED_SIMULATOR_CAPABILITY";
+  if(e.executionCapability===false)return"UNSUPPORTED_EXECUTION_CAPABILITY";
+  return"READY";
 }
 export function evaluateCompoundReadiness(c:CompoundAction,evidence:readonly CompoundReadinessEvidence[]):CompoundActionReadiness{
   const by=new Map(evidence.map(x=>[x.componentId,x]));
-  const components=c.components.map(x=>{const e=by.get(x.componentId);const state=e?componentState(e):"UNKNOWN";return{componentId:x.componentId,actionId:x.action.actionId,state,reasons:e?[]:["READINESS_EVIDENCE_MISSING"]}});
+  const components=c.components.map(x=>{
+    const e=by.get(x.componentId);const state=e?componentState(e):"UNKNOWN";
+    return{componentId:x.componentId,actionId:x.action.actionId,state,reasons:e?[]:["READINESS_EVIDENCE_MISSING"]};
+  });
   const ready=components.filter(x=>x.state==="READY").length;
   const unknown=components.some(x=>x.state==="UNKNOWN");
+  const hardFailure=components.some(x=>["INVALID","INELIGIBLE","MISSING_CONTEXT","UNRESOLVED_POPULATION","UNRESOLVED_TIMING","UNSUPPORTED_SIMULATOR_CAPABILITY","UNSUPPORTED_EXECUTION_CAPABILITY"].includes(x.state));
   let state:CompoundActionReadiness["state"];
   if(ready===components.length)state="READY";
-  else if(c.atomicity==="ALL_OR_NOTHING")state=unknown?"UNKNOWN":"BLOCKED";
-  else if(ready>0)state="PARTIALLY_READY";
-  else state=unknown?"UNKNOWN":"BLOCKED";
-  return{compoundActionId:c.compoundActionId,state,components,unresolvedDependencies:[],constraintFailures:[]};
+  else if(c.atomicity==="ALL_OR_NOTHING")state=unknown&&!hardFailure?"UNKNOWN":"BLOCKED";
+  else if(c.atomicity==="DEPENDENCY_GATED"){
+    const blockedIds=new Set(components.filter(x=>x.state!=="READY").map(x=>x.componentId));
+    const dependentBlocked=c.dependencies.some(d=>blockedIds.has(d.dependsOnComponentId)&&components.find(x=>x.componentId===d.componentId)?.state==="READY");
+    state=dependentBlocked?"PARTIALLY_READY":ready>0?"PARTIALLY_READY":unknown?"UNKNOWN":"BLOCKED";
+  }else state=ready>0?"PARTIALLY_READY":unknown?"UNKNOWN":"BLOCKED";
+  const unresolvedDependencies=c.dependencies.filter(d=>{
+    const source=components.find(x=>x.componentId===d.dependsOnComponentId);
+    const target=components.find(x=>x.componentId===d.componentId);
+    return source?.state!=="READY"||target?.state!=="READY";
+  }).map(d=>d.dependencyId);
+  return{compoundActionId:c.compoundActionId,state,components,unresolvedDependencies,constraintFailures:[]};
 }
 function reversible(a:Action):boolean{return a.reversibility.classification!=="effectively_irreversible"}
+function reverseDependencyOrder(c:CompoundAction):readonly string[]{
+  const ids=c.components.map(x=>x.componentId);
+  const outgoing=new Map(ids.map(id=>[id,[] as string[]]));
+  const indegree=new Map(ids.map(id=>[id,0]));
+  for(const d of c.dependencies){
+    outgoing.get(d.dependsOnComponentId)?.push(d.componentId);
+    indegree.set(d.componentId,(indegree.get(d.componentId)??0)+1);
+  }
+  const queue=ids.filter(id=>(indegree.get(id)??0)===0).sort();
+  const topo:string[]=[];
+  while(queue.length){
+    const id=queue.shift()!;topo.push(id);
+    for(const next of outgoing.get(id)??[]){
+      indegree.set(next,(indegree.get(next)??0)-1);
+      if((indegree.get(next)??0)===0){queue.push(next);queue.sort()}
+    }
+  }
+  return topo.length===ids.length?topo.reverse():[...ids].reverse();
+}
 export function deriveCompoundRollbackReadiness(c:CompoundAction,conflicts:readonly string[]=[]):CompoundRollbackReadiness{
-  const reverse=[...c.components].reverse();
-  const components=reverse.map(x=>({componentId:x.componentId,actionId:x.action.actionId,state:(conflicts.includes(x.componentId)?"CONFLICT":reversible(x.action)?"ROLLBACKABLE":"IRREVERSIBLE") as "CONFLICT"|"ROLLBACKABLE"|"IRREVERSIBLE",reasons:[]}));
+  const order=c.rollback.order==="REVERSE_DEPENDENCY_ORDER"
+    ? reverseDependencyOrder(c)
+    : c.rollback.order==="EXPLICIT"
+      ? c.rollback.explicitComponentOrder??[]
+      : [];
+  const orderedComponents=order.length?order.map(id=>c.components.find(x=>x.componentId===id)!).filter(Boolean):[...c.components];
+  const components=orderedComponents.map(x=>({
+    componentId:x.componentId,
+    actionId:x.action.actionId,
+    state:(conflicts.includes(x.componentId)?"CONFLICT":reversible(x.action)?"ROLLBACKABLE":"IRREVERSIBLE") as "CONFLICT"|"ROLLBACKABLE"|"IRREVERSIBLE",
+    reasons:conflicts.includes(x.componentId)?["DOMAIN_ROLLBACK_CONFLICT"]:reversible(x.action)?[]:["ATOMIC_ACTION_IRREVERSIBLE"],
+  }));
   const irreversible=components.filter(x=>x.state==="IRREVERSIBLE").length;
   const conflictCount=components.filter(x=>x.state==="CONFLICT").length;
-  return{compoundActionId:c.compoundActionId,overall:conflictCount?"PARTIAL":irreversible&&irreversible<components.length?"PARTIAL":irreversible===components.length?"BLOCKED":"READY",reversibility:irreversible===0?"FULLY_REVERSIBLE":irreversible===components.length?"IRREVERSIBLE":"PARTIALLY_REVERSIBLE",components,requiredRollbackOrder:c.rollback.order==="REVERSE_DEPENDENCY_ORDER"?reverse.map(x=>x.componentId):c.rollback.explicitComponentOrder??[],compensationRequired:irreversible>0,missingContext:[],conflicts:[...conflicts]};
+  const compensationRequirements=components.filter(x=>x.state==="IRREVERSIBLE").map(x=>({
+    componentId:x.componentId,
+    actionId:x.actionId,
+    required:c.rollback.irreversibleComponentPolicy==="REQUIRE_COMPENSATION",
+    reason:"Atomic component cannot be causally reversed; any compensating Action is separate from rollback.",
+  }));
+  const blockedByIrreversible=c.rollback.irreversibleComponentPolicy==="BLOCK_AUTOMATIC_ROLLBACK"&&irreversible>0;
+  return{
+    compoundActionId:c.compoundActionId,
+    overall:blockedByIrreversible?"BLOCKED":conflictCount?"PARTIAL":irreversible&&irreversible<components.length?"PARTIAL":irreversible===components.length?"BLOCKED":"READY",
+    reversibility:irreversible===0?"FULLY_REVERSIBLE":irreversible===components.length?"IRREVERSIBLE":"PARTIALLY_REVERSIBLE",
+    components,
+    requiredRollbackOrder:order,
+    compensationRequired:compensationRequirements.some(x=>x.required),
+    compensationRequirements,
+    missingContext:[],
+    conflicts:[...conflicts],
+  };
 }
