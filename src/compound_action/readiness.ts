@@ -22,7 +22,8 @@ function componentState(e:CompoundReadinessEvidence):CompoundComponentReadiness[
   if(e.executionCapability===false)return"UNSUPPORTED_EXECUTION_CAPABILITY";
   return"READY";
 }
-export function evaluateCompoundReadiness(c:CompoundAction,evidence:readonly CompoundReadinessEvidence[]):CompoundActionReadiness{
+export interface CompoundReadinessOptions { readonly constraintFailures?:readonly string[]; readonly unknownConstraintIds?:readonly string[]; }
+export function evaluateCompoundReadiness(c:CompoundAction,evidence:readonly CompoundReadinessEvidence[],options:CompoundReadinessOptions={}):CompoundActionReadiness{
   const by=new Map(evidence.map(x=>[x.componentId,x]));
   const components=c.components.map(x=>{
     const e=by.get(x.componentId);const state=e?componentState(e):"UNKNOWN";
@@ -31,9 +32,12 @@ export function evaluateCompoundReadiness(c:CompoundAction,evidence:readonly Com
   const ready=components.filter(x=>x.state==="READY").length;
   const unknown=components.some(x=>x.state==="UNKNOWN");
   const hardFailure=components.some(x=>["INVALID","INELIGIBLE","MISSING_CONTEXT","UNRESOLVED_POPULATION","UNRESOLVED_TIMING","UNSUPPORTED_SIMULATOR_CAPABILITY","UNSUPPORTED_EXECUTION_CAPABILITY"].includes(x.state));
+  const constraintFailures=[...(options.constraintFailures??[])];
+  const unknownConstraints=[...(options.unknownConstraintIds??[])];
   let state:CompoundActionReadiness["state"];
-  if(ready===components.length)state="READY";
-  else if(c.atomicity==="ALL_OR_NOTHING")state=unknown&&!hardFailure?"UNKNOWN":"BLOCKED";
+  if(constraintFailures.length>0)state="BLOCKED";
+  else if(ready===components.length&&unknownConstraints.length===0)state="READY";
+  else if(c.atomicity==="ALL_OR_NOTHING")state=(unknown||unknownConstraints.length>0)&&!hardFailure?"UNKNOWN":"BLOCKED";
   else if(c.atomicity==="DEPENDENCY_GATED"){
     const blockedIds=new Set(components.filter(x=>x.state!=="READY").map(x=>x.componentId));
     const dependentBlocked=c.dependencies.some(d=>blockedIds.has(d.dependsOnComponentId)&&components.find(x=>x.componentId===d.componentId)?.state==="READY");
@@ -44,7 +48,8 @@ export function evaluateCompoundReadiness(c:CompoundAction,evidence:readonly Com
     const target=components.find(x=>x.componentId===d.componentId);
     return source?.state!=="READY"||target?.state!=="READY";
   }).map(d=>d.dependencyId);
-  return{compoundActionId:c.compoundActionId,state,components,unresolvedDependencies,constraintFailures:[]};
+  if(state==="PARTIALLY_READY"&&c.failurePolicy==="ABORT_COMPOUND")state="BLOCKED";
+  return{compoundActionId:c.compoundActionId,state,components,unresolvedDependencies,constraintFailures};
 }
 function reversible(a:Action):boolean{return a.reversibility.classification!=="effectively_irreversible"}
 function reverseDependencyOrder(c:CompoundAction):readonly string[]{
