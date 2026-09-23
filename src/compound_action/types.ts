@@ -1,12 +1,14 @@
-import type { Action } from "../action_ontology/types.js";
+import type { Action, MonetaryValue, QuantityValue } from "../action_ontology/types.js";
 import type { ActionTiming } from "../action_timing/types.js";
 
 export const COMPOUND_ACTION_SCHEMA_VERSION = "1.0.0" as const;
 export type CompoundActionId = string & { readonly __brand: "CompoundActionId" };
 export type CompoundComponentRole = "SOURCE"|"DESTINATION"|"PRIMARY"|"SUPPORTING"|"TRIGGER"|"DEPENDENT"|"CONTROL";
+export type PopulationBindingLevel = "COMPOUND_LEVEL"|"COMPONENT_LEVEL";
+export type PopulationBindingTime = "DECISION_TIME"|"EFFECTIVE_TIME"|"SEND_TIME"|"TRIGGER_TIME";
 export type PopulationBinding =
   | {readonly kind:"INHERIT"}
-  | {readonly kind:"OVERRIDE";readonly populationRef:string;readonly bindingTime?:"DECISION_TIME"|"EFFECTIVE_TIME"|"SEND_TIME"|"TRIGGER_TIME"}
+  | {readonly kind:"OVERRIDE";readonly populationRef:string;readonly bindingTime:PopulationBindingTime}
   | {readonly kind:"NOT_APPLICABLE";readonly reason:string};
 export type ComponentTimingBinding =
   | {readonly kind:"INHERIT"}
@@ -38,7 +40,8 @@ export type CompoundConstraint =
   | {readonly constraintId:string;readonly kind:"SUM_MONETARY_DELTAS_EQUALS";readonly currency:string;readonly ratePeriod:"day"|"week"|"month";readonly amountMinor:number;readonly hard:true}
   | {readonly constraintId:string;readonly kind:"TOTAL_INCREMENTAL_MEDIA_BUDGET_LTE";readonly currency:string;readonly ratePeriod:"day"|"week"|"month";readonly amountMinor:number;readonly hard:true}
   | {readonly constraintId:string;readonly kind:"TOTAL_DISCOUNT_EXPOSURE_LTE";readonly currency:string;readonly amountMinor:number;readonly hard:true}
-  | {readonly constraintId:string;readonly kind:"MINIMUM_CONTRIBUTION_GTE";readonly currency:string;readonly amountMinor:number;readonly hard:true};
+  | {readonly constraintId:string;readonly kind:"MINIMUM_CONTRIBUTION_GTE";readonly currency:string;readonly amountMinor:number;readonly hard:true}
+  | {readonly constraintId:string;readonly kind:"TOTAL_RESOURCE_LTE";readonly resourceType:string;readonly limit:MonetaryValue|QuantityValue;readonly hard:true};
 export interface CompoundMeasurementHorizon {
   readonly earliestMeaningfulEvaluationSeconds:number;
   readonly primaryEvaluationSeconds:number;
@@ -64,8 +67,9 @@ export interface CompoundAction {
   readonly atomicity:CompoundAtomicity;
   readonly failurePolicy:CompoundFailurePolicy;
   readonly completionRule:CompoundCompletionRule;
+  readonly populationBindingLevel:PopulationBindingLevel;
   readonly defaultPopulation?:string;
-  readonly defaultPopulationBindingTime?:"DECISION_TIME"|"EFFECTIVE_TIME"|"SEND_TIME"|"TRIGGER_TIME";
+  readonly defaultPopulationBindingTime?:PopulationBindingTime;
   readonly timing?:ActionTiming;
   readonly constraints:readonly CompoundConstraint[];
   readonly rollback:{
@@ -80,11 +84,48 @@ export interface CompoundAction {
 export type ComponentReadinessState="READY"|"INELIGIBLE"|"UNKNOWN"|"UNSUPPORTED_SIMULATOR_CAPABILITY"|"UNSUPPORTED_EXECUTION_CAPABILITY"|"MISSING_CONTEXT"|"UNRESOLVED_POPULATION"|"UNRESOLVED_TIMING"|"INVALID";
 export interface CompoundComponentReadiness {readonly componentId:string;readonly actionId:string;readonly state:ComponentReadinessState;readonly reasons:readonly string[]}
 export type CompoundReadinessState="READY"|"PARTIALLY_READY"|"BLOCKED"|"UNKNOWN";
-export interface CompoundActionReadiness {readonly compoundActionId:CompoundActionId;readonly state:CompoundReadinessState;readonly components:readonly CompoundComponentReadiness[];readonly unresolvedDependencies:readonly string[];readonly constraintFailures:readonly string[]}
+export interface CompoundActionReadiness {
+  readonly compoundActionId:CompoundActionId;
+  readonly state:CompoundReadinessState;
+  readonly components:readonly CompoundComponentReadiness[];
+  readonly unresolvedDependencies:readonly string[];
+  readonly constraintFailures:readonly string[];
+  readonly unknownConstraintIds:readonly string[];
+}
 export type CompoundReversibilitySummary="FULLY_REVERSIBLE"|"PARTIALLY_REVERSIBLE"|"IRREVERSIBLE";
 export interface CompoundRollbackComponentReadiness {readonly componentId:string;readonly actionId:string;readonly state:"ROLLBACKABLE"|"IRREVERSIBLE"|"CONFLICT"|"MISSING_CONTEXT"|"UNKNOWN";readonly reasons:readonly string[]}
-export interface CompoundRollbackReadiness {readonly compoundActionId:CompoundActionId;readonly overall:"READY"|"PARTIAL"|"BLOCKED"|"UNKNOWN";readonly reversibility:CompoundReversibilitySummary;readonly components:readonly CompoundRollbackComponentReadiness[];readonly requiredRollbackOrder:readonly string[];readonly compensationRequired:boolean;readonly missingContext:readonly string[];readonly conflicts:readonly string[];readonly compensationRequirements:readonly CompensationRequirement[]}
-export interface FlattenedCompoundComponent {readonly compoundActionId:CompoundActionId;readonly componentId:string;readonly componentIndex:number;readonly role?:CompoundComponentRole;readonly action:Action;readonly dependencies:readonly ComponentDependency[];readonly population:PopulationBinding;readonly timing:ComponentTimingBinding}
+export interface CompoundRollbackComponentEvidence {
+  readonly componentId:string;
+  readonly state:CompoundRollbackComponentReadiness["state"];
+  readonly reasons?:readonly string[];
+}
+export interface CompoundRollbackReadiness {
+  readonly compoundActionId:CompoundActionId;
+  readonly policy:CompoundRollbackPolicy;
+  readonly overall:"READY"|"PARTIAL"|"BLOCKED"|"UNKNOWN";
+  readonly automaticRollbackAllowed:boolean;
+  readonly reversibility:CompoundReversibilitySummary;
+  readonly components:readonly CompoundRollbackComponentReadiness[];
+  readonly rollbackableComponentIds:readonly string[];
+  readonly irreversibleComponentIds:readonly string[];
+  readonly unknownComponentIds:readonly string[];
+  readonly requiredRollbackOrder:readonly string[];
+  readonly compensationRequired:boolean;
+  readonly missingContext:readonly string[];
+  readonly conflicts:readonly string[];
+  readonly compensationRequirements:readonly CompensationRequirement[];
+}
+export interface FlattenedCompoundComponent {
+  readonly compoundActionId:CompoundActionId;
+  readonly compoundProvenance:CompoundProvenance;
+  readonly componentId:string;
+  readonly componentIndex:number;
+  readonly role?:CompoundComponentRole;
+  readonly action:Action;
+  readonly dependencies:readonly ComponentDependency[];
+  readonly population:PopulationBinding;
+  readonly timing:ComponentTimingBinding;
+}
 
 export interface CompoundCostDimensionAggregate {
   readonly dimension:"directFinancialCost"|"mediaSpend"|"implementationCost"|"engineeringCost"|"operationalCost"|"promotionalCost"|"inventoryCommitment";
@@ -119,7 +160,7 @@ export interface CompoundPopulationComponentResolution {
   readonly componentId:string;
   readonly status:"REFERENCE_BOUND"|"SNAPSHOT_RESOLVED"|"NOT_APPLICABLE"|"UNKNOWN";
   readonly populationRef?:string;
-  readonly bindingTime?:"DECISION_TIME"|"EFFECTIVE_TIME"|"SEND_TIME"|"TRIGGER_TIME";
+  readonly bindingTime?:PopulationBindingTime;
   readonly source:"COMPOUND_DEFAULT"|"COMPONENT_OVERRIDE"|"NOT_APPLICABLE"|"UNRESOLVED";
   readonly snapshotRef?:string;
   readonly definitionRef?:string;
@@ -127,7 +168,7 @@ export interface CompoundPopulationComponentResolution {
 }
 export interface CompoundPopulationSnapshotBinding {
   readonly populationRef:string;
-  readonly bindingTime?:"DECISION_TIME"|"EFFECTIVE_TIME"|"SEND_TIME"|"TRIGGER_TIME";
+  readonly bindingTime?:PopulationBindingTime;
   readonly snapshotRef:string;
   readonly definitionRef:string;
 }
