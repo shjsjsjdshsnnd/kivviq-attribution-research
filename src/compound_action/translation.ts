@@ -6,6 +6,8 @@ import type {
   ComponentTimingBinding,
   CompoundAction,
   CompoundComponentRole,
+  CompoundProvenance,
+  FlattenedCompoundComponent,
   PopulationBinding,
 } from "./types.js";
 import { flattenCompoundAction } from "./semantics.js";
@@ -34,6 +36,7 @@ export interface CompoundComponentTranslation {
 }
 export interface CompoundTranslationResult {
   readonly compoundActionId:string;
+  readonly compoundProvenance:CompoundProvenance;
   readonly status:"TRANSLATED"|"PARTIALLY_TRANSLATED"|"NOT_TRANSLATABLE"|"INVALID_COMPOUND";
   readonly components:readonly CompoundComponentTranslation[];
   readonly interventions:readonly SimulatorIntervention[];
@@ -42,10 +45,37 @@ export interface CompoundTranslationResult {
 function translated(result:CompoundComponentTranslationResult|undefined):boolean{
   return result?.status==="TRANSLATED";
 }
+function topologicalComponents(c:CompoundAction,flat:readonly FlattenedCompoundComponent[]):readonly FlattenedCompoundComponent[]{
+  const byId=new Map(flat.map(x=>[x.componentId,x]));
+  const index=new Map(flat.map((x,i)=>[x.componentId,i]));
+  const outgoing=new Map(flat.map(x=>[x.componentId,[] as string[]]));
+  const indegree=new Map(flat.map(x=>[x.componentId,0]));
+  for(const dependency of c.dependencies){
+    outgoing.get(dependency.dependsOnComponentId)?.push(dependency.componentId);
+    indegree.set(dependency.componentId,(indegree.get(dependency.componentId)??0)+1);
+  }
+  const queue=flat.filter(x=>(indegree.get(x.componentId)??0)===0).map(x=>x.componentId);
+  queue.sort((a,b)=>(index.get(a)??0)-(index.get(b)??0));
+  const result:FlattenedCompoundComponent[]=[];
+  while(queue.length){
+    const id=queue.shift()!;
+    const component=byId.get(id);
+    if(component)result.push(component);
+    for(const next of outgoing.get(id)??[]){
+      indegree.set(next,(indegree.get(next)??0)-1);
+      if((indegree.get(next)??0)===0){
+        queue.push(next);
+        queue.sort((a,b)=>(index.get(a)??0)-(index.get(b)??0));
+      }
+    }
+  }
+  return result.length===flat.length?result:flat;
+}
 export function translateCompoundAction(c:CompoundAction,context:TranslationContext):CompoundTranslationResult{
   const validation=validateCompoundAction(c);
   if(!validation.ok)return{
     compoundActionId:c.compoundActionId,
+    compoundProvenance:c.provenance,
     status:"INVALID_COMPOUND",
     components:[],
     interventions:[],
@@ -53,18 +83,29 @@ export function translateCompoundAction(c:CompoundAction,context:TranslationCont
   };
 
   const flat=flattenCompoundAction(c);
-  const resultByComponent=new Map<string,CompoundComponentTranslationResult>();
-  const components:CompoundComponentTranslation[]=[];
-
+  const rawByComponent=new Map<string,CompoundComponentTranslationResult>();
   for(const component of flat){
+    rawByComponent.set(
+      component.componentId,
+      translateAtomicBusinessActionWithOrigin(
+        component.action,
+        context,
+        {
+          originatingBusinessActionId:c.compoundActionId,
+          sourceActionId:component.action.actionId,
+          componentIndex:component.componentIndex,
+          componentCount:c.components.length,
+        },
+      ),
+    );
+  }
+
+  const gateDependencies=c.atomicity==="DEPENDENCY_GATED"||c.failurePolicy==="PAUSE_DEPENDENTS";
+  const finalByComponent=new Map<string,CompoundComponentTranslationResult>();
+  for(const component of topologicalComponents(c,flat)){
     const blockingComponentIds=component.dependencies
       .map(dependency=>dependency.dependsOnComponentId)
-      .filter(dependencyId=>!translated(resultByComponent.get(dependencyId)));
-
-    const gateDependencies=
-      c.atomicity==="DEPENDENCY_GATED" ||
-      c.failurePolicy==="PAUSE_DEPENDENTS";
-
+      .filter(dependencyId=>!translated(finalByComponent.get(dependencyId)));
     const result:CompoundComponentTranslationResult=
       gateDependencies&&blockingComponentIds.length>0
         ? {
@@ -73,19 +114,13 @@ export function translateCompoundAction(c:CompoundAction,context:TranslationCont
             message:"Component translation is blocked because a required predecessor was not translatable.",
             blockingComponentIds:[...new Set(blockingComponentIds)].sort(),
           }
-        : translateAtomicBusinessActionWithOrigin(
-            component.action,
-            context,
-            {
-              originatingBusinessActionId:c.compoundActionId,
-              sourceActionId:component.action.actionId,
-              componentIndex:component.componentIndex,
-              componentCount:c.components.length,
-            },
-          );
+        : rawByComponent.get(component.componentId)!;
+    finalByComponent.set(component.componentId,result);
+  }
 
-    resultByComponent.set(component.componentId,result);
-    components.push({
+  const components:CompoundComponentTranslation[]=flat.map(component=>{
+    const result=finalByComponent.get(component.componentId)!;
+    return{
       componentId:component.componentId,
       componentIndex:component.componentIndex,
       actionId:component.action.actionId,
@@ -95,13 +130,14 @@ export function translateCompoundAction(c:CompoundAction,context:TranslationCont
       timing:component.timing,
       result,
       interventions:result.status==="TRANSLATED"?result.interventions:[],
-    });
-  }
+    };
+  });
 
   const failed=components.filter(x=>x.result.status!=="TRANSLATED");
   const interventions=components.flatMap(x=>x.interventions);
   if(!failed.length)return{
     compoundActionId:c.compoundActionId,
+    compoundProvenance:c.provenance,
     status:"TRANSLATED",
     components,
     interventions,
@@ -115,6 +151,7 @@ export function translateCompoundAction(c:CompoundAction,context:TranslationCont
 
   if(mustRemainWhole)return{
     compoundActionId:c.compoundActionId,
+    compoundProvenance:c.provenance,
     status:"NOT_TRANSLATABLE",
     components,
     interventions:[],
@@ -123,6 +160,7 @@ export function translateCompoundAction(c:CompoundAction,context:TranslationCont
 
   if(interventions.length)return{
     compoundActionId:c.compoundActionId,
+    compoundProvenance:c.provenance,
     status:"PARTIALLY_TRANSLATED",
     components,
     interventions,
@@ -131,6 +169,7 @@ export function translateCompoundAction(c:CompoundAction,context:TranslationCont
 
   return{
     compoundActionId:c.compoundActionId,
+    compoundProvenance:c.provenance,
     status:"NOT_TRANSLATABLE",
     components,
     interventions:[],
