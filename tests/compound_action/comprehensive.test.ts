@@ -273,6 +273,35 @@ describe("Step 13 compound translation",()=>{
     for(const intervention of result.interventions)expect(intervention.provenance.originatingBusinessActionId).toBe(fixture01BudgetReallocation.compoundActionId);
     expect(result.interventions.map(x=>x.provenance.sourceActionId).sort()).toEqual(["action_pm_google_up_2000_week","action_pm_meta_down_2000_week"].sort());
   });
+  it("preserves component coordination metadata in translation results",()=>{
+    const result=translateCompoundAction(fixture06PromotionBeforeEmail,promotionContext);
+    const email=result.components.find(x=>x.componentId==="email");
+    expect(email?.componentIndex).toBe(1);
+    expect(email?.role).toBe("DEPENDENT");
+    expect(email?.dependencies.map(x=>x.dependencyId)).toEqual(["promotion_effective_before_email"]);
+    expect(email?.population).toMatchObject({kind:"OVERRIDE",populationRef:"population:email-eligible"});
+    expect(email?.timing).toMatchObject({kind:"DEPENDENT",dependencyIds:["promotion_effective_before_email"]});
+  });
+  it("pauses dependent translation when a required predecessor is not translatable",()=>{
+    const gated={
+      ...fixture06PromotionBeforeEmail,
+      compoundActionId:"compound_dependency_gated_translation" as any,
+      ordering:{kind:"ORDERED" as const,componentIds:["email","promotion"]},
+      components:[
+        {...fixture06PromotionBeforeEmail.components.find(x=>x.componentId==="email")!,componentId:"email",timing:{kind:"INHERIT" as const}},
+        {...fixture06PromotionBeforeEmail.components.find(x=>x.componentId==="promotion")!,componentId:"promotion",timing:{kind:"DEPENDENT" as const,dependencyIds:["email_before_promotion"]}},
+      ],
+      dependencies:[{dependencyId:"email_before_promotion",type:"REQUIRES" as const,componentId:"promotion",dependsOnComponentId:"email"}],
+      atomicity:"DEPENDENCY_GATED" as const,
+      failurePolicy:"PAUSE_DEPENDENTS" as const,
+    };
+    const validation=validateCompoundAction(gated);
+    expect(validation.ok).toBe(true);
+    const result=translateCompoundAction(gated,promotionContext);
+    expect(result.status).toBe("NOT_TRANSLATABLE");
+    expect(result.components.find(x=>x.componentId==="email")?.result.status).toBe("UNSUPPORTED_SIMULATOR_CAPABILITY");
+    expect(result.components.find(x=>x.componentId==="promotion")?.result.status).toBe("BLOCKED_BY_DEPENDENCY");
+  });
   it("preserves one-to-many atomic translation provenance and explicit unsupported lifecycle component",()=>{
     const result=translateCompoundAction(fixture13UnsupportedSimulatorComponent,promotionContext);
     expect(result.status).toBe("PARTIALLY_TRANSLATED");
