@@ -248,7 +248,7 @@ export const fixture09InheritedPopulationOverride=compound(
     component("vip_promotion",startVipSegmentA20,{population:{kind:"INHERIT"}}),
     component("segment_email",sendEmailSegmentAFriday10,{population:{kind:"OVERRIDE",populationRef:"population:segment-a",bindingTime:"SEND_TIME"}}),
   ],
-  {defaultPopulation:"population:vip-a"},
+  {defaultPopulation:"population:vip-a",defaultPopulationBindingTime:"EFFECTIVE_TIME"},
 );
 
 export const fixture10InheritedTimingDelayedDependent=compound(
