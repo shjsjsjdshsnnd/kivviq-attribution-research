@@ -31,7 +31,7 @@ const FORBIDDEN=new Set([
   "predictedBestStart","predictedOptimalDuration","expectedBestSendTime",
 ]);
 
-function record(v:unknown):v is Record<string,any>{return typeof v==="object"&&v!==null&&!Array.isArray(v)}
+function record(v:unknown):v is any{return typeof v==="object"&&v!==null&&!Array.isArray(v)}
 function nonEmpty(v:unknown):v is string{return typeof v==="string"&&v.trim().length>0}
 function add(a:CompoundValidationIssue[],code:string,path:string,message:string):void{a.push({code,path,message})}
 function unknownFields(v:unknown,allowed:Set<string>,path:string,a:CompoundValidationIssue[]):void{
