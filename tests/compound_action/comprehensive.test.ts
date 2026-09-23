@@ -1,10 +1,12 @@
 import { describe,expect,it } from "vitest";
 import { actionId } from "../../src/action_ontology/identity.js";
+import { runExperimentAction } from "../../src/action_ontology/fixtures.js";
 import { assertValidAction } from "../../src/action_ontology/validation.js";
 import { currencyCode,utcTimestamp } from "../../src/core/units.js";
 import { TRANSLATION_CONTEXT_SCHEMA_VERSION,type TranslationContext } from "../../src/action_translation/types.js";
 import {
   canonicalCompoundFixtures,
+  requiredCompoundFixtures,
   fixture01BudgetReallocation,
   fixture02Campaign,
   fixture06PromotionBeforeEmail,
@@ -69,6 +71,7 @@ const promotionContext:TranslationContext={
 
 describe("Step 13 full fixture and schema contract",()=>{
   it("keeps every canonical valid fixture structurally valid",()=>{
+    expect(requiredCompoundFixtures).toHaveLength(25);
     expect(canonicalCompoundFixtures.length).toBeGreaterThanOrEqual(22);
     for(const fixture of canonicalCompoundFixtures)expect(validateCompoundAction(fixture)).toMatchObject({ok:true});
   });
@@ -111,6 +114,10 @@ describe("Step 13 semantic identity and serialization",()=>{
   });
   it("distinguishes ALL_OR_NOTHING from BEST_EFFORT",()=>{
     expect(compoundFingerprint(fixture14AllOrNothingUnsupported)).not.toBe(compoundFingerprint(fixture15BestEffortUnsupported));
+  });
+  it("keeps rollback policy in semantic identity",()=>{
+    const changed={...fixture16MixedReversibility,compoundActionId:"compound_rollback_policy_variant" as any,rollback:{...fixture16MixedReversibility.rollback,policy:"NO_AUTOMATIC_ROLLBACK" as const}};
+    expect(compoundFingerprint(changed)).not.toBe(compoundFingerprint(fixture16MixedReversibility));
   });
   it("round-trips the full canonical envelope deterministically",()=>{
     const serialized=serializeCompoundAction(fixture06PromotionBeforeEmail);
@@ -171,6 +178,19 @@ describe("Step 13 readiness and rollback",()=>{
     ]);
     expect(result.state).toBe("UNKNOWN");
     expect(result.components.find(x=>x.componentId==="email")?.state).toBe("UNKNOWN");
+  });
+  it("blocks on known failed compound hard constraints and preserves unknown constraint state",()=>{
+    const blocked=evaluateCompoundReadiness(fixture15BestEffortUnsupported,[
+      {componentId:"promotion",eligibility:"ELIGIBLE",structuralValid:true,contextAvailable:true,populationResolved:true,timingResolved:true,simulatorCapability:true},
+      {componentId:"email",eligibility:"ELIGIBLE",structuralValid:true,contextAvailable:true,populationResolved:true,timingResolved:true,simulatorCapability:true},
+    ],{constraintFailures:["compound_margin_floor"]});
+    expect(blocked.state).toBe("BLOCKED");
+    expect(blocked.constraintFailures).toEqual(["compound_margin_floor"]);
+    const unknown=evaluateCompoundReadiness(fixture15BestEffortUnsupported,[
+      {componentId:"promotion",eligibility:"ELIGIBLE",structuralValid:true,contextAvailable:true,populationResolved:true,timingResolved:true,simulatorCapability:true},
+      {componentId:"email",eligibility:"ELIGIBLE",structuralValid:true,contextAvailable:true,populationResolved:true,timingResolved:true,simulatorCapability:true},
+    ],{unknownConstraintIds:["future_context_required"]});
+    expect(unknown.state).toBe("PARTIALLY_READY");
   });
   it("uses reverse dependency order for rollback",()=>{
     const result=deriveCompoundRollbackReadiness(fixture06PromotionBeforeEmail);
@@ -264,6 +284,17 @@ describe("Step 13 compound translation",()=>{
     });
     expect(result.status).toBe("TRANSLATED");
     expect(result.components.find(x=>x.componentId==="wait")?.interventions).toEqual([]);
+  });
+  it("keeps RUN_EXPERIMENT as an engine boundary rather than embedding experiment design",()=>{
+    const experimental={...fixture25NoOpControl,compoundActionId:"compound_experiment_boundary" as any,components:[
+      {...fixture25NoOpControl.components[0]!,componentId:"experiment",action:runExperimentAction,role:"CONTROL" as const},
+      fixture25NoOpControl.components[1]!,
+    ]};
+    const validation=validateCompoundAction(experimental);
+    expect(validation.ok).toBe(true);
+    const result=translateCompoundAction(experimental,promotionContext);
+    expect(result.components.find(x=>x.componentId==="experiment")?.result.status).toBe("EXPERIMENT_REQUIRES_ENGINE");
+    expect((experimental as any).trafficAllocation).toBeUndefined();
   });
   it("retains NO_OP control semantics without embedding experiment assignment",()=>{
     const result=translateCompoundAction(fixture25NoOpControl,promotionContext);
