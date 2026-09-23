@@ -106,6 +106,7 @@ function representativePolicy(): MerchantPolicy {
           ownership: "environment_owned",
           cadence: "continuous",
           stateRef: "merchant-state:advertising-allocation",
+          effectivePeriod: { start: START, end: day(1) },
           preservedPolicyValue: {
             policyKind: "fixed_channel_allocation",
             channelSharesBasisPoints: {
@@ -145,6 +146,7 @@ function representativePolicy(): MerchantPolicy {
           ownership: "environment_owned",
           cadence: "continuous",
           stateRef: "merchant-state:prices",
+          effectivePeriod: { start: START, end: day(1) },
           preservedPolicyValue: {
             policyKind: "fixed_prices",
             pricesMinor: {
