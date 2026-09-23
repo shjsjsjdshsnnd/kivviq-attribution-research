@@ -366,6 +366,15 @@ describe("Step 3.3 canonical STATUS_QUO baseline", () => {
     const policy = representativePolicy();
     expect(policy.schemaVersion).toBe("1.0.0");
     expect(policy.policyFingerprint).toMatch(/^fnv1a64:[0-9a-f]{16}$/);
+    console.log(
+      "STEP3_3_STATUS_QUO_REPRESENTATIVE_POLICY",
+      JSON.stringify({
+        policyId: policy.policyId,
+        policyVersion: policy.policyVersion,
+        policyFingerprint: policy.policyFingerprint,
+        policySchemaVersion: policy.schemaVersion,
+      }),
+    );
     expect(Object.keys(policy.components)).toEqual([
       "advertising",
       "pricing",
