@@ -37,7 +37,7 @@ The numbering below follows the original Step 13 specification. It is not a repl
 | 29 | Keep compensation separate from rollback. | `CompensationRequirement` and mixed-reversibility tests. | PASS |
 | 30 | Make rollback ordering explicit and dependency-safe. | REVERSE_DEPENDENCY_ORDER / EXPLICIT / UNORDERED; reverse-order and explicit-order tests. | PASS |
 | 31 | Protect later legitimate decisions from rollback conflicts. | Conflict evidence remains explicit and disables automatic rollback. | PASS |
-| 32 | Expose a separate `CompoundRollbackReadiness` contract rather than executing rollback. | Versioned type surface plus readiness derivation/final audit; no rollback executor exists. | PASS |
+| 32 | Expose a separate `CompoundRollbackReadiness` contract rather than executing rollback. | Separate type surface plus readiness derivation/final audit; no rollback executor exists. | PASS |
 | 33 | Derive compound cost without inventing unsupported arithmetic. | `summarizeCompoundCosts`; only compatible known monetary dimensions aggregate. | PASS |
 | 34 | Derive compound resource requirements with unit/currency compatibility. | `summarizeCompoundResources`; unknown/incompatible units fail aggregation. | PASS |
 | 35 | Preserve compound-level constraints independently from component constraints. | Typed `constraints` on CompoundAction, validation/readiness and semantic identity. | PASS |
