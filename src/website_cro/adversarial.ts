@@ -56,6 +56,7 @@ export function healthyWebsiteState(
       rankingQuality: 0.9,
       filteringUsability: 0.88,
       sortingUsability: 0.89,
+      loadMoreUsability: 0.9,
       productDensity: 0.84,
       relevance: 0.91,
       availabilityVisibility: 0.9,

@@ -99,6 +99,7 @@ function validateState(state: WebsiteState): void {
     [state.collection.rankingQuality, "collection.rankingQuality"],
     [state.collection.filteringUsability, "collection.filteringUsability"],
     [state.collection.sortingUsability, "collection.sortingUsability"],
+    [state.collection.loadMoreUsability, "collection.loadMoreUsability"],
     [state.collection.productDensity, "collection.productDensity"],
     [state.collection.relevance, "collection.relevance"],
     [state.collection.availabilityVisibility, "collection.availabilityVisibility"],
@@ -604,12 +605,13 @@ function componentQuality(
 
   if (component === "collection") {
     const value =
-      state.collection.rankingQuality * 0.3 +
-      state.collection.filteringUsability * 0.15 +
-      state.collection.sortingUsability * 0.14 +
-      state.collection.productDensity * 0.09 +
-      state.collection.relevance * 0.24 +
-      state.collection.availabilityVisibility * 0.08;
+      state.collection.rankingQuality * 0.27 +
+      state.collection.filteringUsability * 0.14 +
+      state.collection.sortingUsability * 0.13 +
+      state.collection.loadMoreUsability * 0.1 +
+      state.collection.productDensity * 0.08 +
+      state.collection.relevance * 0.21 +
+      state.collection.availabilityVisibility * 0.07;
     if (state.collection.rankingQuality < 0.52) {
       frictions.push("poor_collection_ranking");
     }
@@ -829,11 +831,21 @@ export function websiteProductDiscoveryMultiplier(input: {
     const effectivePlacement =
       clamp(placement) * (1 - rankingQuality) +
       relevancePlacement * rankingQuality;
+    const depth = 1 - effectivePlacement;
+    const deepBrowseReach = clamp(
+      1 -
+        depth *
+          (1 - state.collection.loadMoreUsability) *
+          1.15,
+      0.08,
+      1,
+    );
     const discoverability =
-      0.05 +
-      1.5 *
-        effectivePlacement *
-        (0.35 + 0.65 * rankingQuality);
+      (0.05 +
+        1.5 *
+          effectivePlacement *
+          (0.35 + 0.65 * rankingQuality)) *
+      (0.35 + 0.65 * deepBrowseReach);
     return clamp(discoverability, 0.03, 1.7);
   }
 

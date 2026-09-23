@@ -65,6 +65,11 @@ export interface CollectionMechanism extends VersionedWebsiteComponent {
   readonly rankingQuality: number;
   readonly filteringUsability: number;
   readonly sortingUsability: number;
+  /**
+   * Abstraction of pagination/load-more reach. High values mean customers can
+   * continue into deeper result positions with little extra friction.
+   */
+  readonly loadMoreUsability: number;
   readonly productDensity: number;
   readonly relevance: number;
   readonly availabilityVisibility: number;

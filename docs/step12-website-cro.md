@@ -85,11 +85,12 @@ Collection mechanics represent:
 - ranking;
 - filtering;
 - sorting;
+- pagination/load-more reach;
 - product density;
 - relevance;
 - availability visibility.
 
-Product discovery is not uniform. Product-level presentation can change collection visibility independently of latent demand.
+Product discovery is not uniform. Product-level presentation can change collection visibility independently of latent demand. Pagination/load-more is modeled as a browsing-depth reach mechanism: poor load-more usability disproportionately suppresses products buried deeper in the collection rather than applying a global conversion penalty.
 
 The poor-collection-sorting trap deliberately buries a product with strong latent preference. Observed PDP views, ATC and sales fall even though underlying demand remains strong.
 
