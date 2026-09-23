@@ -65,6 +65,7 @@ export interface CompoundAction {
   readonly failurePolicy:CompoundFailurePolicy;
   readonly completionRule:CompoundCompletionRule;
   readonly defaultPopulation?:string;
+  readonly defaultPopulationBindingTime?:"DECISION_TIME"|"EFFECTIVE_TIME"|"SEND_TIME"|"TRIGGER_TIME";
   readonly timing?:ActionTiming;
   readonly constraints:readonly CompoundConstraint[];
   readonly rollback:{
@@ -116,11 +117,22 @@ export interface CompoundRiskSummary {
 }
 export interface CompoundPopulationComponentResolution {
   readonly componentId:string;
-  readonly status:"REFERENCE_BOUND"|"NOT_APPLICABLE"|"UNKNOWN";
+  readonly status:"REFERENCE_BOUND"|"SNAPSHOT_RESOLVED"|"NOT_APPLICABLE"|"UNKNOWN";
   readonly populationRef?:string;
   readonly bindingTime?:"DECISION_TIME"|"EFFECTIVE_TIME"|"SEND_TIME"|"TRIGGER_TIME";
   readonly source:"COMPOUND_DEFAULT"|"COMPONENT_OVERRIDE"|"NOT_APPLICABLE"|"UNRESOLVED";
+  readonly snapshotRef?:string;
+  readonly definitionRef?:string;
   readonly reason?:string;
+}
+export interface CompoundPopulationSnapshotBinding {
+  readonly populationRef:string;
+  readonly bindingTime?:"DECISION_TIME"|"EFFECTIVE_TIME"|"SEND_TIME"|"TRIGGER_TIME";
+  readonly snapshotRef:string;
+  readonly definitionRef:string;
+}
+export interface CompoundPopulationResolutionContext {
+  readonly bindings:readonly CompoundPopulationSnapshotBinding[];
 }
 export interface CompoundPopulationResolution {
   readonly compoundActionId:CompoundActionId;
