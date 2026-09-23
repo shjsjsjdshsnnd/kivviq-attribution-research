@@ -141,6 +141,22 @@ describe("Step 13 population and timing composition",()=>{
       {componentId:"segment_email",status:"REFERENCE_BOUND",populationRef:"population:segment-a",source:"COMPONENT_OVERRIDE"},
     ]);
   });
+  it("binds externally resolved population snapshots without reimplementing Step 11 membership logic",()=>{
+    const result=resolveCompoundPopulations(fixture09InheritedPopulationOverride,{bindings:[
+      {populationRef:"population:vip-a",bindingTime:"EFFECTIVE_TIME",snapshotRef:"snapshot:vip-a:effective",definitionRef:"population-definition:vip-a:v1"},
+      {populationRef:"population:segment-a",bindingTime:"SEND_TIME",snapshotRef:"snapshot:segment-a:send",definitionRef:"population-definition:segment-a:v1"},
+    ]});
+    expect(result.components).toMatchObject([
+      {componentId:"vip_promotion",status:"SNAPSHOT_RESOLVED",snapshotRef:"snapshot:vip-a:effective",bindingTime:"EFFECTIVE_TIME"},
+      {componentId:"segment_email",status:"SNAPSHOT_RESOLVED",snapshotRef:"snapshot:segment-a:send",bindingTime:"SEND_TIME"},
+    ]);
+  });
+  it("fails population snapshot resolution closed when the requested binding time is unavailable",()=>{
+    const result=resolveCompoundPopulations(fixture09InheritedPopulationOverride,{bindings:[
+      {populationRef:"population:vip-a",bindingTime:"DECISION_TIME",snapshotRef:"snapshot:wrong-time",definitionRef:"population-definition:vip-a:v1"},
+    ]});
+    expect(result.components.find(x=>x.componentId==="vip_promotion")?.status).toBe("UNKNOWN");
+  });
   it("resolves inherited Step 12 timing and preserves dependent timing as relationally unresolved",()=>{
     const result=resolveCompoundTiming(fixture10InheritedTimingDelayedDependent,{approvedClock:clock});
     expect(result.components.find(x=>x.componentId==="promotion")?.status).toBe("RESOLVED");
