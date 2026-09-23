@@ -847,6 +847,8 @@ function implementationFingerprint(
       hiddenStateAccess: false,
     },
     decisionDomain: "pricing_and_promotion_only",
+    eligibilitySemantics:
+      "honor frozen configured SKU exclusions plus observable active/excluded/promotion-eligibility state; fail closed when eligibility is unknown",
     priceOptimization: false,
     elasticityEstimation: false,
     forecasting: false,
@@ -1055,7 +1057,10 @@ function evaluate(
         fallbackReason = "SKU_INACTIVE";
         continue;
       }
-      if (sku.excluded) {
+      const configuredExcluded =
+        "excludedSkuIds" in config &&
+        config.excludedSkuIds.includes(sku.skuId);
+      if (sku.excluded || configuredExcluded) {
         fallbackReason = "SKU_EXCLUDED";
         continue;
       }
