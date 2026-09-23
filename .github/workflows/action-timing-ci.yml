@@ -1,0 +1,36 @@
+name: Step 12 Action Timing CI
+
+on:
+  push:
+    branches:
+      - action-space/step12-timing-semantics
+  pull_request:
+    branches:
+      - action-space/step11-customer-targeting
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: Install
+        run: npm install --no-audit --no-fund
+      - name: Architecture boundary
+        run: npm run architecture
+      - name: Typecheck
+        run: npm run typecheck
+      - name: Step 12 timing tests
+        run: npx vitest run tests/action_timing --reporter=verbose
+      - name: Full inherited tests
+        run: npm test
+      - name: Build
+        run: npm run build
