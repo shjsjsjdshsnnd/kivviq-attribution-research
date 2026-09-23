@@ -321,46 +321,46 @@ function parseObservation(
   const value = record.value;
   if (
     !isRecord(value) ||
-    value.schemaVersion !== ADVERTISING_HEURISTIC_OBSERVATION_SCHEMA_VERSION ||
-    value.attributionSemantics !== config.attributionSemantics ||
-    value.budgetPeriod !== config.budgetPeriod ||
-    !finiteNonNegativeInteger(value.lookbackDays) ||
-    !Array.isArray(value.channels)
+    value["schemaVersion"] !== ADVERTISING_HEURISTIC_OBSERVATION_SCHEMA_VERSION ||
+    value["attributionSemantics"] !== config.attributionSemantics ||
+    value["budgetPeriod"] !== config.budgetPeriod ||
+    !finiteNonNegativeInteger(value["lookbackDays"]) ||
+    !Array.isArray(value["channels"])
   ) {
     return { ok: false, reason: "OBSERVATION_SCHEMA_INVALID" };
   }
 
   const channels: AdvertisingChannelObservation[] = [];
   const seen = new Set<string>();
-  for (const raw of value.channels) {
+  for (const raw of value["channels"]) {
     if (
       !isRecord(raw) ||
-      typeof raw.channelId !== "string" ||
-      raw.channelId.trim().length === 0 ||
-      typeof raw.active !== "boolean" ||
-      raw.currency !== config.currency ||
-      !finiteNonNegativeInteger(raw.currentBudgetMinor) ||
-      !(raw.spendMinor === null || finiteNonNegativeInteger(raw.spendMinor)) ||
+      typeof raw["channelId"] !== "string" ||
+      raw["channelId"].trim().length === 0 ||
+      typeof raw["active"] !== "boolean" ||
+      raw["currency"] !== config.currency ||
+      !finiteNonNegativeInteger(raw["currentBudgetMinor"]) ||
+      !(raw["spendMinor"] === null || finiteNonNegativeInteger(raw["spendMinor"])) ||
       !(
-        raw.attributedRevenueMinor === null ||
-        finiteNonNegativeInteger(raw.attributedRevenueMinor)
+        raw["attributedRevenueMinor"] === null ||
+        finiteNonNegativeInteger(raw["attributedRevenueMinor"])
       ) ||
-      !finiteNonNegativeNumber(raw.historyDays)
+      !finiteNonNegativeNumber(raw["historyDays"])
     ) {
       return { ok: false, reason: "CHANNEL_OBSERVATION_INVALID" };
     }
-    if (seen.has(raw.channelId)) {
+    if (seen.has(raw["channelId"])) {
       return { ok: false, reason: "DUPLICATE_CHANNEL_OBSERVATION" };
     }
-    seen.add(raw.channelId);
+    seen.add(raw["channelId"]);
     channels.push({
-      channelId: raw.channelId,
-      active: raw.active,
-      currency: raw.currency,
-      currentBudgetMinor: raw.currentBudgetMinor,
-      spendMinor: raw.spendMinor,
-      attributedRevenueMinor: raw.attributedRevenueMinor,
-      historyDays: raw.historyDays,
+      channelId: raw["channelId"],
+      active: raw["active"],
+      currency: raw["currency"],
+      currentBudgetMinor: raw["currentBudgetMinor"],
+      spendMinor: raw["spendMinor"],
+      attributedRevenueMinor: raw["attributedRevenueMinor"],
+      historyDays: raw["historyDays"],
     });
   }
 
@@ -368,7 +368,7 @@ function parseObservation(
     schemaVersion: ADVERTISING_HEURISTIC_OBSERVATION_SCHEMA_VERSION,
     attributionSemantics: config.attributionSemantics,
     budgetPeriod: config.budgetPeriod,
-    lookbackDays: value.lookbackDays,
+    lookbackDays: value["lookbackDays"],
     channels,
   };
 
