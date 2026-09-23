@@ -30,6 +30,7 @@ import {
   temporarySkuA799SevenDays,
 } from "../pricing/fixtures.js";
 import { temporarySitewideFreeFridayMonday } from "../shipping/fixtures.js";
+import { metaToGoogleCompound } from "./fixtures.js";
 import {
   COMPOUND_ACTION_SCHEMA_VERSION,
   type CompoundAction,
