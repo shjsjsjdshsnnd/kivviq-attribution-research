@@ -252,7 +252,7 @@ export const FIXED_PROMOTIONAL_CALENDAR_CONFIG:
     calendar: [
       {
         entryId: "calendar.fall_a",
-        promotionId: "heuristic_calendar_fall_a_v1",
+        promotionId: "promo_heuristic_calendar_fall_a_v1",
         skuId: "sku:A",
         productId: "product:A",
         startAt: "2026-10-05T00:00:00.000Z",
@@ -263,7 +263,7 @@ export const FIXED_PROMOTIONAL_CALENDAR_CONFIG:
       },
       {
         entryId: "calendar.overlap_b",
-        promotionId: "heuristic_calendar_overlap_b_v1",
+        promotionId: "promo_heuristic_calendar_overlap_b_v1",
         skuId: "sku:A",
         productId: "product:A",
         startAt: "2026-10-07T00:00:00.000Z",
