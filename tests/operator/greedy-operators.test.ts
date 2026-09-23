@@ -922,6 +922,20 @@ describe("Step 3.8 canonical greedy baseline operators", () => {
     const translation = translateBusinessAction(action, {
       ...fullTranslationContext,
       simulatorClock: action.timing.decisionTime,
+      entityMappings: [
+        ...fullTranslationContext.entityMappings,
+        {
+          actionTarget: {
+            kind: "advertising_channel",
+            channelId: "google_ads",
+          },
+          simulatorTarget: {
+            kind: "channel",
+            simulatorChannelId: "sim:google_ads",
+          },
+          sourceRef: "mapping:step3.8:google-channel",
+        },
+      ],
     });
     expect(translation.status).toBe("TRANSLATED");
   });
