@@ -27,6 +27,12 @@ function validateConstraint(c:CompoundConstraint,compound:CompoundAction,a:Compo
     if(legs.some(x=>x.currency!==c.currency||x.per!==c.ratePeriod)){add(a,"CONSERVATION_UNIT_MISMATCH",p,"currency and rate period must match");return}
     if(legs.reduce((n,x)=>n+x.signed,0)!==c.amountMinor)add(a,"COMPOUND_CONSERVATION_VIOLATION",p,"signed monetary deltas violate conservation");
   }
+  if(c.kind==="TOTAL_INCREMENTAL_MEDIA_BUDGET_LTE"){
+    const legs=compound.components.map(x=>budgetDelta(x.action)).filter((x):x is NonNullable<typeof x>=>!!x&&x.signed>0);
+    if(legs.some(x=>x.currency!==c.currency||x.per!==c.ratePeriod)){add(a,"MEDIA_BUDGET_CONSTRAINT_UNIT_MISMATCH",p,"known incremental media legs must match constraint units");return}
+    const total=legs.reduce((n,x)=>n+x.signed,0);
+    if(total>c.amountMinor)add(a,"COMPOUND_MEDIA_BUDGET_LIMIT_EXCEEDED",p,"known incremental media budget exceeds the compound hard limit");
+  }
 }
 export function validateCompoundAction(input:unknown):CompoundValidationResult{
   const a:CompoundValidationIssue[]=[];
