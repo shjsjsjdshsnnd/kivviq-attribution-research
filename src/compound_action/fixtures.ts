@@ -24,6 +24,7 @@ export const metaToGoogleCompound:CompoundAction={
   atomicity:"ALL_OR_NOTHING",
   failurePolicy:"ABORT_COMPOUND",
   completionRule:"ALL_COMPONENTS_COMPLETE",
+  populationBindingLevel:"COMPONENT_LEVEL",
   timing:fridaySevenDayBudgetTiming,
   constraints:[{constraintId:"conserve_weekly_media_budget",kind:"SUM_MONETARY_DELTAS_EQUALS",currency:"CAD",ratePeriod:"week",amountMinor:0,hard:true}],
   rollback:{policy:"ROLLBACK_ALL_REVERSIBLE_COMPONENTS",order:"REVERSE_DEPENDENCY_ORDER",irreversibleComponentPolicy:"REPORT_AND_CONTINUE"},
