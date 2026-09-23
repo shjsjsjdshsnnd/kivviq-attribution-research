@@ -586,7 +586,7 @@ describe("Step 3.4 simple advertising heuristic baselines", () => {
       const { output } = decision(HIGHEST_OBSERVED_ROAS_OPERATOR);
       const budgets = targetBudgets(output.actions);
       const before = 600_000 + 100_000;
-      expect(budgets.google_ads! + budgets.pinterest_ads!).toBe(before);
+      expect(budgets["google_ads"]! + budgets["pinterest_ads"]!).toBe(before);
     });
   });
 
