@@ -275,12 +275,20 @@ describe("Step 13 compound translation",()=>{
     expect(result.interventions.length).toBeGreaterThan(0);
   });
   it("keeps WAIT/OBSERVE as a zero-intervention component",()=>{
+    const active=activeWithWaitObserveCompound.components.find(x=>x.componentId==="active")!.action;
+    if(active.parameters.kind!=="budget_adjustment"||active.parameters.operation.kind!=="MULTIPLY")throw new Error("fixture must remain a relative budget action");
     const result=translateCompoundAction(activeWithWaitObserveCompound,{
       ...budgetContext,
       entityMappings:[
         ...budgetContext.entityMappings,
         {actionTarget:{kind:"campaign",channelId:"google_ads",campaignId:"google_shopping"},simulatorTarget:{kind:"campaign",simulatorChannelId:"sim:google",simulatorCampaignId:"sim:shopping"},sourceRef:"map:shopping"},
       ],
+      referenceBindings:[{
+        actionId:active.actionId,
+        reference:active.parameters.operation.reference,
+        value:{kind:"money_rate",amountMinor:100_000,currency:CAD,per:"day"},
+        sourceRef:"baseline:google-shopping",
+      }],
     });
     expect(result.status).toBe("TRANSLATED");
     expect(result.components.find(x=>x.componentId==="wait")?.interventions).toEqual([]);
