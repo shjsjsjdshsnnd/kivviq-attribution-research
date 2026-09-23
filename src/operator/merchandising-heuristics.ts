@@ -750,6 +750,8 @@ function implementationFingerprint(
     observationKey: MERCHANDISING_HEURISTIC_OBSERVATION_KEY,
     lookbackDays: 30,
     rankingRule: "ONE_OBSERVED_HISTORICAL_METRIC_DESC_ONLY",
+    legalConstraintSemantics:
+      "eligible products not legally movable remain fixed at their observable current position; movable products fill only remaining open positions",
     futureInformationAccess: false,
     hiddenStateAccess: false,
     profitabilityInput: false,
@@ -901,6 +903,19 @@ export function createMerchandisingHeuristicOperator(
         product.mandatoryPosition !== null,
     );
 
+    const actionSpaceFixedEligible = eligible
+      .filter(
+        (product) =>
+          product.pinnedPosition === null &&
+          product.mandatoryPosition === null &&
+          !legalIds.has(product.productId) &&
+          product.currentPosition !== null,
+      )
+      .map((product) => ({
+        ...product,
+        mandatoryPosition: product.currentPosition,
+      }));
+
     const movableEligible = eligible.filter(
       (product) =>
         product.pinnedPosition === null &&
@@ -908,10 +923,13 @@ export function createMerchandisingHeuristicOperator(
         legalIds.has(product.productId),
     );
 
-    const productsForRanking = [...fixedEligible, ...movableEligible]
-      .sort((left, right) =>
-        left.productId.localeCompare(right.productId),
-      );
+    const productsForRanking = [
+      ...fixedEligible,
+      ...actionSpaceFixedEligible,
+      ...movableEligible,
+    ].sort((left, right) =>
+      left.productId.localeCompare(right.productId),
+    );
 
     if (productsForRanking.length === 0) {
       return deepFreezeOperator({
