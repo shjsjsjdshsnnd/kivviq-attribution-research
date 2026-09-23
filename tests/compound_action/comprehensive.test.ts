@@ -203,6 +203,12 @@ describe("Step 13 readiness and rollback",()=>{
     expect(result.components.find(x=>x.componentId==="email")?.state).toBe("IRREVERSIBLE");
     expect(result.compensationRequirements.find(x=>x.componentId==="email")?.required).toBe(true);
   });
+  it("reports rollback missing context without executing or guessing",()=>{
+    const result=deriveCompoundRollbackReadiness(fixture18RollbackConflict,[],{missingContextComponentIds:["price"]});
+    expect(result.overall).toBe("PARTIAL");
+    expect(result.missingContext).toEqual(["price"]);
+    expect(result.components.find(x=>x.componentId==="price")?.state).toBe("MISSING_CONTEXT");
+  });
   it("preserves domain rollback conflicts instead of forcing restoration",()=>{
     const result=deriveCompoundRollbackReadiness(fixture18RollbackConflict,["price"]);
     expect(result.overall).toBe("PARTIAL");
