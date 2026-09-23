@@ -15,6 +15,8 @@ export function serializeAnswerSpec(
   const compact = {
     v: spec.version,
     q: spec.question,
+    er: spec.evidenceRequest,
+    ev: spec.evidence,
     c: spec.conclusion,
     cl: spec.claimLedger.claims.map((claim) => ({
       id: claim.id,

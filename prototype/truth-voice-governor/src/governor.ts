@@ -1,3 +1,4 @@
+import { governEvidence, type EvidenceRequest, type GovernedFact } from './evidence.js'
 import { claimById } from './claim-ledger.js'
 import type {
   AnswerSpec,
@@ -44,6 +45,8 @@ function polarityForDecision(state: Decision['state']): AnswerSpec['conclusion']
 
 export interface GovernorInput {
   question: string
+  evidenceRequest?: EvidenceRequest
+  evidence?: readonly GovernedFact[]
   claimLedger: ClaimLedger
   materiality: readonly MaterialityResult[]
   contradictions: readonly Contradiction[]
@@ -54,6 +57,10 @@ export interface GovernorInput {
 }
 
 export function buildAnswerSpec(input: GovernorInput): AnswerSpec {
+  if (input.evidenceRequest) {
+    const governed = governEvidence(input.evidenceRequest, input.evidence ?? [])
+    if (governed.primary.length === 0 && input.conclusionClaimIds.length) throw new Error('no semantically compatible primary evidence')
+  }
   for (const id of input.conclusionClaimIds) {
     if (!claimById(input.claimLedger, id)) throw new Error('conclusion references missing claim: ' + id)
   }
@@ -75,6 +82,8 @@ export function buildAnswerSpec(input: GovernorInput): AnswerSpec {
   return Object.freeze({
     version: 'truth-voice-governor/v1',
     question: input.question,
+    evidenceRequest: input.evidenceRequest,
+    evidence: input.evidence ? Object.freeze([...input.evidence]) : undefined,
     conclusion: Object.freeze({
       decisionState: input.decision.state,
       target: input.decision.target,

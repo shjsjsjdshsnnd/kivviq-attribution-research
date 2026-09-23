@@ -137,3 +137,11 @@ No model API, secrets, production integration, private code, or merchant data ar
 ## Prototype limitations
 
 The deterministic verifier is intentionally conservative but is not a general natural-language theorem prover. It can prove many boundary violations from structured annotations plus lexical and numeric checks, but subtle semantic paraphrases may require a stronger structured answer AST or a separately governed semantic verifier. Upstream evidence quality, metric resolution, identity resolution, and causal estimation remain outside this prototype. These limitations are explicit rather than being converted into certainty the system does not possess.
+
+## Metric and scope evidence contract (research prototype)
+
+`EvidenceRequest` declares the requested metric, scope, period, currency, required source systems and optional dimension and population. Every `GovernedFact` declares its actual metric, scope, dimension and value, population, period, currency, source, methodology, coverage, freshness, status and value. `governEvidence` permits a primary fact only when those semantics match exactly and coverage is complete. Other evidence remains secondary context. The Governor refuses to create a conclusion when its request has no compatible primary fact; the verifier also fails such a draft. Upstream clients must map each claimed value to its governed fact and persist the explicit conversation routing state.
+
+`normalizePaidSpend` produces one fact each for Google, Meta and Pinterest, with aligned served window, source, freshness, status and currency. `reconcileStoreContribution` consumes those same facts and reports coverage for revenue, refunds, discounts, COGS, the three paid platforms, payment fees, shipping, payroll, rent and other costs. Missing components yield a partial result with no numeric total; `net_profit` stays null. The regression values in tests are synthetic incident examples and are never production defaults.
+
+These contracts and the routing helper are isolated in this public prototype. The live Kivviq connectors, persistence, retrieval router, profitability pipeline and channel contribution call sites are not present in this repository, so their integration and behavior cannot be certified by this PR.

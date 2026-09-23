@@ -12,3 +12,7 @@ export * from './evaluation.js'
 export * from './fixtures.js'
 export * from './schemas.js'
 export * from './red-team.js'
+
+export * from './evidence.js'
+export * from './profitability.js'
+export * from './routing.js'

@@ -1,3 +1,4 @@
+import type { EvidenceRequest, GovernedFact } from './evidence.js'
 export type ClaimType =
   | 'FACT'
   | 'DERIVED_FACT'
@@ -205,6 +206,8 @@ export interface ResponseContract {
 export interface AnswerSpec {
   version: 'truth-voice-governor/v1'
   question: string
+  evidenceRequest?: EvidenceRequest
+  evidence?: readonly GovernedFact[]
   conclusion: {
     decisionState: DecisionState
     target: string
@@ -253,6 +256,7 @@ export interface DraftAnswer {
 }
 
 export type ViolationCode =
+  | 'SEMANTIC_EVIDENCE_MISMATCH'
   | 'FABRICATED_NUMBER'
   | 'ALTERED_NUMBER'
   | 'UNSUPPORTED_CLAIM'

@@ -1,3 +1,4 @@
+import { governEvidence } from './evidence.js'
 import { claimById, LANGUAGE_RANK } from './claim-ledger.js'
 import { merchantThresholdValue } from './economics.js'
 import { parseDraftAnswer } from './schemas.js'
@@ -96,6 +97,10 @@ function presentsAttributionAsIncrementality(spec: AnswerSpec, text: string): bo
 
 export function verifyDraft(spec: AnswerSpec, draft: DraftAnswer): VerificationResult {
   const violations: VerificationViolation[] = []
+  if (spec.evidenceRequest) {
+    const governed = governEvidence(spec.evidenceRequest, spec.evidence ?? [])
+    if (governed.primary.length === 0 && draft.usedClaimIds.length) violations.push(violation('SEMANTIC_EVIDENCE_MISMATCH', 'No compatible primary evidence supports this answer.'))
+  }
   const knownClaimIds = new Set(spec.claimLedger.claims.map((claim) => claim.id))
 
   for (const id of draft.usedClaimIds) {
