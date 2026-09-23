@@ -1,4 +1,4 @@
-import { canonicalizeForSerialization } from "../action_ontology/semantics.js";
+import { canonicalizeForSerialization,actionSemanticProjection } from "../action_ontology/semantics.js";
 import type { CompoundAction, FlattenedCompoundComponent } from "./types.js";
 
 function stable(v:unknown):string{return JSON.stringify(canonicalizeForSerialization(v))}
@@ -7,7 +7,7 @@ export function compoundSemanticProjection(c:CompoundAction):unknown{
   const components=c.ordering.kind==="ORDERED"?c.components:sorted(c.components);
   return{
     schemaVersion:c.schemaVersion,
-    components:components.map(x=>({componentId:x.componentId,action:x.action,role:x.role??null,population:x.population,timing:x.timing})),
+    components:components.map(x=>({componentId:x.componentId,atomicActionId:x.action.actionId,action:actionSemanticProjection(x.action),role:x.role??null,population:x.population,timing:x.timing})),
     ordering:c.ordering,
     concurrency:c.concurrency,
     dependencies:sorted(c.dependencies),
