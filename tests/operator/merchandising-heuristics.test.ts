@@ -744,25 +744,30 @@ describe("Step 3.7 simple merchandising heuristic baselines", () => {
     ]);
   });
 
-  it("honors legal Action-space restrictions in the eligible movable population", () => {
+  it("honors legal Action-space restrictions by freezing non-movable products at their current position", () => {
     const result = decision(
       RANK_BY_REVENUE_OPERATOR,
       defaultProducts(),
       { legalProductIds: ["product:A", "product:C"] },
     );
-    expect(
-      proposedRanking(result).map((row) => row.productId),
-    ).toEqual(["product:C", "product:A"]);
+    expect(proposedRanking(result)).toEqual([
+      { productId: "product:C", position: 1, fixed: false },
+      { productId: "product:B", position: 2, fixed: true },
+      { productId: "product:A", position: 3, fixed: false },
+    ]);
     expect(
       (result.audit?.payload as any).excludedByEligibility,
-    ).toEqual(
+    ).not.toEqual(
       expect.arrayContaining([
         expect.objectContaining({
           productId: "product:B",
-          legallyMovable: false,
         }),
       ]),
     );
+    expect(actionPositions(result.output.actions)).toEqual({
+      "product:A": 3,
+      "product:C": 1,
+    });
   });
 
   it("does not silently repair a ranking that violates legal position bounds", () => {
