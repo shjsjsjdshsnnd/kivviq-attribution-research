@@ -7,6 +7,7 @@ import { utcTimestamp } from "../core/units.js";
 import {
   deepFreezeOperator,
   operatorFingerprint,
+  stableOperatorJson,
 } from "./identity.js";
 
 export const MERCHANT_POLICY_SCHEMA_VERSION = "1.1.0" as const;
