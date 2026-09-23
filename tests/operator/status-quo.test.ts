@@ -798,7 +798,7 @@ describe("Step 3.3 canonical STATUS_QUO baseline", () => {
     expect(new Set(decisions.map((d) => d.invocation.opportunityId)).size).toBe(90);
     expect(decisions.every((d) => d.invocation.decisionAudit?.auditType === "merchant_policy_evaluation")).toBe(true);
     expect(operator.metadata.deterministicConfiguration).toMatchObject({
-      merchantPolicyVersion: "1.0.0",
+      merchantPolicyVersion: "1.1.0",
       merchantPolicyFingerprint: policy.policyFingerprint,
     });
   });
