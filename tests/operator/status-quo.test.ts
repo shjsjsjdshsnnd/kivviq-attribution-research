@@ -753,6 +753,48 @@ describe("Step 3.3 canonical STATUS_QUO baseline", () => {
     expect(doNothing.actions).toEqual([]);
   });
 
+  it("proves DO_NOTHING versus STATUS_QUO for an already-scheduled promotion", () => {
+    const policy = representativePolicy();
+    const o = opportunity(1);
+    const obs = observation(1, {
+      "inventory.sku_b.available_units": { availableUnits: 20 },
+    });
+    const avail = availability(1, policy);
+    const input = toOperatorDecisionInput(o, obs, avail);
+
+    const statusQuo = createStatusQuoOperator(policy).decide(input);
+    const doNothing = DO_NOTHING_OPERATOR.decide(input);
+
+    expect(doNothing.actions).toEqual([]);
+    const promotionActions = statusQuo.actions.filter(
+      (action) => String(action.actionType) === "promotion.apply_discount",
+    );
+    expect(promotionActions).toHaveLength(1);
+    expect((promotionActions[0]!.parameters as any).discount.value.basisPoints).toBe(
+      1500,
+    );
+  });
+
+  it("proves DO_NOTHING versus STATUS_QUO when the frozen inventory reorder rule triggers", () => {
+    const policy = representativePolicy();
+    const o = opportunity(2);
+    const obs = observation(2, {
+      "inventory.sku_b.available_units": { availableUnits: 9 },
+    });
+    const avail = availability(2, policy);
+    const input = toOperatorDecisionInput(o, obs, avail);
+
+    const statusQuo = createStatusQuoOperator(policy).decide(input);
+    const doNothing = DO_NOTHING_OPERATOR.decide(input);
+
+    expect(doNothing.actions).toEqual([]);
+    const inventoryActions = statusQuo.actions.filter(
+      (action) => String(action.actionType) === "inventory.reorder",
+    );
+    expect(inventoryActions).toHaveLength(1);
+    expect((inventoryActions[0]!.parameters as any).reorder.quantity).toBe(50);
+  });
+
   it("may legitimately match DO_NOTHING for merchants with no recurring operator-owned policy", () => {
     const policy = emptyPolicy();
     const o = opportunity(0);
