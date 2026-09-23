@@ -258,7 +258,21 @@ function validateRule(
   );
 
   if (rule.kind === "scheduled_action") {
-    parseTime(rule.executeAt, "scheduled rule executeAt");
+    const executeAt = parseTime(
+      rule.executeAt,
+      "scheduled rule executeAt",
+    );
+    requireCondition(
+      executeAt >= start &&
+        (end === undefined || executeAt < end),
+      "scheduled Action must execute inside its rule effective period",
+    );
+    if (policyEnd !== undefined) {
+      requireCondition(
+        executeAt < policyEnd,
+        "scheduled Action must execute inside merchant policy effective period",
+      );
+    }
   } else {
     requireCondition(
       rule.observationKey.trim().length > 0,
@@ -306,7 +320,10 @@ function validatePolicyBody(
     body.source.sourceRef.trim().length > 0,
     "policy sourceRef is required",
   );
-  parseTime(body.source.capturedAt, "policy source capturedAt");
+  const capturedAt = parseTime(
+    body.source.capturedAt,
+    "policy source capturedAt",
+  );
 
   const policyStart = parseTime(
     body.effectivePeriod.start,
@@ -325,6 +342,10 @@ function validatePolicyBody(
       "policy effective end must follow start",
     );
   }
+  requireCondition(
+    capturedAt <= policyStart,
+    "merchant policy must be captured before or at its effective start",
+  );
 
   const ruleIds = new Set<string>();
   const behaviorOwners = new Map<string, MerchantPolicyOwnership>();
