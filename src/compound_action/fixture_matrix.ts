@@ -151,8 +151,8 @@ export const fixture01BudgetReallocation=compound(
   "compound_fixture_01_budget_reallocation",
   "Move CAD 2,000/week from Meta to Google.",
   [
-    component("source", (await import("./fixtures.js")).metaToGoogleCompound.components[0]!.action,{role:"SOURCE"}),
-    component("destination",(await import("./fixtures.js")).metaToGoogleCompound.components[1]!.action,{role:"DESTINATION"}),
+    component("source", metaToGoogleCompound.components[0]!.action,{role:"SOURCE"}),
+    component("destination",metaToGoogleCompound.components[1]!.action,{role:"DESTINATION"}),
   ],
   {
     concurrency:"EFFECTIVE_TOGETHER",
