@@ -37,7 +37,7 @@ const FORBIDDEN_TIMING_KEYS = new Set([
   "bestAudience",
 ]);
 
-function record(value: unknown): value is Record<string, unknown> {
+function record(value: unknown): value is any {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
