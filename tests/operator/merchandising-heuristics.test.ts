@@ -127,7 +127,7 @@ function observation(
       sourceMinOccurredAt: start,
       sourceMaxOccurredAt: o.at,
       availableAt: o.at,
-      sourceRef: "commerce-report:step3.7-product-performance",
+      sourceRef: "commerce-ledger:step3.7-product-performance",
       value: {
         schemaVersion: "1.0.0",
         targetCollectionId: "collection:X",
