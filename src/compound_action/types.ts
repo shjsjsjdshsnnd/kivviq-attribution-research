@@ -84,3 +84,66 @@ export type CompoundReversibilitySummary="FULLY_REVERSIBLE"|"PARTIALLY_REVERSIBL
 export interface CompoundRollbackComponentReadiness {readonly componentId:string;readonly actionId:string;readonly state:"ROLLBACKABLE"|"IRREVERSIBLE"|"CONFLICT"|"MISSING_CONTEXT"|"UNKNOWN";readonly reasons:readonly string[]}
 export interface CompoundRollbackReadiness {readonly compoundActionId:CompoundActionId;readonly overall:"READY"|"PARTIAL"|"BLOCKED"|"UNKNOWN";readonly reversibility:CompoundReversibilitySummary;readonly components:readonly CompoundRollbackComponentReadiness[];readonly requiredRollbackOrder:readonly string[];readonly compensationRequired:boolean;readonly missingContext:readonly string[];readonly conflicts:readonly string[]}
 export interface FlattenedCompoundComponent {readonly compoundActionId:CompoundActionId;readonly componentId:string;readonly componentIndex:number;readonly role?:CompoundComponentRole;readonly action:Action;readonly dependencies:readonly ComponentDependency[];readonly population:PopulationBinding;readonly timing:ComponentTimingBinding}
+
+export interface CompoundCostDimensionAggregate {
+  readonly dimension:"directFinancialCost"|"mediaSpend"|"implementationCost"|"engineeringCost"|"operationalCost"|"promotionalCost"|"inventoryCommitment";
+  readonly status:"AGGREGATED"|"UNKNOWN"|"MIXED_CURRENCY";
+  readonly currency?:string;
+  readonly amountMinor?:number;
+  readonly componentValues:readonly {readonly componentId:string;readonly state:"KNOWN"|"UNKNOWN";readonly currency?:string;readonly amountMinor?:number;readonly reason?:string}[];
+}
+export interface CompoundCostSummary {
+  readonly compoundActionId:CompoundActionId;
+  readonly dimensions:readonly CompoundCostDimensionAggregate[];
+}
+export interface CompoundResourceAggregate {
+  readonly resourceType:string;
+  readonly status:"AGGREGATED"|"UNKNOWN"|"INCOMPATIBLE_UNITS";
+  readonly kind?:string;
+  readonly unit?:string;
+  readonly currency?:string;
+  readonly amount?:number;
+  readonly componentIds:readonly string[];
+}
+export interface CompoundResourceSummary {
+  readonly compoundActionId:CompoundActionId;
+  readonly aggregates:readonly CompoundResourceAggregate[];
+}
+export interface CompoundRiskSummary {
+  readonly compoundActionId:CompoundActionId;
+  readonly dimensions:readonly string[];
+  readonly components:readonly {readonly componentId:string;readonly risks:readonly {readonly dimension:string;readonly downsideDefinition:string}[]}[];
+}
+export interface CompoundPopulationComponentResolution {
+  readonly componentId:string;
+  readonly status:"REFERENCE_BOUND"|"NOT_APPLICABLE"|"UNKNOWN";
+  readonly populationRef?:string;
+  readonly bindingTime?:"DECISION_TIME"|"EFFECTIVE_TIME"|"SEND_TIME"|"TRIGGER_TIME";
+  readonly source:"COMPOUND_DEFAULT"|"COMPONENT_OVERRIDE"|"NOT_APPLICABLE"|"UNRESOLVED";
+  readonly reason?:string;
+}
+export interface CompoundPopulationResolution {
+  readonly compoundActionId:CompoundActionId;
+  readonly components:readonly CompoundPopulationComponentResolution[];
+}
+export interface CompoundTimingComponentResolution {
+  readonly componentId:string;
+  readonly status:"RESOLVED"|"UNRESOLVED"|"INVALID";
+  readonly inherited:boolean;
+  readonly resolution?:import("../action_timing/types.js").TimingResolution;
+  readonly dependencyIds:readonly string[];
+  readonly reasons:readonly string[];
+}
+export interface CompoundTimingResolution {
+  readonly compoundActionId:CompoundActionId;
+  readonly compound?:import("../action_timing/types.js").TimingResolution;
+  readonly components:readonly CompoundTimingComponentResolution[];
+  readonly unresolvedDependencies:readonly string[];
+  readonly ordering:readonly string[];
+}
+export interface CompensationRequirement {
+  readonly componentId:string;
+  readonly actionId:string;
+  readonly required:boolean;
+  readonly reason:string;
+}
