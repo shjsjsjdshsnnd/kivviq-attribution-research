@@ -866,6 +866,91 @@ export const PRICING_PROMOTION_HEURISTIC_IMPLEMENTATION_FINGERPRINTS =
     ),
   });
 
+function assertValidConfig(
+  config: PricingPromotionHeuristicConfig,
+): PricingPromotionHeuristicConfig {
+  const requireCondition = (condition: unknown, message: string) => {
+    if (!condition) throw new TypeError(message);
+  };
+
+  if (config.heuristicType === "NEVER_DISCOUNT") {
+    requireCondition(
+      config.applicableSkuIds.length > 0,
+      "NEVER_DISCOUNT requires at least one applicable SKU",
+    );
+  }
+
+  if (config.heuristicType === "FIXED_DISCOUNT") {
+    requireCondition(
+      Number.isFinite(Date.parse(config.startAt)),
+      "FIXED_DISCOUNT startAt must be ISO-8601",
+    );
+    requireCondition(
+      config.durationSeconds > 0,
+      "FIXED_DISCOUNT durationSeconds must be positive",
+    );
+    requireCondition(
+      config.discountBasisPoints > 0 &&
+        config.discountBasisPoints <= 10_000,
+      "FIXED_DISCOUNT discount must be within (0,10000] basis points",
+    );
+  }
+
+  if (config.heuristicType === "EXCESS_INVENTORY_DISCOUNT") {
+    requireCondition(
+      Number.isSafeInteger(config.excessInventoryThresholdUnits) &&
+        config.excessInventoryThresholdUnits >= 0,
+      "EXCESS_INVENTORY_DISCOUNT threshold must be a non-negative integer",
+    );
+    requireCondition(
+      Number.isSafeInteger(config.restorationThresholdUnits) &&
+        config.restorationThresholdUnits >= 0 &&
+        config.restorationThresholdUnits <=
+          config.excessInventoryThresholdUnits,
+      "EXCESS_INVENTORY_DISCOUNT restoration threshold must be valid",
+    );
+    requireCondition(
+      config.discountBasisPoints > 0 &&
+        config.discountBasisPoints <= 10_000,
+      "EXCESS_INVENTORY_DISCOUNT discount must be within (0,10000] basis points",
+    );
+  }
+
+  if (config.heuristicType === "FIXED_PROMOTIONAL_CALENDAR") {
+    requireCondition(
+      config.calendar.length > 0,
+      "FIXED_PROMOTIONAL_CALENDAR requires at least one entry",
+    );
+    const entryIds = new Set<string>();
+    const promotionIds = new Set<string>();
+    for (const entry of config.calendar) {
+      requireCondition(
+        !entryIds.has(entry.entryId),
+        "FIXED_PROMOTIONAL_CALENDAR entry IDs must be unique",
+      );
+      requireCondition(
+        !promotionIds.has(entry.promotionId),
+        "FIXED_PROMOTIONAL_CALENDAR promotion IDs must be unique",
+      );
+      entryIds.add(entry.entryId);
+      promotionIds.add(entry.promotionId);
+      const start = Date.parse(entry.startAt);
+      const end = Date.parse(entry.endAt);
+      requireCondition(
+        Number.isFinite(start) && Number.isFinite(end) && end > start,
+        "FIXED_PROMOTIONAL_CALENDAR entries require valid increasing UTC dates",
+      );
+      requireCondition(
+        entry.discountBasisPoints > 0 &&
+          entry.discountBasisPoints <= 10_000,
+        "FIXED_PROMOTIONAL_CALENDAR discount must be within (0,10000] basis points",
+      );
+    }
+  }
+
+  return config;
+}
+
 export function pricingPromotionHeuristicConfigurationFingerprint(
   config: PricingPromotionHeuristicConfig,
 ): string {
@@ -1040,6 +1125,15 @@ function evaluate(
 
         if (isActive) {
           ownershipEvaluation = "HEURISTIC_RULE_OWNED:" + config.ruleId;
+          if (
+            sku.currentDiscountBasisPoints !== null &&
+            sku.currentDiscountBasisPoints > 0 &&
+            sku.currentDiscountOwner !== "heuristic"
+          ) {
+            fallbackReason = "ACTIVE_RULE_DISCOUNT_OWNERSHIP_CONFLICT";
+            ownershipEvaluation = "PRESERVE_EXISTING_COMMERCIAL_OWNER";
+            break;
+          }
           if (decisionMs >= endMs) {
             ruleEvaluation = "FIXED_DISCOUNT_END_RESTORE";
             proposePriceSet(sku, sku.regularPriceMinor, "restore");
@@ -1091,6 +1185,15 @@ function evaluate(
         const isActive = sku.activeHeuristicRuleIds.includes(config.ruleId);
         if (isActive) {
           ownershipEvaluation = "HEURISTIC_RULE_OWNED:" + config.ruleId;
+          if (
+            sku.currentDiscountBasisPoints !== null &&
+            sku.currentDiscountBasisPoints > 0 &&
+            sku.currentDiscountOwner !== "heuristic"
+          ) {
+            fallbackReason = "ACTIVE_RULE_DISCOUNT_OWNERSHIP_CONFLICT";
+            ownershipEvaluation = "PRESERVE_EXISTING_COMMERCIAL_OWNER";
+            break;
+          }
           if (
             sku.observableInventoryUnits <=
             config.restorationThresholdUnits
@@ -1292,8 +1395,9 @@ function evaluate(
 }
 
 export function createPricingPromotionHeuristicOperator(
-  config: PricingPromotionHeuristicConfig,
+  configInput: PricingPromotionHeuristicConfig,
 ): CanonicalOperator {
+  const config = assertValidConfig(configInput);
   const configurationFingerprint =
     pricingPromotionHeuristicConfigurationFingerprint(config);
   const implementation =
