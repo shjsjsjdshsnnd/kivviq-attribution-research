@@ -258,12 +258,12 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
+function finiteNumber(value: unknown): value is number {
+  return typeof value === "number" && Number.isFinite(value);
+}
+
 function finiteNonNegative(value: unknown): value is number {
-  return (
-    typeof value === "number" &&
-    Number.isFinite(value) &&
-    value >= 0
-  );
+  return finiteNumber(value) && value >= 0;
 }
 
 function positiveIntegerOrNull(value: unknown): value is number | null {
@@ -343,7 +343,7 @@ function parseObservation(
       !positiveIntegerOrNull(raw["pinnedPosition"]) ||
       !positiveIntegerOrNull(raw["mandatoryPosition"]) ||
       typeof raw["newlyLaunched"] !== "boolean" ||
-      !(raw["revenueMinor"] === null || finiteNonNegative(raw["revenueMinor"])) ||
+      !(raw["revenueMinor"] === null || finiteNumber(raw["revenueMinor"])) ||
       !(raw["conversions"] === null || finiteNonNegative(raw["conversions"])) ||
       !(raw["productViews"] === null || finiteNonNegative(raw["productViews"])) ||
       !(raw["unitsSold"] === null || finiteNonNegative(raw["unitsSold"]))
