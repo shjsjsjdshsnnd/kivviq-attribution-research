@@ -5,3 +5,6 @@ export * from "./serialization.js";
 export * from "./readiness.js";
 export * from "./fixtures.js";
 export * from "./translation.js";
+export * from "./aggregates.js";
+export * from "./resolution.js";
+export * from "./fixture_matrix.js";
