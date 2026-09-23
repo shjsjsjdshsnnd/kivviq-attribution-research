@@ -514,6 +514,20 @@ describe("Step 3.3 canonical STATUS_QUO baseline", () => {
       "inventory.sku_b.available_units": { availableUnits: 20 },
     });
     expect(decision.decisionRecord.actionAttempts).toEqual([]);
+    const audit = decision.invocation.decisionAudit?.payload as any;
+    expect(audit.componentParameters.advertising).toEqual(
+      policy.components.advertising.parameters,
+    );
+    expect(audit.componentFingerprints.advertising).toBe(
+      policy.components.advertising.componentFingerprint,
+    );
+    const maintainAudit = audit.evaluatedRules.find(
+      (entry: any) =>
+        entry.ruleId === "advertising.maintain_existing_allocation",
+    );
+    expect(maintainAudit.preservedPolicyValue).toEqual(
+      rule.preservedPolicyValue,
+    );
   });
 
   it("rejects merchant policy captured after the evaluation policy has begun", () => {
@@ -879,6 +893,14 @@ describe("Step 3.3 canonical STATUS_QUO baseline", () => {
     expect(bundle.operatorInvocations.every((i) => i.decisionAudit?.auditType === "merchant_policy_evaluation")).toBe(true);
     console.log("STEP3_3_STATUS_QUO_FIXED_POLICY", JSON.stringify({
       policyFingerprint: policy.policyFingerprint,
+      configurationFingerprint:
+        statusQuoConfigurationFingerprint(policy),
+      componentFingerprints: Object.fromEntries(
+        Object.entries(policy.components).map(([domain, component]) => [
+          domain,
+          component.componentFingerprint,
+        ]),
+      ),
       operatorFingerprint: STATUS_QUO_IMPLEMENTATION_FINGERPRINT,
       simulatorVersion: WORLD_SIMULATOR_VERSION,
       worldId: String(world.manifest.worldId),
