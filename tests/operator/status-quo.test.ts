@@ -29,6 +29,7 @@ import {
   createMerchantPolicy,
   materializeMerchantPolicyAction,
   type MerchantPolicy,
+  type MerchantPolicyComponentInputs,
   type MerchantPolicyComponents,
   type MerchantPolicyRule,
 } from "../../src/operator/merchant-policy.js";
@@ -36,6 +37,7 @@ import {
   createStatusQuoOperator,
   evaluateStatusQuoPolicy,
   STATUS_QUO_IMPLEMENTATION_FINGERPRINT,
+  statusQuoConfigurationFingerprint,
   STATUS_QUO_OPERATOR_ID,
   STATUS_QUO_OPERATOR_VERSION,
   STATUS_QUO_FROZEN_STEP_3_1_COMMIT,
@@ -67,12 +69,36 @@ function baseRule(
   };
 }
 
+function component(
+  domain: keyof MerchantPolicyComponentInputs,
+  parameters: any,
+  rules: readonly MerchantPolicyRule[],
+  coverage: "defined" | "undefined" = "defined",
+) {
+  return {
+    domain,
+    coverage,
+    componentVersion: "1.0.0",
+    sourceRef: "merchant-policy-fixture:" + domain + ":v1",
+    effectivePeriod: { start: START },
+    parameters,
+    rules,
+  };
+}
+
 function representativePolicy(): MerchantPolicy {
-  const components: MerchantPolicyComponents = {
-    advertising: {
-      domain: "advertising",
-      coverage: "defined",
-      rules: [
+  const components: MerchantPolicyComponentInputs = {
+    advertising: component(
+      "advertising",
+      {
+        policyKind: "fixed_channel_allocation_with_scheduled_changes",
+        channelSharesBasisPoints: {
+          meta_ads: 5000,
+          google_ads: 3500,
+          pinterest_ads: 1500,
+        },
+      },
+      [
         baseRule({
           kind: "maintain_state",
           ruleId: "advertising.maintain_existing_allocation",
@@ -81,6 +107,14 @@ function representativePolicy(): MerchantPolicy {
           ownership: "environment_owned",
           cadence: "continuous",
           stateRef: "merchant-state:advertising-allocation",
+          preservedPolicyValue: {
+            policyKind: "fixed_channel_allocation",
+            channelSharesBasisPoints: {
+              meta_ads: 5000,
+              google_ads: 3500,
+              pinterest_ads: 1500,
+            },
+          },
         }),
         baseRule({
           kind: "scheduled_action",
@@ -94,11 +128,16 @@ function representativePolicy(): MerchantPolicy {
           simulatorCompatibility: "supported_by_frozen_translation",
         }),
       ],
-    },
-    pricing: {
-      domain: "pricing",
-      coverage: "defined",
-      rules: [
+    ),
+    pricing: component(
+      "pricing",
+      {
+        policyKind: "fixed_prices_with_scheduled_changes",
+        frozenPricesMinor: {
+          "sku:A": { amountMinor: 89900, currency: "CAD" },
+        },
+      },
+      [
         baseRule({
           kind: "maintain_state",
           ruleId: "pricing.maintain_current_prices",
@@ -107,6 +146,12 @@ function representativePolicy(): MerchantPolicy {
           ownership: "environment_owned",
           cadence: "continuous",
           stateRef: "merchant-state:prices",
+          preservedPolicyValue: {
+            policyKind: "fixed_prices",
+            pricesMinor: {
+              "sku:A": { amountMinor: 89900, currency: "CAD" },
+            },
+          },
         }),
         baseRule({
           kind: "scheduled_action",
@@ -120,11 +165,14 @@ function representativePolicy(): MerchantPolicy {
           simulatorCompatibility: "supported_by_frozen_translation",
         }),
       ],
-    },
-    promotions: {
-      domain: "promotions",
-      coverage: "defined",
-      rules: [
+    ),
+    promotions: component(
+      "promotions",
+      {
+        policyKind: "scheduled_promotions",
+        scheduledPromotionIds: ["action_collection_promo_15pct_4d"],
+      },
+      [
         baseRule({
           kind: "scheduled_action",
           ruleId: "promotions.scheduled_collection_sale",
@@ -137,11 +185,14 @@ function representativePolicy(): MerchantPolicy {
           simulatorCompatibility: "supported_by_frozen_translation",
         }),
       ],
-    },
-    merchandising: {
-      domain: "merchandising",
-      coverage: "defined",
-      rules: [
+    ),
+    merchandising: component(
+      "merchandising",
+      {
+        policyKind: "fixed_order_with_scheduled_feature",
+        collectionOrder: ["product:A", "product:B", "product:C"],
+      },
+      [
         baseRule({
           kind: "maintain_state",
           ruleId: "merchandising.maintain_collection_order",
@@ -150,6 +201,10 @@ function representativePolicy(): MerchantPolicy {
           ownership: "environment_owned",
           cadence: "continuous",
           stateRef: "merchant-state:collection-order",
+          preservedPolicyValue: {
+            policyKind: "fixed_collection_order",
+            productIds: ["product:A", "product:B", "product:C"],
+          },
         }),
         baseRule({
           kind: "scheduled_action",
@@ -165,11 +220,15 @@ function representativePolicy(): MerchantPolicy {
             "Frozen simulator cannot preserve rigorous merchandising surface/placement semantics.",
         }),
       ],
-    },
-    inventory: {
-      domain: "inventory",
-      coverage: "defined",
-      rules: [
+    ),
+    inventory: component(
+      "inventory",
+      {
+        policyKind: "simulator_lifecycle_plus_observed_reorder_rule",
+        reorderPointUnits: 10,
+        reorderQuantityUnits: 50,
+      },
+      [
         baseRule({
           kind: "environment_behavior",
           ruleId: "inventory.autonomous_existing_replenishment",
@@ -196,12 +255,12 @@ function representativePolicy(): MerchantPolicy {
             "Frozen simulator has no semantically correct outstanding purchase-order/receipt intervention.",
         }),
       ],
-    },
+    ),
   };
 
   return createMerchantPolicy({
     policyId: "merchant-policy:representative-v1",
-    policyVersion: "1.0.0",
+    policyVersion: "1.1.0",
     description: "Representative frozen business-as-usual merchant policy.",
     source: {
       sourceRef: "merchant-policy-fixture:v1",
@@ -214,25 +273,33 @@ function representativePolicy(): MerchantPolicy {
 }
 
 function emptyPolicy(): MerchantPolicy {
-  const maintain = (domain: keyof MerchantPolicyComponents) => ({
-    domain,
-    coverage: "defined" as const,
-    rules: [
-      baseRule({
-        kind: "maintain_state",
-        ruleId: domain + ".maintain",
-        domain,
-        behaviorKey: domain + ".existing_state",
-        ownership: "environment_owned",
-        cadence: "continuous",
-        stateRef: "merchant-state:" + domain,
-      }),
-    ],
-  });
+  const maintain = (domain: keyof MerchantPolicyComponentInputs) =>
+    component(
+      domain,
+      {
+        policyKind: "preserve_exact_initial_snapshot",
+        snapshotRef: "merchant-state:" + domain,
+      },
+      [
+        baseRule({
+          kind: "maintain_state",
+          ruleId: domain + ".maintain",
+          domain,
+          behaviorKey: domain + ".existing_state",
+          ownership: "environment_owned",
+          cadence: "continuous",
+          stateRef: "merchant-state:" + domain,
+          preservedPolicyValue: {
+            policyKind: "preserve_exact_initial_snapshot",
+            snapshotRef: "merchant-state:" + domain,
+          },
+        }),
+      ],
+    );
 
   return createMerchantPolicy({
     policyId: "merchant-policy:fixed-state-v1",
-    policyVersion: "1.0.0",
+    policyVersion: "1.1.0",
     description: "Merchant with no recurring operator-owned policy Actions.",
     source: {
       sourceRef: "merchant-policy-fixture:fixed-state",
@@ -243,16 +310,20 @@ function emptyPolicy(): MerchantPolicy {
     components: {
       advertising: maintain("advertising"),
       pricing: maintain("pricing"),
-      promotions: {
-        domain: "promotions",
-        coverage: "undefined",
-        rules: [],
-      },
+      promotions: component(
+        "promotions",
+        { policyKind: "undefined" },
+        [],
+        "undefined",
+      ),
       merchandising: maintain("merchandising"),
-      inventory: {
-        domain: "inventory",
-        coverage: "defined",
-        rules: [
+      inventory: component(
+        "inventory",
+        {
+          policyKind: "simulator_native_inventory_lifecycle",
+          mechanismRef: "simulation.inventoryMechanisms",
+        },
+        [
           baseRule({
             kind: "environment_behavior",
             ruleId: "inventory.existing_lifecycle",
@@ -263,7 +334,7 @@ function emptyPolicy(): MerchantPolicy {
             environmentMechanismRef: "simulation.inventoryMechanisms",
           }),
         ],
-      },
+      ),
     },
   });
 }
