@@ -49,6 +49,8 @@ Every component records whether coverage is:
 
 Undefined coverage must contain zero rules. Missing merchant policy is therefore not silently invented.
 
+The policy capture timestamp must be at or before the policy effective start. Scheduled Actions must fall inside both their rule effective period and the merchant-policy effective period. A policy authored after evaluation outcomes begin is rejected rather than being treated as pre-existing merchant behavior.
+
 ## State is not policy
 
 The policy model keeps merchant state separate from merchant policy.
@@ -181,9 +183,10 @@ Each invocation records:
 - observed trigger value when available;
 - frozen threshold/comparison;
 - simulator compatibility;
-- explicit incompatibility reason when applicable.
+- explicit incompatibility reason when applicable;
+- benchmark compatibility for the current decision.
 
-A reviewer can reconstruct why every business-as-usual Action was proposed.
+A reviewer can reconstruct why every business-as-usual Action was proposed. If a required triggered policy Action is unsupported by the frozen simulator, the audit marks the decision `incompatible_required_policy_semantics`; it is not silently treated as a valid benchmark outcome.
 
 ## Advertising policy
 
@@ -268,7 +271,7 @@ They explicitly do not support faithful execution of:
 
 This is a lineage qualification, not an invitation to modify Step 3.1 or merge later simulator branches.
 
-For a merchant whose status-quo policy requires unsupported operator-owned semantics, the benchmark run must be marked incompatible with that frozen simulator for those policy effects. It must not claim a valid performance comparison by silently dropping or approximating them.
+For a merchant whose status-quo policy requires unsupported operator-owned semantics, the decision audit records the required rule in `incompatibleRuleIds` and sets `benchmarkCompatibility = incompatible_required_policy_semantics`. The benchmark must not claim a valid performance comparison by silently dropping or approximating those policy effects.
 
 Merchants whose unsupported domains are fixed/environment-owned may still be benchmarked normally because no unsupported operator Action is required.
 
