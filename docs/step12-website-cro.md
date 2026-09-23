@@ -249,7 +249,10 @@ Reported counterfactual deltas include:
 - checkout starts;
 - represented orders;
 - represented revenue;
-- represented contribution profit.
+- represented contribution profit;
+- optional God-mode oracle future realized contribution after an explicit `futureValueAsOf` cutoff.
+
+The future-value field is deliberately distinct from expected CLV. It is populated only when the evaluator requests an in-horizon cutoff satisfying `startTime < futureValueAsOf < endTime`, and it measures same-seed realized contribution after that cutoff.
 
 ## Observational funnel diagnostics
 

@@ -265,6 +265,12 @@ export interface CroCounterfactualDelta {
   readonly representedOrders: number;
   readonly representedRevenueMinor: number;
   readonly representedContributionProfitMinor: number;
+  /**
+   * Same-seed God-mode contribution realized strictly after futureValueAsOf.
+   * Null when no cutoff was requested. This is oracle future realized value,
+   * not an expected CLV estimate.
+   */
+  readonly oracleFutureRealizedContributionMinor: number | null;
 }
 
 export interface CroCounterfactualResult {
@@ -282,6 +288,13 @@ export interface CroEvaluationRequest {
   readonly websiteScenario: WebsiteScenario;
   readonly intervention: Intervention;
   /**
+   * Optional God-mode cutoff for measuring future realized contribution.
+   * When supplied it must satisfy startTime < futureValueAsOf < endTime.
+   * The result remains oracle validation truth and must not be surfaced as
+   * an observed or estimated customer-lifetime-value metric.
+   */
+  readonly futureValueAsOf?: string;
+  /**
    * Non-CRO factual interventions (for example a promotion or a dated
    * marketing-mix change) are replayed identically in both arms.
    */
@@ -298,6 +311,7 @@ export interface CroOpportunityValue {
   readonly incrementalContributionProfitMinor: number;
   readonly incrementalRevenueMinor: number;
   readonly incrementalOrders: number;
+  readonly incrementalOracleFutureRealizedContributionMinor: number | null;
 }
 
 export interface PageExperience {

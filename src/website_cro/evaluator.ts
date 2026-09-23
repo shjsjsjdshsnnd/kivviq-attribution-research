@@ -477,11 +477,64 @@ function countWeightedSessionsWith(
   );
 }
 
+function representedFutureContribution(
+  result: SimulationResult,
+  population: LatentCustomerPopulation,
+  futureValueAsOf: string | undefined,
+): number | null {
+  if (futureValueAsOf === undefined) return null;
+  const cutoffMs = Date.parse(futureValueAsOf);
+  const weights = populationWeightMap(population);
+  return result.purchases
+    .filter(
+      (purchase) =>
+        Date.parse(purchase.occurredAt) > cutoffMs,
+    )
+    .reduce(
+      (sum, purchase) =>
+        sum +
+        purchase.contributionProfitMinor *
+          (weights.get(purchase.customerId) ?? 1),
+      0,
+    );
+}
+
+function validateFutureValueAsOf(
+  startTime: string,
+  endTime: string,
+  futureValueAsOf: string | undefined,
+): void {
+  if (futureValueAsOf === undefined) return;
+  const startMs = Date.parse(startTime);
+  const endMs = Date.parse(endTime);
+  const asOfMs = Date.parse(futureValueAsOf);
+  if (
+    !Number.isFinite(asOfMs) ||
+    !(startMs < asOfMs && asOfMs < endMs)
+  ) {
+    throw new RangeError(
+      "futureValueAsOf must satisfy startTime < futureValueAsOf < endTime",
+    );
+  }
+}
+
 function deltaFor(
   factual: SimulationResult,
   counterfactual: SimulationResult,
   population: LatentCustomerPopulation,
+  futureValueAsOf?: string,
 ): CroCounterfactualDelta {
+  const factualFuture = representedFutureContribution(
+    factual,
+    population,
+    futureValueAsOf,
+  );
+  const counterfactualFuture =
+    representedFutureContribution(
+      counterfactual,
+      population,
+      futureValueAsOf,
+    );
   return {
     sessionsProgressing:
       countWeightedSessionsWith(
@@ -527,6 +580,11 @@ function deltaFor(
         .representedContributionProfitMinor -
       factual.totals
         .representedContributionProfitMinor,
+    oracleFutureRealizedContributionMinor:
+      factualFuture === null ||
+      counterfactualFuture === null
+        ? null
+        : counterfactualFuture - factualFuture,
   };
 }
 
@@ -546,6 +604,11 @@ function withWebsiteIntervention(
 export function replayCroIntervention(
   request: CroEvaluationRequest,
 ): CroCounterfactualResult {
+  validateFutureValueAsOf(
+    request.startTime,
+    request.endTime,
+    request.futureValueAsOf,
+  );
   const common = {
     merchantWorld: request.merchantWorld,
     latentPopulation: request.latentPopulation,
@@ -583,6 +646,7 @@ export function replayCroIntervention(
       factual,
       counterfactual,
       request.latentPopulation,
+      request.futureValueAsOf,
     ),
   };
 }
@@ -599,6 +663,9 @@ export function croOpportunityValue(
       replay.delta.representedRevenueMinor,
     incrementalOrders:
       replay.delta.representedOrders,
+    incrementalOracleFutureRealizedContributionMinor:
+      replay.delta
+        .oracleFutureRealizedContributionMinor,
   };
 }
 
@@ -672,6 +739,11 @@ function incrementalTrafficSpendMinor(
 export function compareTrafficToCro(
   request: TrafficVsCroRequest,
 ): TrafficVsCroResult {
+  validateFutureValueAsOf(
+    request.startTime,
+    request.endTime,
+    request.futureValueAsOf,
+  );
   const common = {
     merchantWorld: request.merchantWorld,
     latentPopulation: request.latentPopulation,
@@ -715,6 +787,7 @@ export function compareTrafficToCro(
     baseline,
     traffic,
     request.latentPopulation,
+    request.futureValueAsOf,
   );
   const incrementalSpend =
     incrementalTrafficSpendMinor(request);
@@ -727,6 +800,7 @@ export function compareTrafficToCro(
       baseline,
       cro,
       request.latentPopulation,
+      request.futureValueAsOf,
     ),
     trafficDelta: {
       ...rawTrafficDelta,
