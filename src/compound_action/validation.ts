@@ -84,6 +84,7 @@ function validateTimingBinding(binding:any,path:string,a:CompoundValidationIssue
 }
 function validateConstraint(c:any,compound:CompoundAction,a:CompoundValidationIssue[],i:number):void{
   const p="constraints["+i+"]";
+  const components:any[]=Array.isArray((compound as any).components)?(compound as any).components:[];
   if(!record(c)){add(a,"INVALID_COMPOUND_CONSTRAINT",p,"constraint must be an object");return}
   if(!nonEmpty(c.constraintId))add(a,"INVALID_COMPOUND_CONSTRAINT_ID",p+".constraintId","stable constraint identity is required");
   if(!CONSTRAINT_KINDS.has(String(c.kind))){add(a,"UNKNOWN_COMPOUND_CONSTRAINT_KIND",p+".kind","constraint kind must be canonical and machine-evaluable");return}
