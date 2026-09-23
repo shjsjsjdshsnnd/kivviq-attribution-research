@@ -108,13 +108,13 @@ function validateConstraint(c:any,compound:CompoundAction,a:CompoundValidationIs
   }
 
   if(c.kind==="SUM_MONETARY_DELTAS_EQUALS"){
-    const legs=compound.components.map(x=>budgetDelta(x.action)).filter((x):x is NonNullable<typeof x>=>!!x);
+    const legs=components.map((x:any)=>budgetDelta(x?.action)).filter((x):x is NonNullable<typeof x>=>!!x);
     if(!legs.length){add(a,"CONSERVATION_HAS_NO_MONETARY_LEGS",p,"conservation requires budget DELTA components");return}
     if(legs.some(x=>x.currency!==c.currency||x.per!==c.ratePeriod)){add(a,"CONSERVATION_UNIT_MISMATCH",p,"currency and rate period must match");return}
     if(legs.reduce((n,x)=>n+x.signed,0)!==c.amountMinor)add(a,"COMPOUND_CONSERVATION_VIOLATION",p,"signed monetary deltas violate conservation");
   }
   if(c.kind==="TOTAL_INCREMENTAL_MEDIA_BUDGET_LTE"){
-    const legs=compound.components.map(x=>budgetDelta(x.action)).filter((x):x is NonNullable<typeof x>=>!!x&&x.signed>0);
+    const legs=components.map((x:any)=>budgetDelta(x?.action)).filter((x):x is NonNullable<typeof x>=>!!x&&x.signed>0);
     if(legs.some(x=>x.currency!==c.currency||x.per!==c.ratePeriod)){add(a,"MEDIA_BUDGET_CONSTRAINT_UNIT_MISMATCH",p,"known incremental media legs must match constraint units");return}
     const total=legs.reduce((n,x)=>n+x.signed,0);
     if(total>c.amountMinor)add(a,"COMPOUND_MEDIA_BUDGET_LIMIT_EXCEEDED",p,"known incremental media budget exceeds the compound hard limit");
@@ -122,7 +122,7 @@ function validateConstraint(c:any,compound:CompoundAction,a:CompoundValidationIs
   if(c.kind==="TOTAL_RESOURCE_LTE"){
     const limit=scalarResource(c.limit);
     if(!limit)return;
-    const requirements=compound.components.flatMap(component=>component.action.resourceRequirements.filter(x=>x.resourceType===c.resourceType));
+    const requirements=components.flatMap((component:any)=>Array.isArray(component?.action?.resourceRequirements)?component.action.resourceRequirements.filter((x:any)=>x.resourceType===c.resourceType):[]);
     const known=requirements.filter(x=>x.amount.kind==="known").map(x=>scalarResource((x.amount as any).value));
     if(known.some(x=>!x||x.kind!==limit.kind||x.unitKey!==limit.unitKey)){
       add(a,"RESOURCE_CONSTRAINT_UNIT_MISMATCH",p,"known resource requirements must use the same scalar kind and unit as the cap");return;
