@@ -31,7 +31,7 @@ Step 3.1 and Step 3.2 remain unchanged.
 
 ## Merchant policy contract
 
-`src/operator/merchant-policy.ts` defines MerchantPolicy schema `1.0.0`.
+`src/operator/merchant-policy.ts` defines MerchantPolicy schema `1.1.0`.
 
 A policy has:
 
@@ -42,7 +42,18 @@ A policy has:
 - explicit components for advertising, pricing, promotions, merchandising and inventory;
 - deterministic policy fingerprint.
 
-Every component records whether coverage is:
+Every component records:
+
+- domain;
+- coverage;
+- semantic component version;
+- source/provenance reference;
+- effective period;
+- explicit serialized policy parameters;
+- deterministic component fingerprint;
+- frozen rules.
+
+Coverage is either:
 
 - `defined`; or
 - `undefined`.
@@ -59,11 +70,11 @@ Examples of state are current budgets, prices, inventory and collection order.
 
 Policy rules describe what the merchant had already committed to doing with those states.
 
-A fixed state is represented by a `maintain_state` rule and causes no operator Action. A pre-existing scheduled or observation-triggered merchant decision is represented as an operator-owned policy rule and may produce a canonical Action.
+A fixed state is represented by a `maintain_state` rule and causes no operator Action. The rule also serializes the exact policy value to preserve; it is not merely a pointer to current state. For example, the representative advertising fixture freezes Meta 50%, Google 35%, Pinterest 15% as the existing allocation policy. A pre-existing scheduled or observation-triggered merchant decision is represented as an operator-owned policy rule and may produce a canonical Action.
 
 ## Rule types
 
-The frozen v1 policy schema contains four rule forms.
+The frozen v1.1 policy schema contains four rule forms.
 
 ### Maintain state
 
@@ -75,7 +86,7 @@ Represents pre-existing fixed-state policy such as:
 - keep current prices;
 - keep current merchandising order.
 
-It is environment-owned and emits no operator Action.
+It is environment-owned and emits no operator Action. Its `preservedPolicyValue` records the fixed allocation/price/order/snapshot semantics that STATUS_QUO is instructed to maintain.
 
 ### Environment behavior
 
@@ -174,6 +185,9 @@ Each invocation records:
 
 - merchant-policy ID/version/fingerprint/schema;
 - policy coverage by domain;
+- component fingerprints by domain;
+- component parameters by domain;
+- preserved maintain-state policy values;
 - every policy rule evaluated;
 - ownership;
 - rule result;
@@ -215,7 +229,7 @@ Supported SKU/product pricing semantics translate through the frozen translation
 
 STATUS_QUO can preserve predetermined promotion schedules using canonical promotion Actions.
 
-The representative fidelity fixture includes the already-defined temporary four-day collection promotion and verifies its duration remains exactly the frozen merchant policy duration.
+The representative fidelity fixture includes the already-defined temporary four-day collection promotion and verifies both its four-day duration and its fixed-duration termination semantics, so promotion start/end behavior remains exactly the frozen merchant policy behavior.
 
 The operator does not create a promotion because performance deteriorates.
 
@@ -250,7 +264,7 @@ inventory.sku_b.available_units < 10
 → canonical inventory.reorder
 ```
 
-At 10 units the rule does not fire. At 9 units it emits exactly one canonical inventory Action.
+At 10 units the rule does not fire. At 9 units it emits exactly one canonical inventory Action whose frozen reorder quantity is exactly 50 units.
 
 The frozen simulator cannot faithfully translate the rigorous Step 8 inventory procurement/policy family. Such rules are therefore representable and auditable but explicitly marked `unsupported_by_frozen_simulator` for end-to-end causal execution.
 
@@ -343,8 +357,10 @@ The fixture:
 A STATUS_QUO evaluation preserves:
 
 - Step 3.1 contract version/fingerprint;
-- operator ID/version/fingerprint;
+- operator ID/version/implementation fingerprint;
+- separately frozen deterministic configuration fingerprint;
 - merchant-policy schema/version/fingerprint;
+- per-domain component versions/source/effective periods/parameters/fingerprints;
 - full deterministic operator configuration;
 - simulator version;
 - world ID/fingerprint;
@@ -397,6 +413,8 @@ The freeze record must include:
 - operator ID/version/fingerprint;
 - MerchantPolicy schema version;
 - representative policy fixture fingerprint(s);
+- representative STATUS_QUO configuration fingerprint(s);
+- per-domain merchant-policy component fingerprints;
 - exact Step 3.1 dependency;
 - exact Step 3.2 dependency;
 - Action Ontology version;
