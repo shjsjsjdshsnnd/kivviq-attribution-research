@@ -1,17 +1,25 @@
 import { resolveActionTiming } from "../action_timing/resolution.js";
 import type { ActionTimingResolutionContext,TimingResolution } from "../action_timing/types.js";
-import type { CompoundAction,CompoundPopulationResolution,CompoundTimingResolution } from "./types.js";
+import type { CompoundAction,CompoundPopulationResolution,CompoundPopulationResolutionContext,CompoundTimingResolution } from "./types.js";
 import { flattenCompoundAction } from "./semantics.js";
 
-export function resolveCompoundPopulations(c:CompoundAction):CompoundPopulationResolution{
+export function resolveCompoundPopulations(c:CompoundAction,context?:CompoundPopulationResolutionContext):CompoundPopulationResolution{
   return{
     compoundActionId:c.compoundActionId,
     components:c.components.map(component=>{
       const binding=component.population;
       if(binding.kind==="NOT_APPLICABLE")return{componentId:component.componentId,status:"NOT_APPLICABLE" as const,source:"NOT_APPLICABLE" as const,reason:binding.reason};
-      if(binding.kind==="OVERRIDE")return{componentId:component.componentId,status:"REFERENCE_BOUND" as const,populationRef:binding.populationRef,...(binding.bindingTime?{bindingTime:binding.bindingTime}:{}),source:"COMPONENT_OVERRIDE" as const};
-      if(c.defaultPopulation)return{componentId:component.componentId,status:"REFERENCE_BOUND" as const,populationRef:c.defaultPopulation,source:"COMPOUND_DEFAULT" as const};
-      return{componentId:component.componentId,status:"UNKNOWN" as const,source:"UNRESOLVED" as const,reason:"Compound default population is unavailable."};
+      const populationRef=binding.kind==="OVERRIDE"?binding.populationRef:c.defaultPopulation;
+      const bindingTime=binding.kind==="OVERRIDE"?binding.bindingTime:c.defaultPopulationBindingTime;
+      const source=binding.kind==="OVERRIDE"?"COMPONENT_OVERRIDE" as const:"COMPOUND_DEFAULT" as const;
+      if(!populationRef)return{componentId:component.componentId,status:"UNKNOWN" as const,source:"UNRESOLVED" as const,reason:"Population reference is unavailable."};
+      if(!context)return{componentId:component.componentId,status:"REFERENCE_BOUND" as const,populationRef,...(bindingTime?{bindingTime}:{}),source};
+      const matches=context.bindings.filter(x=>x.populationRef===populationRef&&x.bindingTime===bindingTime);
+      if(matches.length===1){
+        const resolved=matches[0]!;
+        return{componentId:component.componentId,status:"SNAPSHOT_RESOLVED" as const,populationRef,...(bindingTime?{bindingTime}:{}),source,snapshotRef:resolved.snapshotRef,definitionRef:resolved.definitionRef};
+      }
+      return{componentId:component.componentId,status:"UNKNOWN" as const,populationRef,...(bindingTime?{bindingTime}:{}),source:"UNRESOLVED" as const,reason:matches.length===0?"Population snapshot binding is unavailable.":"Population snapshot binding is ambiguous."};
     }),
   };
 }
