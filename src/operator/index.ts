@@ -7,3 +7,5 @@ export * from "./status-quo.js";
 export * from "./advertising-heuristics.js";
 
 export * from "./inventory-heuristics.js";
+
+export * from "./pricing-promotion-heuristics.js";
