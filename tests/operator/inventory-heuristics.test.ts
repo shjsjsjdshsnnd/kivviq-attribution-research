@@ -361,6 +361,25 @@ describe("Step 3.5 simple inventory heuristic baselines", () => {
     });
   });
 
+  it("handles inactive and discontinued SKUs with deterministic no-action fallbacks", () => {
+    const inactive = decision(
+      FIXED_REORDER_THRESHOLD_OPERATOR,
+      [sku(1, { active: false })],
+    );
+    const discontinued = decision(
+      FIXED_REORDER_THRESHOLD_OPERATOR,
+      [sku(1, { discontinued: true })],
+    );
+    expect(inactive.output.actions).toEqual([]);
+    expect(discontinued.output.actions).toEqual([]);
+    expect((inactive.audit?.payload as any).fallbackReason).toBe(
+      "SKU_INACTIVE",
+    );
+    expect((discontinued.audit?.payload as any).fallbackReason).toBe(
+      "SKU_DISCONTINUED",
+    );
+  });
+
   describe("FIXED_REORDER_QUANTITY", () => {
     it("orders the frozen 50-unit quantity when the observable trigger fires", () => {
       const result = decision(
@@ -681,31 +700,53 @@ describe("Step 3.5 simple inventory heuristic baselines", () => {
     ).toBe(40);
   });
 
-  it("remains deliberately simple under adversarial current-state context", () => {
-    const ordinary = decision(
-      FIXED_REORDER_THRESHOLD_OPERATOR,
-      [sku(9, { existingReorderQuantityUnits: 50 })],
-    );
-    const adversarial = decision(
-      FIXED_REORDER_THRESHOLD_OPERATOR,
-      [sku(9, { existingReorderQuantityUnits: 50 })],
+  it("keeps all four heuristics deliberately simple under adversarial current-state context", () => {
+    const contexts = [
       {
-        extras: [
-          {
-            observationKey: "inventory.adversarial_current_context",
-            value: {
-              recentDemandSpike: true,
-              recentDemandCollapse: false,
-              highMarginSku: true,
-              longObservedSupplierLeadTime: true,
-              currentOverstockElsewhere: true,
-              promotionEconomicsStrong: true,
-            },
-          },
-        ],
+        operator: FIXED_REORDER_THRESHOLD_OPERATOR,
+        item: sku(9, { existingReorderQuantityUnits: 50 }),
       },
-    );
-    expect(adversarial.output).toEqual(ordinary.output);
+      {
+        operator: FIXED_REORDER_QUANTITY_OPERATOR,
+        item: sku(1, { observableReorderTriggered: true }),
+      },
+      {
+        operator: LOW_INVENTORY_DEPROMOTION_OPERATOR,
+        item: sku(4),
+      },
+      {
+        operator: NO_INVENTORY_AWARE_INTERVENTION_OPERATOR,
+        item: sku(0),
+      },
+    ] as const;
+
+    const extras = [
+      {
+        observationKey: "inventory.adversarial_current_context",
+        value: {
+          recentDemandSpike: true,
+          recentDemandCollapse: false,
+          highMarginSku: true,
+          longObservedSupplierLeadTime: true,
+          currentOverstockElsewhere: true,
+          promotionEconomicsStrong: true,
+          advertisingEfficiencyStrong: true,
+        },
+      },
+    ] as const;
+
+    for (const context of contexts) {
+      const ordinary = decision(
+        context.operator as any,
+        [context.item],
+      );
+      const adversarial = decision(
+        context.operator as any,
+        [context.item],
+        { extras },
+      );
+      expect(adversarial.output).toEqual(ordinary.output);
+    }
   });
 
   it("structurally excludes future demand and hidden state by using only the governed inventory observation", () => {
