@@ -1,0 +1,76 @@
+name: Step 3.5 Inventory Heuristic Baselines CI
+
+on:
+  push:
+    branches:
+      - baseline/step3.5-inventory-heuristics
+  pull_request:
+    branches:
+      - baseline/step3.4-advertising-heuristics
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - name: Install
+        run: npm install --no-audit --no-fund
+
+      - name: Architecture boundary
+        run: npm run architecture
+
+      - name: Strict typecheck
+        run: npm run typecheck
+
+      - name: Step 3.5 focused tests
+        run: npm run test:inventory-heuristics
+
+      - name: Full inherited and Step 3.5 suite
+        run: npm test
+
+      - name: Build
+        run: npm run build
+
+      - name: Frozen Step 3.5 fingerprints
+        run: |
+          node --input-type=module <<'NODE'
+          import {
+            INVENTORY_HEURISTIC_BASELINE_OPERATORS,
+            INVENTORY_HEURISTIC_IMPLEMENTATION_FINGERPRINTS,
+            INVENTORY_HEURISTIC_FROZEN_STEP_3_1_COMMIT,
+            INVENTORY_HEURISTIC_FROZEN_STEP_3_4_COMMIT,
+            INVENTORY_HEURISTIC_METRIC_SET_VERSION,
+            INVENTORY_HEURISTIC_SIMULATOR_VERSION,
+            FROZEN_INVENTORY_HEURISTIC_CONFIGURATIONS,
+            inventoryHeuristicConfigurationFingerprint,
+          } from "./dist/operator/index.js";
+          import {
+            CANONICAL_BASELINE_EVALUATION_CONTRACT_V1,
+          } from "./dist/evaluation/index.js";
+
+          console.log("step3_1_frozen_commit=" + INVENTORY_HEURISTIC_FROZEN_STEP_3_1_COMMIT);
+          console.log("step3_4_frozen_commit=" + INVENTORY_HEURISTIC_FROZEN_STEP_3_4_COMMIT);
+          console.log("step3_1_contract_fingerprint=" + CANONICAL_BASELINE_EVALUATION_CONTRACT_V1.contractFingerprint);
+          console.log("action_ontology_version=" + CANONICAL_BASELINE_EVALUATION_CONTRACT_V1.actionSpace.ontologySchemaVersion);
+          console.log("metric_set_version=" + INVENTORY_HEURISTIC_METRIC_SET_VERSION);
+          console.log("simulator_version=" + INVENTORY_HEURISTIC_SIMULATOR_VERSION);
+
+          for (const [name, operator] of Object.entries(INVENTORY_HEURISTIC_BASELINE_OPERATORS)) {
+            console.log(name + "_operator_id=" + operator.metadata.operatorId);
+            console.log(name + "_operator_version=" + operator.metadata.operatorVersion);
+            console.log(name + "_implementation_fingerprint=" + INVENTORY_HEURISTIC_IMPLEMENTATION_FINGERPRINTS[name]);
+            console.log(name + "_configuration_fingerprint=" + inventoryHeuristicConfigurationFingerprint(FROZEN_INVENTORY_HEURISTIC_CONFIGURATIONS[name]));
+            console.log(name + "_configuration=" + JSON.stringify(FROZEN_INVENTORY_HEURISTIC_CONFIGURATIONS[name]));
+          }
+          NODE
