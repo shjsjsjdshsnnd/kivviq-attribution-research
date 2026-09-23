@@ -28,7 +28,8 @@ const FORBIDDEN=new Set([
   "evaluationResult","executionStatus","executionState","lifecycleState","executedAt",
   "failedAt","rolledBackAt","partiallyExecuted","trafficAllocation","randomization",
   "significanceThreshold","statisticalPower","experimentResult","recommendedTreatment",
-  "predictedBestStart","predictedOptimalDuration","expectedBestSendTime",\n  "counterfactualRevenue","predictedOutcomes","interactionEffects","predictedInteractionEffects","recommendationRanking",
+  "predictedBestStart","predictedOptimalDuration","expectedBestSendTime",
+  "counterfactualRevenue","predictedOutcomes","interactionEffects","predictedInteractionEffects","recommendationRanking",
 ]);
 
 function record(v:unknown):v is any{return typeof v==="object"&&v!==null&&!Array.isArray(v)}

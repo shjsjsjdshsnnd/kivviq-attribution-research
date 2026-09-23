@@ -1,7 +1,8 @@
 import type { Action, MonetaryValue, QuantityValue } from "../action_ontology/types.js";
 import type { ActionTiming } from "../action_timing/types.js";
 
-export const COMPOUND_ACTION_SCHEMA_VERSION = "1.0.0" as const;\nexport const COMPOUND_ACTION_EVALUATION_SCHEMA_VERSION = "1.0.0" as const;
+export const COMPOUND_ACTION_SCHEMA_VERSION = "1.0.0" as const;
+export const COMPOUND_ACTION_EVALUATION_SCHEMA_VERSION = "1.0.0" as const;
 export type CompoundActionId = string & { readonly __brand: "CompoundActionId" };
 export type CompoundComponentRole = "SOURCE"|"DESTINATION"|"PRIMARY"|"SUPPORTING"|"TRIGGER"|"DEPENDENT"|"CONTROL";
 export type PopulationBindingLevel = "COMPOUND_LEVEL"|"COMPONENT_LEVEL";

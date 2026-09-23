@@ -15,7 +15,8 @@ import {
 import { validateCompoundAction } from "../../src/compound_action/validation.js";
 import { compoundFingerprint,compoundsSemanticallyEqual,flattenCompoundAction } from "../../src/compound_action/semantics.js";
 import { evaluateCompoundReadiness,deriveCompoundRollbackReadiness } from "../../src/compound_action/readiness.js";
-import { translateCompoundAction } from "../../src/compound_action/translation.js";\nimport { COMPOUND_ACTION_EVALUATION_SCHEMA_VERSION,type CompoundActionEvaluation } from "../../src/compound_action/types.js";
+import { translateCompoundAction } from "../../src/compound_action/translation.js";
+import { COMPOUND_ACTION_EVALUATION_SCHEMA_VERSION,type CompoundActionEvaluation } from "../../src/compound_action/types.js";
 
 const CAD=currencyCode("CAD");
 const clock=utcTimestamp("2026-09-23T12:00:00.000Z");
