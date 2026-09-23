@@ -15,6 +15,7 @@ export function compoundSemanticProjection(c:CompoundAction):unknown{
     failurePolicy:c.failurePolicy,
     completionRule:c.completionRule,
     defaultPopulation:c.defaultPopulation??null,
+    defaultPopulationBindingTime:c.defaultPopulationBindingTime??null,
     timing:c.timing??null,
     constraints:sorted(c.constraints),
     rollback:c.rollback,
