@@ -6,7 +6,7 @@ import { COMPOUND_ACTION_SCHEMA_VERSION, type CompoundAction, type CompoundConst
 export interface CompoundValidationIssue {readonly code:string;readonly path:string;readonly message:string}
 export type CompoundValidationResult={readonly ok:true;readonly compound:CompoundAction;readonly issues:readonly []}|{readonly ok:false;readonly issues:readonly CompoundValidationIssue[]};
 
-const TOP_LEVEL_FIELDS=new Set(["kind","compoundActionId","schemaVersion","description","intent","components","ordering","concurrency","dependencies","atomicity","failurePolicy","completionRule","defaultPopulation","timing","constraints","rollback","measurement","provenance"]);
+const TOP_LEVEL_FIELDS=new Set(["kind","compoundActionId","schemaVersion","description","intent","components","ordering","concurrency","dependencies","atomicity","failurePolicy","completionRule","defaultPopulation","defaultPopulationBindingTime","timing","constraints","rollback","measurement","provenance"]);
 const COMPONENT_ROLES=new Set(["SOURCE","DESTINATION","PRIMARY","SUPPORTING","TRIGGER","DEPENDENT","CONTROL"]);
 const FORBIDDEN=new Set(["expectedRevenue","expectedProfit","expectedROAS","expectedLift","expectedSynergy","predictedInteractionEffect","predictedConversions","futureDemand","counterfactualRevenue","recommendationScore","confidenceScore","bestAction","evaluationResult","executionStatus","trafficAllocation","randomization","significanceThreshold","statisticalPower","experimentResult","executionState","lifecycleState","executedAt","failedAt","rolledBackAt","partiallyExecuted"]);
 function record(v:unknown):v is any{return typeof v==="object"&&v!==null&&!Array.isArray(v)}
@@ -97,6 +97,8 @@ export function validateCompoundAction(input:unknown):CompoundValidationResult{
       if(!graph.ok)add(a,"COMPOUND_DEPENDENCY_CYCLE","dependencies","component dependency graph contains a cycle");
     }
   }
+  if(input.defaultPopulationBindingTime!==undefined&&!input.defaultPopulation)add(a,"POPULATION_BINDING_TIME_WITHOUT_DEFAULT","defaultPopulationBindingTime","compound population binding time requires defaultPopulation");
+  if(input.defaultPopulationBindingTime!==undefined&&!["DECISION_TIME","EFFECTIVE_TIME","SEND_TIME","TRIGGER_TIME"].includes(input.defaultPopulationBindingTime))add(a,"INVALID_DEFAULT_POPULATION_BINDING_TIME","defaultPopulationBindingTime","unsupported population binding time");
   if(input.timing!==undefined&&!validateActionTiming(input.timing).ok)add(a,"INVALID_COMPOUND_TIMING","timing","shared timing is invalid");
   if(input.concurrency==="EFFECTIVE_TOGETHER"&&Array.isArray(input.components)){
     const overrides=input.components.filter((x:any)=>x?.timing?.kind==="OVERRIDE").map((x:any)=>actionTimingFingerprint(x.timing.timing));
