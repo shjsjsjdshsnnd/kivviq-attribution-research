@@ -486,7 +486,7 @@ function parseObservation(
       contributionMinor: raw["contributionMinor"],
       productViews: raw["productViews"],
       conversions: raw["conversions"],
-      currentPosition: raw["currentPosition"],
+      currentPosition: raw["currentPosition"] as number | null,
       availableUnits: raw["availableUnits"],
       pendingReorder: raw["pendingReorder"],
       incomingUnits: raw["incomingUnits"],
@@ -1980,8 +1980,9 @@ function evaluate(
         start: parsed.payload.windowStart,
         end: parsed.payload.windowEnd,
       },
-      legalActionSpaceFingerprint:
-        input.legalActionSpace.availabilityFingerprint,
+      legalActionSpaceFingerprint: operatorFingerprint(
+        input.legalActionSpace as unknown as OperatorJson,
+      ),
       candidateSet: candidates as unknown as OperatorJson,
       excludedCandidates: excluded,
       candidateRanking: ranked,
