@@ -13,6 +13,11 @@ import type {
   InventoryBackorderPolicy,
   InventoryLeadTimeAssumption,
   InventorySupplierConstraints,
+  LifecycleChannel,
+  LifecycleEvent,
+  LifecycleMembershipBoundary,
+  LifecyclePolicyRollbackValue,
+  LifecyclePurpose,
   MembershipEvaluationBoundary,
   MerchandisingEntityTarget,
   MerchandisingSurface,
@@ -26,13 +31,14 @@ import type {
 } from "../simulator_intervention/types.js";
 
 export const ACTION_TRANSLATION_VERSION = "1.0.0" as const;
-export const TRANSLATION_CONTEXT_SCHEMA_VERSION = "1.5.0" as const;
+export const TRANSLATION_CONTEXT_SCHEMA_VERSION = "1.6.0" as const;
 export const SUPPORTED_TRANSLATION_CONTEXT_SCHEMA_VERSIONS = [
   "1.0.0",
   "1.1.0",
   "1.2.0",
   "1.3.0",
   "1.4.0",
+  "1.5.0",
   TRANSLATION_CONTEXT_SCHEMA_VERSION,
 ] as const;
 
@@ -174,6 +180,60 @@ export interface CroExperienceContextBinding {
   readonly performanceConfigurationRef?: string;
 }
 
+
+export interface LifecycleFlowContextBinding {
+  readonly flowId: string;
+  readonly active: boolean;
+  readonly purpose: LifecyclePurpose;
+  readonly configurationRef: string;
+  readonly sourceRef: string;
+}
+
+export interface LifecyclePolicyContextBinding {
+  readonly contactPolicyId: string;
+  readonly value: LifecyclePolicyRollbackValue;
+  readonly sourceRef: string;
+}
+
+export interface LifecycleSegmentDefinitionBinding {
+  readonly segmentId: string;
+  readonly sourceRef: string;
+}
+
+export interface LifecycleMembershipSnapshotBinding {
+  readonly segmentId: string;
+  readonly evaluateAt: LifecycleMembershipBoundary;
+  readonly bindingRef: string;
+  readonly snapshotTime: UtcTimestamp;
+  readonly sourceRef: string;
+  readonly customerIds?: readonly string[];
+}
+
+export interface LifecycleChannelCapabilityBinding {
+  readonly channel: LifecycleChannel;
+  readonly sendSupported: boolean;
+  readonly sourceRef: string;
+}
+
+export interface LifecycleCustomerChannelState {
+  readonly channel: LifecycleChannel;
+  readonly consentEligible?: boolean;
+  readonly validDestination?: boolean;
+  readonly channelSuppressed?: boolean;
+}
+
+export interface LifecycleCustomerContextBinding {
+  readonly customerId: string;
+  readonly segmentIds?: readonly string[];
+  readonly channelStates?: readonly LifecycleCustomerChannelState[];
+  readonly currentFlowIds?: readonly string[];
+  readonly knownEvents?: readonly {
+    readonly event: LifecycleEvent;
+    readonly occurredAt: UtcTimestamp;
+  }[];
+  readonly sourceRef: string;
+}
+
 export interface TranslationContext {
   readonly schemaVersion:
     (typeof SUPPORTED_TRANSLATION_CONTEXT_SCHEMA_VERSIONS)[number];
@@ -188,6 +248,12 @@ export interface TranslationContext {
   readonly inventoryStateBindings?: readonly InventoryTranslationStateBinding[];
   readonly croStructureSnapshots?: readonly CroStructureSnapshotBinding[];
   readonly croExperienceBindings?: readonly CroExperienceContextBinding[];
+  readonly lifecycleFlowBindings?: readonly LifecycleFlowContextBinding[];
+  readonly lifecyclePolicyBindings?: readonly LifecyclePolicyContextBinding[];
+  readonly lifecycleSegmentDefinitions?: readonly LifecycleSegmentDefinitionBinding[];
+  readonly lifecycleMembershipSnapshots?: readonly LifecycleMembershipSnapshotBinding[];
+  readonly lifecycleChannelCapabilities?: readonly LifecycleChannelCapabilityBinding[];
+  readonly lifecycleCustomerBindings?: readonly LifecycleCustomerContextBinding[];
 }
 
 export interface ResolvedCompoundBusinessAction {

@@ -6,7 +6,7 @@ module.exports = {
         "Operator-facing modules must never depend on GroundTruth, generation, latent customers, simulation, advertising economics, cross-channel interactions, ecommerce economics, product economics, evaluator/oracle, or other God-mode internals.",
       severity: "error",
       from: {
-        path: "^(src/(observation|operator|operator_safe|action_ontology|action_translation|simulator_intervention|paid_media|pricing|promotion|shipping|merchandising|inventory|cro)(/|$)|src/index\\.ts$)",
+        path: "^(src/(observation|operator|operator_safe|action_ontology|action_translation|simulator_intervention|paid_media|pricing|promotion|shipping|merchandising|inventory|cro|lifecycle)(/|$)|src/index\\.ts$)",
       },
       to: {
         path: "^src/(ground_truth|generation|customer_population|simulation|advertising_economics|cross_channel|ecommerce_economics|product_economics|evaluation|oracle|god_mode)(/|$)",
@@ -115,6 +115,18 @@ module.exports = {
       severity: "error",
       from: {
         path: "^src/cro(/|$)",
+      },
+      to: {
+        path: "^src/(action_translation|simulator_intervention|simulation|evaluation|oracle|god_mode|ground_truth|product_economics)(/|$)",
+      },
+    },
+    {
+      name: "lifecycle-business-language-cannot-depend-on-simulator",
+      comment:
+        "Lifecycle business Actions, eligibility, flow-conflict and rollback contracts may depend on canonical Action contracts but not simulator internals, evaluator/oracle, optimizer, experiment outcomes, provider execution, message generation or future customer prediction.",
+      severity: "error",
+      from: {
+        path: "^src/lifecycle(/|$)",
       },
       to: {
         path: "^src/(action_translation|simulator_intervention|simulation|evaluation|oracle|god_mode|ground_truth|product_economics)(/|$)",

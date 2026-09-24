@@ -4,7 +4,7 @@ import type {
   UtcTimestamp,
 } from "../core/units.js";
 
-export const ACTION_SCHEMA_VERSION = "1.7.0" as const;
+export const ACTION_SCHEMA_VERSION = "1.8.0" as const;
 export const SUPPORTED_ACTION_SCHEMA_VERSIONS = [
   "1.0.0",
   "1.1.0",
@@ -13,6 +13,7 @@ export const SUPPORTED_ACTION_SCHEMA_VERSIONS = [
   "1.4.0",
   "1.5.0",
   "1.6.0",
+  "1.7.0",
   ACTION_SCHEMA_VERSION,
 ] as const;
 export type ActionSchemaVersion =
@@ -111,6 +112,8 @@ export type ActionTarget =
     }
   | { readonly kind: "page"; readonly pageId: string }
   | { readonly kind: "lifecycle_program"; readonly programId: string }
+  | { readonly kind: "lifecycle_flow"; readonly flowId: string }
+  | { readonly kind: "lifecycle_contact_policy"; readonly contactPolicyId: string }
   | { readonly kind: "shipping_policy"; readonly shippingPolicyId: string }
   | { readonly kind: "shipping_offer"; readonly shippingOfferId: string }
   | { readonly kind: "inventory_policy"; readonly inventoryPolicyId: string }
@@ -1242,6 +1245,308 @@ export type CroRollbackContract =
       readonly conflictGuard: CroRollbackConflictGuard;
     };
 
+
+export type LifecycleChannel =
+  | { readonly kind: "EMAIL" }
+  | { readonly kind: "SMS" }
+  | { readonly kind: "CUSTOM"; readonly channelId: string };
+
+export type LifecyclePurpose =
+  | { readonly kind: "GENERAL_CAMPAIGN" }
+  | { readonly kind: "WELCOME" }
+  | { readonly kind: "WINBACK" }
+  | { readonly kind: "POST_PURCHASE" }
+  | { readonly kind: "REPLENISHMENT" }
+  | { readonly kind: "RETENTION" }
+  | { readonly kind: "BROWSE_ABANDONMENT" }
+  | { readonly kind: "CART_ABANDONMENT" }
+  | { readonly kind: "BACK_IN_STOCK" }
+  | { readonly kind: "PRICE_DROP" }
+  | { readonly kind: "LOYALTY" }
+  | { readonly kind: "CUSTOM"; readonly purposeId: string };
+
+export type LifecycleMembershipBoundary =
+  | "DECISION_TIME"
+  | "SEND_TIME"
+  | "TRIGGER_TIME";
+
+export interface LifecycleMembershipSemantics {
+  readonly evaluateAt: LifecycleMembershipBoundary;
+  readonly bindingRef?: string;
+}
+
+export type LifecycleAudienceSelector =
+  | {
+      readonly kind: "CUSTOMER_SEGMENT";
+      readonly segmentId: string;
+      readonly membership: LifecycleMembershipSemantics;
+    }
+  | {
+      readonly kind: "PURCHASE_COUNT_EQUALS";
+      readonly count: number;
+    }
+  | {
+      readonly kind: "PURCHASE_COUNT_AT_LEAST";
+      readonly count: number;
+    }
+  | {
+      readonly kind: "ALL_ELIGIBLE_CONTACTS";
+    };
+
+export type LifecycleSuppressionRule =
+  | {
+      readonly kind: "RECENT_PURCHASE_WITHIN";
+      readonly days: number;
+    }
+  | {
+      readonly kind: "CURRENT_FLOW_MEMBERSHIP";
+      readonly flowId: string;
+    }
+  | {
+      readonly kind: "CUSTOMER_SEGMENT";
+      readonly segmentId: string;
+      readonly membership: LifecycleMembershipSemantics;
+    }
+  | {
+      readonly kind: "CHANNEL_SUPPRESSED";
+      readonly channel: LifecycleChannel;
+    }
+  | {
+      readonly kind: "CONTACT_POLICY_BLOCK";
+      readonly contactPolicyId: string;
+    };
+
+export interface LifecycleAudienceDefinition {
+  readonly include: readonly LifecycleAudienceSelector[];
+  readonly suppress: readonly LifecycleSuppressionRule[];
+  readonly suppressionPrecedence: "SUPPRESS_OVERRIDES_INCLUDE";
+}
+
+export interface LifecycleChannelEligibility {
+  readonly requireConsent: boolean;
+  readonly requireValidDestination: boolean;
+  readonly requireNotChannelSuppressed: boolean;
+}
+
+export type LifecycleEvent =
+  | { readonly kind: "ORDER_PLACED" }
+  | { readonly kind: "ORDER_FULFILLED" }
+  | { readonly kind: "ORDER_DELIVERED" }
+  | { readonly kind: "CUSTOMER_CREATED" }
+  | {
+      readonly kind: "PRODUCT_PURCHASED";
+      readonly productId: string;
+    }
+  | {
+      readonly kind: "CUSTOM";
+      readonly eventId: string;
+    };
+
+export type LifecycleSendTiming =
+  | {
+      readonly kind: "ABSOLUTE_TIME";
+      readonly at: UtcTimestamp;
+      readonly timezone: string;
+    }
+  | {
+      readonly kind: "RELATIVE_TO_EVENT";
+      readonly event: LifecycleEvent;
+      readonly delaySeconds: number;
+    }
+  | {
+      readonly kind: "RECURRING_CADENCE";
+      readonly cadence: {
+        readonly count: number;
+        readonly windowSeconds: number;
+      };
+      readonly timezone: string;
+    };
+
+export type LifecycleFlowTrigger =
+  | {
+      readonly kind: "METRIC_THRESHOLD";
+      readonly metric:
+        | "DAYS_SINCE_LAST_PURCHASE"
+        | "DAYS_SINCE_LAST_ENGAGEMENT";
+      readonly operator: "GTE" | "GT" | "EQ";
+      readonly value: number;
+    }
+  | {
+      readonly kind: "EVENT";
+      readonly event: LifecycleEvent;
+    }
+  | {
+      readonly kind: "AUDIENCE_ENTRY";
+    };
+
+export type LifecycleStepContinuation =
+  | { readonly kind: "CONTINUE_IF_ELIGIBLE" }
+  | { readonly kind: "CONTINUE_IF_NO_PURCHASE" };
+
+export type LifecycleExitCondition =
+  | { readonly kind: "PURCHASE_OCCURRED" }
+  | { readonly kind: "CUSTOMER_INELIGIBLE" }
+  | {
+      readonly kind: "EVENT_OCCURRED";
+      readonly event: LifecycleEvent;
+    };
+
+export interface LifecycleSequenceStep {
+  readonly stepId: string;
+  readonly position: number;
+  readonly channel: LifecycleChannel;
+  readonly delaySeconds: number;
+  readonly eligibility: LifecycleChannelEligibility;
+  readonly suppress: readonly LifecycleSuppressionRule[];
+  readonly continuation: LifecycleStepContinuation;
+  readonly exitConditions: readonly LifecycleExitCondition[];
+}
+
+export type LifecycleFlowConflictResolution =
+  | { readonly kind: "COEXIST" }
+  | { readonly kind: "PRECEDENCE"; readonly precedence: number }
+  | {
+      readonly kind: "MUTUALLY_EXCLUSIVE_GROUP";
+      readonly groupId: string;
+      readonly precedence?: number;
+    }
+  | {
+      readonly kind: "SUPPRESS_WHEN_CONTACT_POLICY_BLOCKS";
+    };
+
+export interface LifecycleFlowDefinition {
+  readonly flowId: string;
+  readonly purpose: LifecyclePurpose;
+  readonly audience: LifecycleAudienceDefinition;
+  readonly trigger: LifecycleFlowTrigger;
+  readonly sequence: readonly LifecycleSequenceStep[];
+  readonly exitConditions: readonly LifecycleExitCondition[];
+  readonly contactPolicyRefs: readonly string[];
+  readonly conflictResolution: LifecycleFlowConflictResolution;
+}
+
+export type LifecycleFlowModification =
+  | {
+      readonly kind: "SET_TRIGGER";
+      readonly trigger: LifecycleFlowTrigger;
+    }
+  | {
+      readonly kind: "SET_STEP_DELAY";
+      readonly stepId: string;
+      readonly delaySeconds: number;
+    }
+  | {
+      readonly kind: "ADD_STEP";
+      readonly step: LifecycleSequenceStep;
+    }
+  | {
+      readonly kind: "REMOVE_STEP";
+      readonly stepId: string;
+    };
+
+export interface LifecycleFrequencyValue {
+  readonly count: number;
+  readonly windowSeconds: number;
+}
+
+export type LifecycleFrequencyReference =
+  | {
+      readonly kind: "current_policy_at_decision";
+      readonly decisionTime: UtcTimestamp;
+    }
+  | {
+      readonly kind: "baseline_snapshot";
+      readonly baselineId: string;
+    }
+  | {
+      readonly kind: "explicit_baseline";
+      readonly value: LifecycleFrequencyValue;
+    };
+
+export type LifecycleFrequencyOperation =
+  | {
+      readonly kind: "SET";
+      readonly value: LifecycleFrequencyValue;
+    }
+  | {
+      readonly kind: "DELTA";
+      readonly direction: "increase" | "decrease";
+      readonly amount: LifecycleFrequencyValue;
+      readonly reference: LifecycleFrequencyReference;
+    }
+  | {
+      readonly kind: "MULTIPLY";
+      readonly factor: number;
+      readonly reference: LifecycleFrequencyReference;
+    };
+
+export type LifecycleFrequencyPolicy =
+  | {
+      readonly kind: "PLANNED_CADENCE";
+      readonly channel: LifecycleChannel;
+      readonly purpose?: LifecyclePurpose;
+      readonly operation: LifecycleFrequencyOperation;
+    }
+  | {
+      readonly kind: "CONTACT_CAP";
+      readonly channels: readonly LifecycleChannel[];
+      readonly maximumContacts: number;
+      readonly windowSeconds: number;
+    }
+  | {
+      readonly kind: "MINIMUM_INTERVAL";
+      readonly channels: readonly LifecycleChannel[];
+      readonly minimumIntervalSeconds: number;
+    };
+
+export type LifecyclePolicyRollbackValue =
+  | {
+      readonly kind: "FREQUENCY_POLICY";
+      readonly policy: LifecycleFrequencyPolicy;
+    };
+
+export type LifecyclePolicyRollbackReference =
+  | {
+      readonly kind: "lifecycle_policy_snapshot";
+      readonly baselineId: string;
+    }
+  | {
+      readonly kind: "explicit_policy";
+      readonly value: LifecyclePolicyRollbackValue;
+    };
+
+export type LifecycleRollbackStrategy =
+  | {
+      readonly kind: "RESTORE_PRE_ACTION_VALUE";
+      readonly preActionValue: LifecyclePolicyRollbackReference;
+    }
+  | {
+      readonly kind: "SET_EXPLICIT_VALUE";
+      readonly value: LifecyclePolicyRollbackValue;
+    };
+
+export interface LifecycleRollbackConflictGuard {
+  readonly kind: "REQUIRE_CURRENT_MATCHES_ACTION_OUTPUT";
+  readonly sourceActionId: ActionId;
+  readonly expectedValue: LifecyclePolicyRollbackValue;
+}
+
+export type LifecycleRollbackContract =
+  | {
+      readonly available: false;
+      readonly reason: string;
+    }
+  | {
+      readonly available: true;
+      readonly strategy: LifecycleRollbackStrategy;
+      readonly trigger:
+        | { readonly kind: "ON_TERMINATION" }
+        | { readonly kind: "AT"; readonly at: UtcTimestamp };
+      readonly delaySeconds: number;
+      readonly cost: KnownOrUnknown<MonetaryValue>;
+      readonly conflictGuard: LifecycleRollbackConflictGuard;
+    };
+
 export type ActionParameters =
   | {
       readonly kind: "budget_adjustment";
@@ -1368,6 +1673,12 @@ export type ActionParameters =
   | {
       readonly kind: "frequency_adjustment";
       readonly operation: ValueOperation<FrequencyValue>;
+      readonly policy?: never;
+    }
+  | {
+      readonly kind: "frequency_adjustment";
+      readonly policy: LifecycleFrequencyPolicy;
+      readonly operation?: never;
     }
   | {
       readonly kind: "toggle";
@@ -1475,6 +1786,41 @@ export type ActionParameters =
       readonly originalActionId: ActionId;
       readonly strategy: CroRollbackStrategy;
       readonly conflictGuard: CroRollbackConflictGuard;
+    }
+  | {
+      readonly kind: "lifecycle_send";
+      readonly channel: LifecycleChannel;
+      readonly purpose: LifecyclePurpose;
+      readonly audience: LifecycleAudienceDefinition;
+      readonly timing: LifecycleSendTiming;
+      readonly eligibility: LifecycleChannelEligibility;
+      readonly contactPolicyRefs: readonly string[];
+      readonly coordinatedActionIds?: readonly ActionId[];
+    }
+  | {
+      readonly kind: "lifecycle_flow_start";
+      readonly definition: LifecycleFlowDefinition;
+      readonly coordinatedActionIds?: readonly ActionId[];
+    }
+  | {
+      readonly kind: "lifecycle_flow_stop";
+      readonly targetFlowId: string;
+      readonly stopSemantics: "PREVENT_FUTURE_TRIGGERED_COMMUNICATIONS";
+    }
+  | {
+      readonly kind: "lifecycle_flow_modify";
+      readonly targetFlowId: string;
+      readonly modifications: readonly LifecycleFlowModification[];
+    }
+  | {
+      readonly kind: "lifecycle_targeting";
+      readonly audience: LifecycleAudienceDefinition;
+    }
+  | {
+      readonly kind: "lifecycle_policy_rollback";
+      readonly originalActionId: ActionId;
+      readonly strategy: LifecycleRollbackStrategy;
+      readonly conflictGuard: LifecycleRollbackConflictGuard;
     }
   | {
       readonly kind: "segment_targeting";
@@ -1703,6 +2049,7 @@ export interface ActionReversibility {
   readonly merchandisingRollback?: MerchandisingRollbackContract;
   readonly inventoryRollback?: InventoryRollbackContract;
   readonly croRollback?: CroRollbackContract;
+  readonly lifecycleRollback?: LifecycleRollbackContract;
 }
 
 export const RISK_DIMENSIONS = [
@@ -1753,6 +2100,8 @@ export const OUTCOME_FAMILIES = [
   "return_rate",
   "engagement",
   "experience_performance",
+  "messaging_delivery",
+  "subscription_status",
 ] as const;
 
 export type OutcomeFamily = (typeof OUTCOME_FAMILIES)[number];

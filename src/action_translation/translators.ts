@@ -914,6 +914,48 @@ function unsupportedCroTranslator(
   };
 }
 
+
+function unsupportedLifecycleTranslator(
+  actionType:
+    | "lifecycle.send"
+    | "lifecycle.start_flow"
+    | "lifecycle.stop_flow"
+    | "lifecycle.modify_flow"
+    | "lifecycle.adjust_frequency"
+    | "lifecycle.target_segment"
+    | "lifecycle.rollback_policy",
+): ActionTranslator {
+  const supportedTargetKinds: ActionTranslator["supportedTargetKinds"] =
+    actionType === "lifecycle.start_flow" ||
+    actionType === "lifecycle.stop_flow" ||
+    actionType === "lifecycle.modify_flow"
+      ? ["lifecycle_flow"]
+      : actionType === "lifecycle.rollback_policy"
+        ? ["lifecycle_contact_policy"]
+        : actionType === "lifecycle.adjust_frequency"
+          ? ["lifecycle_program", "customer_segment", "lifecycle_contact_policy"]
+          : actionType === "lifecycle.target_segment"
+            ? ["lifecycle_program", "lifecycle_flow"]
+            : ["lifecycle_program"];
+
+  return {
+    actionType,
+    translatorId:
+      "translator." + actionType.replace(".", "_") + "_boundary.v1",
+    translationVersion: ACTION_TRANSLATION_VERSION,
+    supportedTargetKinds,
+    translate(action) {
+      return {
+        status: "UNSUPPORTED_SIMULATOR_CAPABILITY",
+        actionId: action.actionId,
+        code: "LIFECYCLE_CAPABILITY_UNSUPPORTED_BY_SIMULATOR",
+        message:
+          "Current simulator has no native lifecycle send, flow activation/deactivation, customer-response or lifecycle frequency-policy intervention. Lifecycle Actions are not translated into conversion probability, repeat-purchase probability, retention, LTV or revenue mutations.",
+      };
+    },
+  };
+}
+
 const merchandisingTranslator: ActionTranslator = {
   actionType: "merchandising.move_product",
   translatorId: "translator.merchandising_position.v1",
@@ -1047,6 +1089,13 @@ export const CORE_ACTION_TRANSLATORS: readonly ActionTranslator[] = Object.freez
   unsupportedCroTranslator("cro.modify_search"),
   unsupportedCroTranslator("cro.modify_checkout"),
   unsupportedCroTranslator("cro.rollback_experience"),
+  unsupportedLifecycleTranslator("lifecycle.send"),
+  unsupportedLifecycleTranslator("lifecycle.start_flow"),
+  unsupportedLifecycleTranslator("lifecycle.stop_flow"),
+  unsupportedLifecycleTranslator("lifecycle.modify_flow"),
+  unsupportedLifecycleTranslator("lifecycle.adjust_frequency"),
+  unsupportedLifecycleTranslator("lifecycle.target_segment"),
+  unsupportedLifecycleTranslator("lifecycle.rollback_policy"),
   merchandisingTranslator,
   noCausalInterventionTranslator(
     "no_op.do_nothing",

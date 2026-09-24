@@ -66,6 +66,8 @@ const SHIPPING_OFFER_ID_PATTERN = /^shipoffer_[A-Za-z0-9._:-]+$/;
 const MERCHANDISING_PLACEMENT_ID_PATTERN = /^merchplace_[A-Za-z0-9._:-]+$/;
 const MERCHANDISING_RELATIONSHIP_ID_PATTERN = /^merchrel_[A-Za-z0-9._:-]+$/;
 const CRO_EXPERIENCE_ID_PATTERN = /^croexp_[A-Za-z0-9._:-]+$/;
+const LIFECYCLE_FLOW_ID_PATTERN = /^lifecycleflow_[A-Za-z0-9._:-]+$/;
+const LIFECYCLE_POLICY_ID_PATTERN = /^lifecyclepolicy_[A-Za-z0-9._:-]+$/;
 
 const TOP_LEVEL_FIELDS = new Set([
   "kind",
@@ -149,6 +151,30 @@ const FORBIDDEN_ACTION_KEYS = new Set([
   "providerPayload",
   "futureSessions",
   "futureOrders",
+  "expectedOpenRate",
+  "expectedClickRate",
+  "expectedRepeatPurchase",
+  "expectedRetentionLift",
+  "expectedLTV",
+  "predictedChurnReduction",
+  "predictedOptimalSendTime",
+  "futurePurchase",
+  "futureEngagement",
+  "futureChurn",
+  "futureSegmentMembership",
+  "futureCustomerBehavior",
+  "controlGroup",
+  "statisticalPower",
+  "subjectLine",
+  "messageBody",
+  "messageCreative",
+  "smsCopy",
+  "providerWorkflowId",
+  "omnisendWorkflowId",
+  "klaviyoFlowId",
+  "mailchimpCampaignId",
+  "attentiveCampaignId",
+  "shopifyEmailCampaignId",
   "futureConversion",
   "futureInventory",
   "futureRevenue",
@@ -399,6 +425,29 @@ const ACTION_SCHEMA_1_7_ACTION_TYPES = new Set([
   "cro.modify_search",
   "cro.modify_checkout",
   "cro.rollback_experience",
+]);
+
+const ACTION_SCHEMA_1_8_TARGET_KINDS = new Set([
+  "lifecycle_flow",
+  "lifecycle_contact_policy",
+]);
+
+const ACTION_SCHEMA_1_8_PARAMETER_KINDS = new Set([
+  "lifecycle_send",
+  "lifecycle_flow_start",
+  "lifecycle_flow_stop",
+  "lifecycle_flow_modify",
+  "lifecycle_targeting",
+  "lifecycle_policy_rollback",
+]);
+
+const ACTION_SCHEMA_1_8_ACTION_TYPES = new Set([
+  "lifecycle.send",
+  "lifecycle.start_flow",
+  "lifecycle.stop_flow",
+  "lifecycle.modify_flow",
+  "lifecycle.target_segment",
+  "lifecycle.rollback_policy",
 ]);
 
 function validateSchemaFeatureCompatibility(
@@ -714,6 +763,49 @@ function validateSchemaFeatureCompatibility(
       add(errors,"SCHEMA_FEATURE_REQUIRES_1_7","reversibility.croRollback","CRO rollback semantics require Action schema 1.7.0");
     }
   }
+
+  if (
+    schemaVersion === "1.0.0" ||
+    schemaVersion === "1.1.0" ||
+    schemaVersion === "1.2.0" ||
+    schemaVersion === "1.3.0" ||
+    schemaVersion === "1.4.0" ||
+    schemaVersion === "1.5.0" ||
+    schemaVersion === "1.6.0" ||
+    schemaVersion === "1.7.0"
+  ) {
+    if (
+      record(input.target) &&
+      ACTION_SCHEMA_1_8_TARGET_KINDS.has(String(input.target.kind))
+    ) {
+      add(errors,"SCHEMA_FEATURE_REQUIRES_1_8","target.kind","this lifecycle target kind requires Action schema 1.8.0");
+    }
+    if (
+      record(input.parameters) &&
+      ACTION_SCHEMA_1_8_PARAMETER_KINDS.has(String(input.parameters.kind))
+    ) {
+      add(errors,"SCHEMA_FEATURE_REQUIRES_1_8","parameters.kind","this lifecycle parameter kind requires Action schema 1.8.0");
+    }
+    if (
+      typeof input.actionType === "string" &&
+      ACTION_SCHEMA_1_8_ACTION_TYPES.has(input.actionType)
+    ) {
+      add(errors,"SCHEMA_FEATURE_REQUIRES_1_8","actionType","this lifecycle Action type requires Action schema 1.8.0");
+    }
+    if (
+      record(input.parameters) &&
+      input.parameters.kind === "frequency_adjustment" &&
+      input.parameters.policy !== undefined
+    ) {
+      add(errors,"SCHEMA_FEATURE_REQUIRES_1_8","parameters.policy","structured lifecycle frequency policy requires Action schema 1.8.0");
+    }
+    if (
+      record(input.reversibility) &&
+      input.reversibility.lifecycleRollback !== undefined
+    ) {
+      add(errors,"SCHEMA_FEATURE_REQUIRES_1_8","reversibility.lifecycleRollback","lifecycle rollback semantics require Action schema 1.8.0");
+    }
+  }
 }
 
 function validateTarget(
@@ -747,6 +839,8 @@ function validateTarget(
     funnel_stage: ["funnelId", "stageId"],
     page: ["pageId"],
     lifecycle_program: ["programId"],
+    lifecycle_flow: ["flowId"],
+    lifecycle_contact_policy: ["contactPolicyId"],
     shipping_policy: ["shippingPolicyId"],
     shipping_offer: ["shippingOfferId"],
     inventory_policy: ["inventoryPolicyId"],
@@ -3866,6 +3960,721 @@ function validateCroParameters(input:unknown,path:string,errors:ActionValidation
     return;
   }
 }
+
+function validateLifecycleChannel(
+  input: unknown,
+  path: string,
+  errors: ActionValidationIssue[],
+): void {
+  if (!record(input) || !nonEmpty(input.kind)) {
+    add(errors,"INVALID_LIFECYCLE_CHANNEL",path,"channel is required");
+    return;
+  }
+  if (["EMAIL","SMS"].includes(String(input.kind))) return;
+  if (input.kind === "CUSTOM") {
+    if (!nonEmpty(input.channelId)) {
+      add(errors,"INVALID_LIFECYCLE_CHANNEL_ID",path+".channelId","custom channelId is required");
+    }
+    return;
+  }
+  add(errors,"UNKNOWN_LIFECYCLE_CHANNEL",path+".kind","unsupported lifecycle channel");
+}
+
+function lifecycleChannelKey(input: unknown): string {
+  if (!record(input)) return "";
+  return input.kind === "CUSTOM"
+    ? "CUSTOM:" + String(input.channelId ?? "")
+    : String(input.kind ?? "");
+}
+
+function validateLifecyclePurpose(
+  input: unknown,
+  path: string,
+  errors: ActionValidationIssue[],
+): void {
+  if (!record(input) || !nonEmpty(input.kind)) {
+    add(errors,"INVALID_LIFECYCLE_PURPOSE",path,"purpose is required");
+    return;
+  }
+  if ([
+    "GENERAL_CAMPAIGN","WELCOME","WINBACK","POST_PURCHASE","REPLENISHMENT",
+    "RETENTION","BROWSE_ABANDONMENT","CART_ABANDONMENT","BACK_IN_STOCK",
+    "PRICE_DROP","LOYALTY",
+  ].includes(String(input.kind))) return;
+  if (input.kind === "CUSTOM") {
+    if (!nonEmpty(input.purposeId)) {
+      add(errors,"INVALID_LIFECYCLE_PURPOSE_ID",path+".purposeId","custom purposeId is required");
+    }
+    return;
+  }
+  add(errors,"UNKNOWN_LIFECYCLE_PURPOSE",path+".kind","unsupported lifecycle purpose");
+}
+
+function validateLifecycleMembership(
+  input: unknown,
+  path: string,
+  errors: ActionValidationIssue[],
+): void {
+  if (!record(input)) {
+    add(errors,"INVALID_LIFECYCLE_MEMBERSHIP",path,"membership semantics are required");
+    return;
+  }
+  if (!["DECISION_TIME","SEND_TIME","TRIGGER_TIME"].includes(String(input.evaluateAt))) {
+    add(errors,"INVALID_LIFECYCLE_MEMBERSHIP_BOUNDARY",path+".evaluateAt","must be DECISION_TIME, SEND_TIME or TRIGGER_TIME");
+  }
+  if (input.bindingRef !== undefined && !nonEmpty(input.bindingRef)) {
+    add(errors,"INVALID_LIFECYCLE_MEMBERSHIP_BINDING",path+".bindingRef","must be non-empty when supplied");
+  }
+}
+
+function validateLifecycleAudienceSelector(
+  input: unknown,
+  path: string,
+  errors: ActionValidationIssue[],
+): void {
+  if (!record(input) || !nonEmpty(input.kind)) {
+    add(errors,"INVALID_LIFECYCLE_AUDIENCE_SELECTOR",path,"audience selector kind is required");
+    return;
+  }
+  if (input.kind === "ALL_ELIGIBLE_CONTACTS") return;
+  if (input.kind === "CUSTOMER_SEGMENT") {
+    if (!nonEmpty(input.segmentId)) {
+      add(errors,"INVALID_LIFECYCLE_SEGMENT_ID",path+".segmentId","segmentId is required");
+    }
+    validateLifecycleMembership(input.membership,path+".membership",errors);
+    return;
+  }
+  if (input.kind === "PURCHASE_COUNT_EQUALS" || input.kind === "PURCHASE_COUNT_AT_LEAST") {
+    validateNonNegativeInteger(input.count,path+".count",errors);
+    return;
+  }
+  add(errors,"UNKNOWN_LIFECYCLE_AUDIENCE_SELECTOR",path+".kind","unsupported audience selector");
+}
+
+function validateLifecycleSuppressionRule(
+  input: unknown,
+  path: string,
+  errors: ActionValidationIssue[],
+): void {
+  if (!record(input) || !nonEmpty(input.kind)) {
+    add(errors,"INVALID_LIFECYCLE_SUPPRESSION",path,"suppression rule kind is required");
+    return;
+  }
+  if (input.kind === "RECENT_PURCHASE_WITHIN") {
+    validatePositiveInteger(input.days,path+".days",errors);
+    return;
+  }
+  if (input.kind === "CURRENT_FLOW_MEMBERSHIP") {
+    if (!nonEmpty(input.flowId) || !LIFECYCLE_FLOW_ID_PATTERN.test(String(input.flowId))) {
+      add(errors,"INVALID_LIFECYCLE_FLOW_ID",path+".flowId","flowId must begin lifecycleflow_");
+    }
+    return;
+  }
+  if (input.kind === "CUSTOMER_SEGMENT") {
+    if (!nonEmpty(input.segmentId)) {
+      add(errors,"INVALID_LIFECYCLE_SEGMENT_ID",path+".segmentId","segmentId is required");
+    }
+    validateLifecycleMembership(input.membership,path+".membership",errors);
+    return;
+  }
+  if (input.kind === "CHANNEL_SUPPRESSED") {
+    validateLifecycleChannel(input.channel,path+".channel",errors);
+    return;
+  }
+  if (input.kind === "CONTACT_POLICY_BLOCK") {
+    if (!nonEmpty(input.contactPolicyId) || !LIFECYCLE_POLICY_ID_PATTERN.test(String(input.contactPolicyId))) {
+      add(errors,"INVALID_LIFECYCLE_POLICY_ID",path+".contactPolicyId","contactPolicyId must begin lifecyclepolicy_");
+    }
+    return;
+  }
+  add(errors,"UNKNOWN_LIFECYCLE_SUPPRESSION",path+".kind","unsupported suppression rule");
+}
+
+function validateLifecycleAudienceDefinition(
+  input: unknown,
+  path: string,
+  errors: ActionValidationIssue[],
+): void {
+  if (!record(input)) {
+    add(errors,"INVALID_LIFECYCLE_AUDIENCE",path,"audience definition is required");
+    return;
+  }
+  if (!Array.isArray(input.include) || input.include.length === 0) {
+    add(errors,"LIFECYCLE_AUDIENCE_INCLUDE_REQUIRED",path+".include","at least one include selector is required");
+  } else {
+    input.include.forEach((selector: unknown,index: number)=>
+      validateLifecycleAudienceSelector(selector,path+".include["+index+"]",errors),
+    );
+  }
+  if (!Array.isArray(input.suppress)) {
+    add(errors,"INVALID_LIFECYCLE_SUPPRESSION_LIST",path+".suppress","suppress must be an array");
+  } else {
+    input.suppress.forEach((rule: unknown,index: number)=>
+      validateLifecycleSuppressionRule(rule,path+".suppress["+index+"]",errors),
+    );
+  }
+  if (input.suppressionPrecedence !== "SUPPRESS_OVERRIDES_INCLUDE") {
+    add(errors,"INVALID_LIFECYCLE_SUPPRESSION_PRECEDENCE",path+".suppressionPrecedence","SUPPRESS_OVERRIDES_INCLUDE is required");
+  }
+}
+
+function validateLifecycleEligibilityRequirements(
+  input: unknown,
+  path: string,
+  errors: ActionValidationIssue[],
+): void {
+  if (!record(input)) {
+    add(errors,"INVALID_LIFECYCLE_CHANNEL_ELIGIBILITY",path,"channel eligibility is required");
+    return;
+  }
+  for (const field of [
+    "requireConsent",
+    "requireValidDestination",
+    "requireNotChannelSuppressed",
+  ]) {
+    if (typeof input[field] !== "boolean") {
+      add(errors,"INVALID_LIFECYCLE_CHANNEL_ELIGIBILITY",path+"."+field,"must be boolean");
+    }
+  }
+}
+
+function validateLifecycleEvent(
+  input: unknown,
+  path: string,
+  errors: ActionValidationIssue[],
+): void {
+  if (!record(input) || !nonEmpty(input.kind)) {
+    add(errors,"INVALID_LIFECYCLE_EVENT",path,"event kind is required");
+    return;
+  }
+  if (["ORDER_PLACED","ORDER_FULFILLED","ORDER_DELIVERED","CUSTOMER_CREATED"].includes(String(input.kind))) return;
+  if (input.kind === "PRODUCT_PURCHASED") {
+    if (!nonEmpty(input.productId)) {
+      add(errors,"INVALID_LIFECYCLE_EVENT_PRODUCT",path+".productId","productId is required");
+    }
+    return;
+  }
+  if (input.kind === "CUSTOM") {
+    if (!nonEmpty(input.eventId)) {
+      add(errors,"INVALID_LIFECYCLE_EVENT_ID",path+".eventId","eventId is required");
+    }
+    return;
+  }
+  add(errors,"UNKNOWN_LIFECYCLE_EVENT",path+".kind","unsupported lifecycle event");
+}
+
+function validateLifecycleSendTiming(
+  input: unknown,
+  path: string,
+  errors: ActionValidationIssue[],
+): void {
+  if (!record(input) || !nonEmpty(input.kind)) {
+    add(errors,"INVALID_LIFECYCLE_SEND_TIMING",path,"send timing is required");
+    return;
+  }
+  if (input.kind === "ABSOLUTE_TIME") {
+    validateTimestamp(input.at,path+".at",errors);
+    if (!nonEmpty(input.timezone)) {
+      add(errors,"INVALID_LIFECYCLE_TIMEZONE",path+".timezone","timezone is required");
+    }
+    return;
+  }
+  if (input.kind === "RELATIVE_TO_EVENT") {
+    validateLifecycleEvent(input.event,path+".event",errors);
+    validateNonNegativeInteger(input.delaySeconds,path+".delaySeconds",errors);
+    return;
+  }
+  if (input.kind === "RECURRING_CADENCE") {
+    if (!record(input.cadence)) {
+      add(errors,"INVALID_LIFECYCLE_CADENCE",path+".cadence","cadence is required");
+    } else {
+      validatePositiveInteger(input.cadence.count,path+".cadence.count",errors);
+      validatePositiveInteger(input.cadence.windowSeconds,path+".cadence.windowSeconds",errors);
+    }
+    if (!nonEmpty(input.timezone)) {
+      add(errors,"INVALID_LIFECYCLE_TIMEZONE",path+".timezone","timezone is required");
+    }
+    return;
+  }
+  add(errors,"UNKNOWN_LIFECYCLE_SEND_TIMING",path+".kind","unsupported send timing");
+}
+
+function validateLifecycleFlowTrigger(
+  input: unknown,
+  path: string,
+  errors: ActionValidationIssue[],
+): void {
+  if (!record(input) || !nonEmpty(input.kind)) {
+    add(errors,"INVALID_LIFECYCLE_FLOW_TRIGGER",path,"flow trigger is required");
+    return;
+  }
+  if (input.kind === "METRIC_THRESHOLD") {
+    if (!["DAYS_SINCE_LAST_PURCHASE","DAYS_SINCE_LAST_ENGAGEMENT"].includes(String(input.metric))) {
+      add(errors,"INVALID_LIFECYCLE_TRIGGER_METRIC",path+".metric","unsupported lifecycle trigger metric");
+    }
+    if (!["GTE","GT","EQ"].includes(String(input.operator))) {
+      add(errors,"INVALID_LIFECYCLE_TRIGGER_OPERATOR",path+".operator","must be GTE, GT or EQ");
+    }
+    validateNonNegativeInteger(input.value,path+".value",errors);
+    return;
+  }
+  if (input.kind === "EVENT") {
+    validateLifecycleEvent(input.event,path+".event",errors);
+    return;
+  }
+  if (input.kind === "AUDIENCE_ENTRY") return;
+  add(errors,"UNKNOWN_LIFECYCLE_FLOW_TRIGGER",path+".kind","unsupported flow trigger");
+}
+
+function validateLifecycleExitCondition(
+  input: unknown,
+  path: string,
+  errors: ActionValidationIssue[],
+): void {
+  if (!record(input) || !nonEmpty(input.kind)) {
+    add(errors,"INVALID_LIFECYCLE_EXIT_CONDITION",path,"exit condition kind is required");
+    return;
+  }
+  if (["PURCHASE_OCCURRED","CUSTOMER_INELIGIBLE"].includes(String(input.kind))) return;
+  if (input.kind === "EVENT_OCCURRED") {
+    validateLifecycleEvent(input.event,path+".event",errors);
+    return;
+  }
+  add(errors,"UNKNOWN_LIFECYCLE_EXIT_CONDITION",path+".kind","unsupported exit condition");
+}
+
+function validateLifecycleSequenceStep(
+  input: unknown,
+  path: string,
+  errors: ActionValidationIssue[],
+): void {
+  if (!record(input)) {
+    add(errors,"INVALID_LIFECYCLE_SEQUENCE_STEP",path,"sequence step is required");
+    return;
+  }
+  if (!nonEmpty(input.stepId)) {
+    add(errors,"INVALID_LIFECYCLE_STEP_ID",path+".stepId","stepId is required");
+  }
+  validatePositiveInteger(input.position,path+".position",errors);
+  validateLifecycleChannel(input.channel,path+".channel",errors);
+  validateNonNegativeInteger(input.delaySeconds,path+".delaySeconds",errors);
+  validateLifecycleEligibilityRequirements(input.eligibility,path+".eligibility",errors);
+  if (!Array.isArray(input.suppress)) {
+    add(errors,"INVALID_LIFECYCLE_STEP_SUPPRESSIONS",path+".suppress","suppress must be an array");
+  } else {
+    input.suppress.forEach((rule: unknown,index: number)=>
+      validateLifecycleSuppressionRule(rule,path+".suppress["+index+"]",errors),
+    );
+  }
+  if (!record(input.continuation) || !["CONTINUE_IF_ELIGIBLE","CONTINUE_IF_NO_PURCHASE"].includes(String(input.continuation.kind))) {
+    add(errors,"INVALID_LIFECYCLE_STEP_CONTINUATION",path+".continuation","unsupported continuation rule");
+  }
+  if (!Array.isArray(input.exitConditions)) {
+    add(errors,"INVALID_LIFECYCLE_STEP_EXIT_CONDITIONS",path+".exitConditions","exitConditions must be an array");
+  } else {
+    input.exitConditions.forEach((condition: unknown,index: number)=>
+      validateLifecycleExitCondition(condition,path+".exitConditions["+index+"]",errors),
+    );
+  }
+}
+
+function validateLifecycleFlowConflict(
+  input: unknown,
+  path: string,
+  errors: ActionValidationIssue[],
+): void {
+  if (!record(input) || !nonEmpty(input.kind)) {
+    add(errors,"INVALID_LIFECYCLE_FLOW_CONFLICT",path,"conflict semantics are required");
+    return;
+  }
+  if (["COEXIST","SUPPRESS_WHEN_CONTACT_POLICY_BLOCKS"].includes(String(input.kind))) return;
+  if (input.kind === "PRECEDENCE") {
+    validateNonNegativeInteger(input.precedence,path+".precedence",errors);
+    return;
+  }
+  if (input.kind === "MUTUALLY_EXCLUSIVE_GROUP") {
+    if (!nonEmpty(input.groupId)) {
+      add(errors,"INVALID_LIFECYCLE_FLOW_CONFLICT_GROUP",path+".groupId","groupId is required");
+    }
+    if (input.precedence !== undefined) {
+      validateNonNegativeInteger(input.precedence,path+".precedence",errors);
+    }
+    return;
+  }
+  add(errors,"UNKNOWN_LIFECYCLE_FLOW_CONFLICT",path+".kind","unsupported conflict semantics");
+}
+
+function validateLifecycleFlowDefinition(
+  input: unknown,
+  path: string,
+  errors: ActionValidationIssue[],
+): void {
+  if (!record(input)) {
+    add(errors,"INVALID_LIFECYCLE_FLOW_DEFINITION",path,"flow definition is required");
+    return;
+  }
+  if (!nonEmpty(input.flowId) || !LIFECYCLE_FLOW_ID_PATTERN.test(String(input.flowId))) {
+    add(errors,"INVALID_LIFECYCLE_FLOW_ID",path+".flowId","flowId must begin lifecycleflow_");
+  }
+  validateLifecyclePurpose(input.purpose,path+".purpose",errors);
+  validateLifecycleAudienceDefinition(input.audience,path+".audience",errors);
+  validateLifecycleFlowTrigger(input.trigger,path+".trigger",errors);
+  if (!Array.isArray(input.sequence) || input.sequence.length === 0) {
+    add(errors,"LIFECYCLE_FLOW_SEQUENCE_REQUIRED",path+".sequence","flow requires at least one sequence step");
+  } else {
+    input.sequence.forEach((step: unknown,index: number)=>
+      validateLifecycleSequenceStep(step,path+".sequence["+index+"]",errors),
+    );
+    const positions=input.sequence
+      .filter(record)
+      .map((step: any)=>Number(step.position))
+      .sort((a:number,b:number)=>a-b);
+    if (positions.some((position:number,index:number)=>position!==index+1)) {
+      add(errors,"LIFECYCLE_SEQUENCE_POSITIONS_NOT_CONTIGUOUS",path+".sequence","step positions must be contiguous starting at 1");
+    }
+    const stepIds=input.sequence.filter(record).map((step:any)=>String(step.stepId??""));
+    if (new Set(stepIds).size !== stepIds.length) {
+      add(errors,"DUPLICATE_LIFECYCLE_STEP_ID",path+".sequence","step IDs must be unique");
+    }
+  }
+  if (!Array.isArray(input.exitConditions)) {
+    add(errors,"INVALID_LIFECYCLE_FLOW_EXIT_CONDITIONS",path+".exitConditions","exitConditions must be an array");
+  } else {
+    input.exitConditions.forEach((condition: unknown,index: number)=>
+      validateLifecycleExitCondition(condition,path+".exitConditions["+index+"]",errors),
+    );
+  }
+  validateStringArray(input.contactPolicyRefs,path+".contactPolicyRefs",errors,true);
+  validateLifecycleFlowConflict(input.conflictResolution,path+".conflictResolution",errors);
+}
+
+function validateLifecycleFrequencyValue(
+  input: unknown,
+  path: string,
+  errors: ActionValidationIssue[],
+): void {
+  if (!record(input)) {
+    add(errors,"INVALID_LIFECYCLE_FREQUENCY_VALUE",path,"frequency value is required");
+    return;
+  }
+  validateNonNegativeInteger(input.count,path+".count",errors);
+  validatePositiveInteger(input.windowSeconds,path+".windowSeconds",errors);
+}
+
+function validateLifecycleFrequencyReference(
+  input: unknown,
+  path: string,
+  errors: ActionValidationIssue[],
+  decisionTime?: string,
+): void {
+  if (!record(input) || !nonEmpty(input.kind)) {
+    add(errors,"INVALID_LIFECYCLE_FREQUENCY_REFERENCE",path,"frequency reference is required");
+    return;
+  }
+  if (input.kind === "current_policy_at_decision") {
+    validateTimestamp(input.decisionTime,path+".decisionTime",errors);
+    if (decisionTime && input.decisionTime !== decisionTime) {
+      add(errors,"LIFECYCLE_FREQUENCY_DECISION_TIME_MISMATCH",path+".decisionTime","must equal Action decision time");
+    }
+    return;
+  }
+  if (input.kind === "baseline_snapshot") {
+    if (!nonEmpty(input.baselineId)) {
+      add(errors,"INVALID_BASELINE_ID",path+".baselineId","baselineId is required");
+    }
+    return;
+  }
+  if (input.kind === "explicit_baseline") {
+    validateLifecycleFrequencyValue(input.value,path+".value",errors);
+    return;
+  }
+  add(errors,"UNKNOWN_LIFECYCLE_FREQUENCY_REFERENCE",path+".kind","unsupported frequency reference");
+}
+
+function validateLifecycleFrequencyOperation(
+  input: unknown,
+  path: string,
+  errors: ActionValidationIssue[],
+  decisionTime?: string,
+): void {
+  if (!record(input) || !nonEmpty(input.kind)) {
+    add(errors,"INVALID_LIFECYCLE_FREQUENCY_OPERATION",path,"frequency operation is required");
+    return;
+  }
+  if (input.kind === "SET") {
+    validateLifecycleFrequencyValue(input.value,path+".value",errors);
+    return;
+  }
+  if (input.kind === "DELTA") {
+    if (!["increase","decrease"].includes(String(input.direction))) {
+      add(errors,"INVALID_LIFECYCLE_FREQUENCY_DIRECTION",path+".direction","must be increase or decrease");
+    }
+    validateLifecycleFrequencyValue(input.amount,path+".amount",errors);
+    validateLifecycleFrequencyReference(input.reference,path+".reference",errors,decisionTime);
+    if (
+      record(input.amount) &&
+      record(input.reference) &&
+      input.reference.kind === "explicit_baseline" &&
+      record(input.reference.value) &&
+      Number.isInteger(input.amount.count) &&
+      Number.isInteger(input.reference.value.count) &&
+      input.amount.windowSeconds !== input.reference.value.windowSeconds
+    ) {
+      add(errors,"LIFECYCLE_FREQUENCY_WINDOW_MISMATCH",path,"DELTA amount and explicit baseline must use the same frequency window");
+    }
+    if (
+      record(input.amount) &&
+      record(input.reference) &&
+      input.reference.kind === "explicit_baseline" &&
+      record(input.reference.value) &&
+      Number.isInteger(input.amount.count) &&
+      Number.isInteger(input.reference.value.count) &&
+      input.amount.windowSeconds === input.reference.value.windowSeconds &&
+      input.direction === "decrease" &&
+      Number(input.amount.count) > Number(input.reference.value.count)
+    ) {
+      add(errors,"LIFECYCLE_FREQUENCY_WOULD_BECOME_NEGATIVE",path,"frequency decrease cannot exceed explicit baseline");
+    }
+    return;
+  }
+  if (input.kind === "MULTIPLY") {
+    if (!finite(input.factor) || Number(input.factor) <= 0) {
+      add(errors,"INVALID_MULTIPLIER",path+".factor","must be > 0");
+    }
+    validateLifecycleFrequencyReference(input.reference,path+".reference",errors,decisionTime);
+    return;
+  }
+  add(errors,"UNKNOWN_LIFECYCLE_FREQUENCY_OPERATION",path+".kind","unsupported frequency operation");
+}
+
+function validateLifecycleFrequencyPolicy(
+  input: unknown,
+  path: string,
+  errors: ActionValidationIssue[],
+  decisionTime?: string,
+): void {
+  if (!record(input) || !nonEmpty(input.kind)) {
+    add(errors,"INVALID_LIFECYCLE_FREQUENCY_POLICY",path,"frequency/contact policy is required");
+    return;
+  }
+  if (input.kind === "PLANNED_CADENCE") {
+    validateLifecycleChannel(input.channel,path+".channel",errors);
+    if (input.purpose !== undefined) {
+      validateLifecyclePurpose(input.purpose,path+".purpose",errors);
+    }
+    validateLifecycleFrequencyOperation(input.operation,path+".operation",errors,decisionTime);
+    return;
+  }
+  if (input.kind === "CONTACT_CAP") {
+    if (!Array.isArray(input.channels) || input.channels.length === 0) {
+      add(errors,"LIFECYCLE_CONTACT_CAP_CHANNELS_REQUIRED",path+".channels","at least one channel is required");
+    } else {
+      input.channels.forEach((channel: unknown,index: number)=>
+        validateLifecycleChannel(channel,path+".channels["+index+"]",errors),
+      );
+      const keys=input.channels.map(lifecycleChannelKey);
+      if (new Set(keys).size !== keys.length) {
+        add(errors,"DUPLICATE_LIFECYCLE_POLICY_CHANNEL",path+".channels","channels must be unique");
+      }
+    }
+    validateNonNegativeInteger(input.maximumContacts,path+".maximumContacts",errors);
+    validatePositiveInteger(input.windowSeconds,path+".windowSeconds",errors);
+    return;
+  }
+  if (input.kind === "MINIMUM_INTERVAL") {
+    if (!Array.isArray(input.channels) || input.channels.length === 0) {
+      add(errors,"LIFECYCLE_INTERVAL_CHANNELS_REQUIRED",path+".channels","at least one channel is required");
+    } else {
+      input.channels.forEach((channel: unknown,index: number)=>
+        validateLifecycleChannel(channel,path+".channels["+index+"]",errors),
+      );
+    }
+    validatePositiveInteger(input.minimumIntervalSeconds,path+".minimumIntervalSeconds",errors);
+    return;
+  }
+  add(errors,"UNKNOWN_LIFECYCLE_FREQUENCY_POLICY",path+".kind","unsupported policy kind");
+}
+
+function validateLifecyclePolicyRollbackValue(
+  input: unknown,
+  path: string,
+  errors: ActionValidationIssue[],
+  decisionTime?: string,
+): void {
+  if (!record(input) || input.kind !== "FREQUENCY_POLICY") {
+    add(errors,"INVALID_LIFECYCLE_ROLLBACK_VALUE",path,"FREQUENCY_POLICY value is required");
+    return;
+  }
+  validateLifecycleFrequencyPolicy(input.policy,path+".policy",errors,decisionTime);
+}
+
+function validateLifecycleRollbackStrategy(
+  input: unknown,
+  path: string,
+  errors: ActionValidationIssue[],
+  decisionTime?: string,
+): void {
+  if (!record(input) || !nonEmpty(input.kind)) {
+    add(errors,"INVALID_LIFECYCLE_ROLLBACK_STRATEGY",path,"rollback strategy is required");
+    return;
+  }
+  if (input.kind === "RESTORE_PRE_ACTION_VALUE") {
+    if (!record(input.preActionValue) || !nonEmpty(input.preActionValue.kind)) {
+      add(errors,"INVALID_LIFECYCLE_ROLLBACK_REFERENCE",path+".preActionValue","pre-action policy reference is required");
+    } else if (input.preActionValue.kind === "lifecycle_policy_snapshot") {
+      if (!nonEmpty(input.preActionValue.baselineId)) {
+        add(errors,"INVALID_LIFECYCLE_POLICY_SNAPSHOT",path+".preActionValue.baselineId","baselineId is required");
+      }
+    } else if (input.preActionValue.kind === "explicit_policy") {
+      validateLifecyclePolicyRollbackValue(input.preActionValue.value,path+".preActionValue.value",errors,decisionTime);
+    } else {
+      add(errors,"UNKNOWN_LIFECYCLE_ROLLBACK_REFERENCE",path+".preActionValue.kind","unsupported rollback reference");
+    }
+    return;
+  }
+  if (input.kind === "SET_EXPLICIT_VALUE") {
+    validateLifecyclePolicyRollbackValue(input.value,path+".value",errors,decisionTime);
+    return;
+  }
+  add(errors,"UNKNOWN_LIFECYCLE_ROLLBACK_STRATEGY",path+".kind","unsupported rollback strategy");
+}
+
+function validateLifecycleRollbackGuard(
+  input: unknown,
+  path: string,
+  errors: ActionValidationIssue[],
+  decisionTime?: string,
+  originalActionId?: string,
+): void {
+  if (!record(input) || input.kind !== "REQUIRE_CURRENT_MATCHES_ACTION_OUTPUT") {
+    add(errors,"INVALID_LIFECYCLE_ROLLBACK_GUARD",path,"conflict guard is required");
+    return;
+  }
+  if (!nonEmpty(input.sourceActionId)) {
+    add(errors,"INVALID_LIFECYCLE_ROLLBACK_SOURCE",path+".sourceActionId","required");
+  } else if (originalActionId && input.sourceActionId !== originalActionId) {
+    add(errors,"LIFECYCLE_ROLLBACK_SOURCE_MISMATCH",path+".sourceActionId","must reference original lifecycle policy Action");
+  }
+  validateLifecyclePolicyRollbackValue(input.expectedValue,path+".expectedValue",errors,decisionTime);
+}
+
+function validateLifecycleSendParameters(
+  input: unknown,
+  path: string,
+  errors: ActionValidationIssue[],
+): void {
+  if (!record(input)) return;
+  validateLifecycleChannel(input.channel,path+".channel",errors);
+  validateLifecyclePurpose(input.purpose,path+".purpose",errors);
+  validateLifecycleAudienceDefinition(input.audience,path+".audience",errors);
+  validateLifecycleSendTiming(input.timing,path+".timing",errors);
+  validateLifecycleEligibilityRequirements(input.eligibility,path+".eligibility",errors);
+  validateStringArray(input.contactPolicyRefs,path+".contactPolicyRefs",errors,true);
+  if (input.coordinatedActionIds !== undefined) {
+    if (!Array.isArray(input.coordinatedActionIds) ||
+        input.coordinatedActionIds.some((value: unknown)=>!nonEmpty(value)) ||
+        new Set(input.coordinatedActionIds).size !== input.coordinatedActionIds.length) {
+      add(errors,"INVALID_LIFECYCLE_COORDINATED_ACTION_IDS",path+".coordinatedActionIds","must be a unique string array when supplied");
+    }
+  }
+}
+
+function validateLifecycleFlowModification(
+  input: unknown,
+  path: string,
+  errors: ActionValidationIssue[],
+): void {
+  if (!record(input) || !nonEmpty(input.kind)) {
+    add(errors,"INVALID_LIFECYCLE_FLOW_MODIFICATION",path,"flow modification kind is required");
+    return;
+  }
+  if (input.kind === "SET_TRIGGER") {
+    validateLifecycleFlowTrigger(input.trigger,path+".trigger",errors);
+    return;
+  }
+  if (input.kind === "SET_STEP_DELAY") {
+    if (!nonEmpty(input.stepId)) add(errors,"INVALID_LIFECYCLE_STEP_ID",path+".stepId","stepId is required");
+    validateNonNegativeInteger(input.delaySeconds,path+".delaySeconds",errors);
+    return;
+  }
+  if (input.kind === "ADD_STEP") {
+    validateLifecycleSequenceStep(input.step,path+".step",errors);
+    return;
+  }
+  if (input.kind === "REMOVE_STEP") {
+    if (!nonEmpty(input.stepId)) add(errors,"INVALID_LIFECYCLE_STEP_ID",path+".stepId","stepId is required");
+    return;
+  }
+  add(errors,"UNKNOWN_LIFECYCLE_FLOW_MODIFICATION",path+".kind","unsupported flow modification");
+}
+
+function validateLifecycleParameters(
+  input: unknown,
+  path: string,
+  errors: ActionValidationIssue[],
+  decisionTime?: string,
+): void {
+  if (!record(input)) {
+    add(errors,"INVALID_LIFECYCLE_PARAMETERS",path,"lifecycle parameters are required");
+    return;
+  }
+  if (input.kind === "lifecycle_send") {
+    validateLifecycleSendParameters(input,path,errors);
+    return;
+  }
+  if (input.kind === "lifecycle_flow_start") {
+    validateLifecycleFlowDefinition(input.definition,path+".definition",errors);
+    if (input.coordinatedActionIds !== undefined) {
+      if (!Array.isArray(input.coordinatedActionIds) ||
+          input.coordinatedActionIds.some((value: unknown)=>!nonEmpty(value)) ||
+          new Set(input.coordinatedActionIds).size !== input.coordinatedActionIds.length) {
+        add(errors,"INVALID_LIFECYCLE_COORDINATED_ACTION_IDS",path+".coordinatedActionIds","must be a unique string array");
+      }
+    }
+    return;
+  }
+  if (input.kind === "lifecycle_flow_stop") {
+    if (!nonEmpty(input.targetFlowId) || !LIFECYCLE_FLOW_ID_PATTERN.test(String(input.targetFlowId))) {
+      add(errors,"INVALID_LIFECYCLE_FLOW_ID",path+".targetFlowId","flowId must begin lifecycleflow_");
+    }
+    if (input.stopSemantics !== "PREVENT_FUTURE_TRIGGERED_COMMUNICATIONS") {
+      add(errors,"INVALID_LIFECYCLE_STOP_SEMANTICS",path+".stopSemantics","stop must prevent future flow-triggered communications");
+    }
+    return;
+  }
+  if (input.kind === "lifecycle_flow_modify") {
+    if (!nonEmpty(input.targetFlowId) || !LIFECYCLE_FLOW_ID_PATTERN.test(String(input.targetFlowId))) {
+      add(errors,"INVALID_LIFECYCLE_FLOW_ID",path+".targetFlowId","flowId must begin lifecycleflow_");
+    }
+    if (!Array.isArray(input.modifications) || input.modifications.length === 0) {
+      add(errors,"LIFECYCLE_FLOW_MODIFICATION_REQUIRED",path+".modifications","at least one modification is required");
+    } else {
+      input.modifications.forEach((modification: unknown,index: number)=>
+        validateLifecycleFlowModification(modification,path+".modifications["+index+"]",errors),
+      );
+    }
+    return;
+  }
+  if (input.kind === "lifecycle_targeting") {
+    validateLifecycleAudienceDefinition(input.audience,path+".audience",errors);
+    return;
+  }
+  if (input.kind === "lifecycle_policy_rollback") {
+    if (!nonEmpty(input.originalActionId)) {
+      add(errors,"INVALID_LIFECYCLE_ROLLBACK_ORIGINAL",path+".originalActionId","required");
+    }
+    validateLifecycleRollbackStrategy(input.strategy,path+".strategy",errors,decisionTime);
+    validateLifecycleRollbackGuard(
+      input.conflictGuard,
+      path+".conflictGuard",
+      errors,
+      decisionTime,
+      typeof input.originalActionId === "string" ? input.originalActionId : undefined,
+    );
+    return;
+  }
+}
+
 function validateParameters(
   input: unknown,
   path: string,
@@ -4007,13 +4816,20 @@ function validateParameters(
       validateInventoryParameters(input,path,errors,decisionTime);
       return;
     case "frequency_adjustment":
-      validateOperation(
-        input.operation,
-        path + ".operation",
-        errors,
-        "frequency",
-        decisionTime,
-      );
+      if (input.policy !== undefined) {
+        if (input.operation !== undefined) {
+          add(errors,"AMBIGUOUS_LIFECYCLE_FREQUENCY_PARAMETERS",path,"frequency adjustment cannot contain both legacy operation and structured policy");
+        }
+        validateLifecycleFrequencyPolicy(input.policy,path+".policy",errors,decisionTime);
+      } else {
+        validateOperation(
+          input.operation,
+          path + ".operation",
+          errors,
+          "frequency",
+          decisionTime,
+        );
+      }
       return;
     case "toggle":
       if (!nonEmpty(input.setting)) {
@@ -4083,6 +4899,14 @@ function validateParameters(
     case "cro_intervention":
     case "cro_rollback":
       validateCroParameters(input,path,errors);
+      return;
+    case "lifecycle_send":
+    case "lifecycle_flow_start":
+    case "lifecycle_flow_stop":
+    case "lifecycle_flow_modify":
+    case "lifecycle_targeting":
+    case "lifecycle_policy_rollback":
+      validateLifecycleParameters(input,path,errors,decisionTime);
       return;
     case "segment_targeting":
       if (!nonEmpty(input.segmentId) || typeof input.enabled !== "boolean") {
@@ -4934,6 +5758,28 @@ function validateReversibility(
       validateNonNegativeInteger(input.croRollback.delaySeconds,path+".croRollback.delaySeconds",errors);
       validateKnownOrUnknown(input.croRollback.cost,path+".croRollback.cost",errors,(v,p)=>validateMoney(v,p,errors));
       validateCroRollbackGuard(input.croRollback.conflictGuard,path+".croRollback.conflictGuard",errors);
+    }
+  }
+
+  if (input.lifecycleRollback !== undefined) {
+    if (!record(input.lifecycleRollback) || typeof input.lifecycleRollback.available !== "boolean") {
+      add(errors,"INVALID_LIFECYCLE_ROLLBACK_CONTRACT",path+".lifecycleRollback","available must be explicit");
+    } else if (input.lifecycleRollback.available === false) {
+      if (!nonEmpty(input.lifecycleRollback.reason)) {
+        add(errors,"INVALID_LIFECYCLE_ROLLBACK_REASON",path+".lifecycleRollback.reason","reason is required");
+      }
+    } else {
+      validateLifecycleRollbackStrategy(input.lifecycleRollback.strategy,path+".lifecycleRollback.strategy",errors);
+      if (!record(input.lifecycleRollback.trigger) || !nonEmpty(input.lifecycleRollback.trigger.kind)) {
+        add(errors,"INVALID_LIFECYCLE_ROLLBACK_TRIGGER",path+".lifecycleRollback.trigger","trigger is required");
+      } else if (input.lifecycleRollback.trigger.kind === "AT") {
+        validateTimestamp(input.lifecycleRollback.trigger.at,path+".lifecycleRollback.trigger.at",errors);
+      } else if (input.lifecycleRollback.trigger.kind !== "ON_TERMINATION") {
+        add(errors,"INVALID_LIFECYCLE_ROLLBACK_TRIGGER",path+".lifecycleRollback.trigger.kind","unsupported trigger");
+      }
+      validateNonNegativeInteger(input.lifecycleRollback.delaySeconds,path+".lifecycleRollback.delaySeconds",errors);
+      validateKnownOrUnknown(input.lifecycleRollback.cost,path+".lifecycleRollback.cost",errors,(v,p)=>validateMoney(v,p,errors));
+      validateLifecycleRollbackGuard(input.lifecycleRollback.conflictGuard,path+".lifecycleRollback.conflictGuard",errors);
     }
   }
 }
@@ -6012,6 +6858,190 @@ function validateCroActionSemantics(
   }
 }
 
+
+function validateLifecycleActionSemantics(
+  input: any,
+  errors: ActionValidationIssue[],
+): void {
+  const lifecycleTypes = new Set([
+    "lifecycle.send",
+    "lifecycle.start_flow",
+    "lifecycle.stop_flow",
+    "lifecycle.modify_flow",
+    "lifecycle.adjust_frequency",
+    "lifecycle.target_segment",
+    "lifecycle.rollback_policy",
+  ]);
+  if (!lifecycleTypes.has(String(input.actionType))) return;
+
+  if (input.schemaVersion === "1.8.0") {
+    if (
+      record(input.target) &&
+      input.target.kind === "lifecycle_flow" &&
+      (!nonEmpty(input.target.flowId) ||
+        !LIFECYCLE_FLOW_ID_PATTERN.test(String(input.target.flowId)))
+    ) {
+      add(errors,"INVALID_LIFECYCLE_FLOW_ID","target.flowId","flowId must begin lifecycleflow_");
+    }
+    if (
+      record(input.target) &&
+      input.target.kind === "lifecycle_contact_policy" &&
+      (!nonEmpty(input.target.contactPolicyId) ||
+        !LIFECYCLE_POLICY_ID_PATTERN.test(String(input.target.contactPolicyId)))
+    ) {
+      add(errors,"INVALID_LIFECYCLE_POLICY_ID","target.contactPolicyId","contactPolicyId must begin lifecyclepolicy_");
+    }
+  }
+
+  if (input.actionType === "lifecycle.send") {
+    if (!record(input.parameters) || input.parameters.kind !== "lifecycle_send") return;
+    if (!record(input.duration) || input.duration.kind !== "instantaneous") {
+      add(errors,"LIFECYCLE_SEND_MUST_BE_INSTANTANEOUS","duration","one-time send is an explicit communication event");
+    }
+    if (
+      record(input.parameters.timing) &&
+      input.parameters.timing.kind === "ABSOLUTE_TIME" &&
+      record(input.timing) &&
+      record(input.timing.effectiveStart) &&
+      input.timing.effectiveStart.kind === "known" &&
+      input.timing.effectiveStart.at !== input.parameters.timing.at
+    ) {
+      add(errors,"LIFECYCLE_SEND_TIME_MISMATCH","timing.effectiveStart","Action effective time must match absolute send time");
+    }
+    if (
+      record(input.parameters.timing) &&
+      input.parameters.timing.kind === "RELATIVE_TO_EVENT" &&
+      record(input.timing) &&
+      record(input.timing.effectiveStart) &&
+      input.timing.effectiveStart.kind === "known"
+    ) {
+      add(errors,"LIFECYCLE_RELATIVE_SEND_CANNOT_PRETEND_RESOLVED_TIME","timing.effectiveStart","event-relative send must remain unresolved until its legitimate event boundary");
+    }
+  }
+
+  if (input.actionType === "lifecycle.start_flow") {
+    if (!record(input.target) || input.target.kind !== "lifecycle_flow") {
+      add(errors,"LIFECYCLE_FLOW_ACTION_REQUIRES_FLOW_TARGET","target.kind","start_flow requires lifecycle_flow target");
+      return;
+    }
+    if (
+      record(input.parameters) &&
+      input.parameters.kind === "lifecycle_flow_start" &&
+      record(input.parameters.definition) &&
+      input.parameters.definition.flowId !== input.target.flowId
+    ) {
+      add(errors,"LIFECYCLE_FLOW_ID_MISMATCH","parameters.definition.flowId","flow definition ID must match Action target");
+    }
+    if (record(input.duration) && input.duration.kind === "instantaneous") {
+      add(errors,"LIFECYCLE_FLOW_START_CANNOT_BE_INSTANTANEOUS","duration","flow is an ongoing communication policy");
+    }
+  }
+
+  if (input.actionType === "lifecycle.stop_flow") {
+    if (!record(input.target) || input.target.kind !== "lifecycle_flow") {
+      add(errors,"LIFECYCLE_FLOW_ACTION_REQUIRES_FLOW_TARGET","target.kind","stop_flow requires lifecycle_flow target");
+      return;
+    }
+    if (
+      record(input.parameters) &&
+      input.parameters.kind === "lifecycle_flow_stop" &&
+      input.parameters.targetFlowId !== input.target.flowId
+    ) {
+      add(errors,"LIFECYCLE_FLOW_ID_MISMATCH","parameters.targetFlowId","target flow ID must match Action target");
+    }
+    if (!record(input.duration) || input.duration.kind !== "instantaneous") {
+      add(errors,"LIFECYCLE_FLOW_STOP_MUST_BE_INSTANTANEOUS","duration","stopping a flow is an instantaneous policy-state change");
+    }
+  }
+
+  if (input.actionType === "lifecycle.modify_flow") {
+    if (!record(input.target) || input.target.kind !== "lifecycle_flow") {
+      add(errors,"LIFECYCLE_FLOW_ACTION_REQUIRES_FLOW_TARGET","target.kind","modify_flow requires lifecycle_flow target");
+      return;
+    }
+    if (
+      record(input.parameters) &&
+      input.parameters.kind === "lifecycle_flow_modify" &&
+      input.parameters.targetFlowId !== input.target.flowId
+    ) {
+      add(errors,"LIFECYCLE_FLOW_ID_MISMATCH","parameters.targetFlowId","target flow ID must match Action target");
+    }
+    if (!record(input.duration) || input.duration.kind !== "instantaneous") {
+      add(errors,"LIFECYCLE_FLOW_MODIFY_MUST_BE_INSTANTANEOUS","duration","modifying an existing flow is an instantaneous policy-state change");
+    }
+  }
+
+  if (
+    input.actionType === "lifecycle.adjust_frequency" &&
+    input.schemaVersion === "1.8.0"
+  ) {
+    if (
+      !record(input.parameters) ||
+      input.parameters.kind !== "frequency_adjustment" ||
+      input.parameters.policy === undefined
+    ) {
+      add(errors,"LIFECYCLE_STRUCTURED_FREQUENCY_POLICY_REQUIRED","parameters.policy","schema 1.8 lifecycle frequency Action requires structured policy semantics");
+      return;
+    }
+    const temporary = record(input.duration) && input.duration.kind === "temporary";
+    if (
+      temporary &&
+      (!record(input.reversibility) ||
+        !record(input.reversibility.lifecycleRollback) ||
+        input.reversibility.lifecycleRollback.available !== true)
+    ) {
+      add(errors,"TEMPORARY_LIFECYCLE_POLICY_REQUIRES_SAFE_ROLLBACK","reversibility.lifecycleRollback","temporary lifecycle frequency/contact policy requires conflict-safe rollback");
+    }
+    if (
+      record(input.reversibility) &&
+      record(input.reversibility.lifecycleRollback) &&
+      input.reversibility.lifecycleRollback.available === true &&
+      record(input.reversibility.lifecycleRollback.conflictGuard) &&
+      input.reversibility.lifecycleRollback.conflictGuard.sourceActionId !== input.actionId
+    ) {
+      add(errors,"LIFECYCLE_ROLLBACK_SOURCE_MISMATCH","reversibility.lifecycleRollback.conflictGuard.sourceActionId","lifecycle rollback must reference this policy Action");
+    }
+  }
+
+  if (input.actionType === "lifecycle.rollback_policy") {
+    if (!record(input.target) || input.target.kind !== "lifecycle_contact_policy") {
+      add(errors,"LIFECYCLE_ROLLBACK_REQUIRES_POLICY_TARGET","target.kind","rollback_policy requires lifecycle_contact_policy target");
+    }
+    if (!record(input.parameters) || input.parameters.kind !== "lifecycle_policy_rollback") return;
+    if (!nonEmpty(input.reversalOfActionId)) {
+      add(errors,"LIFECYCLE_ROLLBACK_REQUIRES_REVERSAL_REFERENCE","reversalOfActionId","rollback must reference original lifecycle policy Action");
+    } else if (input.reversalOfActionId !== input.parameters.originalActionId) {
+      add(errors,"LIFECYCLE_ROLLBACK_ORIGINAL_ACTION_MISMATCH","reversalOfActionId","rollback references must identify the same original lifecycle Action");
+    }
+    if (!record(input.duration) || input.duration.kind !== "instantaneous") {
+      add(errors,"LIFECYCLE_ROLLBACK_MUST_BE_INSTANTANEOUS","duration","lifecycle rollback is an instantaneous policy-state change");
+    }
+  }
+
+  if (
+    record(input.parameters) &&
+    (input.parameters.kind === "lifecycle_send" ||
+      input.parameters.kind === "lifecycle_flow_start") &&
+    Array.isArray(input.parameters.coordinatedActionIds) &&
+    input.parameters.coordinatedActionIds.includes(input.actionId)
+  ) {
+    add(errors,"LIFECYCLE_COORDINATION_SELF_REFERENCE","parameters.coordinatedActionIds","lifecycle Action cannot coordinate itself");
+  }
+
+  if (
+    record(input.reversibility) &&
+    (
+      input.reversibility.pricingRollback !== undefined ||
+      input.reversibility.shippingRollback !== undefined ||
+      input.reversibility.merchandisingRollback !== undefined ||
+      input.reversibility.inventoryRollback !== undefined ||
+      input.reversibility.croRollback !== undefined
+    )
+  ) {
+    add(errors,"LIFECYCLE_CANNOT_USE_OTHER_FAMILY_ROLLBACK","reversibility","lifecycle Actions must use lifecycle rollback semantics only");
+  }
+}
+
 function deepFreeze<T>(value: T): T {
   if (typeof value !== "object" || value === null || Object.isFrozen(value)) return value;
   Object.freeze(value);
@@ -6168,6 +7198,7 @@ export function validateAction(
   validateMerchandisingActionSemantics(input, errors);
   validateInventoryActionSemantics(input, errors);
   validateCroActionSemantics(input, errors);
+  validateLifecycleActionSemantics(input, errors);
 
   if (input.reversalOfActionId !== undefined) {
     if (!nonEmpty(input.reversalOfActionId)) {
