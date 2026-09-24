@@ -10,7 +10,7 @@ import {
   runExperimentAction,
   waitObserveAction,
 } from "../../src/action_ontology/fixtures.js";
-import { assertValidActionTarget, validateAction } from "../../src/action_ontology/validation.js";
+import { assertValidAction, assertValidActionTarget, validateAction } from "../../src/action_ontology/validation.js";
 
 function clone<T>(value: T): any {
   return JSON.parse(JSON.stringify(value));
@@ -109,6 +109,18 @@ describe("Step 1 canonical Action validation", () => {
     ]) {
       expect(() => assertValidActionTarget(invalid)).toThrow(/target|Action/i);
     }
+  });
+
+  it("keeps frozen Step 2 Action target tolerance separate from the Step 3.10 exact target boundary", () => {
+    const extra = clone(increaseGoogleShoppingBudget20);
+    extra.target.parentAcceptedExtension = "opaque";
+    expect(() => assertValidAction(extra)).not.toThrow();
+    expect(() => assertValidActionTarget(extra.target)).toThrow(/target|Action/i);
+
+    const invalidOptional = clone(reorderInventoryWith45DayDelay);
+    invalidOptional.target.productId = 42;
+    expect(() => assertValidAction(invalidOptional)).not.toThrow();
+    expect(() => assertValidActionTarget(invalidOptional.target)).toThrow(/target|Action/i);
   });
 
   it("requires relative operations to carry a typed baseline reference", () => {

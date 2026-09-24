@@ -273,7 +273,6 @@ describe("operator authority boundary", () => {
       ...clone(base),
       operatorId: "test.multi_action_authority",
       operatorFamily: "advanced_decision_system",
-      supportedActionOntologyVersions: [base.supportedActionOntologyVersion],
       capabilities: {
         ...clone(base.capabilities),
         actionDomains: ["advertising"],

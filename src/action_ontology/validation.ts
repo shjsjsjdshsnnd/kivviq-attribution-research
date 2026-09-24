@@ -693,16 +693,28 @@ function validateTarget(
     return;
   }
   const required = fields.required as readonly string[];
+  for (const field of required) {
+    if (!nonEmpty(input[field])) {
+      add(errors, "MISSING_TARGET_ID", path + "." + field, "required");
+    }
+  }
+}
+
+function validateExactTarget(
+  input: unknown,
+  path: string,
+  errors: ActionValidationIssue[],
+): void {
+  validateTarget(input, path, errors);
+  if (!record(input) || !nonEmpty(input.kind)) return;
+  const fields = ACTION_TARGET_FIELDS[input.kind as ActionTarget["kind"]];
+  if (fields === undefined) return;
+  const required = fields.required as readonly string[];
   const optional = fields.optional as readonly string[];
   const allowed = new Set(["kind", ...required, ...optional]);
   for (const key of Reflect.ownKeys(input)) {
     if (typeof key !== "string" || !allowed.has(key)) {
       add(errors, "UNKNOWN_TARGET_FIELD", path + "." + String(key), "unsupported target field");
-    }
-  }
-  for (const field of required) {
-    if (!nonEmpty(input[field])) {
-      add(errors, "MISSING_TARGET_ID", path + "." + field, "required");
     }
   }
   for (const field of optional) {
@@ -714,7 +726,7 @@ function validateTarget(
 
 export function assertValidActionTarget(input: unknown): ActionTarget {
   const errors: ActionValidationIssue[] = [];
-  validateTarget(input, "target", errors);
+  validateExactTarget(input, "target", errors);
   if (errors.length > 0) throw new ActionValidationError(errors);
   return input as ActionTarget;
 }

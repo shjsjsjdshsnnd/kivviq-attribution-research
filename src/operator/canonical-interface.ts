@@ -90,7 +90,6 @@ export interface CanonicalOperatorMetadataV2 {
     readonly frozenCommit: string;
   };
   readonly supportedActionOntologyVersion: string;
-  readonly supportedActionOntologyVersions: readonly string[];
   readonly capabilities: CanonicalOperatorCapabilities;
   readonly adapterFingerprint: string;
 }
@@ -648,7 +647,7 @@ export function assertCanonicalOperatorMetadataV2(
     "schemaVersion", "interfaceVersion", "operatorId", "operatorVersion",
     "operatorFamily", "description", "implementationFingerprint",
     "configurationFingerprint", "legacyInterfaceVersion",
-    "supportedEvaluationContract", "supportedActionOntologyVersion", "supportedActionOntologyVersions",
+    "supportedEvaluationContract", "supportedActionOntologyVersion",
     "capabilities", "adapterFingerprint",
   ]) || !record(metadata.supportedEvaluationContract) ||
     !exactKeys(metadata.supportedEvaluationContract, ["contractId", "contractVersion", "contractFingerprint", "frozenCommit"]) ||
@@ -695,12 +694,7 @@ export function assertCanonicalOperatorMetadataV2(
     metadata.supportedEvaluationContract.frozenCommit !== CANONICAL_OPERATOR_FROZEN_STEP_3_1_COMMIT ||
     typeof metadata.supportedActionOntologyVersion !== "string" ||
     !semver(metadata.supportedActionOntologyVersion) ||
-    metadata.supportedActionOntologyVersion !== ACTION_SCHEMA_VERSION ||
-    !densePlainArray(metadata.supportedActionOntologyVersions) ||
-    metadata.supportedActionOntologyVersions.length === 0 ||
-    metadata.supportedActionOntologyVersions.some((version) => typeof version !== "string" || !semver(version)) ||
-    new Set(metadata.supportedActionOntologyVersions).size !== metadata.supportedActionOntologyVersions.length ||
-    !metadata.supportedActionOntologyVersions.includes(metadata.supportedActionOntologyVersion)) {
+    metadata.supportedActionOntologyVersion !== ACTION_SCHEMA_VERSION) {
     throw new TypeError("canonical operator metadata identity, contract, or ontology support is invalid");
   }
   if (
@@ -883,9 +877,6 @@ function adapterMetadata(
       operator.metadata.supportedEvaluationContract,
     supportedActionOntologyVersion:
       operator.metadata.supportedActionOntologyVersion,
-    supportedActionOntologyVersions: [
-      operator.metadata.supportedActionOntologyVersion,
-    ],
     capabilities: {
       schemaVersion: CANONICAL_OPERATOR_CAPABILITY_SCHEMA_VERSION,
       actionDomains: [...descriptor.actionDomains],
@@ -1059,7 +1050,6 @@ export const CANONICAL_OPERATOR_METADATA_SCHEMA_FINGERPRINT =
       "configurationFingerprint",
       "supportedEvaluationContract",
       "supportedActionOntologyVersion",
-      "supportedActionOntologyVersions",
       "capabilities",
       "adapterFingerprint",
     ],

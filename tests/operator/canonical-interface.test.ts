@@ -211,6 +211,18 @@ describe("Step 3.10 canonical operator interface", () => {
     expect(() => assertCanonicalOperatorMetadataV2(metadata)).not.toThrow();
   });
 
+  it("preserves the frozen Step 3.10 metadata shape and fingerprint", () => {
+    const originalShape: any = structuredClone(ensureCanonicalOperatorV2(DO_NOTHING_OPERATOR).metadata);
+    expect("supportedActionOntologyVersions" in originalShape).toBe(false);
+    expect(() => assertCanonicalOperatorMetadataV2(originalShape)).not.toThrow();
+    expect(CANONICAL_OPERATOR_METADATA_SCHEMA_FINGERPRINT).toBe("fnv1a64:b199f4d287d99937");
+
+    expect(() => assertCanonicalOperatorMetadataV2({
+      ...originalShape,
+      supportedActionOntologyVersions: [originalShape.supportedActionOntologyVersion],
+    })).toThrow(/metadata fields/i);
+  });
+
   it.each([
     ["schemaVersion", (v: any) => { v.schemaVersion = "2.0.0"; }],
     ["interfaceVersion", (v: any) => { v.interfaceVersion = "1.0.0"; }],
@@ -232,10 +244,6 @@ describe("Step 3.10 canonical operator interface", () => {
     ["frozenCommit value", (v: any) => { v.supportedEvaluationContract.frozenCommit = "0000000000000000000000000000000000000000"; }],
     ["supportedActionOntologyVersion", (v: any) => { v.supportedActionOntologyVersion = []; }],
     ["supportedActionOntologyVersion value", (v: any) => { v.supportedActionOntologyVersion = "1.5.0"; }],
-    ["supportedActionOntologyVersions type", (v: any) => { v.supportedActionOntologyVersions = "1.6.0"; }],
-    ["supportedActionOntologyVersions empty", (v: any) => { v.supportedActionOntologyVersions = []; }],
-    ["supportedActionOntologyVersions duplicate", (v: any) => { v.supportedActionOntologyVersions = ["1.6.0", "1.6.0"]; }],
-    ["supportedActionOntologyVersions extra key", (v: any) => { v.supportedActionOntologyVersions.extra = true; }],
     ["capability schema", (v: any) => { v.capabilities.schemaVersion = 1; }],
     ["actionDomains", (v: any) => { v.capabilities.actionDomains = "advertising"; }],
     ["actionDomains extra key", (v: any) => { v.capabilities.actionDomains.extra = true; }],
@@ -249,7 +257,6 @@ describe("Step 3.10 canonical operator interface", () => {
     ["adapterFingerprint", (v: any) => { v.adapterFingerprint = ""; }],
   ])("rejects malformed metadata field %s", (_field, mutate) => {
     const candidate: any = structuredClone(ensureCanonicalOperatorV2(DO_NOTHING_OPERATOR).metadata);
-    candidate.supportedActionOntologyVersions ??= [candidate.supportedActionOntologyVersion];
     mutate(candidate);
     expect(() => assertCanonicalOperatorMetadataV2(candidate)).toThrow();
   });
