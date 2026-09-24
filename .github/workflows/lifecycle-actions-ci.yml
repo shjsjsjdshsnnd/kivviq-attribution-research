@@ -29,6 +29,8 @@ jobs:
       - name: Typecheck
         run: npm run typecheck
       - name: Full inherited + Step 10 tests
-        run: npm test
+        # Keep CI deterministic on GitHub-hosted runners. The complete suite passed,
+        # but Vitest's worker RPC timed out under unrestricted parallelism.
+        run: npm test -- --maxWorkers=2 --minWorkers=1
       - name: Build
         run: npm run build
