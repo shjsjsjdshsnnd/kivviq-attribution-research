@@ -9,12 +9,6 @@ import {
   actionSemanticKey,
 } from "../action_ontology/semantics.js";
 import { assertValidAction } from "../action_ontology/validation.js";
-import type {
-  BaselineEvaluationContract,
-  DecisionOpportunity,
-  ActionAvailabilitySnapshot,
-  OperatorObservationSnapshot,
-} from "../evaluation/baseline-contract.js";
 import {
   deepFreezeOperator,
   operatorFingerprint,
@@ -96,13 +90,28 @@ export interface CanonicalOperatorMetadataV2 {
   readonly adapterFingerprint: string;
 }
 
+export type CanonicalDecisionTrigger =
+  | {
+      readonly kind: "fixed_interval";
+      readonly intervalIndex: number;
+    }
+  | {
+      readonly kind: "simulation_tick";
+      readonly tick: number;
+    }
+  | {
+      readonly kind: "event";
+      readonly eventType: string;
+      readonly eventId: string;
+    };
+
 export interface CanonicalOperatorInputV2
   extends OperatorDecisionInput {
   readonly schemaVersion:
     typeof CANONICAL_OPERATOR_INPUT_SCHEMA_VERSION;
   readonly decisionContext: {
     readonly sequence: number;
-    readonly trigger: DecisionOpportunity["trigger"];
+    readonly trigger: CanonicalDecisionTrigger;
   };
   readonly constraints: {
     readonly dimensions: readonly string[];
@@ -665,47 +674,6 @@ export function validateCanonicalDecisionEnvelope(
   });
 }
 
-export function buildCanonicalOperatorInput(
-  contract: BaselineEvaluationContract,
-  opportunity: DecisionOpportunity,
-  observation: OperatorObservationSnapshot,
-  availability: ActionAvailabilitySnapshot,
-  legacyInput: OperatorDecisionInput,
-): CanonicalOperatorInputV2 {
-  const body = {
-    schemaVersion: CANONICAL_OPERATOR_INPUT_SCHEMA_VERSION,
-    ...legacyInput,
-    decisionContext: {
-      sequence: opportunity.sequence,
-      trigger: opportunity.trigger,
-    },
-    constraints: {
-      dimensions: [...contract.businessConstraints.dimensions],
-      evaluationBoundary: contract.businessConstraints.evaluationBoundary,
-      invalidActionHandling:
-        contract.businessConstraints.invalidActionHandling,
-      infeasibleActionHandling:
-        contract.businessConstraints.infeasibleActionHandling,
-      partialFeasibilityHandling:
-        contract.businessConstraints.partialFeasibilityHandling,
-      conflictHandling: contract.businessConstraints.conflictHandling,
-      silentModificationForbidden:
-        contract.businessConstraints.silentModificationForbidden,
-    },
-    provenance: {
-      schemaVersion: CANONICAL_OPERATOR_PROVENANCE_SCHEMA_VERSION,
-      evaluationContractFingerprint: contract.contractFingerprint,
-      evaluationContractVersion: contract.contractVersion,
-      observationFingerprint: observation.observationFingerprint,
-      legalActionSpaceFingerprint: availability.availabilityFingerprint,
-      actionOntologyVersion: contract.actionSpace.ontologySchemaVersion,
-      source: "step3.1-governed-evaluator-adapter" as const,
-    },
-  };
-
-  return deepFreezeOperator(body);
-}
-
 export function canonicalInputFingerprint(
   input: CanonicalOperatorInputV2,
 ): string {
@@ -833,37 +801,6 @@ export function ensureCanonicalOperatorV2(
     return operator;
   }
   return conformLegacyOperator(operator);
-}
-
-export function assertCanonicalOperatorCompatibleWithContract(
-  contract: BaselineEvaluationContract,
-  operator: CanonicalOperatorV2,
-): void {
-  const metadata = operator.metadata;
-  if (
-    metadata.interfaceVersion !== CANONICAL_OPERATOR_INTERFACE_VERSION
-  ) {
-    throw new TypeError("operator does not implement canonical v2 interface");
-  }
-  if (
-    metadata.supportedEvaluationContract.contractId !== contract.contractId ||
-    metadata.supportedEvaluationContract.contractVersion !==
-      contract.contractVersion ||
-    metadata.supportedEvaluationContract.contractFingerprint !==
-      contract.contractFingerprint
-  ) {
-    throw new TypeError(
-      "canonical operator does not support this frozen evaluation contract",
-    );
-  }
-  if (
-    metadata.supportedActionOntologyVersion !==
-    contract.actionSpace.ontologySchemaVersion
-  ) {
-    throw new TypeError(
-      "canonical operator does not support this Action Ontology version",
-    );
-  }
 }
 
 export function canonicalOperatorDecisionFingerprint(
