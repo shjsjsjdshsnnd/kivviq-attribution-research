@@ -247,6 +247,12 @@ export interface SimulationProvenance {
   readonly endTime: string;
   readonly interventions: readonly Intervention[];
   readonly sharedRandomness: true;
+  /**
+   * Step 12 fingerprint metadata. Omitted on the frozen Step 1-11 path.
+   */
+  readonly websiteModelVersion?: string;
+  readonly websiteSchemaVersion?: number;
+  readonly websiteScenarioFingerprint?: string;
 }
 
 export interface SimulationResult {
