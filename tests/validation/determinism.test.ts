@@ -11,7 +11,7 @@ import {
 const fp = (value: unknown) => evaluationFingerprint(value);
 const action = increaseGoogleShoppingBudget20;
 
-function decision(sampleId: string, note = "stable", requestId = sampleId) {
+function decision(sampleId: string, note = "stable") {
   return {
     sampleId,
     canonicalInputFingerprint: fp({ input: 1 }),
@@ -19,16 +19,15 @@ function decision(sampleId: string, note = "stable", requestId = sampleId) {
     configurationFingerprint: fp({ config: 1 }),
     seedBindingFingerprint: fp({ seed: 1 }),
     actions: [action],
-    decisionEnvelope: { note, requestId },
-    provenanceOnlyPaths: ["requestId"],
+    decisionEnvelope: { note },
   };
 }
 
 describe("determinism validation", () => {
   it("compares canonical decisions while ignoring explicitly identified provenance IDs", () => {
     const result = validateDeterministicDecisions([
-      decision("b", "stable", "random-b"),
-      decision("a", "stable", "random-a"),
+      decision("b"),
+      decision("a"),
     ]);
     expect(result).toMatchObject({ checkId: "determinism", status: "PASS", issues: [] });
     expect(Object.isFrozen(result)).toBe(true);
@@ -39,6 +38,37 @@ describe("determinism validation", () => {
       status: "FAIL",
       issues: [{ code: "NONDETERMINISTIC_DECISION" }],
     });
+  });
+
+  it("uses only the frozen action provenance-ID allowlist", () => {
+    const randomizeProvenanceIds = (sampleId: string) => ({
+      ...decision(sampleId),
+      actions: [{
+        ...action,
+        actionId: `action_random_${sampleId}`,
+        provenance: { ...action.provenance, sourceId: `source:${sampleId}`, evidenceRefs: [`evidence:${sampleId}`] },
+      }],
+    });
+    expect(validateDeterministicDecisions([randomizeProvenanceIds("a"), randomizeProvenanceIds("b")] as never).status).toBe("PASS");
+
+    const changedParameters = {
+      ...decision("b"),
+      actions: [{ ...action, parameters: { ...action.parameters, operation: { ...(action.parameters as { operation: object }).operation, factor: 1.3 } } }],
+    };
+    expect(validateDeterministicDecisions([decision("a"), changedParameters] as never).issues.map((x) => x.code)).toContain("NONDETERMINISTIC_DECISION");
+    for (const attemptedPath of [
+      "decisionEnvelope.note",
+      "actions[*].parameters",
+      "actions[*].actionType",
+      "actions[*].target",
+      "actions..actionId",
+      "actions[0].actionId",
+    ]) {
+      expect(validateDeterministicDecisions([
+        { ...decision("a"), provenanceOnlyPaths: [attemptedPath] },
+        { ...decision("b"), provenanceOnlyPaths: [attemptedPath] },
+      ] as never).status, attemptedPath).toBe("FAIL");
+    }
   });
 
   it("fails closed for insufficient, duplicate, unknown, or malformed evidence", () => {
@@ -80,7 +110,15 @@ describe("determinism validation", () => {
   });
 
   it("detects policy divergence across at least three probes but ignores provenance-only IDs", () => {
-    expect(detectUncontrolledRandomness([decision("a"), decision("b"), decision("c")])).toMatchObject({ checkId: "uncontrolled_randomness_detection", status: "PASS" });
+    const probe = (sampleId: string) => ({
+      ...decision(sampleId),
+      actions: [{
+        ...action,
+        actionId: `action_probe_${sampleId}`,
+        provenance: { ...action.provenance, sourceId: `probe:${sampleId}`, evidenceRefs: [`probe-evidence:${sampleId}`] },
+      }],
+    });
+    expect(detectUncontrolledRandomness([probe("a"), probe("b"), probe("c")] as never)).toMatchObject({ checkId: "uncontrolled_randomness_detection", status: "PASS" });
     expect(detectUncontrolledRandomness([decision("a"), decision("b"), decision("c", "changed")])).toMatchObject({ status: "FAIL", issues: [{ code: "UNCONTROLLED_RANDOMNESS_DETECTED" }] });
     expect(detectUncontrolledRandomness([decision("a"), decision("b")]).status).toBe("FAIL");
   });

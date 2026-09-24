@@ -2,6 +2,8 @@ import { evaluationFingerprint } from "../evaluation/baseline-contract.js";
 import type { BaselineValidationCheckId, BaselineValidationCheckResult, BaselineValidationIssue } from "./contract.js";
 import { canonicalActionFingerprints, hasExactKeys, isFingerprint, isNonEmptyString, isRecord, isStrictJson, issue, result, safeFingerprint } from "./shared.js";
 
+export { CANONICAL_PROVENANCE_ONLY_ACTION_PATHS } from "./shared.js";
+
 export interface DeterministicDecisionSample {
   readonly sampleId: string;
   readonly canonicalInputFingerprint: string;
@@ -10,7 +12,6 @@ export interface DeterministicDecisionSample {
   readonly seedBindingFingerprint: string;
   readonly actions: readonly unknown[];
   readonly decisionEnvelope: unknown;
-  readonly provenanceOnlyPaths: readonly string[];
 }
 
 export interface CompleteRunSample {
@@ -38,24 +39,9 @@ export interface SeedReproducibilitySample {
   readonly runFingerprint: string;
 }
 
-const DECISION_KEYS = ["sampleId", "canonicalInputFingerprint", "operatorFingerprint", "configurationFingerprint", "seedBindingFingerprint", "actions", "decisionEnvelope", "provenanceOnlyPaths"] as const;
+const DECISION_KEYS = ["sampleId", "canonicalInputFingerprint", "operatorFingerprint", "configurationFingerprint", "seedBindingFingerprint", "actions", "decisionEnvelope"] as const;
 const RUN_KEYS = ["sampleId", "canonicalInputFingerprint", "operatorFingerprint", "configurationFingerprint", "seedSetFingerprint", "decisionOpportunities", "observations", "outputs", "dispositions", "executedActions", "simulatorOutcomeFingerprint", "metricsFingerprint", "provenanceFingerprint"] as const;
 const SEED_KEYS = ["sampleId", "seedSetFingerprint", "canonicalInputFingerprint", "operatorFingerprint", "configurationFingerprint", "runFingerprint"] as const;
-
-function omitPaths(value: unknown, paths: readonly string[]): unknown {
-  const clone = JSON.parse(JSON.stringify(value)) as unknown;
-  for (const path of paths) {
-    const segments = path.split(".");
-    if (segments.some((segment) => segment.length === 0)) continue;
-    let current = clone;
-    for (let index = 0; index < segments.length - 1; index += 1) {
-      if (!isRecord(current)) { current = undefined; break; }
-      current = current[segments[index]!];
-    }
-    if (isRecord(current)) delete current[segments.at(-1)!];
-  }
-  return clone;
-}
 
 function validateCollection(value: unknown, minimum: number, keys: readonly string[], label: string): { entries: Record<string, unknown>[]; issues: BaselineValidationIssue[] } {
   const issues: BaselineValidationIssue[] = [];
@@ -73,6 +59,7 @@ function validateCollection(value: unknown, minimum: number, keys: readonly stri
 }
 
 function commonBindings(entries: readonly Record<string, unknown>[], names: readonly string[], issues: BaselineValidationIssue[]): void {
+  if (entries.length === 0) return;
   for (const name of names) {
     const values = entries.map((entry) => entry[name]);
     if (values.some((value) => !isFingerprint(value))) issues.push(issue("INVALID_BINDING_FINGERPRINT", `evidence.${name}`, `${name} must be a canonical fingerprint`));
@@ -85,19 +72,14 @@ function decisionValidation(value: unknown, minimum: number, checkId: BaselineVa
   const checked = validateCollection(value, minimum, DECISION_KEYS, "decision evidence");
   const fingerprints: string[] = [];
   commonBindings(checked.entries, ["canonicalInputFingerprint", "operatorFingerprint", "configurationFingerprint", "seedBindingFingerprint"], checked.issues);
-  let expectedPaths: string | undefined;
   const projections: string[] = [];
   checked.entries.forEach((entry, index) => {
     const path = `evidence[${index}]`;
     const actions = canonicalActionFingerprints(entry["actions"]);
-    if (actions === undefined || !isStrictJson(entry["decisionEnvelope"]) || !Array.isArray(entry["provenanceOnlyPaths"]) || entry["provenanceOnlyPaths"].some((item) => !isNonEmptyString(item)) || new Set(entry["provenanceOnlyPaths"]).size !== entry["provenanceOnlyPaths"].length) {
-      checked.issues.push(issue("INVALID_DECISION_EVIDENCE", path, "decision evidence must contain canonical actions, strict JSON metadata, and provenance paths")); return;
+    if (actions === undefined || !isStrictJson(entry["decisionEnvelope"])) {
+      checked.issues.push(issue("INVALID_DECISION_EVIDENCE", path, "decision evidence must contain canonical actions and strict JSON metadata")); return;
     }
-    const paths = [...entry["provenanceOnlyPaths"]].sort();
-    const pathsKey = JSON.stringify(paths);
-    if (expectedPaths === undefined) expectedPaths = pathsKey;
-    else if (expectedPaths !== pathsKey) { checked.issues.push(issue("INCONSISTENT_PROVENANCE_EXCLUSIONS", `${path}.provenanceOnlyPaths`, "provenance exclusions must be identical across samples")); return; }
-    const projection = { actions, decisionEnvelope: omitPaths(entry["decisionEnvelope"], paths) };
+    const projection = { actions, decisionEnvelope: entry["decisionEnvelope"] };
     const fingerprint = safeFingerprint(projection);
     if (fingerprint === undefined) checked.issues.push(issue("INVALID_DECISION_EVIDENCE", path, "decision projection must be strict JSON"));
     else { fingerprints.push(fingerprint); projections.push(fingerprint); }

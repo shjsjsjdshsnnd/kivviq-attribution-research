@@ -1,11 +1,10 @@
 import { describe, expect, it } from "vitest";
 import { increaseGoogleShoppingBudget20, pauseUnderperformingMetaCampaign } from "../../src/action_ontology/fixtures.js";
 import { evaluationFingerprint } from "../../src/evaluation/baseline-contract.js";
-import { actionFingerprint } from "../../src/action_ontology/semantics.js";
-import { validateFutureInformationIsolation, validateLookbackWindow, validateTemporalObservationBoundary } from "../../src/validation/index.js";
+import { canonicalPolicyDecisionFingerprint, validateFutureInformationIsolation, validateLookbackWindow, validateTemporalObservationBoundary } from "../../src/validation/index.js";
 
 const fp = (value: unknown) => evaluationFingerprint(value);
-const side = (witness: number, actions = [increaseGoogleShoppingBudget20]) => ({ visibleInputFingerprint: fp({ visible: 1 }), witnessFingerprint: fp({ witness }), decisionFingerprint: fp(actions.map(actionFingerprint)), actions });
+const side = (witness: number, actions = [increaseGoogleShoppingBudget20]) => ({ visibleInputFingerprint: fp({ visible: 1 }), witnessFingerprint: fp({ witness }), decisionFingerprint: canonicalPolicyDecisionFingerprint(actions), actions });
 
 describe("future information and temporal boundaries", () => {
   it("detects future-information leakage", () => {
@@ -18,7 +17,15 @@ describe("future information and temporal boundaries", () => {
     const kinds = ["order", "conversion", "revenue", "customer_event", "inventory_event", "advertising_outcome", "return", "promotion_outcome"] as const;
     const observations = kinds.map((kind, index) => ({ eventId: `e-${index}`, kind, occurredAt: index === 0 ? "2026-01-01T00:00:00.000Z" : "2026-01-31T23:59:59.999Z", payload: { index } }));
     expect(validateTemporalObservationBoundary({ decisionTimestamp: "2026-02-01T00:00:00.000Z", observations })).toMatchObject({ checkId: "temporal_boundary_conformance", status: "PASS" });
-    expect(validateTemporalObservationBoundary({ decisionTimestamp: "2026-02-01T00:00:00.000Z", observations: [{ ...observations[0]!, occurredAt: "2026-02-01T00:00:00.001Z" }] })).toMatchObject({ status: "FAIL", issues: [{ code: "FUTURE_OBSERVATION" }] });
+    for (const [index, kind] of kinds.entries()) {
+      expect(
+        validateTemporalObservationBoundary({
+          decisionTimestamp: "2026-02-01T00:00:00.000Z",
+          observations: [{ eventId: `future-${index}`, kind, occurredAt: "2026-02-01T00:00:00.001Z", payload: {} }],
+        }),
+        kind,
+      ).toMatchObject({ status: "FAIL", issues: [{ code: "FUTURE_OBSERVATION" }] });
+    }
   });
 
   it("fails closed for invalid instants, unknown kinds, duplicate IDs, unstable order, malformed payloads, and unknown keys", () => {
