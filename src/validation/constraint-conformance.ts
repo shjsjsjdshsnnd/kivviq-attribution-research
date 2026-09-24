@@ -21,6 +21,8 @@ import {
   assertCanonicalOperatorMetadataV2,
   canonicalInputFingerprint,
   canonicalizeActionOrdering,
+  validateCanonicalDecisionEnvelope,
+  type CanonicalOperatorDecisionV2,
   type CanonicalOperatorMetadataV2,
 } from "../operator/canonical-interface.js";
 import type { EvaluatedOperatorDecision, OperatorInvocationAudit } from "../evaluation/operator-evaluation.js";
@@ -53,6 +55,7 @@ export interface OperatorAuthorityBoundaryEvidence {
   readonly canonicalInputBefore: CanonicalOperatorInputV2;
   readonly canonicalInputAfter: CanonicalOperatorInputV2;
   readonly operatorMetadata: CanonicalOperatorMetadataV2;
+  readonly decisionEnvelope: CanonicalOperatorDecisionV2;
   readonly evaluatedDecision: EvaluatedOperatorDecision;
   readonly dispositionEvidence: ConstraintDispositionEvidence;
 }
@@ -61,7 +64,7 @@ const DISPOSITION_KEYS = ["contract", "opportunity", "availability", "attempts"]
 const ATTEMPT_KEYS = ["rawProposal", "constraintIssues", "explicitModifiedAction", "attemptRecord"] as const;
 const AUTHORITY_KEYS = [
   "canonicalInputBefore", "canonicalInputAfter",
-  "operatorMetadata", "evaluatedDecision", "dispositionEvidence",
+  "operatorMetadata", "decisionEnvelope", "evaluatedDecision", "dispositionEvidence",
 ] as const;
 
 function caughtMessage(error: unknown): string {
@@ -284,6 +287,18 @@ export function validateOperatorAuthorityBoundary(
     issues.push(issue("INVALID_OPERATOR_METADATA", "evidence.operatorMetadata", caughtMessage(error)));
   }
 
+  let validatedDecisionEnvelope: CanonicalOperatorDecisionV2 | undefined;
+  try {
+    if (!frozenCanonicalInput(before)) throw new TypeError("canonical input is unavailable for decision validation");
+    validatedDecisionEnvelope = validateCanonicalDecisionEnvelope(
+      before,
+      metadata as CanonicalOperatorMetadataV2,
+      value["decisionEnvelope"],
+    );
+  } catch (error) {
+    issues.push(issue("INVALID_DECISION_ENVELOPE", "evidence.decisionEnvelope", caughtMessage(error)));
+  }
+
   const evaluated = value["evaluatedDecision"];
   if (!isRecord(evaluated) || !hasExactKeys(evaluated, ["invocation", "decisionRecord"]) ||
     !isRecord(evaluated["invocation"]) || !isRecord(evaluated["decisionRecord"])) {
@@ -325,6 +340,16 @@ export function validateOperatorAuthorityBoundary(
       const expectedAttempts = dispositionAttempts?.map((attempt) => attempt["attemptRecord"]);
       const decisionAttempts = decisionRecord["actionAttempts"] as Record<string, unknown>[];
       const rawActions = decisionAttempts.map((attempt) => attempt["rawProposal"]);
+      const envelopeActions = validatedDecisionEnvelope?.actions;
+      let attemptsMatchEnvelope = false;
+      if (envelopeActions !== undefined && envelopeActions.length === rawActions.length) {
+        try {
+          attemptsMatchEnvelope = stableEvaluationJson(envelopeActions.map(actionFingerprint)) ===
+            stableEvaluationJson(rawActions.map((action) => actionFingerprint(assertValidAction(action))));
+        } catch {
+          attemptsMatchEnvelope = false;
+        }
+      }
       const metadataValue = metadata as CanonicalOperatorMetadataV2;
       let expectedObservationMatches = false;
       if (authorityContract !== undefined && authorityOpportunity !== undefined &&
@@ -351,10 +376,14 @@ export function validateOperatorAuthorityBoundary(
         invocation.inputFingerprint !== beforeIntegrity?.inputFingerprint ||
         invocation.observationFingerprint !== beforeIntegrity?.observationFingerprint ||
         invocation.availabilityFingerprint !== beforeIntegrity?.availabilityFingerprint ||
-        invocation.outputFingerprint !== evaluationFingerprint({ actions: rawActions }) ||
-        invocation.proposedActionCount !== rawActions.length ||
-        invocation.disposition !== (rawActions.length === 0 ? "NO_DISCRETIONARY_ACTIONS" : "ACTION_PROPOSALS_RECORDED")) {
+        envelopeActions === undefined ||
+        invocation.outputFingerprint !== evaluationFingerprint({ actions: envelopeActions }) ||
+        invocation.proposedActionCount !== envelopeActions.length ||
+        invocation.disposition !== (envelopeActions.length === 0 ? "NO_DISCRETIONARY_ACTIONS" : "ACTION_PROPOSALS_RECORDED")) {
         issues.push(issue("INVOCATION_AUDIT_TAMPERED", "evidence.evaluatedDecision.invocation", "invocation audit does not match operator, input, output, or disposition bindings"));
+      }
+      if (!attemptsMatchEnvelope) {
+        issues.push(issue("EVALUATED_DECISION_MISMATCH", "evidence.evaluatedDecision.decisionRecord.actionAttempts", "proposed Action fingerprints differ from the canonical decision envelope"));
       }
       if (isRecord(dispositionEvidence) && expectedAttempts !== undefined &&
         (invocation.opportunityId !== (dispositionEvidence["opportunity"] as DecisionOpportunity | undefined)?.opportunityId ||

@@ -2,14 +2,13 @@ import {
   ACTION_CATEGORIES,
   ACTION_SCHEMA_VERSION,
   type Action,
-  type ActionTarget,
   type CoreActionCategory,
 } from "../action_ontology/types.js";
 import {
   actionFingerprint,
   actionSemanticKey,
 } from "../action_ontology/semantics.js";
-import { assertValidAction } from "../action_ontology/validation.js";
+import { assertValidAction, assertValidActionTarget } from "../action_ontology/validation.js";
 import {
   deepFreezeOperator,
   operatorFingerprint,
@@ -22,6 +21,7 @@ import type {
   OperatorDecisionOutput,
   OperatorJson,
 } from "./types.js";
+import { OPERATOR_INTERFACE_VERSION } from "./types.js";
 
 export const CANONICAL_OPERATOR_INTERFACE_VERSION = "2.0.0" as const;
 export const CANONICAL_OPERATOR_INPUT_SCHEMA_VERSION = "1.0.0" as const;
@@ -37,16 +37,19 @@ export const CANONICAL_OPERATOR_FROZEN_STEP_3_9_COMMIT =
 export const CANONICAL_OPERATOR_SUPPORTED_CONTRACT_FINGERPRINT =
   "fnv1a64:b1cc22917a3e566b" as const;
 
-export type CanonicalOperatorFamily =
-  | "do_nothing"
-  | "status_quo"
-  | "advertising_heuristic"
-  | "inventory_heuristic"
-  | "pricing_promotion_heuristic"
-  | "merchandising_heuristic"
-  | "greedy"
-  | "flawed_optimizer"
-  | "advanced_decision_system";
+export const CANONICAL_OPERATOR_FAMILIES = deepFreezeOperator([
+  "do_nothing",
+  "status_quo",
+  "advertising_heuristic",
+  "inventory_heuristic",
+  "pricing_promotion_heuristic",
+  "merchandising_heuristic",
+  "greedy",
+  "flawed_optimizer",
+  "advanced_decision_system",
+] as const);
+
+export type CanonicalOperatorFamily = (typeof CANONICAL_OPERATOR_FAMILIES)[number];
 
 export type OperatorRandomnessSemantics =
   | {
@@ -87,6 +90,7 @@ export interface CanonicalOperatorMetadataV2 {
     readonly frozenCommit: string;
   };
   readonly supportedActionOntologyVersion: string;
+  readonly supportedActionOntologyVersions: readonly string[];
   readonly capabilities: CanonicalOperatorCapabilities;
   readonly adapterFingerprint: string;
 }
@@ -385,6 +389,12 @@ function semver(value: string): boolean {
   return /^\d+\.\d+\.\d+$/.test(value);
 }
 
+function densePlainArray(value: unknown): value is unknown[] {
+  if (!Array.isArray(value) || Object.getPrototypeOf(value) !== Array.prototype) return false;
+  const keys = Object.keys(value);
+  return keys.length === value.length && keys.every((key, index) => key === String(index));
+}
+
 function finiteJson(value: unknown, path = "$"): void {
   if (typeof value === "number" && !Number.isFinite(value)) {
     throw new TypeError(
@@ -414,40 +424,6 @@ const CANONICAL_INPUT_CONTEXT_KEYS = ["sequence", "trigger"] as const;
 const CANONICAL_INPUT_CONSTRAINT_KEYS = ["dimensions", "evaluationBoundary", "invalidActionHandling", "infeasibleActionHandling", "partialFeasibilityHandling", "conflictHandling", "silentModificationForbidden"] as const;
 const CANONICAL_INPUT_PROVENANCE_KEYS = ["schemaVersion", "evaluationContractFingerprint", "evaluationContractVersion", "observationFingerprint", "legalActionSpaceFingerprint", "actionOntologyVersion", "source"] as const;
 
-const ACTION_TARGET_FIELDS = {
-  advertising_channel: { required: ["channelId"], optional: [] },
-  advertising_account: { required: ["channelId", "accountId"], optional: [] },
-  campaign: { required: ["channelId", "campaignId"], optional: [] },
-  campaign_group: { required: ["channelId", "campaignGroupId"], optional: ["accountId"] },
-  ad_set: { required: ["channelId", "campaignId", "adSetId"], optional: [] },
-  ad_group: { required: ["channelId", "campaignId", "adGroupId"], optional: [] },
-  ad: { required: ["channelId", "campaignId", "adId"], optional: ["adSetId", "adGroupId"] },
-  creative: { required: ["channelId", "creativeId"], optional: ["campaignId"] },
-  audience: { required: ["audienceId"], optional: [] },
-  product: { required: ["productId"], optional: [] },
-  sku: { required: ["skuId"], optional: ["productId"] },
-  category: { required: ["categoryId"], optional: [] },
-  collection: { required: ["collectionId"], optional: [] },
-  brand: { required: ["brandId"], optional: [] },
-  product_set: { required: ["productSetId"], optional: [] },
-  product_group: { required: ["productGroupId"], optional: ["collectionId", "categoryId"] },
-  customer_segment: { required: ["segmentId"], optional: [] },
-  funnel_stage: { required: ["funnelId", "stageId"], optional: [] },
-  page: { required: ["pageId"], optional: [] },
-  lifecycle_program: { required: ["programId"], optional: [] },
-  shipping_policy: { required: ["shippingPolicyId"], optional: [] },
-  shipping_offer: { required: ["shippingOfferId"], optional: [] },
-  inventory_policy: { required: ["inventoryPolicyId"], optional: [] },
-  inventory_location: { required: ["inventoryLocationId"], optional: [] },
-  supplier_relationship: { required: ["supplierRelationshipId"], optional: [] },
-  inventory_set: { required: ["inventorySetId"], optional: [] },
-  experiment: { required: ["experimentId"], optional: [] },
-  promotion: { required: ["promotionId"], optional: [] },
-  merchandising_placement: { required: ["placementId"], optional: [] },
-  merchandising_relationship: { required: ["relationshipId"], optional: [] },
-  merchant: { required: ["merchantId"], optional: [] },
-} as const satisfies Record<ActionTarget["kind"], { readonly required: readonly string[]; readonly optional: readonly string[] }>;
-
 function exactKeys(value: Record<string, unknown>, expected: readonly string[]): boolean {
   const actual = Reflect.ownKeys(value);
   const sortedExpected = [...expected].sort();
@@ -461,16 +437,13 @@ function allowedKeys(value: Record<string, unknown>, allowed: readonly string[],
     required.every((key) => Object.prototype.hasOwnProperty.call(value, key));
 }
 
-function validActionTarget(value: unknown): value is ActionTarget {
-  if (!record(value) || typeof value["kind"] !== "string") return false;
-  const fields = ACTION_TARGET_FIELDS[value["kind"] as ActionTarget["kind"]];
-  if (fields === undefined) return false;
-  const required = fields.required as readonly string[];
-  const optional = fields.optional as readonly string[];
-  if (!allowedKeys(value, ["kind", ...required, ...optional], ["kind", ...required])) return false;
-  return [...required, ...optional]
-    .filter((key) => Object.prototype.hasOwnProperty.call(value, key))
-    .every((key) => typeof value[key] === "string" && (value[key] as string).trim().length > 0);
+function validActionTarget(value: unknown): boolean {
+  try {
+    assertValidActionTarget(value);
+    return true;
+  } catch {
+    return false;
+  }
 }
 
 function exactCanonicalInputStructure(value: Record<string, unknown>): boolean {
@@ -675,7 +648,7 @@ export function assertCanonicalOperatorMetadataV2(
     "schemaVersion", "interfaceVersion", "operatorId", "operatorVersion",
     "operatorFamily", "description", "implementationFingerprint",
     "configurationFingerprint", "legacyInterfaceVersion",
-    "supportedEvaluationContract", "supportedActionOntologyVersion",
+    "supportedEvaluationContract", "supportedActionOntologyVersion", "supportedActionOntologyVersions",
     "capabilities", "adapterFingerprint",
   ]) || !record(metadata.supportedEvaluationContract) ||
     !exactKeys(metadata.supportedEvaluationContract, ["contractId", "contractVersion", "contractFingerprint", "frozenCommit"]) ||
@@ -697,6 +670,39 @@ export function assertCanonicalOperatorMetadataV2(
   ) {
     throw new TypeError("unsupported canonical operator metadata schema");
   }
+  const fingerprintPattern = /^fnv1a64:[0-9a-f]{16}$/;
+  const identifierPattern = /^[A-Za-z0-9][A-Za-z0-9._:-]*$/;
+  const commitPattern = /^[0-9a-f]{40}$/;
+  if (!identifierPattern.test(metadata.operatorId) ||
+    typeof metadata.operatorVersion !== "string" || !semver(metadata.operatorVersion) ||
+    !CANONICAL_OPERATOR_FAMILIES.includes(metadata.operatorFamily) ||
+    typeof metadata.description !== "string" || metadata.description.trim().length === 0 ||
+    !fingerprintPattern.test(metadata.implementationFingerprint) ||
+    !fingerprintPattern.test(metadata.configurationFingerprint) ||
+    !fingerprintPattern.test(metadata.adapterFingerprint) ||
+    (metadata.legacyInterfaceVersion !== null && metadata.legacyInterfaceVersion !== OPERATOR_INTERFACE_VERSION) ||
+    typeof metadata.supportedEvaluationContract.contractId !== "string" ||
+    !identifierPattern.test(metadata.supportedEvaluationContract.contractId) ||
+    typeof metadata.supportedEvaluationContract.contractVersion !== "string" ||
+    !semver(metadata.supportedEvaluationContract.contractVersion) ||
+    typeof metadata.supportedEvaluationContract.contractFingerprint !== "string" ||
+    !fingerprintPattern.test(metadata.supportedEvaluationContract.contractFingerprint) ||
+    typeof metadata.supportedEvaluationContract.frozenCommit !== "string" ||
+    !commitPattern.test(metadata.supportedEvaluationContract.frozenCommit) ||
+    metadata.supportedEvaluationContract.contractId !== "kivviq.baseline-evaluation" ||
+    metadata.supportedEvaluationContract.contractVersion !== "1.0.0" ||
+    metadata.supportedEvaluationContract.contractFingerprint !== CANONICAL_OPERATOR_SUPPORTED_CONTRACT_FINGERPRINT ||
+    metadata.supportedEvaluationContract.frozenCommit !== CANONICAL_OPERATOR_FROZEN_STEP_3_1_COMMIT ||
+    typeof metadata.supportedActionOntologyVersion !== "string" ||
+    !semver(metadata.supportedActionOntologyVersion) ||
+    metadata.supportedActionOntologyVersion !== ACTION_SCHEMA_VERSION ||
+    !densePlainArray(metadata.supportedActionOntologyVersions) ||
+    metadata.supportedActionOntologyVersions.length === 0 ||
+    metadata.supportedActionOntologyVersions.some((version) => typeof version !== "string" || !semver(version)) ||
+    new Set(metadata.supportedActionOntologyVersions).size !== metadata.supportedActionOntologyVersions.length ||
+    !metadata.supportedActionOntologyVersions.includes(metadata.supportedActionOntologyVersion)) {
+    throw new TypeError("canonical operator metadata identity, contract, or ontology support is invalid");
+  }
   if (
     metadata.operatorId.trim().length === 0 ||
     !semver(metadata.operatorVersion) ||
@@ -712,7 +718,7 @@ export function assertCanonicalOperatorMetadataV2(
     metadata.capabilities.supportsZeroActions !== true ||
     metadata.capabilities.supportsOneAction !== true ||
     metadata.capabilities.supportsMultipleActions !== true ||
-    !Array.isArray(metadata.capabilities.actionDomains) ||
+    !densePlainArray(metadata.capabilities.actionDomains) ||
     !Number.isInteger(
       metadata.capabilities.maximumActionsPerDecision,
     ) ||
@@ -877,6 +883,9 @@ function adapterMetadata(
       operator.metadata.supportedEvaluationContract,
     supportedActionOntologyVersion:
       operator.metadata.supportedActionOntologyVersion,
+    supportedActionOntologyVersions: [
+      operator.metadata.supportedActionOntologyVersion,
+    ],
     capabilities: {
       schemaVersion: CANONICAL_OPERATOR_CAPABILITY_SCHEMA_VERSION,
       actionDomains: [...descriptor.actionDomains],
@@ -1050,6 +1059,7 @@ export const CANONICAL_OPERATOR_METADATA_SCHEMA_FINGERPRINT =
       "configurationFingerprint",
       "supportedEvaluationContract",
       "supportedActionOntologyVersion",
+      "supportedActionOntologyVersions",
       "capabilities",
       "adapterFingerprint",
     ],

@@ -67,7 +67,14 @@ function multiActionContext() {
       requiredPreconditionIds: [],
     },
   ]);
-  return { opportunity, observation, availability };
+  const canonicalInput = buildCanonicalOperatorInput(
+    contract,
+    opportunity,
+    observation,
+    availability,
+    toOperatorDecisionInput(opportunity, observation, availability),
+  );
+  return { opportunity, observation, availability, canonicalInput };
 }
 
 function modifiedAction() {
@@ -248,6 +255,7 @@ describe("operator authority boundary", () => {
       canonicalInputBefore: canonicalInput,
       canonicalInputAfter: canonicalInput,
       operatorMetadata: operator.metadata,
+      decisionEnvelope: operator.decide(canonicalInput),
       evaluatedDecision,
       dispositionEvidence: {
         contract,
@@ -258,10 +266,133 @@ describe("operator authority boundary", () => {
     };
   }
 
+  function multiActionAuthorityEvidence() {
+    const { opportunity, observation, availability, canonicalInput } = multiActionContext();
+    const base = ensureCanonicalOperatorV2(DO_NOTHING_OPERATOR).metadata;
+    const operatorMetadata: any = refreeze({
+      ...clone(base),
+      operatorId: "test.multi_action_authority",
+      operatorFamily: "advanced_decision_system",
+      supportedActionOntologyVersions: [base.supportedActionOntologyVersion],
+      capabilities: {
+        ...clone(base.capabilities),
+        actionDomains: ["advertising"],
+        maximumActionsPerDecision: 2,
+      },
+    });
+    const actions = canonicalizeActionOrdering([
+      increaseGoogleShoppingBudget20,
+      pauseUnderperformingMetaCampaign,
+    ]);
+    const operator: any = refreeze({
+      metadata: operatorMetadata,
+      decide: (input: any) => refreeze({
+        schemaVersion: "1.0.0",
+        actions,
+        operatorMetadata,
+        decisionMetadata: {
+          interfaceVersion: "2.0.0",
+          decisionTimestamp: input.decisionTime,
+          deterministicReplayExpected: true,
+          randomness: { kind: "deterministic" },
+          canonicalActionOrdering: "ACTION_TYPE_TARGET_PARAMETERS_ACTION_ID_ASC",
+        },
+      }),
+    });
+    const evaluatedDecision = invokeOperatorAtDecision(
+      contract,
+      operator,
+      opportunity,
+      observation,
+      availability,
+      () => ({ issues: [] }),
+    );
+    const decisionEnvelope = operator.decide(canonicalInput);
+    return {
+      canonicalInputBefore: canonicalInput,
+      canonicalInputAfter: canonicalInput,
+      operatorMetadata,
+      decisionEnvelope,
+      evaluatedDecision,
+      dispositionEvidence: {
+        contract,
+        opportunity,
+        availability,
+        attempts: evaluatedDecision.decisionRecord.actionAttempts.map((attempt: any) => ({
+          rawProposal: attempt.rawProposal,
+          constraintIssues: attempt.constraintDisposition?.issues ?? [],
+          explicitModifiedAction: null,
+          attemptRecord: attempt,
+        })),
+      },
+    };
+  }
+
+  function replaceAcceptedProposals(evidence: any, actions: readonly any[]): void {
+    evidence.decisionEnvelope.actions = actions;
+    const attempts = actions.map((action) => createEvaluationActionAttemptRecord(
+      contract,
+      evidence.dispositionEvidence.opportunity,
+      evidence.dispositionEvidence.availability,
+      action,
+    ));
+    evidence.evaluatedDecision.decisionRecord.actionAttempts = attempts;
+    evidence.dispositionEvidence.attempts = attempts.map((attempt) => ({
+      rawProposal: attempt.rawProposal,
+      constraintIssues: [],
+      explicitModifiedAction: null,
+      attemptRecord: attempt,
+    }));
+    const audit = evidence.evaluatedDecision.invocation;
+    audit.outputFingerprint = evaluationFingerprint({ actions });
+    audit.proposedActionCount = actions.length;
+    audit.disposition = actions.length === 0 ? "NO_DISCRETIONARY_ACTIONS" : "ACTION_PROPOSALS_RECORDED";
+    const { invocationId: _old, ...body } = audit;
+    audit.invocationId = "operator_invocation_" + evaluationFingerprint(body).replace("fnv1a64:", "");
+  }
+
   it("passes an immutable input with evaluator-created dispositions and no direct authority", () => {
     const result = validateOperatorAuthorityBoundary(validAuthorityEvidence());
     expect(result.status).toBe("PASS");
     expect(Object.isFrozen(result)).toBe(true);
+  });
+
+  it("rejects duplicate accepted attempts even when audit IDs and fingerprints are recomputed", () => {
+    const evidence = clone(multiActionAuthorityEvidence());
+    replaceAcceptedProposals(evidence, [increaseGoogleShoppingBudget20, increaseGoogleShoppingBudget20]);
+    refreeze(evidence.canonicalInputBefore);
+    refreeze(evidence.canonicalInputAfter);
+    expect(validateOperatorAuthorityBoundary(evidence).issues).toContainEqual(
+      expect.objectContaining({ code: "INVALID_DECISION_ENVELOPE" }),
+    );
+  });
+
+  it.each([
+    ["conflicting", (e: any) => {
+      const changed = clone(increaseGoogleShoppingBudget20);
+      changed.actionId = "action_google_shopping_budget_conflict";
+      changed.parameters.operation.factor = 1.1;
+      replaceAcceptedProposals(e, canonicalizeActionOrdering([increaseGoogleShoppingBudget20, changed]));
+    }],
+    ["unsupported domain", (e: any) => {
+      e.operatorMetadata.capabilities.actionDomains = [];
+      e.decisionEnvelope.operatorMetadata = e.operatorMetadata;
+    }],
+    ["over capability", (e: any) => {
+      e.operatorMetadata.capabilities.maximumActionsPerDecision = 1;
+      e.decisionEnvelope.operatorMetadata = e.operatorMetadata;
+    }],
+    ["unordered", (e: any) => {
+      replaceAcceptedProposals(e, [...e.decisionEnvelope.actions].reverse());
+    }],
+  ])("rejects %s decision envelopes at the authority boundary", (_label, mutate) => {
+    const evidence = clone(multiActionAuthorityEvidence());
+    mutate(evidence);
+    refreeze(evidence.canonicalInputBefore);
+    refreeze(evidence.canonicalInputAfter);
+    expect(validateOperatorAuthorityBoundary(evidence).issues).toContainEqual(
+      expect.objectContaining({ code: "INVALID_DECISION_ENVELOPE" }),
+    );
   });
 
   it.each([

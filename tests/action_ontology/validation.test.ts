@@ -10,7 +10,7 @@ import {
   runExperimentAction,
   waitObserveAction,
 } from "../../src/action_ontology/fixtures.js";
-import { validateAction } from "../../src/action_ontology/validation.js";
+import { assertValidActionTarget, validateAction } from "../../src/action_ontology/validation.js";
 
 function clone<T>(value: T): any {
   return JSON.parse(JSON.stringify(value));
@@ -91,6 +91,23 @@ describe("Step 1 canonical Action validation", () => {
       expect(
         second.errors.some((issue) => issue.code === "UNKNOWN_TARGET_KIND"),
       ).toBe(true);
+    }
+  });
+
+  it("authoritatively validates exact ActionTarget union shapes", () => {
+    expect(assertValidActionTarget({
+      kind: "campaign",
+      channelId: "google_ads",
+      campaignId: "campaign",
+    })).toEqual({ kind: "campaign", channelId: "google_ads", campaignId: "campaign" });
+
+    for (const invalid of [
+      { kind: "campaign", channelId: "google_ads", campaignId: "campaign", extra: true },
+      { kind: "campaign", channelId: "google_ads" },
+      { kind: "product", productId: 42 },
+      { kind: "mystery", id: "x" },
+    ]) {
+      expect(() => assertValidActionTarget(invalid)).toThrow(/target|Action/i);
     }
   });
 

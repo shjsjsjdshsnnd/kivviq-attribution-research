@@ -212,6 +212,55 @@ describe("Step 3.10 canonical operator interface", () => {
   });
 
   it.each([
+    ["schemaVersion", (v: any) => { v.schemaVersion = "2.0.0"; }],
+    ["interfaceVersion", (v: any) => { v.interfaceVersion = "1.0.0"; }],
+    ["operatorId", (v: any) => { v.operatorId = ""; }],
+    ["operatorVersion", (v: any) => { v.operatorVersion = 1; }],
+    ["operatorFamily", (v: any) => { v.operatorFamily = "invented_family"; }],
+    ["description", (v: any) => { v.description = " "; }],
+    ["implementationFingerprint", (v: any) => { v.implementationFingerprint = "not-a-fingerprint"; }],
+    ["configurationFingerprint", (v: any) => { v.configurationFingerprint = 3; }],
+    ["legacyInterfaceVersion", (v: any) => { v.legacyInterfaceVersion = "legacy"; }],
+    ["legacyInterfaceVersion unsupported", (v: any) => { v.legacyInterfaceVersion = "2.0.0"; }],
+    ["contractId", (v: any) => { v.supportedEvaluationContract.contractId = ""; }],
+    ["contractId value", (v: any) => { v.supportedEvaluationContract.contractId = "other.contract"; }],
+    ["contractVersion", (v: any) => { v.supportedEvaluationContract.contractVersion = false; }],
+    ["contractVersion value", (v: any) => { v.supportedEvaluationContract.contractVersion = "2.0.0"; }],
+    ["contractFingerprint", (v: any) => { v.supportedEvaluationContract.contractFingerprint = "bad"; }],
+    ["contractFingerprint value", (v: any) => { v.supportedEvaluationContract.contractFingerprint = "fnv1a64:0000000000000000"; }],
+    ["frozenCommit", (v: any) => { v.supportedEvaluationContract.frozenCommit = "short"; }],
+    ["frozenCommit value", (v: any) => { v.supportedEvaluationContract.frozenCommit = "0000000000000000000000000000000000000000"; }],
+    ["supportedActionOntologyVersion", (v: any) => { v.supportedActionOntologyVersion = []; }],
+    ["supportedActionOntologyVersion value", (v: any) => { v.supportedActionOntologyVersion = "1.5.0"; }],
+    ["supportedActionOntologyVersions type", (v: any) => { v.supportedActionOntologyVersions = "1.6.0"; }],
+    ["supportedActionOntologyVersions empty", (v: any) => { v.supportedActionOntologyVersions = []; }],
+    ["supportedActionOntologyVersions duplicate", (v: any) => { v.supportedActionOntologyVersions = ["1.6.0", "1.6.0"]; }],
+    ["supportedActionOntologyVersions extra key", (v: any) => { v.supportedActionOntologyVersions.extra = true; }],
+    ["capability schema", (v: any) => { v.capabilities.schemaVersion = 1; }],
+    ["actionDomains", (v: any) => { v.capabilities.actionDomains = "advertising"; }],
+    ["actionDomains extra key", (v: any) => { v.capabilities.actionDomains.extra = true; }],
+    ["supportsZeroActions", (v: any) => { v.capabilities.supportsZeroActions = false; }],
+    ["supportsOneAction", (v: any) => { v.capabilities.supportsOneAction = 1; }],
+    ["supportsMultipleActions", (v: any) => { v.capabilities.supportsMultipleActions = null; }],
+    ["maximumActionsPerDecision", (v: any) => { v.capabilities.maximumActionsPerDecision = 1.5; }],
+    ["randomness", (v: any) => { v.capabilities.randomness = { kind: "random" }; }],
+    ["seed namespace", (v: any) => { v.capabilities.randomness = { kind: "seeded_stochastic", seedNamespace: "global", seedRequired: true }; }],
+    ["seed required", (v: any) => { v.capabilities.randomness = { kind: "seeded_stochastic", seedNamespace: "operator_internal", seedRequired: false }; }],
+    ["adapterFingerprint", (v: any) => { v.adapterFingerprint = ""; }],
+  ])("rejects malformed metadata field %s", (_field, mutate) => {
+    const candidate: any = structuredClone(ensureCanonicalOperatorV2(DO_NOTHING_OPERATOR).metadata);
+    candidate.supportedActionOntologyVersions ??= [candidate.supportedActionOntologyVersion];
+    mutate(candidate);
+    expect(() => assertCanonicalOperatorMetadataV2(candidate)).toThrow();
+  });
+
+  it("accepts null only for native-v2 legacy interface provenance", () => {
+    const candidate: any = structuredClone(ensureCanonicalOperatorV2(DO_NOTHING_OPERATOR).metadata);
+    candidate.legacyInterfaceVersion = null;
+    expect(() => assertCanonicalOperatorMetadataV2(candidate)).not.toThrow();
+  });
+
+  it.each([
     { kind: "advertising_channel", channelId: "google_ads" },
     { kind: "advertising_account", channelId: "google_ads", accountId: "acct" },
     { kind: "campaign", channelId: "google_ads", campaignId: "campaign" },

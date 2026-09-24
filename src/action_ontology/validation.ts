@@ -643,6 +643,40 @@ function validateSchemaFeatureCompatibility(
   }
 }
 
+const ACTION_TARGET_FIELDS = {
+  advertising_channel: { required: ["channelId"], optional: [] },
+  advertising_account: { required: ["channelId", "accountId"], optional: [] },
+  campaign: { required: ["channelId", "campaignId"], optional: [] },
+  campaign_group: { required: ["channelId", "campaignGroupId"], optional: ["accountId"] },
+  ad_set: { required: ["channelId", "campaignId", "adSetId"], optional: [] },
+  ad_group: { required: ["channelId", "campaignId", "adGroupId"], optional: [] },
+  ad: { required: ["channelId", "campaignId", "adId"], optional: ["adSetId", "adGroupId"] },
+  creative: { required: ["channelId", "creativeId"], optional: ["campaignId"] },
+  audience: { required: ["audienceId"], optional: [] },
+  product: { required: ["productId"], optional: [] },
+  sku: { required: ["skuId"], optional: ["productId"] },
+  category: { required: ["categoryId"], optional: [] },
+  collection: { required: ["collectionId"], optional: [] },
+  brand: { required: ["brandId"], optional: [] },
+  product_set: { required: ["productSetId"], optional: [] },
+  product_group: { required: ["productGroupId"], optional: ["collectionId", "categoryId"] },
+  customer_segment: { required: ["segmentId"], optional: [] },
+  funnel_stage: { required: ["funnelId", "stageId"], optional: [] },
+  page: { required: ["pageId"], optional: [] },
+  lifecycle_program: { required: ["programId"], optional: [] },
+  shipping_policy: { required: ["shippingPolicyId"], optional: [] },
+  shipping_offer: { required: ["shippingOfferId"], optional: [] },
+  inventory_policy: { required: ["inventoryPolicyId"], optional: [] },
+  inventory_location: { required: ["inventoryLocationId"], optional: [] },
+  supplier_relationship: { required: ["supplierRelationshipId"], optional: [] },
+  inventory_set: { required: ["inventorySetId"], optional: [] },
+  experiment: { required: ["experimentId"], optional: [] },
+  promotion: { required: ["promotionId"], optional: [] },
+  merchandising_placement: { required: ["placementId"], optional: [] },
+  merchandising_relationship: { required: ["relationshipId"], optional: [] },
+  merchant: { required: ["merchantId"], optional: [] },
+} as const satisfies Record<ActionTarget["kind"], { readonly required: readonly string[]; readonly optional: readonly string[] }>;
+
 function validateTarget(
   input: unknown,
   path: string,
@@ -653,50 +687,36 @@ function validateTarget(
     return;
   }
 
-  const required: Readonly<Record<string, readonly string[]>> = {
-    advertising_channel: ["channelId"],
-    advertising_account: ["channelId", "accountId"],
-    campaign: ["channelId", "campaignId"],
-    campaign_group: ["channelId", "campaignGroupId"],
-    ad_set: ["channelId", "campaignId", "adSetId"],
-    ad_group: ["channelId", "campaignId", "adGroupId"],
-    ad: ["channelId", "campaignId", "adId"],
-    creative: ["channelId", "creativeId"],
-    audience: ["audienceId"],
-    product: ["productId"],
-    sku: ["skuId"],
-    category: ["categoryId"],
-    collection: ["collectionId"],
-    brand: ["brandId"],
-    product_set: ["productSetId"],
-    product_group: ["productGroupId"],
-    customer_segment: ["segmentId"],
-    funnel_stage: ["funnelId", "stageId"],
-    page: ["pageId"],
-    lifecycle_program: ["programId"],
-    shipping_policy: ["shippingPolicyId"],
-    shipping_offer: ["shippingOfferId"],
-    inventory_policy: ["inventoryPolicyId"],
-    inventory_location: ["inventoryLocationId"],
-    supplier_relationship: ["supplierRelationshipId"],
-    inventory_set: ["inventorySetId"],
-    experiment: ["experimentId"],
-    promotion: ["promotionId"],
-    merchandising_placement: ["placementId"],
-    merchandising_relationship: ["relationshipId"],
-    merchant: ["merchantId"],
-  };
-
-  const fields = required[input.kind];
-  if (!fields) {
+  const fields = ACTION_TARGET_FIELDS[input.kind as ActionTarget["kind"]];
+  if (fields === undefined) {
     add(errors, "UNKNOWN_TARGET_KIND", path + ".kind", "unsupported target kind");
     return;
   }
-  for (const field of fields) {
+  const required = fields.required as readonly string[];
+  const optional = fields.optional as readonly string[];
+  const allowed = new Set(["kind", ...required, ...optional]);
+  for (const key of Reflect.ownKeys(input)) {
+    if (typeof key !== "string" || !allowed.has(key)) {
+      add(errors, "UNKNOWN_TARGET_FIELD", path + "." + String(key), "unsupported target field");
+    }
+  }
+  for (const field of required) {
     if (!nonEmpty(input[field])) {
       add(errors, "MISSING_TARGET_ID", path + "." + field, "required");
     }
   }
+  for (const field of optional) {
+    if (Object.prototype.hasOwnProperty.call(input, field) && !nonEmpty(input[field])) {
+      add(errors, "INVALID_TARGET_ID", path + "." + field, "must be a non-empty string when present");
+    }
+  }
+}
+
+export function assertValidActionTarget(input: unknown): ActionTarget {
+  const errors: ActionValidationIssue[] = [];
+  validateTarget(input, "target", errors);
+  if (errors.length > 0) throw new ActionValidationError(errors);
+  return input as ActionTarget;
 }
 
 function validateStringArray(
