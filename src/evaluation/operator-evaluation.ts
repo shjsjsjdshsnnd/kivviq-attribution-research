@@ -7,6 +7,14 @@ import type {
   OperatorObservationInformationClass,
 } from "../operator/types.js";
 import {
+  CANONICAL_OPERATOR_INTERFACE_VERSION,
+  assertCanonicalOperatorCompatibleWithContract,
+  buildCanonicalOperatorInput,
+  canonicalInputFingerprint,
+  canonicalOperatorDecisionFingerprint,
+  conformLegacyOperator,
+} from "../operator/canonical-interface.js";
+import {
   type ActionAvailabilitySnapshot,
   type BaselineEvaluationContract,
   type ConstraintIssue,
@@ -77,9 +85,13 @@ export interface RecordedOperatorDecisionAudit {
 
 export interface OperatorInvocationAudit {
   readonly invocationId: string;
+  readonly interfaceVersion: typeof CANONICAL_OPERATOR_INTERFACE_VERSION;
   readonly operatorId: string;
   readonly operatorVersion: string;
+  readonly operatorFamily: string;
   readonly operatorFingerprint: string;
+  readonly configurationFingerprint: string;
+  readonly interfaceAdapterFingerprint: string;
   readonly opportunityId: string;
   readonly decisionTime: string;
   readonly observationFingerprint: string;
@@ -209,15 +221,26 @@ export function invokeOperatorAtDecision(
 ): EvaluatedOperatorDecision {
   assertOperatorCompatibleWithContract(contract, operator);
 
-  const input = toOperatorDecisionInput(
+  const legacyInput = toOperatorDecisionInput(
     opportunity,
     observation,
     availability,
   );
-  const output = operator.decide(input);
-  assertDecisionOutput(output);
+  const canonicalOperator = conformLegacyOperator(operator);
+  assertCanonicalOperatorCompatibleWithContract(
+    contract,
+    canonicalOperator,
+  );
+  const input = buildCanonicalOperatorInput(
+    contract,
+    opportunity,
+    observation,
+    availability,
+    legacyInput,
+  );
+  const output = canonicalOperator.decide(input);
 
-  const decisionAudit = operator.auditDecision?.(input, output);
+  const decisionAudit = canonicalOperator.auditDecision?.(input, output);
   const recordedDecisionAudit =
     decisionAudit === undefined
       ? undefined
@@ -275,13 +298,19 @@ export function invokeOperatorAtDecision(
       actionAttempts: attempts,
     });
 
-  const inputFingerprint = evaluationFingerprint(input);
-  const outputFingerprint = evaluationFingerprint(output);
+  const inputFingerprint = canonicalInputFingerprint(input);
+  const outputFingerprint = canonicalOperatorDecisionFingerprint(output);
   const invocationBody = {
-    operatorId: operator.metadata.operatorId,
-    operatorVersion: operator.metadata.operatorVersion,
+    interfaceVersion: CANONICAL_OPERATOR_INTERFACE_VERSION,
+    operatorId: canonicalOperator.metadata.operatorId,
+    operatorVersion: canonicalOperator.metadata.operatorVersion,
+    operatorFamily: canonicalOperator.metadata.operatorFamily,
     operatorFingerprint:
-      operator.metadata.implementationFingerprint,
+      canonicalOperator.metadata.implementationFingerprint,
+    configurationFingerprint:
+      canonicalOperator.metadata.configurationFingerprint,
+    interfaceAdapterFingerprint:
+      canonicalOperator.metadata.adapterFingerprint,
     opportunityId: opportunity.opportunityId,
     decisionTime: opportunity.at,
     observationFingerprint:
