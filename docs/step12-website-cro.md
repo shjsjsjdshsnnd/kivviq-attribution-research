@@ -60,7 +60,7 @@ There is no global “+1 second = -X% conversion” rule.
 
 Website quality is transformed through saturating nonlinear response functions. Moving a component from poor to acceptable can therefore create materially more value than moving the same component from good to excellent.
 
-This is the Step 12 CRO-saturation behavior. No separate requirements were inferred beyond the supplied specification, which ended at the `54. CRO SATURATION` heading.
+This is the Step 12 CRO-saturation behavior. The current acceptance contract is the complete 21-section simulated-ecommerce-website specification; no older truncated-draft boundary is used for freeze acceptance.
 
 ## Homepage and navigation
 
@@ -323,3 +323,103 @@ The Step 12 workflow runs, in order:
 5. build.
 
 A separate acceptance report records exact-head results once the final Step 12 head is green.
+
+
+## Canonical model identity, schema and fingerprint
+
+The canonical website simulation layer is identified by:
+
+- model: `website_model_v1`;
+- schema version: `1`;
+- implementation contract: `WEBSITE_CRO_VERSION = 12.0.0`.
+
+`serializeWebsiteScenario` produces a stable machine-readable representation with canonical object-key ordering while preserving semantically meaningful array order. `websiteScenarioFingerprint` hashes that representation. When Step 12 is enabled, the model version, schema version and scenario fingerprint are written both to evaluator-only website truth and to simulation provenance. When Step 12 is omitted, those provenance fields are absent so the frozen Step 1–11 output path remains unchanged.
+
+## Canonical healthy defaults and defect scenarios
+
+`healthyWebsiteState()` is the canonical healthy baseline. It contains no intentionally injected CRO defect.
+
+The frozen Step 12 fixture set includes:
+
+- healthy website;
+- slow mobile PDP;
+- poor checkout;
+- bad search;
+- weak product imagery;
+- shipping surprise;
+- broken coupon;
+- poor collection sorting;
+- multiple simultaneous CRO issues;
+- subtle mobile checkout drag.
+
+The subtle fixture deliberately combines stronger upstream merchandising with moderate mobile-checkout deterioration. The dated checkout-regression acceptance test additionally combines a checkout regression with a simultaneous marketing-mix change, so diagnosis cannot be reduced to a single obvious topline movement.
+
+Scenario helpers configure underlying parameters. They are not binary defect flags.
+
+## Observable website evidence
+
+Observable journey data remains distinct from hidden causal truth.
+
+Step 12 can emit website-relevant observations including:
+
+- visits, landing views, collection views and searches;
+- zero-result and reformulation search events;
+- PDP views;
+- cart views and add-to-cart events;
+- checkout starts and checkout-stage events;
+- coupon search/attempt/invalid/error events;
+- shipping-cost reveal events;
+- payment and address-validation failures;
+- purchases and checkout abandonment;
+- `page_performance` measurements with component, device and measured page-load time.
+
+Page-load observations are deterministic under the simulation seed but include measurement noise. The observable event therefore does not copy the hidden configured latency value verbatim.
+
+Fields such as root cause, hidden-defect flags, causal probability multipliers, causal friction labels, website scenario ID and component-version truth are not included in Operator-visible event payloads. Those remain in evaluator/God-mode records.
+
+## Parameter definitions, units and ranges
+
+The canonical parameter contract is:
+
+| Area | Parameters | Units / range |
+| --- | --- | --- |
+| Component identity | `componentVersion` | non-empty version string |
+| Website state | `versionId`, `deployedAt` | non-empty version string; ISO timestamp |
+| Performance | `latencyMs`, `interactionDelayMs` | milliseconds, >= 0 |
+| Performance | `loadSuccessProbability`, `responsiveness` | [0, 1] |
+| Performance | `assetWeightProxy` | non-negative dimensionless proxy |
+| Homepage | discovery, merchandising, navigation, promotion, visibility | [0, 1] |
+| Navigation | discoverability, hierarchy, path efficiency, mobile menu usability | [0, 1] |
+| Collection | ranking, filtering, sorting, load-more, density, relevance, availability visibility | [0, 1] |
+| Search | entry propensity, relevance, synonym coverage, zero-result probability, reformulation, alternative discovery | [0, 1] |
+| PDP | imagery, information, price/variant/inventory/delivery clarity, trust, social proof, CTA, price-confidence sensitivity | [0, 1] |
+| Cart | clarity, shipping/promotion visibility, coupon reliability/expectation, cross-sell relevance, quantity editing, persistence | [0, 1] |
+| Checkout | stage/form/mobile usability, account friction, address/payment reliability, excessive steps, future-affinity impact | [0, 1] |
+| Checkout | shipping-cost visibility | `pdp`, `cart`, `checkout_shipping`, or `checkout_review` |
+| Product presentation overrides | collection visibility, searchability, imagery, information, delivery clarity | [0, 1] when supplied |
+| Category sensitivity | imagery, information, trust, delivery importance | [0, 1] |
+
+Device-specific performance is represented separately for mobile, desktop and tablet. Mobile and desktop therefore never share a mandatory global website-performance value.
+
+## Behavioral mappings and interactions
+
+Website parameters change transition probabilities rather than dictating outcomes. The causal mapping is explicit:
+
+- homepage/navigation quality affects landing continuation, browsing and search fallback;
+- collection quality and depth affect product discoverability and collection-to-PDP progression;
+- search relevance/synonyms/zero-result behavior affect search-to-PDP progression, reformulation and exit;
+- PDP performance/content/imagery affect PDP continuation and add-to-cart probability;
+- cart quality, cross-sell and shipping/coupon visibility affect cart-to-checkout progression;
+- checkout stage quality, reliability, steps, shipping surprise and coupon behavior affect checkout completion.
+
+The mappings interact with customer intent/need/brand affinity, device, product presentation, category sensitivities, product price, promotion state, shipping burden, inventory/availability, channel/device mix and retention state where those sidecars are enabled. These interactions are explicit and testable rather than globally independent multipliers.
+
+## Intervention integration points
+
+Step 12 does not add new Growth Operator Action Ontology entries. It reuses the frozen generic simulator `Intervention` boundary and validates website targets inside the website layer.
+
+Integration targets include page speed, collection ranking, search repair, PDP imagery/content/delivery clarity, coupon reliability, shipping visibility, checkout usability/reliability and shipping-cost disclosure timing. This is the bridge a later canonical Action translator can use without changing the frozen Action ontology here.
+
+## Known simplifications
+
+This layer simulates ecommerce website behavior, not browser rendering. It does not recreate DOM layout, CSS, network waterfalls, real search NLP, payment processors or a live checkout UI. Page performance and UX are causal abstractions calibrated to create realistic noisy evidence and intervention response while preserving reproducibility and evaluator truth.
