@@ -523,7 +523,7 @@ describe("Step 3.9 plausible but flawed optimization baselines", () => {
     );
     expect(
       selectedCandidate(result).targetKey,
-    ).toContain("product:B");
+    ).toContain("promo_flawed_product_b_10pct");
     expect((result.audit?.payload as any).selectedKpiValue).toBeCloseTo(
       0.4,
       10,
@@ -632,7 +632,7 @@ describe("Step 3.9 plausible but flawed optimization baselines", () => {
     );
     expect(
       selectedCandidate(result).targetKey,
-    ).toContain("product:B");
+    ).toContain("promo_flawed_product_b_10pct");
     expect(
       (result.audit?.payload as any).excludedCandidates,
     ).toEqual(
