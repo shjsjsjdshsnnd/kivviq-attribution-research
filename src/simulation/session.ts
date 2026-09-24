@@ -485,6 +485,30 @@ export function advanceSession(
     startingExperience !== undefined &&
     startingTransition !== undefined
   ) {
+    events.push({
+      eventId: eventId(
+        session.sessionId,
+        `page_performance_${session.step}_${startingExperience.component}`,
+      ),
+      eventType: "page_performance",
+      occurredAt: new Date(timestampMs).toISOString(),
+      anonymousSubjectId: customer.customerId,
+      sessionId: session.sessionId,
+      source: session.source,
+      device: session.device,
+      websiteComponent: startingExperience.component,
+      measuredPageLoadMs: Math.max(
+        1,
+        Math.round(
+          startingExperience.latencyMs *
+            (0.92 +
+              randomness.uniform(
+                `${stepKey}:measured-page-load:${startingExperience.component}`,
+              ) *
+                0.16),
+        ),
+      ),
+    });
     websiteEvents.push(
       ...pageCausalEvents({
         experience: startingExperience,
