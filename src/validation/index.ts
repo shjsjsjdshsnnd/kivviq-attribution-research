@@ -9,3 +9,6 @@ export * from "./leakage.js";
 export * from "./temporal-boundaries.js";
 export * from "./action-conformance.js";
 export * from "./constraint-conformance.js";
+export * from "./replay.js";
+export * from "./conformance.js";
+export * from "./harness.js";
