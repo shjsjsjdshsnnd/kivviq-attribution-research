@@ -438,6 +438,139 @@ export function weakPdpInformationScenario(
 }
 
 
+export const CANONICAL_WEBSITE_SCENARIO_IDS = [
+  "healthy-website",
+  "slow-mobile-pdp-trap",
+  "poor-checkout-trap",
+  "bad-search-trap",
+  "weak-product-imagery-trap",
+  "shipping-surprise-trap",
+  "broken-coupon-trap",
+  "poor-collection-sorting-trap",
+  "multiple-cro-issues-trap",
+  "subtle-mobile-checkout-drag-trap",
+] as const;
+
+export function weakProductImageryScenario(
+  deployedAt: string,
+): WebsiteScenario {
+  const state = healthyWebsiteState(deployedAt);
+  return {
+    scenarioId: "weak-product-imagery-trap",
+    states: [
+      {
+        ...state,
+        pdp: {
+          ...state.pdp,
+          componentVersion: "pdp_weak_imagery_v1",
+          imageryQuality: 0.24,
+        },
+      },
+    ],
+  };
+}
+
+export function multipleCroIssuesScenario(
+  deployedAt: string,
+): WebsiteScenario {
+  const state = healthyWebsiteState(deployedAt);
+  return {
+    scenarioId: "multiple-cro-issues-trap",
+    states: [
+      {
+        ...state,
+        collection: {
+          ...state.collection,
+          componentVersion: "collection_multi_issue_v1",
+          rankingQuality: 0.42,
+          sortingUsability: 0.48,
+        },
+        search: {
+          ...state.search,
+          componentVersion: "search_multi_issue_v1",
+          relevance: 0.44,
+          synonymCoverage: 0.4,
+          zeroResultBaseProbability: 0.2,
+        },
+        pdp: {
+          ...state.pdp,
+          componentVersion: "pdp_multi_issue_v1",
+          imageryQuality: 0.52,
+          performance: {
+            ...state.pdp.performance,
+            mobile: {
+              ...state.pdp.performance.mobile,
+              latencyMs: 4_900,
+              interactionDelayMs: 880,
+              responsiveness: 0.58,
+              assetWeightProxy: 5,
+            },
+          },
+        },
+        cart: {
+          ...state.cart,
+          componentVersion: "cart_multi_issue_v1",
+          shippingVisibility: 0.38,
+          couponReliability: 0.62,
+        },
+        checkout: {
+          ...state.checkout,
+          componentVersion: "checkout_multi_issue_v1",
+          formUsability: 0.58,
+          mobileUsability: 0.56,
+          paymentReliability: 0.9,
+          excessiveSteps: 0.38,
+          shippingCostVisibility: "checkout_review",
+        },
+      },
+    ],
+  };
+}
+
+/**
+ * A deliberately non-obvious defect: stronger merchandising can mask a
+ * moderate mobile-checkout regression in topline metrics. The dated-regression
+ * acceptance test also combines checkout deterioration with a marketing-mix
+ * change to make the causal diagnosis non-trivial.
+ */
+export function subtleMobileCheckoutDragScenario(
+  deployedAt: string,
+): WebsiteScenario {
+  const state = healthyWebsiteState(deployedAt);
+  return {
+    scenarioId: "subtle-mobile-checkout-drag-trap",
+    states: [
+      {
+        ...state,
+        homepage: {
+          ...state.homepage,
+          componentVersion: "homepage_stronger_merch_v1",
+          discoveryQuality: 0.96,
+          merchandisingRelevance: 0.97,
+          visibility: 0.95,
+        },
+        checkout: {
+          ...state.checkout,
+          componentVersion: "checkout_subtle_mobile_drag_v1",
+          formUsability: 0.79,
+          mobileUsability: 0.76,
+          addressValidationReliability: 0.94,
+          performance: {
+            ...state.checkout.performance,
+            mobile: {
+              ...state.checkout.performance.mobile,
+              latencyMs: 2_100,
+              interactionDelayMs: 420,
+              responsiveness: 0.76,
+              assetWeightProxy: 2.15,
+            },
+          },
+        },
+      },
+    ],
+  };
+}
+
 export const FIX_SLOW_MOBILE_PDP: Intervention = {
   variable: "website.pdp.mobile.latency_seconds",
   operation: "set",
