@@ -506,11 +506,102 @@ function assertCapabilityConformance(
   }
 }
 
+export function assertCanonicalOperatorMetadataV2(
+  metadata: CanonicalOperatorMetadataV2,
+): void {
+  if (
+    metadata.schemaVersion !==
+      CANONICAL_OPERATOR_METADATA_SCHEMA_VERSION ||
+    metadata.interfaceVersion !== CANONICAL_OPERATOR_INTERFACE_VERSION
+  ) {
+    throw new TypeError("unsupported canonical operator metadata schema");
+  }
+  if (
+    metadata.operatorId.trim().length === 0 ||
+    !semver(metadata.operatorVersion) ||
+    metadata.implementationFingerprint.trim().length === 0 ||
+    metadata.configurationFingerprint.trim().length === 0 ||
+    metadata.adapterFingerprint.trim().length === 0
+  ) {
+    throw new TypeError("canonical operator metadata identity is incomplete");
+  }
+  if (
+    metadata.capabilities.schemaVersion !==
+      CANONICAL_OPERATOR_CAPABILITY_SCHEMA_VERSION ||
+    !Number.isInteger(
+      metadata.capabilities.maximumActionsPerDecision,
+    ) ||
+    metadata.capabilities.maximumActionsPerDecision < 0
+  ) {
+    throw new TypeError("canonical operator capability metadata is invalid");
+  }
+  const domains = new Set<string>();
+  for (const domain of metadata.capabilities.actionDomains) {
+    if (
+      !ACTION_CATEGORIES.includes(domain) ||
+      domain === "no_op" ||
+      domains.has(domain)
+    ) {
+      throw new TypeError(
+        "canonical operator capabilities contain invalid or duplicate domain",
+      );
+    }
+    domains.add(domain);
+  }
+  if (
+    metadata.capabilities.randomness.kind === "seeded_stochastic" &&
+    metadata.capabilities.randomness.seedNamespace !== "operator_internal"
+  ) {
+    throw new TypeError(
+      "stochastic operator randomness must bind operator_internal seed",
+    );
+  }
+}
+
+function assertDecisionMetadata(
+  input: Readonly<CanonicalOperatorInputV2>,
+  metadata: CanonicalOperatorMetadataV2,
+  value: unknown,
+): asserts value is CanonicalOperatorDecisionMetadata {
+  if (!record(value)) {
+    throw new TypeError("canonical decision metadata is required");
+  }
+  const keys = Object.keys(value).sort();
+  const expected = [
+    "canonicalActionOrdering",
+    "decisionTimestamp",
+    "deterministicReplayExpected",
+    "interfaceVersion",
+    "randomness",
+  ].sort();
+  if (stableOperatorJson(keys) !== stableOperatorJson(expected)) {
+    throw new TypeError("canonical decision metadata fields are malformed");
+  }
+  if (
+    value["interfaceVersion"] !== CANONICAL_OPERATOR_INTERFACE_VERSION ||
+    value["decisionTimestamp"] !== input.decisionTime ||
+    value["canonicalActionOrdering"] !==
+      "ACTION_TYPE_TARGET_PARAMETERS_ACTION_ID_ASC" ||
+    stableOperatorJson(value["randomness"]) !==
+      stableOperatorJson(metadata.capabilities.randomness)
+  ) {
+    throw new TypeError("canonical decision metadata is inconsistent");
+  }
+  const deterministic =
+    metadata.capabilities.randomness.kind === "deterministic";
+  if (value["deterministicReplayExpected"] !== deterministic) {
+    throw new TypeError(
+      "deterministic replay declaration differs from randomness semantics",
+    );
+  }
+}
+
 export function validateCanonicalDecisionEnvelope(
   input: Readonly<CanonicalOperatorInputV2>,
   metadata: CanonicalOperatorMetadataV2,
   value: unknown,
 ): CanonicalOperatorDecisionV2 {
+  assertCanonicalOperatorMetadataV2(metadata);
   if (!record(value)) {
     throw new TypeError("canonical operator decision must be an object");
   }
@@ -541,9 +632,11 @@ export function validateCanonicalDecisionEnvelope(
       "canonical operator decision metadata differs from operator metadata",
     );
   }
-  if (!record(value["decisionMetadata"])) {
-    throw new TypeError("canonical decision metadata is required");
-  }
+  assertDecisionMetadata(
+    input,
+    metadata,
+    value["decisionMetadata"],
+  );
 
   finiteJson(value);
 
@@ -551,6 +644,14 @@ export function validateCanonicalDecisionEnvelope(
     assertValidAction(entry as Action),
   );
   const canonicalActions = canonicalizeActionOrdering(actions);
+  if (
+    stableOperatorJson(actions) !==
+    stableOperatorJson(canonicalActions)
+  ) {
+    throw new TypeError(
+      "operator Actions must already use canonical deterministic ordering",
+    );
+  }
 
   assertCapabilityConformance(metadata, canonicalActions);
   assertNoDuplicateOrConflictingActions(canonicalActions, input);
@@ -727,9 +828,11 @@ export function isCanonicalOperatorV2(
 export function ensureCanonicalOperatorV2(
   operator: CanonicalOperator | CanonicalOperatorV2,
 ): CanonicalOperatorV2 {
-  return isCanonicalOperatorV2(operator)
-    ? operator
-    : conformLegacyOperator(operator);
+  if (isCanonicalOperatorV2(operator)) {
+    assertCanonicalOperatorMetadataV2(operator.metadata);
+    return operator;
+  }
+  return conformLegacyOperator(operator);
 }
 
 export function assertCanonicalOperatorCompatibleWithContract(
