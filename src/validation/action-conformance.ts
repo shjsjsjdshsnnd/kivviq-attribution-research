@@ -4,7 +4,6 @@ import {
   assertDecisionOpportunityAllowed,
   assertValidBaselineEvaluationContract,
   buildActionAvailabilitySnapshot,
-  buildOperatorObservationSnapshot,
   stableEvaluationJson,
   validateActionBatchAtDecision,
   type ActionAvailabilitySnapshot,
@@ -12,9 +11,6 @@ import {
   type DecisionOpportunity,
 } from "../evaluation/baseline-contract.js";
 import {
-  CANONICAL_OPERATOR_INPUT_SCHEMA_VERSION,
-  CANONICAL_OPERATOR_PROVENANCE_SCHEMA_VERSION,
-  canonicalInputFingerprint,
   validateCanonicalDecisionEnvelope,
   type CanonicalOperatorDecisionV2,
   type CanonicalOperatorInputV2,
@@ -22,6 +18,7 @@ import {
 } from "../operator/canonical-interface.js";
 import type { BaselineValidationCheckResult, BaselineValidationIssue } from "./contract.js";
 import {
+  canonicalInputIntegrity,
   hasExactKeys,
   isRecord,
   isStrictJson,
@@ -50,130 +47,6 @@ const EVIDENCE_KEYS = [
 
 function caughtMessage(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
-}
-
-const INPUT_KEYS = ["schemaVersion", "opportunityId", "decisionTime", "observation", "legalActionSpace", "decisionContext", "constraints", "provenance"] as const;
-const OBSERVATION_KEYS = ["records"] as const;
-const OBSERVATION_RECORD_KEYS = ["observationKey", "informationClass", "sourceMinOccurredAt", "sourceMaxOccurredAt", "availableAt", "sourceRef", "value"] as const;
-const ACTION_SPACE_KEYS = ["rules", "mutualExclusionGroups"] as const;
-const ACTION_RULE_KEYS = ["actionType", "eligibleTargets", "parameterBounds", "requiredPreconditionIds"] as const;
-const BOUND_ALLOWED_KEYS = ["path", "minInclusive", "maxInclusive"] as const;
-const GROUP_KEYS = ["groupId", "actionTypes"] as const;
-const DECISION_CONTEXT_KEYS = ["sequence", "trigger"] as const;
-const CONSTRAINT_KEYS = ["dimensions", "evaluationBoundary", "invalidActionHandling", "infeasibleActionHandling", "partialFeasibilityHandling", "conflictHandling", "silentModificationForbidden"] as const;
-const PROVENANCE_KEYS = ["schemaVersion", "evaluationContractFingerprint", "evaluationContractVersion", "observationFingerprint", "legalActionSpaceFingerprint", "actionOntologyVersion", "source"] as const;
-
-function hasAllowedKeys(value: Record<string, unknown>, allowed: readonly string[], required: readonly string[]): boolean {
-  const keys = Reflect.ownKeys(value);
-  return keys.every((key) => typeof key === "string" && allowed.includes(key)) &&
-    required.every((key) => Object.prototype.hasOwnProperty.call(value, key));
-}
-
-function exactCanonicalInputShape(input: Record<string, unknown>): boolean {
-  if (!hasExactKeys(input, INPUT_KEYS) ||
-    !isRecord(input["observation"]) || !hasExactKeys(input["observation"], OBSERVATION_KEYS) ||
-    !Array.isArray(input["observation"]["records"]) ||
-    !input["observation"]["records"].every((record) => isRecord(record) && hasExactKeys(record, OBSERVATION_RECORD_KEYS)) ||
-    !isRecord(input["legalActionSpace"]) || !hasExactKeys(input["legalActionSpace"], ACTION_SPACE_KEYS) ||
-    !Array.isArray(input["legalActionSpace"]["rules"]) ||
-    !input["legalActionSpace"]["rules"].every((rule) => isRecord(rule) && hasExactKeys(rule, ACTION_RULE_KEYS) &&
-      Array.isArray(rule["parameterBounds"]) && rule["parameterBounds"].every((bound) => isRecord(bound) && hasAllowedKeys(bound, BOUND_ALLOWED_KEYS, ["path"])) ) ||
-    !Array.isArray(input["legalActionSpace"]["mutualExclusionGroups"]) ||
-    !input["legalActionSpace"]["mutualExclusionGroups"].every((group) => isRecord(group) && hasExactKeys(group, GROUP_KEYS)) ||
-    !isRecord(input["decisionContext"]) || !hasExactKeys(input["decisionContext"], DECISION_CONTEXT_KEYS) ||
-    !isRecord(input["decisionContext"]["trigger"]) ||
-    !isRecord(input["constraints"]) || !hasExactKeys(input["constraints"], CONSTRAINT_KEYS) ||
-    !isRecord(input["provenance"]) || !hasExactKeys(input["provenance"], PROVENANCE_KEYS)) return false;
-  const trigger = input["decisionContext"]["trigger"];
-  return (trigger["kind"] === "fixed_interval" && hasExactKeys(trigger, ["kind", "intervalIndex"])) ||
-    (trigger["kind"] === "simulation_tick" && hasExactKeys(trigger, ["kind", "tick"])) ||
-    (trigger["kind"] === "event" && hasExactKeys(trigger, ["kind", "eventType", "eventId"]));
-}
-
-export interface CanonicalInputIntegrityResult {
-  readonly issues: readonly BaselineValidationIssue[];
-  readonly inputFingerprint?: string;
-  readonly observationFingerprint?: string;
-  readonly availabilityFingerprint?: string;
-}
-
-/** @internal Shared by the Action and operator-authority evidence checks. */
-export function validateCanonicalInputIntegrity(
-  value: unknown,
-  contract: BaselineEvaluationContract,
-  opportunity: DecisionOpportunity,
-  availability: ActionAvailabilitySnapshot,
-  path = "evidence.canonicalInput",
-): CanonicalInputIntegrityResult {
-  const issues: BaselineValidationIssue[] = [];
-  if (!isRecord(value) || !exactCanonicalInputShape(value)) {
-    return { issues: [issue("INVALID_INPUT_SCHEMA", path, "canonical operator input must match the exact Step 3.10 schema")] };
-  }
-  const input = value as unknown as CanonicalOperatorInputV2;
-  if (input.schemaVersion !== CANONICAL_OPERATOR_INPUT_SCHEMA_VERSION ||
-    input.provenance.schemaVersion !== CANONICAL_OPERATOR_PROVENANCE_SCHEMA_VERSION ||
-    input.provenance.source !== "step3.1-governed-evaluator-adapter") {
-    issues.push(issue("INVALID_INPUT_SCHEMA", path, "canonical operator input or provenance schema version is unsupported"));
-  }
-  if (input.opportunityId !== opportunity.opportunityId || input.decisionTime !== opportunity.at ||
-    stableEvaluationJson(input.decisionContext) !== stableEvaluationJson({ sequence: opportunity.sequence, trigger: opportunity.trigger })) {
-    issues.push(issue("INPUT_BINDING_MISMATCH", path, "canonical input does not bind the supplied decision opportunity"));
-  }
-
-  let observationFingerprint: string | undefined;
-  try {
-    const snapshot = buildOperatorObservationSnapshot(contract, opportunity, input.observation.records as never);
-    observationFingerprint = snapshot.observationFingerprint;
-    if (stableEvaluationJson(snapshot.records) !== stableEvaluationJson(input.observation.records) ||
-      input.provenance.observationFingerprint !== observationFingerprint) {
-      throw new TypeError("observation records or provenance fingerprint differ from the canonical snapshot");
-    }
-  } catch (error) {
-    issues.push(issue("OBSERVATION_INTEGRITY", `${path}.observation`, caughtMessage(error)));
-  }
-
-  let availabilityFingerprint: string | undefined;
-  try {
-    const snapshot = buildActionAvailabilitySnapshot(
-      contract,
-      opportunity,
-      input.legalActionSpace.rules,
-      input.legalActionSpace.mutualExclusionGroups,
-    );
-    availabilityFingerprint = snapshot.availabilityFingerprint;
-    if (stableEvaluationJson({ rules: snapshot.rules, mutualExclusionGroups: snapshot.mutualExclusionGroups }) !== stableEvaluationJson(input.legalActionSpace) ||
-      input.provenance.legalActionSpaceFingerprint !== availabilityFingerprint ||
-      stableEvaluationJson(snapshot) !== stableEvaluationJson(availability)) {
-      throw new TypeError("legal Action space, provenance fingerprint, or bound availability differs from the canonical snapshot");
-    }
-  } catch (error) {
-    issues.push(issue("ACTION_SPACE_INTEGRITY", `${path}.legalActionSpace`, caughtMessage(error)));
-  }
-
-  const expectedConstraints = {
-    dimensions: contract.businessConstraints.dimensions,
-    evaluationBoundary: contract.businessConstraints.evaluationBoundary,
-    invalidActionHandling: contract.businessConstraints.invalidActionHandling,
-    infeasibleActionHandling: contract.businessConstraints.infeasibleActionHandling,
-    partialFeasibilityHandling: contract.businessConstraints.partialFeasibilityHandling,
-    conflictHandling: contract.businessConstraints.conflictHandling,
-    silentModificationForbidden: contract.businessConstraints.silentModificationForbidden,
-  };
-  if (stableEvaluationJson(input.constraints) !== stableEvaluationJson(expectedConstraints)) {
-    issues.push(issue("CONSTRAINT_INTEGRITY", `${path}.constraints`, "operator constraints differ from the frozen evaluation contract"));
-  }
-  if (input.provenance.evaluationContractFingerprint !== contract.contractFingerprint ||
-    input.provenance.evaluationContractVersion !== contract.contractVersion ||
-    input.provenance.actionOntologyVersion !== contract.actionSpace.ontologySchemaVersion) {
-    issues.push(issue("PROVENANCE_INTEGRITY", `${path}.provenance`, "canonical input provenance differs from the recomputed contract or Action Ontology binding"));
-  }
-
-  return {
-    issues,
-    inputFingerprint: canonicalInputFingerprint(input),
-    ...(observationFingerprint === undefined ? {} : { observationFingerprint }),
-    ...(availabilityFingerprint === undefined ? {} : { availabilityFingerprint }),
-  };
 }
 
 function envelopeIssue(error: unknown): BaselineValidationIssue {
@@ -252,7 +125,7 @@ function validateBindings(
   if (input === undefined) {
     issues.push(issue("INVALID_INPUT_BINDING", "evidence.canonicalInput", "canonical input must be an object"));
   } else if (contract !== undefined && opportunity !== undefined && availability !== undefined) {
-    issues.push(...validateCanonicalInputIntegrity(input, contract, opportunity, availability).issues);
+    issues.push(...canonicalInputIntegrity(input, contract, opportunity, availability, "evidence.canonicalInput").issues);
   }
   if (metadata === undefined) {
     issues.push(issue("INVALID_OPERATOR_METADATA", "evidence.operatorMetadata", "operator metadata must be an object"));

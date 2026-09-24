@@ -32,6 +32,7 @@ import {
   canonicalOperatorDecisionFingerprint,
   conformLegacyOperator,
   ensureCanonicalOperatorV2,
+  assertCanonicalOperatorInputV2,
   validateCanonicalDecisionEnvelope,
   type CanonicalOperatorDecisionMetadata,
   type CanonicalOperatorMetadataV2,
@@ -144,6 +145,57 @@ function decisionMetadata(
 }
 
 describe("Step 3.10 canonical operator interface", () => {
+  function inputBindings(input = canonicalInput()) {
+    return {
+      opportunityId: input.opportunityId,
+      decisionTime: input.decisionTime,
+      decisionContext: input.decisionContext,
+      observationRecords: input.observation.records,
+      legalActionSpace: input.legalActionSpace,
+      constraints: input.constraints,
+      evaluationContractFingerprint: input.provenance.evaluationContractFingerprint,
+      evaluationContractVersion: input.provenance.evaluationContractVersion,
+      observationFingerprint: input.provenance.observationFingerprint,
+      legalActionSpaceFingerprint: input.provenance.legalActionSpaceFingerprint,
+      actionOntologyVersion: input.provenance.actionOntologyVersion,
+    };
+  }
+
+  it("authoritatively validates and freezes an exact canonical input", () => {
+    const input = canonicalInput();
+    const validated = assertCanonicalOperatorInputV2(input, inputBindings(input));
+    expect(validated).toEqual(input);
+    expect(Object.isFrozen(validated)).toBe(true);
+    expect(Object.isFrozen(validated.legalActionSpace.rules)).toBe(true);
+  });
+
+  it.each([
+    ["top-level", (input: any) => { input.extra = true; }],
+    ["observation", (input: any) => { input.observation.extra = true; }],
+    ["Action rule", (input: any) => { input.legalActionSpace.rules = [{ extra: true }]; }],
+    ["constraints", (input: any) => { input.constraints.extra = true; }],
+    ["provenance", (input: any) => { input.provenance.extra = true; }],
+  ])("rejects unknown or malformed %s canonical-input fields", (_label, mutate) => {
+    const input = structuredClone(canonicalInput());
+    mutate(input);
+    expect(() => assertCanonicalOperatorInputV2(input, inputBindings())).toThrow(/canonical operator input/i);
+  });
+
+  it("rejects nested binding tampering and provenance fingerprint mismatch", () => {
+    const legal = structuredClone(canonicalInput());
+    (legal.legalActionSpace as any).rules = [{
+      actionType: "advertising.adjust_budget",
+      eligibleTargets: [{ kind: "campaign", channelId: "google_ads", campaignId: "tampered" }],
+      parameterBounds: [],
+      requiredPreconditionIds: [],
+    }];
+    expect(() => assertCanonicalOperatorInputV2(legal, inputBindings())).toThrow(/binding/i);
+
+    const provenance = structuredClone(canonicalInput());
+    (provenance.provenance as any).observationFingerprint = "fnv1a64:0000000000000000";
+    expect(() => assertCanonicalOperatorInputV2(provenance, inputBindings())).toThrow(/binding/i);
+  });
+
   it("freezes explicit v2 interface and schema fingerprints", () => {
     expect(CANONICAL_OPERATOR_INTERFACE_VERSION).toBe("2.0.0");
     for (const fingerprint of [

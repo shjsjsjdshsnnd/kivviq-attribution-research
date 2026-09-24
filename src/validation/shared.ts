@@ -1,7 +1,21 @@
 import type { Action } from "../action_ontology/types.js";
 import { actionFingerprint } from "../action_ontology/semantics.js";
 import { assertValidAction } from "../action_ontology/validation.js";
-import { deepFreezeEvaluation, evaluationFingerprint } from "../evaluation/baseline-contract.js";
+import {
+  buildActionAvailabilitySnapshot,
+  buildOperatorObservationSnapshot,
+  deepFreezeEvaluation,
+  evaluationFingerprint,
+  stableEvaluationJson,
+  type ActionAvailabilitySnapshot,
+  type BaselineEvaluationContract,
+  type DecisionOpportunity,
+} from "../evaluation/baseline-contract.js";
+import {
+  assertCanonicalOperatorInputV2,
+  canonicalInputFingerprint,
+  type CanonicalOperatorInputV2,
+} from "../operator/canonical-interface.js";
 import { BASELINE_VALIDATION_FINGERPRINT_PATTERN, type BaselineValidationCheckId, type BaselineValidationCheckResult, type BaselineValidationIssue } from "./contract.js";
 
 export function isRecord(value: unknown): value is Record<string, unknown> {
@@ -76,6 +90,92 @@ export function issue(code: string, path: string, message: string): BaselineVali
 
 export function safeFingerprint(value: unknown): string | undefined {
   return isStrictJson(value) ? evaluationFingerprint(value) : undefined;
+}
+
+interface CanonicalInputIntegrityResult {
+  readonly issues: readonly BaselineValidationIssue[];
+  readonly inputFingerprint?: string;
+  readonly observationFingerprint?: string;
+  readonly availabilityFingerprint?: string;
+}
+
+/** Internal validation adapter: Step 3.1 reconstructs bindings, Step 3.10 validates the input. */
+export function canonicalInputIntegrity(
+  value: unknown,
+  contract: BaselineEvaluationContract,
+  opportunity: DecisionOpportunity,
+  availability: ActionAvailabilitySnapshot,
+  path: string,
+): CanonicalInputIntegrityResult {
+  if (!isRecord(value) || !isRecord(value["observation"]) || !Array.isArray(value["observation"]["records"]) ||
+    !isRecord(value["legalActionSpace"]) || !Array.isArray(value["legalActionSpace"]["rules"]) ||
+    !Array.isArray(value["legalActionSpace"]["mutualExclusionGroups"])) {
+    return deepFreezeEvaluation({ issues: [issue("INVALID_INPUT_SCHEMA", path, "canonical operator input must match the exact Step 3.10 schema")] });
+  }
+
+  let observation;
+  try {
+    observation = buildOperatorObservationSnapshot(contract, opportunity, value["observation"]["records"] as never);
+  } catch (error) {
+    return deepFreezeEvaluation({ issues: [issue("OBSERVATION_INTEGRITY", `${path}.observation`, error instanceof Error ? error.message : String(error))] });
+  }
+  let actionSpace;
+  try {
+    actionSpace = buildActionAvailabilitySnapshot(
+      contract,
+      opportunity,
+      value["legalActionSpace"]["rules"] as ActionAvailabilitySnapshot["rules"],
+      value["legalActionSpace"]["mutualExclusionGroups"] as ActionAvailabilitySnapshot["mutualExclusionGroups"],
+    );
+  } catch (error) {
+    return deepFreezeEvaluation({ issues: [issue("ACTION_SPACE_INTEGRITY", `${path}.legalActionSpace`, error instanceof Error ? error.message : String(error))] });
+  }
+
+  const constraints = {
+    dimensions: contract.businessConstraints.dimensions,
+    evaluationBoundary: contract.businessConstraints.evaluationBoundary,
+    invalidActionHandling: contract.businessConstraints.invalidActionHandling,
+    infeasibleActionHandling: contract.businessConstraints.infeasibleActionHandling,
+    partialFeasibilityHandling: contract.businessConstraints.partialFeasibilityHandling,
+    conflictHandling: contract.businessConstraints.conflictHandling,
+    silentModificationForbidden: contract.businessConstraints.silentModificationForbidden,
+  };
+  let input: CanonicalOperatorInputV2;
+  try {
+    input = assertCanonicalOperatorInputV2(value, {
+      opportunityId: opportunity.opportunityId,
+      decisionTime: opportunity.at,
+      decisionContext: { sequence: opportunity.sequence, trigger: opportunity.trigger },
+      observationRecords: observation.records as CanonicalOperatorInputV2["observation"]["records"],
+      legalActionSpace: { rules: actionSpace.rules, mutualExclusionGroups: actionSpace.mutualExclusionGroups },
+      constraints,
+      evaluationContractFingerprint: contract.contractFingerprint,
+      evaluationContractVersion: contract.contractVersion,
+      observationFingerprint: observation.observationFingerprint,
+      legalActionSpaceFingerprint: actionSpace.availabilityFingerprint,
+      actionOntologyVersion: contract.actionSpace.ontologySchemaVersion,
+    });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    const code = /fields are malformed|schema or provenance version/.test(message) ? "INVALID_INPUT_SCHEMA"
+      : /observation binding/.test(message) ? "OBSERVATION_INTEGRITY"
+        : /legal Action-space binding/.test(message) ? "ACTION_SPACE_INTEGRITY"
+          : /constraint binding/.test(message) ? "CONSTRAINT_INTEGRITY"
+            : /provenance binding/.test(message) ? "PROVENANCE_INTEGRITY"
+              : "INPUT_BINDING_MISMATCH";
+    return deepFreezeEvaluation({ issues: [issue(code, path, message)] });
+  }
+
+  const issues: BaselineValidationIssue[] = [];
+  if (stableEvaluationJson(actionSpace) !== stableEvaluationJson(availability)) {
+    issues.push(issue("ACTION_SPACE_INTEGRITY", `${path}.legalActionSpace`, "canonical input Action space differs from the bound evaluator availability"));
+  }
+  return deepFreezeEvaluation({
+    issues,
+    inputFingerprint: canonicalInputFingerprint(input),
+    observationFingerprint: observation.observationFingerprint,
+    availabilityFingerprint: actionSpace.availabilityFingerprint,
+  });
 }
 
 export type { Action };

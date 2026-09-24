@@ -402,6 +402,111 @@ function finiteJson(value: unknown, path = "$"): void {
   }
 }
 
+const CANONICAL_INPUT_KEYS = ["schemaVersion", "opportunityId", "decisionTime", "observation", "legalActionSpace", "decisionContext", "constraints", "provenance"] as const;
+const CANONICAL_INPUT_OBSERVATION_KEYS = ["records"] as const;
+const CANONICAL_INPUT_OBSERVATION_RECORD_KEYS = ["observationKey", "informationClass", "sourceMinOccurredAt", "sourceMaxOccurredAt", "availableAt", "sourceRef", "value"] as const;
+const CANONICAL_INPUT_ACTION_SPACE_KEYS = ["rules", "mutualExclusionGroups"] as const;
+const CANONICAL_INPUT_ACTION_RULE_KEYS = ["actionType", "eligibleTargets", "parameterBounds", "requiredPreconditionIds"] as const;
+const CANONICAL_INPUT_BOUND_KEYS = ["path", "minInclusive", "maxInclusive"] as const;
+const CANONICAL_INPUT_GROUP_KEYS = ["groupId", "actionTypes"] as const;
+const CANONICAL_INPUT_CONTEXT_KEYS = ["sequence", "trigger"] as const;
+const CANONICAL_INPUT_CONSTRAINT_KEYS = ["dimensions", "evaluationBoundary", "invalidActionHandling", "infeasibleActionHandling", "partialFeasibilityHandling", "conflictHandling", "silentModificationForbidden"] as const;
+const CANONICAL_INPUT_PROVENANCE_KEYS = ["schemaVersion", "evaluationContractFingerprint", "evaluationContractVersion", "observationFingerprint", "legalActionSpaceFingerprint", "actionOntologyVersion", "source"] as const;
+
+function exactKeys(value: Record<string, unknown>, expected: readonly string[]): boolean {
+  const actual = Reflect.ownKeys(value);
+  const sortedExpected = [...expected].sort();
+  return actual.every((key) => typeof key === "string") && actual.length === expected.length &&
+    (actual as string[]).sort().every((key, index) => key === sortedExpected[index]);
+}
+
+function allowedKeys(value: Record<string, unknown>, allowed: readonly string[], required: readonly string[]): boolean {
+  const actual = Reflect.ownKeys(value);
+  return actual.every((key) => typeof key === "string" && allowed.includes(key)) &&
+    required.every((key) => Object.prototype.hasOwnProperty.call(value, key));
+}
+
+function exactCanonicalInputStructure(value: Record<string, unknown>): boolean {
+  if (!exactKeys(value, CANONICAL_INPUT_KEYS) ||
+    !record(value["observation"]) || !exactKeys(value["observation"], CANONICAL_INPUT_OBSERVATION_KEYS) ||
+    !Array.isArray(value["observation"]["records"]) ||
+    !value["observation"]["records"].every((entry) => record(entry) && exactKeys(entry, CANONICAL_INPUT_OBSERVATION_RECORD_KEYS)) ||
+    !record(value["legalActionSpace"]) || !exactKeys(value["legalActionSpace"], CANONICAL_INPUT_ACTION_SPACE_KEYS) ||
+    !Array.isArray(value["legalActionSpace"]["rules"]) ||
+    !value["legalActionSpace"]["rules"].every((entry) => record(entry) && exactKeys(entry, CANONICAL_INPUT_ACTION_RULE_KEYS) &&
+      Array.isArray(entry["eligibleTargets"]) && Array.isArray(entry["parameterBounds"]) &&
+      entry["parameterBounds"].every((bound) => record(bound) && allowedKeys(bound, CANONICAL_INPUT_BOUND_KEYS, ["path"])) &&
+      Array.isArray(entry["requiredPreconditionIds"])) ||
+    !Array.isArray(value["legalActionSpace"]["mutualExclusionGroups"]) ||
+    !value["legalActionSpace"]["mutualExclusionGroups"].every((entry) => record(entry) && exactKeys(entry, CANONICAL_INPUT_GROUP_KEYS) && Array.isArray(entry["actionTypes"])) ||
+    !record(value["decisionContext"]) || !exactKeys(value["decisionContext"], CANONICAL_INPUT_CONTEXT_KEYS) ||
+    !record(value["decisionContext"]["trigger"]) ||
+    !record(value["constraints"]) || !exactKeys(value["constraints"], CANONICAL_INPUT_CONSTRAINT_KEYS) ||
+    !record(value["provenance"]) || !exactKeys(value["provenance"], CANONICAL_INPUT_PROVENANCE_KEYS)) return false;
+  const trigger = value["decisionContext"]["trigger"];
+  return (trigger["kind"] === "fixed_interval" && exactKeys(trigger, ["kind", "intervalIndex"])) ||
+    (trigger["kind"] === "simulation_tick" && exactKeys(trigger, ["kind", "tick"])) ||
+    (trigger["kind"] === "event" && exactKeys(trigger, ["kind", "eventType", "eventId"]));
+}
+
+export interface CanonicalOperatorInputV2Bindings {
+  readonly opportunityId: string;
+  readonly decisionTime: string;
+  readonly decisionContext: CanonicalOperatorInputV2["decisionContext"];
+  readonly observationRecords: CanonicalOperatorInputV2["observation"]["records"];
+  readonly legalActionSpace: CanonicalOperatorInputV2["legalActionSpace"];
+  readonly constraints: CanonicalOperatorInputV2["constraints"];
+  readonly evaluationContractFingerprint: string;
+  readonly evaluationContractVersion: string;
+  readonly observationFingerprint: string;
+  readonly legalActionSpaceFingerprint: string;
+  readonly actionOntologyVersion: string;
+}
+
+export function assertCanonicalOperatorInputV2(
+  value: unknown,
+  bindings: CanonicalOperatorInputV2Bindings,
+): CanonicalOperatorInputV2 {
+  if (!record(value) || !exactCanonicalInputStructure(value)) {
+    throw new TypeError("canonical operator input fields are malformed");
+  }
+  finiteJson(value);
+  const input = value as unknown as CanonicalOperatorInputV2;
+  if (input.schemaVersion !== CANONICAL_OPERATOR_INPUT_SCHEMA_VERSION ||
+    input.provenance.schemaVersion !== CANONICAL_OPERATOR_PROVENANCE_SCHEMA_VERSION ||
+    input.provenance.source !== "step3.1-governed-evaluator-adapter") {
+    throw new TypeError("canonical operator input schema or provenance version is unsupported");
+  }
+  const expectedProvenance = {
+    schemaVersion: CANONICAL_OPERATOR_PROVENANCE_SCHEMA_VERSION,
+    evaluationContractFingerprint: bindings.evaluationContractFingerprint,
+    evaluationContractVersion: bindings.evaluationContractVersion,
+    observationFingerprint: bindings.observationFingerprint,
+    legalActionSpaceFingerprint: bindings.legalActionSpaceFingerprint,
+    actionOntologyVersion: bindings.actionOntologyVersion,
+    source: "step3.1-governed-evaluator-adapter" as const,
+  };
+  if (input.opportunityId !== bindings.opportunityId || input.decisionTime !== bindings.decisionTime ||
+    stableOperatorJson(input.decisionContext) !== stableOperatorJson(bindings.decisionContext)) {
+    throw new TypeError("canonical operator input opportunity binding mismatch");
+  }
+  if (stableOperatorJson(input.observation.records) !== stableOperatorJson(bindings.observationRecords) ||
+    input.provenance.observationFingerprint !== bindings.observationFingerprint) {
+    throw new TypeError("canonical operator input observation binding mismatch");
+  }
+  if (stableOperatorJson(input.legalActionSpace) !== stableOperatorJson(bindings.legalActionSpace) ||
+    input.provenance.legalActionSpaceFingerprint !== bindings.legalActionSpaceFingerprint) {
+    throw new TypeError("canonical operator input legal Action-space binding mismatch");
+  }
+  if (stableOperatorJson(input.constraints) !== stableOperatorJson(bindings.constraints)) {
+    throw new TypeError("canonical operator input constraint binding mismatch");
+  }
+  if (stableOperatorJson(input.provenance) !== stableOperatorJson(expectedProvenance)) {
+    throw new TypeError("canonical operator input provenance binding mismatch");
+  }
+  return deepFreezeOperator(JSON.parse(stableOperatorJson(input)) as CanonicalOperatorInputV2);
+}
+
 function configurationFingerprint(
   operator: CanonicalOperator,
 ): string {

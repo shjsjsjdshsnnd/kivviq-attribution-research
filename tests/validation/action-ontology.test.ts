@@ -26,6 +26,7 @@ import {
   type CanonicalOperatorMetadataV2,
 } from "../../src/operator/canonical-interface.js";
 import { operatorFingerprint } from "../../src/operator/identity.js";
+import * as validationApi from "../../src/validation/index.js";
 import { validateDecisionActionConformance } from "../../src/validation/index.js";
 
 const contract = CANONICAL_BASELINE_EVALUATION_CONTRACT_V1;
@@ -107,6 +108,14 @@ function withActions(actions: readonly unknown[]) {
 }
 
 describe("Action conformance evidence", () => {
+  it("keeps canonical-input integrity helpers off the validation public surface", () => {
+    expect("validateCanonicalInputIntegrity" in validationApi).toBe(false);
+    expect("canonicalInputIntegrity" in validationApi).toBe(false);
+    expect(typeof validationApi.validateDecisionActionConformance).toBe("function");
+    expect(typeof validationApi.validateConstraintDispositionEvidence).toBe("function");
+    expect(typeof validationApi.validateOperatorAuthorityBoundary).toBe("function");
+  });
+
   it("passes zero, one, and canonically ordered multiple Actions immutably", () => {
     const zero = validateDecisionActionConformance(withActions([]));
     const one = validateDecisionActionConformance(withActions([increaseGoogleShoppingBudget20]));

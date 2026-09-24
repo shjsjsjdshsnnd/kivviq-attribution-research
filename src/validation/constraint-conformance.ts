@@ -4,6 +4,7 @@ import {
   assertDecisionOpportunityAllowed,
   assertValidBaselineEvaluationContract,
   buildActionAvailabilitySnapshot,
+  CONSTRAINT_ISSUE_KINDS,
   createEvaluationActionAttemptRecord,
   evaluationFingerprint,
   stableEvaluationJson,
@@ -14,9 +15,9 @@ import {
   type EvaluationActionAttemptRecord,
 } from "../evaluation/baseline-contract.js";
 import type { CanonicalOperatorInputV2 } from "../operator/canonical-interface.js";
-import { validateCanonicalInputIntegrity } from "./action-conformance.js";
 import type { BaselineValidationCheckResult, BaselineValidationIssue } from "./contract.js";
 import {
+  canonicalInputIntegrity,
   compareCodeUnits,
   hasExactKeys,
   isFingerprint,
@@ -71,7 +72,6 @@ const AUTHORITY_KEYS = [
   "dispositionCreatedByEvaluator", "operatorExecutedActions",
   "operatorMutatedSimulatorState",
 ] as const;
-const CONSTRAINT_ISSUE_KINDS = ["INVALID_ACTION", "INFEASIBLE", "PARTIALLY_FEASIBLE", "CONFLICT"] as const;
 
 function caughtMessage(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
@@ -236,8 +236,8 @@ export function validateOperatorAuthorityBoundary(
 
   const before = value["canonicalInputBefore"];
   const after = value["canonicalInputAfter"];
-  let beforeIntegrity: ReturnType<typeof validateCanonicalInputIntegrity> | undefined;
-  let afterIntegrity: ReturnType<typeof validateCanonicalInputIntegrity> | undefined;
+  let beforeIntegrity: ReturnType<typeof canonicalInputIntegrity> | undefined;
+  let afterIntegrity: ReturnType<typeof canonicalInputIntegrity> | undefined;
   const dispositionEvidence = value["dispositionEvidence"];
   if (isRecord(dispositionEvidence) && isRecord(dispositionEvidence["contract"]) &&
     isRecord(dispositionEvidence["opportunity"]) && isRecord(dispositionEvidence["availability"])) {
@@ -247,8 +247,8 @@ export function validateOperatorAuthorityBoundary(
       const availability = dispositionEvidence["availability"] as unknown as ActionAvailabilitySnapshot;
       assertValidBaselineEvaluationContract(contract);
       assertDecisionOpportunityAllowed(contract, opportunity);
-      beforeIntegrity = validateCanonicalInputIntegrity(before, contract, opportunity, availability, "evidence.canonicalInputBefore");
-      afterIntegrity = validateCanonicalInputIntegrity(after, contract, opportunity, availability, "evidence.canonicalInputAfter");
+      beforeIntegrity = canonicalInputIntegrity(before, contract, opportunity, availability, "evidence.canonicalInputBefore");
+      afterIntegrity = canonicalInputIntegrity(after, contract, opportunity, availability, "evidence.canonicalInputAfter");
       issues.push(...beforeIntegrity.issues, ...afterIntegrity.issues);
     } catch (error) {
       issues.push(issue("INVALID_EVALUATOR_DISPOSITION", "evidence.dispositionEvidence", caughtMessage(error)));

@@ -8,6 +8,7 @@ import type {
 } from "../operator/types.js";
 import {
   CANONICAL_OPERATOR_INTERFACE_VERSION,
+  assertCanonicalOperatorInputV2,
   canonicalInputFingerprint,
   ensureCanonicalOperatorV2,
   validateCanonicalDecisionEnvelope,
@@ -75,7 +76,7 @@ export function buildCanonicalOperatorInput(
   availability: ActionAvailabilitySnapshot,
   legacyInput: OperatorDecisionInput,
 ): CanonicalOperatorInputV2 {
-  return deepFreezeEvaluation({
+  const input = deepFreezeEvaluation({
     schemaVersion: "1.0.0",
     ...legacyInput,
     decisionContext: {
@@ -104,6 +105,19 @@ export function buildCanonicalOperatorInput(
       actionOntologyVersion: contract.actionSpace.ontologySchemaVersion,
       source: "step3.1-governed-evaluator-adapter",
     },
+  });
+  return assertCanonicalOperatorInputV2(input, {
+    opportunityId: opportunity.opportunityId,
+    decisionTime: opportunity.at,
+    decisionContext: input.decisionContext,
+    observationRecords: input.observation.records,
+    legalActionSpace: input.legalActionSpace,
+    constraints: input.constraints,
+    evaluationContractFingerprint: contract.contractFingerprint,
+    evaluationContractVersion: contract.contractVersion,
+    observationFingerprint: observation.observationFingerprint,
+    legalActionSpaceFingerprint: availability.availabilityFingerprint,
+    actionOntologyVersion: contract.actionSpace.ontologySchemaVersion,
   });
 }
 

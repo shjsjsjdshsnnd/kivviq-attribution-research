@@ -12,6 +12,7 @@ import { generateMerchantWorldRecord } from "../../src/generation/generator.js";
 import {
   BASELINE_METRIC_SET_VERSION,
   CANONICAL_BASELINE_EVALUATION_CONTRACT_V1,
+  CONSTRAINT_ISSUE_KINDS,
   assertEquivalentComparisonBindings,
   assertValidBaselineEvaluationContract,
   buildActionAvailabilitySnapshot,
@@ -38,6 +39,16 @@ const decisionAnchor = String(
 );
 
 describe("evaluation canonical serialization", () => {
+  it("exports the frozen authoritative constraint issue kinds", () => {
+    expect(CONSTRAINT_ISSUE_KINDS).toEqual([
+      "INVALID_ACTION",
+      "INFEASIBLE",
+      "PARTIALLY_FEASIBLE",
+      "CONFLICT",
+    ]);
+    expect(Object.isFrozen(CONSTRAINT_ISSUE_KINDS)).toBe(true);
+  });
+
   it("orders Unicode object keys by UTF-16 code units independent of insertion order", () => {
     const entries = [
       ["é", "composed"],
