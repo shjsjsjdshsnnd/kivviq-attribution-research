@@ -17,6 +17,7 @@ describe("future information and temporal boundaries", () => {
     const kinds = ["order", "conversion", "revenue", "customer_event", "inventory_event", "advertising_outcome", "return", "promotion_outcome"] as const;
     const observations = kinds.map((kind, index) => ({ eventId: `e-${index}`, kind, occurredAt: index === 0 ? "2026-01-01T00:00:00.000Z" : "2026-01-31T23:59:59.999Z", payload: { index } }));
     expect(validateTemporalObservationBoundary({ decisionTimestamp: "2026-02-01T00:00:00.000Z", observations })).toMatchObject({ checkId: "temporal_boundary_conformance", status: "PASS" });
+    expect(validateTemporalObservationBoundary({ decisionTimestamp: "2026-02-01T00:00:00Z", observations: [{ eventId: "seconds", kind: "order", occurredAt: "2026-02-01T00:00:00Z", payload: {} }] }).status).toBe("PASS");
     for (const [index, kind] of kinds.entries()) {
       expect(
         validateTemporalObservationBoundary({
@@ -28,10 +29,27 @@ describe("future information and temporal boundaries", () => {
     }
   });
 
+  it("preserves source indexes in temporal diagnostics", () => {
+    const result = validateTemporalObservationBoundary({
+      decisionTimestamp: "2026-02-01T00:00:00Z",
+      observations: [
+        { eventId: "bad", kind: "order", occurredAt: "not-time", payload: {} },
+        { eventId: "future", kind: "conversion", occurredAt: "2026-02-01T00:00:00.001Z", payload: {} },
+      ],
+    });
+    expect(result.issues.map((issue) => issue.path)).toEqual([
+      "observations[1].occurredAt",
+      "observations[0].occurredAt",
+    ]);
+  });
+
   it("fails closed for invalid instants, unknown kinds, duplicate IDs, unstable order, malformed payloads, and unknown keys", () => {
     const good = { eventId: "a", kind: "order", occurredAt: "2026-01-01T00:00:00.000Z", payload: { ok: true } };
     const badInputs: unknown[] = [
       { decisionTimestamp: "2026-01-01", observations: [good] },
+      { decisionTimestamp: "2026-02-01T00:00:00+00:00", observations: [good] },
+      { decisionTimestamp: "2026-02-01T00:00:00.0Z", observations: [good] },
+      { decisionTimestamp: "2026-02-30T00:00:00Z", observations: [good] },
       { decisionTimestamp: "2026-02-01T00:00:00.000Z", observations: [{ ...good, occurredAt: "not-time" }] },
       { decisionTimestamp: "2026-02-01T00:00:00.000Z", observations: [{ ...good, kind: "unknown" }] },
       { decisionTimestamp: "2026-02-01T00:00:00.000Z", observations: [good, good] },

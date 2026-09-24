@@ -24,7 +24,7 @@ export interface CompleteRunSample {
   readonly dispositions: unknown;
   readonly executedActions: readonly unknown[];
   readonly simulatorOutcomeFingerprint: string;
-  readonly metricsFingerprint: string;
+  readonly metrics: readonly unknown[];
   readonly provenanceFingerprint: string;
 }
 
@@ -38,7 +38,7 @@ export interface SeedReproducibilitySample {
 }
 
 const DECISION_KEYS = ["sampleId", "canonicalInputFingerprint", "operatorFingerprint", "configurationFingerprint", "seedBindingFingerprint", "actions", "decisionEnvelope"] as const;
-const RUN_KEYS = ["sampleId", "canonicalInputFingerprint", "operatorFingerprint", "configurationFingerprint", "seedSetFingerprint", "decisionOpportunities", "observations", "outputs", "dispositions", "executedActions", "simulatorOutcomeFingerprint", "metricsFingerprint", "provenanceFingerprint"] as const;
+const RUN_KEYS = ["sampleId", "canonicalInputFingerprint", "operatorFingerprint", "configurationFingerprint", "seedSetFingerprint", "decisionOpportunities", "observations", "outputs", "dispositions", "executedActions", "simulatorOutcomeFingerprint", "metrics", "provenanceFingerprint"] as const;
 const SEED_KEYS = ["sampleId", "seedSetFingerprint", "canonicalInputFingerprint", "operatorFingerprint", "configurationFingerprint", "runFingerprint"] as const;
 
 function validateCollection(value: unknown, minimum: number, keys: readonly string[], label: string): { entries: Record<string, unknown>[]; issues: BaselineValidationIssue[] } {
@@ -74,10 +74,15 @@ function decisionValidation(value: unknown, minimum: number, checkId: BaselineVa
   checked.entries.forEach((entry, index) => {
     const path = `evidence[${index}]`;
     const actions = canonicalActionFingerprints(entry["actions"]);
-    if (actions === undefined || !isStrictJson(entry["decisionEnvelope"])) {
-      checked.issues.push(issue("INVALID_DECISION_EVIDENCE", path, "decision evidence must contain canonical actions and strict JSON metadata")); return;
+    const envelope = entry["decisionEnvelope"];
+    if (!isRecord(envelope)) {
+      checked.issues.push(issue("INVALID_DECISION_EVIDENCE", path, "decisionEnvelope must be a strict plain object containing the same canonical Action[] as the decision")); return;
     }
-    const projection = { actions, decisionEnvelope: entry["decisionEnvelope"] };
+    const envelopeActions = canonicalActionFingerprints(envelope["actions"]);
+    if (actions === undefined || envelopeActions === undefined || JSON.stringify(actions) !== JSON.stringify(envelopeActions)) {
+      checked.issues.push(issue("INVALID_DECISION_EVIDENCE", path, "decisionEnvelope must be a strict plain object containing the same canonical Action[] as the decision")); return;
+    }
+    const projection = { actions, decisionEnvelope: { ...envelope, actions: envelopeActions } };
     const fingerprint = safeFingerprint(projection);
     if (fingerprint === undefined) checked.issues.push(issue("INVALID_DECISION_EVIDENCE", path, "decision projection must be strict JSON"));
     else { fingerprints.push(fingerprint); projections.push(fingerprint); }
@@ -101,11 +106,11 @@ export function validateCompleteRunReproducibility(runs: readonly CompleteRunSam
   commonBindings(checked.entries, ["canonicalInputFingerprint", "operatorFingerprint", "configurationFingerprint", "seedSetFingerprint"], checked.issues);
   const projections: string[] = [];
   checked.entries.forEach((entry, index) => {
-    const jsonFields = ["decisionOpportunities", "observations", "outputs", "dispositions"];
-    const fingerprintFields = ["simulatorOutcomeFingerprint", "metricsFingerprint", "provenanceFingerprint"];
+    const arrayFields = ["decisionOpportunities", "observations", "outputs", "dispositions", "metrics"];
+    const fingerprintFields = ["simulatorOutcomeFingerprint", "provenanceFingerprint"];
     const executedActions = canonicalActionFingerprints(entry["executedActions"]);
-    if (executedActions === undefined || jsonFields.some((name) => !isStrictJson(entry[name])) || fingerprintFields.some((name) => !isFingerprint(entry[name]))) checked.issues.push(issue("INVALID_COMPLETE_RUN_EVIDENCE", `evidence[${index}]`, "complete-run projection must contain strict JSON, canonical executed actions, and canonical fingerprints"));
-    else { const fingerprint = evaluationFingerprint({ ...Object.fromEntries([...jsonFields, ...fingerprintFields].map((name) => [name, entry[name]])), executedActions }); projections.push(fingerprint); fingerprints.push(fingerprint); }
+    if (executedActions === undefined || arrayFields.some((name) => !Array.isArray(entry[name])) || (entry["decisionOpportunities"] as readonly unknown[] | undefined)?.length === 0 || fingerprintFields.some((name) => !isFingerprint(entry[name]))) checked.issues.push(issue("INVALID_COMPLETE_RUN_EVIDENCE", `evidence[${index}]`, "complete-run projection requires non-empty decision opportunities, array sections, canonical executed actions, and canonical fingerprints"));
+    else { const fingerprint = evaluationFingerprint({ ...Object.fromEntries([...arrayFields, ...fingerprintFields].map((name) => [name, entry[name]])), executedActions }); projections.push(fingerprint); fingerprints.push(fingerprint); }
   });
   if (checked.issues.length === 0 && new Set(projections).size !== 1) checked.issues.push(issue("NON_REPRODUCIBLE_COMPLETE_RUN", "evidence", "complete-run projections differ"));
   return result("determinism", checked.issues, fingerprints);

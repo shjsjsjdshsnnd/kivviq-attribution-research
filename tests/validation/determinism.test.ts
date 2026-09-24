@@ -19,7 +19,7 @@ function decision(sampleId: string, note = "stable") {
     configurationFingerprint: fp({ config: 1 }),
     seedBindingFingerprint: fp({ seed: 1 }),
     actions: [action],
-    decisionEnvelope: { note },
+    decisionEnvelope: { note, actions: [action] },
   };
 }
 
@@ -51,9 +51,11 @@ describe("determinism validation", () => {
     });
     expect(validateDeterministicDecisions([randomizeProvenanceIds("a"), randomizeProvenanceIds("b")] as never).status).toBe("PASS");
 
+    const changedAction = { ...action, parameters: { ...action.parameters, operation: { ...(action.parameters as { operation: object }).operation, factor: 1.3 } } };
     const changedParameters = {
       ...decision("b"),
-      actions: [{ ...action, parameters: { ...action.parameters, operation: { ...(action.parameters as { operation: object }).operation, factor: 1.3 } } }],
+      actions: [changedAction],
+      decisionEnvelope: { ...decision("b").decisionEnvelope, actions: [changedAction] },
     };
     expect(validateDeterministicDecisions([decision("a"), changedParameters] as never).issues.map((x) => x.code)).toContain("NONDETERMINISTIC_DECISION");
     for (const attemptedPath of [
@@ -76,6 +78,9 @@ describe("determinism validation", () => {
     expect(validateDeterministicDecisions([decision("same"), decision("same")]).status).toBe("FAIL");
     expect(validateDeterministicDecisions([{ ...decision("a"), ambient: true }, decision("b")] as never).status).toBe("FAIL");
     expect(validateDeterministicDecisions([decision("a"), { ...decision("b"), decisionEnvelope: { bad: undefined } }] as never).status).toBe("FAIL");
+    for (const decisionEnvelope of [null, [], { actions: null }, { actions: [null] }, { actions: [] }]) {
+      expect(validateDeterministicDecisions([decision("a"), { ...decision("b"), decisionEnvelope }] as never).issues.map((x) => x.code)).toContain("INVALID_DECISION_EVIDENCE");
+    }
   });
 
   it("projects every complete-run section", () => {
@@ -88,13 +93,27 @@ describe("determinism validation", () => {
       decisionOpportunities: [{ id: "d1" }], observations: [{ value: 1 }],
       outputs: [{ actions: [action] }], dispositions: [{ state: "executed" }],
       executedActions: [action],
-      simulatorOutcomeFingerprint: fp({ outcome: 1 }), metricsFingerprint: fp({ metrics: 1 }),
+      simulatorOutcomeFingerprint: fp({ outcome: 1 }), metrics: [{ metricId: "profit", value: 1 }],
       provenanceFingerprint: fp({ provenance: 1 }),
     });
     expect(validateCompleteRunReproducibility([run("a"), run("b")]).status).toBe("PASS");
-    for (const field of ["decisionOpportunities", "observations", "outputs", "dispositions", "executedActions", "simulatorOutcomeFingerprint", "metricsFingerprint", "provenanceFingerprint"] as const) {
+    for (const field of ["decisionOpportunities", "observations", "outputs", "dispositions", "executedActions", "simulatorOutcomeFingerprint", "metrics", "provenanceFingerprint"] as const) {
       const changed = { ...run("b"), [field]: field.endsWith("Fingerprint") ? fp({ changed: field }) : [{ changed: field }] };
       expect(validateCompleteRunReproducibility([run("a"), changed]).status, field).toBe("FAIL");
+    }
+
+    const invalidSections: unknown[] = [
+      { ...run("b"), decisionOpportunities: null },
+      { ...run("b"), decisionOpportunities: [] },
+      { ...run("b"), observations: null },
+      { ...run("b"), outputs: {} },
+      { ...run("b"), dispositions: null },
+      { ...run("b"), metrics: null },
+      { ...run("b"), simulatorOutcomeFingerprint: null },
+      { ...run("b"), provenanceFingerprint: "not-a-fingerprint" },
+    ];
+    for (const invalid of invalidSections) {
+      expect(validateCompleteRunReproducibility([run("a"), invalid] as never).issues.map((x) => x.code)).toContain("INVALID_COMPLETE_RUN_EVIDENCE");
     }
   });
 
