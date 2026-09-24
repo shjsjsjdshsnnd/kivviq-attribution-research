@@ -353,13 +353,7 @@ describe("Step 3.10 canonical operator interface", () => {
           value: {
             kind: "money",
             amountMinor: 79_900,
-            currency: reduceSkuPrice899To849.parameters.kind ===
-              "price_adjustment" &&
-              reduceSkuPrice899To849.parameters.operation.kind === "SET"
-              ? reduceSkuPrice899To849.parameters.operation.value.currency
-              : (() => {
-                  throw new Error("fixture mismatch");
-                })(),
+            currency: "CAD",
           },
         },
       },
