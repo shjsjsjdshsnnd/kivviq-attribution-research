@@ -74,7 +74,9 @@ function isStrictDeterministicJson(
         keys.some(
           (key) =>
             typeof key !== "string" ||
-            (key !== "length" && !/^(0|[1-9]\d*)$/.test(key)),
+            (key !== "length" &&
+              (!/^(0|[1-9]\d*)$/.test(key) ||
+                Number(key) >= value.length)),
         )
       ) {
         return false;

@@ -370,6 +370,35 @@ describe("provenance fingerprint validation", () => {
     }
   });
 
+  it("rejects array properties that JSON serialization ignores", () => {
+    const clean = ["visible"];
+    const polluted = ["visible"] as unknown as Record<string, unknown>;
+    Object.defineProperty(polluted, "4294967295", {
+      enumerable: true,
+      value: "ignored",
+    });
+    const fingerprint = evaluationFingerprint(clean);
+
+    expect(evaluationFingerprint(polluted)).toBe(fingerprint);
+    expect(
+      validateRecordedFingerprint({
+        label: "clean-array",
+        value: clean,
+        recordedFingerprint: fingerprint,
+      }).status,
+    ).toBe("PASS");
+    const pollutedResult = validateRecordedFingerprint({
+      label: "polluted-array",
+      value: polluted,
+      recordedFingerprint: fingerprint,
+    });
+    expect(pollutedResult.status).toBe("FAIL");
+    expect(pollutedResult.issues.map((issue) => issue.code)).toContain(
+      "INVALID_PROVENANCE_VALUE",
+    );
+    expect(pollutedResult.evidenceFingerprints).toEqual([]);
+  });
+
   it("fails closed for mismatches, malformed or missing labels, malformed fingerprints, and unknown keys", () => {
     const cases: Array<[unknown, string]> = [
       [
