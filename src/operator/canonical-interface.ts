@@ -662,8 +662,8 @@ export function validateCanonicalDecisionEnvelope(
     );
   }
 
-  assertCapabilityConformance(metadata, canonicalActions);
   assertNoDuplicateOrConflictingActions(canonicalActions, input);
+  assertCapabilityConformance(metadata, canonicalActions);
 
   return deepFreezeOperator({
     schemaVersion: CANONICAL_OPERATOR_DECISION_SCHEMA_VERSION,
