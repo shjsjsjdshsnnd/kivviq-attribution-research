@@ -11,6 +11,7 @@ import type {
 import type {
   WebsiteGodModeTruth,
   WebsiteScenario,
+  WebsiteComponentName,
 } from "../website_cro/types.js";
 
 export type ObservableJourneyEventKind =
@@ -21,6 +22,7 @@ export type ObservableJourneyEventKind =
   | "visit"
   | "session_start"
   | "landing_page_view"
+  | "page_performance"
   | "collection_view"
   | "site_search"
   | "search_zero_result"
@@ -80,6 +82,12 @@ export interface PerfectObservableJourneyEvent {
     | "backorder"
     | "out_of_stock";
   readonly deliveryEstimateDays?: number;
+  /**
+   * Step 12 observable measurement, intentionally noisy rather than a direct
+   * copy of hidden website configuration.
+   */
+  readonly websiteComponent?: WebsiteComponentName;
+  readonly measuredPageLoadMs?: number;
 }
 
 export interface PurchaseLine {
