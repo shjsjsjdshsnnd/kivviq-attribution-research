@@ -287,10 +287,6 @@ export function validateBaselineValidationFixtureManifest(
     );
   }
   requireCondition(new Set(ids).size === ids.length, "duplicate fixture ID");
-  requireCondition(
-    JSON.stringify(ids) === JSON.stringify(BASELINE_VALIDATION_FIXTURE_IDS),
-    "fixture descriptor coverage or order mismatch",
-  );
   assertBaselineValidationFingerprint(
     value["fixtureManifestFingerprint"],
     "fixture manifest fingerprint",
@@ -301,6 +297,17 @@ export function validateBaselineValidationFixtureManifest(
         value as unknown as BaselineValidationFixtureManifest,
       ),
     "fixture manifest fingerprint mismatch",
+  );
+  requireCondition(
+    value["fixtureManifestFingerprint"] ===
+      FROZEN_BASELINE_VALIDATION_FIXTURES.fixtureManifestFingerprint &&
+      stableEvaluationJson(value) ===
+        stableEvaluationJson(FROZEN_BASELINE_VALIDATION_FIXTURES),
+    "frozen fixture manifest identity mismatch",
+  );
+  requireCondition(
+    JSON.stringify(ids) === JSON.stringify(BASELINE_VALIDATION_FIXTURE_IDS),
+    "fixture descriptor coverage or order mismatch",
   );
   return deepFreezeEvaluation(
     cloneJson(value) as unknown as BaselineValidationFixtureManifest,

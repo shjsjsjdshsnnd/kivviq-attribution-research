@@ -22,6 +22,7 @@ import {
   createFixedIntervalDecisionOpportunity,
   deriveEvaluationHorizonTimestamps,
   evaluationFingerprint,
+  stableEvaluationJson,
   resolveActionConstraintAssessment,
   validateActionAtDecision,
   validateActionBatchAtDecision,
@@ -35,6 +36,25 @@ const contract = CANONICAL_BASELINE_EVALUATION_CONTRACT_V1;
 const decisionAnchor = String(
   increaseGoogleShoppingBudget20.timing.decisionTime,
 );
+
+describe("evaluation canonical serialization", () => {
+  it("orders Unicode object keys by UTF-16 code units independent of insertion order", () => {
+    const entries = [
+      ["é", "composed"],
+      ["e\u0301", "decomposed"],
+      ["\u{1f600}", "astral"],
+      ["\ue000", "private-use"],
+    ] as const;
+    const forward = Object.fromEntries(entries);
+    const reverse = Object.fromEntries([...entries].reverse());
+
+    expect(stableEvaluationJson(forward)).toBe(stableEvaluationJson(reverse));
+    expect(evaluationFingerprint(forward)).toBe(evaluationFingerprint(reverse));
+    expect(stableEvaluationJson(forward)).toBe(
+      '{"é":"decomposed","é":"composed","😀":"astral","":"private-use"}',
+    );
+  });
+});
 
 function clone<T>(value: T): any {
   return JSON.parse(JSON.stringify(value));

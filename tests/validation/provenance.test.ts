@@ -6,6 +6,7 @@ import {
   BASELINE_VALIDATION_SUITE_VERSION,
   FROZEN_BASELINE_VALIDATION_FIXTURES,
   FROZEN_BASELINE_VALIDATION_SEED_SET,
+  recomputeFixtureDescriptorFingerprint,
   recomputeFixtureManifestFingerprint,
   recomputeSeedSetFingerprint,
   validateBaselineValidationFixtureManifest,
@@ -106,6 +107,41 @@ describe("frozen validation seeds", () => {
     nested.seedSetFingerprint = recomputeSeedSetFingerprint(nested as never);
     expect(() => validateBaselineValidationSeedSet(nested)).toThrow(/unexpected keys/);
   });
+
+  it("rejects semantic seed-set changes even when every fingerprint is recomputed", () => {
+    const mutate = (
+      change: (value: {
+        cases: Array<{
+          caseId: string;
+          seeds: Record<string, number>;
+        }>;
+      }) => void,
+    ): unknown => {
+      const value = mutableCopy(FROZEN_BASELINE_VALIDATION_SEED_SET) as unknown as {
+        cases: Array<{ caseId: string; seeds: Record<string, number> }>;
+        seedSetFingerprint: string;
+      };
+      change(value);
+      value.seedSetFingerprint = recomputeSeedSetFingerprint(value as never);
+      return value;
+    };
+
+    const changedSeed = mutate((value) => {
+      value.cases[0]!.seeds["merchant_generation"]! += 1;
+    });
+    const changedCaseId = mutate((value) => {
+      value.cases[0]!.caseId = "renamed-case";
+    });
+    const reorderedCases = mutate((value) => {
+      [value.cases[0], value.cases[1]] = [value.cases[1]!, value.cases[0]!];
+    });
+
+    for (const changed of [changedSeed, changedCaseId, reorderedCases]) {
+      expect(() => validateBaselineValidationSeedSet(changed)).toThrow(
+        "frozen seed-set identity mismatch",
+      );
+    }
+  });
 });
 
 describe("frozen validation fixtures", () => {
@@ -186,6 +222,60 @@ describe("frozen validation fixtures", () => {
       /unexpected keys/,
     );
   });
+
+  it("rejects semantic fixture changes even when all fingerprints are recomputed", () => {
+    const mutate = (
+      change: (value: {
+        fixtures: Array<{
+          purpose: string;
+          evidenceCategories: string[];
+          fixtureFingerprint: string;
+        }>;
+      }) => void,
+    ): unknown => {
+      const value = mutableCopy(FROZEN_BASELINE_VALIDATION_FIXTURES) as unknown as {
+        fixtures: Array<{
+          purpose: string;
+          evidenceCategories: string[];
+          fixtureFingerprint: string;
+        }>;
+        fixtureManifestFingerprint: string;
+      };
+      change(value);
+      for (const descriptor of value.fixtures) {
+        descriptor.fixtureFingerprint = recomputeFixtureDescriptorFingerprint(
+          descriptor as never,
+        );
+      }
+      value.fixtureManifestFingerprint = recomputeFixtureManifestFingerprint(
+        value as never,
+      );
+      return value;
+    };
+
+    const changedPurpose = mutate((value) => {
+      value.fixtures[0]!.purpose = "Changed semantic purpose.";
+    });
+    const changedCategories = mutate((value) => {
+      value.fixtures[0]!.evidenceCategories.reverse();
+    });
+    const reorderedDescriptors = mutate((value) => {
+      [value.fixtures[0], value.fixtures[1]] = [
+        value.fixtures[1]!,
+        value.fixtures[0]!,
+      ];
+    });
+
+    for (const changed of [
+      changedPurpose,
+      changedCategories,
+      reorderedDescriptors,
+    ]) {
+      expect(() => validateBaselineValidationFixtureManifest(changed)).toThrow(
+        "frozen fixture manifest identity mismatch",
+      );
+    }
+  });
 });
 
 describe("provenance fingerprint validation", () => {
@@ -206,6 +296,78 @@ describe("provenance fingerprint validation", () => {
     });
     expect(Object.isFrozen(result)).toBe(true);
     expect(Object.isFrozen(result.evidenceFingerprints)).toBe(true);
+  });
+
+  it("accepts nested values from the strict deterministic JSON domain", () => {
+    const nullPrototype = Object.assign(Object.create(null) as object, {
+      child: [null, true, false, 0, 1.5, "text", { nested: "value" }],
+    });
+    const fingerprint = evaluationFingerprint(nullPrototype);
+
+    expect(
+      validateRecordedFingerprint({
+        label: "strict-json",
+        value: nullPrototype,
+        recordedFingerprint: fingerprint,
+      }),
+    ).toMatchObject({ status: "PASS", evidenceFingerprints: [fingerprint] });
+  });
+
+  it("rejects every value outside the strict deterministic JSON domain", () => {
+    class ExampleClass {
+      public readonly value = 1;
+    }
+
+    const sparse = new Array(2);
+    sparse[1] = "present";
+    const cyclic: Record<string, unknown> = {};
+    cyclic["self"] = cyclic;
+    const symbolKey = { visible: true } as Record<PropertyKey, unknown>;
+    symbolKey[Symbol("hidden")] = true;
+    const accessor = {} as Record<string, unknown>;
+    Object.defineProperty(accessor, "value", {
+      enumerable: true,
+      get: () => 1,
+    });
+    const nonEnumerable = { visible: true };
+    Object.defineProperty(nonEnumerable, "hidden", {
+      enumerable: false,
+      value: true,
+    });
+
+    const invalidValues: readonly unknown[] = [
+      undefined,
+      () => 1,
+      Symbol("value"),
+      1n,
+      Number.NaN,
+      Number.POSITIVE_INFINITY,
+      Number.NEGATIVE_INFINITY,
+      sparse,
+      new Date("2026-09-24T00:00:00.000Z"),
+      new Map([["key", "value"]]),
+      new Set(["value"]),
+      /value/u,
+      new Uint8Array([1, 2]),
+      new ExampleClass(),
+      cyclic,
+      symbolKey,
+      accessor,
+      nonEnumerable,
+    ];
+
+    for (const [index, value] of invalidValues.entries()) {
+      const result = validateRecordedFingerprint({
+        label: `invalid-${index}`,
+        value,
+        recordedFingerprint: "fnv1a64:0000000000000000",
+      });
+      expect(result.status).toBe("FAIL");
+      expect(result.issues.map((issue) => issue.code)).toContain(
+        "INVALID_PROVENANCE_VALUE",
+      );
+      expect(result.evidenceFingerprints).toEqual([]);
+    }
   });
 
   it("fails closed for mismatches, malformed or missing labels, malformed fingerprints, and unknown keys", () => {

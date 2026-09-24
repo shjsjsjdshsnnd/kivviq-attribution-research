@@ -240,6 +240,13 @@ export function validateBaselineValidationSeedSet(
       ),
     "seed-set fingerprint mismatch",
   );
+  requireCondition(
+    value["seedSetFingerprint"] ===
+      FROZEN_BASELINE_VALIDATION_SEED_SET.seedSetFingerprint &&
+      stableEvaluationJson(value) ===
+        stableEvaluationJson(FROZEN_BASELINE_VALIDATION_SEED_SET),
+    "frozen seed-set identity mismatch",
+  );
   return deepFreezeEvaluation(
     cloneJson(value) as unknown as BaselineValidationSeedSet,
   );
