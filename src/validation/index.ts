@@ -4,3 +4,6 @@ export * from "./report.js";
 export * from "./seed-sets.js";
 export * from "./fixtures.js";
 export * from "./provenance.js";
+export * from "./determinism.js";
+export * from "./leakage.js";
+export * from "./temporal-boundaries.js";

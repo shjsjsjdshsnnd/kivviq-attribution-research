@@ -1,0 +1,87 @@
+import { describe, expect, it } from "vitest";
+import { increaseGoogleShoppingBudget20 } from "../../src/action_ontology/fixtures.js";
+import { evaluationFingerprint } from "../../src/evaluation/baseline-contract.js";
+import {
+  detectUncontrolledRandomness,
+  validateCompleteRunReproducibility,
+  validateDeterministicDecisions,
+  validateSeedReproducibility,
+} from "../../src/validation/index.js";
+
+const fp = (value: unknown) => evaluationFingerprint(value);
+const action = increaseGoogleShoppingBudget20;
+
+function decision(sampleId: string, note = "stable", requestId = sampleId) {
+  return {
+    sampleId,
+    canonicalInputFingerprint: fp({ input: 1 }),
+    operatorFingerprint: fp({ operator: 1 }),
+    configurationFingerprint: fp({ config: 1 }),
+    seedBindingFingerprint: fp({ seed: 1 }),
+    actions: [action],
+    decisionEnvelope: { note, requestId },
+    provenanceOnlyPaths: ["requestId"],
+  };
+}
+
+describe("determinism validation", () => {
+  it("compares canonical decisions while ignoring explicitly identified provenance IDs", () => {
+    const result = validateDeterministicDecisions([
+      decision("b", "stable", "random-b"),
+      decision("a", "stable", "random-a"),
+    ]);
+    expect(result).toMatchObject({ checkId: "determinism", status: "PASS", issues: [] });
+    expect(Object.isFrozen(result)).toBe(true);
+    expect(Object.isFrozen(result.evidenceFingerprints)).toBe(true);
+    expect(result.evidenceFingerprints).toEqual([...result.evidenceFingerprints].sort());
+
+    expect(validateDeterministicDecisions([decision("a"), decision("b", "changed")])).toMatchObject({
+      status: "FAIL",
+      issues: [{ code: "NONDETERMINISTIC_DECISION" }],
+    });
+  });
+
+  it("fails closed for insufficient, duplicate, unknown, or malformed evidence", () => {
+    expect(validateDeterministicDecisions([decision("only")]).status).toBe("FAIL");
+    expect(validateDeterministicDecisions([decision("same"), decision("same")]).status).toBe("FAIL");
+    expect(validateDeterministicDecisions([{ ...decision("a"), ambient: true }, decision("b")] as never).status).toBe("FAIL");
+    expect(validateDeterministicDecisions([decision("a"), { ...decision("b"), decisionEnvelope: { bad: undefined } }] as never).status).toBe("FAIL");
+  });
+
+  it("projects every complete-run section", () => {
+    const run = (sampleId: string) => ({
+      sampleId,
+      canonicalInputFingerprint: fp({ input: 1 }),
+      operatorFingerprint: fp({ operator: 1 }),
+      configurationFingerprint: fp({ config: 1 }),
+      seedSetFingerprint: fp({ seeds: [1] }),
+      decisionOpportunities: [{ id: "d1" }], observations: [{ value: 1 }],
+      outputs: [{ actions: [action] }], dispositions: [{ state: "executed" }],
+      executedActions: [action],
+      simulatorOutcomeFingerprint: fp({ outcome: 1 }), metricsFingerprint: fp({ metrics: 1 }),
+      provenanceFingerprint: fp({ provenance: 1 }),
+    });
+    expect(validateCompleteRunReproducibility([run("a"), run("b")]).status).toBe("PASS");
+    for (const field of ["decisionOpportunities", "observations", "outputs", "dispositions", "executedActions", "simulatorOutcomeFingerprint", "metricsFingerprint", "provenanceFingerprint"] as const) {
+      const changed = { ...run("b"), [field]: field.endsWith("Fingerprint") ? fp({ changed: field }) : [{ changed: field }] };
+      expect(validateCompleteRunReproducibility([run("a"), changed]).status, field).toBe("FAIL");
+    }
+  });
+
+  it("requires exact seed-set binding and matching run fingerprints", () => {
+    const seedRun = (sampleId: string, seed = 1, run = 1) => ({
+      sampleId, seedSetFingerprint: fp({ seed }), canonicalInputFingerprint: fp({ input: 1 }),
+      operatorFingerprint: fp({ operator: 1 }), configurationFingerprint: fp({ config: 1 }),
+      runFingerprint: fp({ run }),
+    });
+    expect(validateSeedReproducibility([seedRun("a"), seedRun("b")]).status).toBe("PASS");
+    expect(validateSeedReproducibility([seedRun("a"), seedRun("b", 2)]).status).toBe("FAIL");
+    expect(validateSeedReproducibility([seedRun("a"), seedRun("b", 1, 2)]).status).toBe("FAIL");
+  });
+
+  it("detects policy divergence across at least three probes but ignores provenance-only IDs", () => {
+    expect(detectUncontrolledRandomness([decision("a"), decision("b"), decision("c")])).toMatchObject({ checkId: "uncontrolled_randomness_detection", status: "PASS" });
+    expect(detectUncontrolledRandomness([decision("a"), decision("b"), decision("c", "changed")])).toMatchObject({ status: "FAIL", issues: [{ code: "UNCONTROLLED_RANDOMNESS_DETECTED" }] });
+    expect(detectUncontrolledRandomness([decision("a"), decision("b")]).status).toBe("FAIL");
+  });
+});
