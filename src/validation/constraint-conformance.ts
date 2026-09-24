@@ -1,4 +1,5 @@
 import { actionFingerprint } from "../action_ontology/semantics.js";
+import { assertValidAction } from "../action_ontology/validation.js";
 import {
   assertDecisionOpportunityAllowed,
   assertValidBaselineEvaluationContract,
@@ -13,6 +14,7 @@ import {
   type EvaluationActionAttemptRecord,
 } from "../evaluation/baseline-contract.js";
 import type { CanonicalOperatorInputV2 } from "../operator/canonical-interface.js";
+import { validateCanonicalInputIntegrity } from "./action-conformance.js";
 import type { BaselineValidationCheckResult, BaselineValidationIssue } from "./contract.js";
 import {
   compareCodeUnits,
@@ -69,6 +71,7 @@ const AUTHORITY_KEYS = [
   "dispositionCreatedByEvaluator", "operatorExecutedActions",
   "operatorMutatedSimulatorState",
 ] as const;
+const CONSTRAINT_ISSUE_KINDS = ["INVALID_ACTION", "INFEASIBLE", "PARTIALLY_FEASIBLE", "CONFLICT"] as const;
 
 function caughtMessage(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
@@ -142,6 +145,22 @@ export function validateConstraintDispositionEvidence(
         issues.push(issue("INVALID_ATTEMPT_EVIDENCE", `${path}.constraintIssues[${malformedIssueIndex}]`, "constraint issue must have the exact required keys"));
         return;
       }
+      const invalidKindIndex = rawAttempt["constraintIssues"].findIndex(
+        (constraintIssue) => !CONSTRAINT_ISSUE_KINDS.includes((constraintIssue as Record<string, unknown>)["kind"] as never),
+      );
+      if (invalidKindIndex >= 0) {
+        issues.push(issue("INVALID_CONSTRAINT_ISSUE_KIND", `${path}.constraintIssues[${invalidKindIndex}].kind`, "constraint issue kind is outside the frozen Step 3.1 union"));
+        return;
+      }
+      const invalidValueIndex = rawAttempt["constraintIssues"].findIndex((constraintIssue) => {
+        const candidate = constraintIssue as Record<string, unknown>;
+        return typeof candidate["constraintRef"] !== "string" || candidate["constraintRef"].trim().length === 0 ||
+          typeof candidate["reason"] !== "string" || candidate["reason"].trim().length === 0;
+      });
+      if (invalidValueIndex >= 0) {
+        issues.push(issue("INVALID_ATTEMPT_EVIDENCE", `${path}.constraintIssues[${invalidValueIndex}]`, "constraintRef and reason must be non-empty strings"));
+        return;
+      }
       try {
         const explicit = rawAttempt["explicitModifiedAction"] === null
           ? undefined
@@ -156,6 +175,19 @@ export function validateConstraintDispositionEvidence(
         );
         if (stableEvaluationJson(recomputed) !== stableEvaluationJson(rawAttempt["attemptRecord"])) {
           issues.push(issue("DISPOSITION_TAMPERED", `${path}.attemptRecord`, "recorded Action validation, disposition, or executed Action differs from the evaluator-created record"));
+        }
+        if (recomputed.actionValidation.valid && recomputed.constraintDisposition?.status === "MODIFIED") {
+          const modified = assertValidAction(explicit);
+          if (actionFingerprint(modified) === recomputed.actionValidation.fingerprint) {
+            issues.push(issue("MODIFIED_ACTION_UNCHANGED", `${path}.explicitModifiedAction`, "MODIFIED requires a valid explicit Action that differs from the proposal"));
+          }
+        }
+        if (recomputed.actionValidation.valid && recomputed.constraintDisposition?.status === "ACCEPTED" &&
+          (recomputed.executedAction === undefined || actionFingerprint(recomputed.executedAction) !== recomputed.actionValidation.fingerprint)) {
+          issues.push(issue("DISPOSITION_TAMPERED", `${path}.attemptRecord`, "ACCEPTED must execute the proposed Action unchanged"));
+        }
+        if (recomputed.constraintDisposition?.status === "REJECTED" && recomputed.executedAction !== undefined) {
+          issues.push(issue("DISPOSITION_TAMPERED", `${path}.attemptRecord`, "REJECTED must not carry an executed Action"));
         }
       } catch (error) {
         issues.push(issue("INVALID_DISPOSITION_EVIDENCE", path, caughtMessage(error)));
@@ -204,11 +236,29 @@ export function validateOperatorAuthorityBoundary(
 
   const before = value["canonicalInputBefore"];
   const after = value["canonicalInputAfter"];
+  let beforeIntegrity: ReturnType<typeof validateCanonicalInputIntegrity> | undefined;
+  let afterIntegrity: ReturnType<typeof validateCanonicalInputIntegrity> | undefined;
+  const dispositionEvidence = value["dispositionEvidence"];
+  if (isRecord(dispositionEvidence) && isRecord(dispositionEvidence["contract"]) &&
+    isRecord(dispositionEvidence["opportunity"]) && isRecord(dispositionEvidence["availability"])) {
+    try {
+      const contract = dispositionEvidence["contract"] as unknown as BaselineEvaluationContract;
+      const opportunity = dispositionEvidence["opportunity"] as unknown as DecisionOpportunity;
+      const availability = dispositionEvidence["availability"] as unknown as ActionAvailabilitySnapshot;
+      assertValidBaselineEvaluationContract(contract);
+      assertDecisionOpportunityAllowed(contract, opportunity);
+      beforeIntegrity = validateCanonicalInputIntegrity(before, contract, opportunity, availability, "evidence.canonicalInputBefore");
+      afterIntegrity = validateCanonicalInputIntegrity(after, contract, opportunity, availability, "evidence.canonicalInputAfter");
+      issues.push(...beforeIntegrity.issues, ...afterIntegrity.issues);
+    } catch (error) {
+      issues.push(issue("INVALID_EVALUATOR_DISPOSITION", "evidence.dispositionEvidence", caughtMessage(error)));
+    }
+  }
   if (!frozenCanonicalInput(before) || !frozenCanonicalInput(after)) {
     issues.push(issue("MUTABLE_OPERATOR_INPUT", "evidence.canonicalInputBefore", "canonical inputs and nested observation, Action-space, constraints, and provenance objects must remain frozen"));
   } else {
-    const beforeFingerprint = evaluationFingerprint(before);
-    const afterFingerprint = evaluationFingerprint(after);
+    const beforeFingerprint = beforeIntegrity?.inputFingerprint ?? evaluationFingerprint(before);
+    const afterFingerprint = afterIntegrity?.inputFingerprint ?? evaluationFingerprint(after);
     const recordedFingerprints = [
       value["inputFingerprintBefore"], value["inputFingerprintAfter"],
       value["observationFingerprintBefore"], value["observationFingerprintAfter"],
@@ -227,15 +277,15 @@ export function validateOperatorAuthorityBoundary(
       issues.push(issue("OPERATOR_INPUT_MUTATION", "evidence.canonicalInputAfter", "operator input changed across invocation"));
     }
     if (
-      value["observationFingerprintBefore"] !== before.provenance.observationFingerprint ||
-      value["observationFingerprintAfter"] !== after.provenance.observationFingerprint ||
+      value["observationFingerprintBefore"] !== beforeIntegrity?.observationFingerprint ||
+      value["observationFingerprintAfter"] !== afterIntegrity?.observationFingerprint ||
       value["observationFingerprintBefore"] !== value["observationFingerprintAfter"]
     ) {
       issues.push(issue("OBSERVATION_MUTATION", "evidence.observationFingerprintAfter", "observation binding changed across invocation"));
     }
     if (
-      value["legalActionSpaceFingerprintBefore"] !== before.provenance.legalActionSpaceFingerprint ||
-      value["legalActionSpaceFingerprintAfter"] !== after.provenance.legalActionSpaceFingerprint ||
+      value["legalActionSpaceFingerprintBefore"] !== beforeIntegrity?.availabilityFingerprint ||
+      value["legalActionSpaceFingerprintAfter"] !== afterIntegrity?.availabilityFingerprint ||
       value["legalActionSpaceFingerprintBefore"] !== value["legalActionSpaceFingerprintAfter"]
     ) {
       issues.push(issue("ACTION_SPACE_MUTATION", "evidence.legalActionSpaceFingerprintAfter", "legal Action-space binding changed across invocation"));

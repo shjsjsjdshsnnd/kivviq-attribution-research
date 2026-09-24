@@ -11,6 +11,7 @@ import {
   buildActionAvailabilitySnapshot,
   buildOperatorObservationSnapshot,
   createFixedIntervalDecisionOpportunity,
+  evaluationFingerprint,
 } from "../../src/evaluation/baseline-contract.js";
 import {
   buildCanonicalOperatorInput,
@@ -222,5 +223,43 @@ describe("Action conformance evidence", () => {
     const first = validateDecisionActionConformance(withActions([increaseGoogleShoppingBudget20]));
     const second = validateDecisionActionConformance(withActions([increaseGoogleShoppingBudget20]));
     expect(second).toEqual(first);
+  });
+
+  it.each([
+    ["top level", (input: any) => { input.extra = true; }],
+    ["observation", (input: any) => { input.observation.extra = true; }],
+    ["legal Action space", (input: any) => { input.legalActionSpace.extra = true; }],
+    ["constraint policy", (input: any) => { input.constraints.extra = true; }],
+    ["decision context", (input: any) => { input.decisionContext.extra = true; }],
+    ["trigger", (input: any) => { input.decisionContext.trigger.extra = true; }],
+    ["provenance", (input: any) => { input.provenance.extra = true; }],
+  ])("rejects unknown canonical input keys at the %s", (_label, mutate) => {
+    const evidence = withActions([]);
+    evidence.canonicalInput = clone(evidence.canonicalInput);
+    mutate(evidence.canonicalInput);
+    expect(validateDecisionActionConformance(evidence).issues).toContainEqual(
+      expect.objectContaining({ code: "INVALID_INPUT_SCHEMA" }),
+    );
+  });
+
+  it("recomputes observation and legal Action-space fingerprints instead of trusting provenance", () => {
+    const observation = withActions([]);
+    observation.canonicalInput = clone(observation.canonicalInput);
+    (observation.canonicalInput as any).provenance.observationFingerprint = "fnv1a64:0000000000000000";
+    expect(validateDecisionActionConformance(observation).issues).toContainEqual(
+      expect.objectContaining({ code: "OBSERVATION_INTEGRITY" }),
+    );
+
+    const actionSpace = withActions([]);
+    actionSpace.canonicalInput = clone(actionSpace.canonicalInput);
+    (actionSpace.canonicalInput as any).legalActionSpace.rules = [];
+    (actionSpace.canonicalInput as any).provenance.legalActionSpaceFingerprint = evaluationFingerprint({
+      opportunityId: actionSpace.canonicalInput.opportunityId,
+      rules: [],
+      mutualExclusionGroups: actionSpace.canonicalInput.legalActionSpace.mutualExclusionGroups,
+    });
+    expect(validateDecisionActionConformance(actionSpace).issues).toContainEqual(
+      expect.objectContaining({ code: "ACTION_SPACE_INTEGRITY" }),
+    );
   });
 });

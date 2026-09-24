@@ -21,6 +21,14 @@ function clone<T>(value: T): any {
   return structuredClone(value);
 }
 
+function refreeze<T>(value: T): T {
+  if (value !== null && typeof value === "object") {
+    for (const nested of Object.values(value as Record<string, unknown>)) refreeze(nested);
+    Object.freeze(value);
+  }
+  return value;
+}
+
 function context() {
   const opportunity = createFixedIntervalDecisionOpportunity(contract, start, 0);
   const observation = buildOperatorObservationSnapshot(contract, opportunity, []);
@@ -137,6 +145,50 @@ describe("constraint disposition conformance", () => {
     );
     expect(validateConstraintDispositionEvidence({ attempts: "bad" }).status).toBe("FAIL");
   });
+
+  it("rejects unknown constraint issue kinds before disposition resolution", () => {
+    const evidence = dispositionEvidence();
+    const attempt = evidence.attempts[1]!;
+    attempt.constraintIssues = [
+      ...attempt.constraintIssues,
+      { kind: "UNKNOWN", constraintRef: "unknown", reason: "must fail closed" } as any,
+    ];
+    attempt.attemptRecord = createEvaluationActionAttemptRecord(
+      contract,
+      evidence.opportunity,
+      evidence.availability,
+      attempt.rawProposal,
+      attempt.constraintIssues as any,
+    );
+    expect(validateConstraintDispositionEvidence(evidence).issues).toContainEqual(
+      expect.objectContaining({ code: "INVALID_CONSTRAINT_ISSUE_KIND" }),
+    );
+  });
+
+  it("rejects a MODIFIED disposition whose explicit Action is semantically unchanged", () => {
+    const evidence = dispositionEvidence();
+    const partial = [{
+      kind: "PARTIALLY_FEASIBLE" as const,
+      constraintRef: "budget.available_minor",
+      reason: "replacement is required",
+    }];
+    evidence.attempts = [{
+      rawProposal: increaseGoogleShoppingBudget20,
+      constraintIssues: partial,
+      explicitModifiedAction: increaseGoogleShoppingBudget20,
+      attemptRecord: createEvaluationActionAttemptRecord(
+        contract,
+        evidence.opportunity,
+        evidence.availability,
+        increaseGoogleShoppingBudget20,
+        partial,
+        increaseGoogleShoppingBudget20,
+      ),
+    }];
+    expect(validateConstraintDispositionEvidence(evidence).issues).toContainEqual(
+      expect.objectContaining({ code: "MODIFIED_ACTION_UNCHANGED" }),
+    );
+  });
 });
 
 describe("operator authority boundary", () => {
@@ -169,15 +221,64 @@ describe("operator authority boundary", () => {
   });
 
   it.each([
-    ["budget", (e: any) => { e.canonicalInputAfter.constraints.dimensions = ["other"]; }],
-    ["legal Action space", (e: any) => { e.canonicalInputAfter.legalActionSpace.rules = []; }],
-    ["direct execution", (e: any) => { e.operatorExecutedActions = true; }],
-    ["simulator mutation", (e: any) => { e.operatorMutatedSimulatorState = true; }],
-    ["evaluator bypass", (e: any) => { e.dispositionCreatedByEvaluator = false; }],
-  ])("fails authority violation: %s", (_label, mutate) => {
+    ["direct execution", "DIRECT_EXECUTION_CLAIM", (e: any) => { e.operatorExecutedActions = true; }],
+    ["simulator mutation", "SIMULATOR_MUTATION_CLAIM", (e: any) => { e.operatorMutatedSimulatorState = true; }],
+    ["evaluator bypass", "EVALUATOR_BYPASS", (e: any) => { e.dispositionCreatedByEvaluator = false; }],
+  ])("fails authority violation: %s", (_label, code, mutate) => {
     const evidence = clone(validAuthorityEvidence());
     mutate(evidence);
-    expect(validateOperatorAuthorityBoundary(evidence).status).toBe("FAIL");
+    refreeze(evidence.canonicalInputBefore);
+    refreeze(evidence.canonicalInputAfter);
+    expect(validateOperatorAuthorityBoundary(evidence).issues).toContainEqual(
+      expect.objectContaining({ code }),
+    );
+  });
+
+  it("rejects an equally pre-tampered, refrozen legal Action space with recomputed caller fingerprints", () => {
+    const evidence = clone(validAuthorityEvidence());
+    const input = evidence.canonicalInputBefore;
+    input.legalActionSpace.rules[0].parameterBounds[0].maxInclusive = 999;
+    input.provenance.legalActionSpaceFingerprint = evaluationFingerprint({
+      opportunityId: input.opportunityId,
+      rules: input.legalActionSpace.rules,
+      mutualExclusionGroups: input.legalActionSpace.mutualExclusionGroups,
+    });
+    refreeze(input);
+    evidence.legalActionSpaceFingerprintBefore = evidence.canonicalInputBefore.provenance.legalActionSpaceFingerprint;
+    evidence.legalActionSpaceFingerprintAfter = evidence.canonicalInputAfter.provenance.legalActionSpaceFingerprint;
+    evidence.inputFingerprintBefore = evaluationFingerprint(evidence.canonicalInputBefore);
+    evidence.inputFingerprintAfter = evaluationFingerprint(evidence.canonicalInputAfter);
+    expect(validateOperatorAuthorityBoundary(evidence).issues).toContainEqual(
+      expect.objectContaining({ code: "ACTION_SPACE_INTEGRITY" }),
+    );
+  });
+
+  it("rejects an equally pre-tampered, refrozen constraint policy with recomputed caller fingerprints", () => {
+    const evidence = clone(validAuthorityEvidence());
+    const input = evidence.canonicalInputBefore;
+    input.constraints.dimensions = input.constraints.dimensions.slice(1);
+    refreeze(input);
+    evidence.constraintsFingerprintBefore = evaluationFingerprint(evidence.canonicalInputBefore.constraints);
+    evidence.constraintsFingerprintAfter = evaluationFingerprint(evidence.canonicalInputAfter.constraints);
+    evidence.inputFingerprintBefore = evaluationFingerprint(evidence.canonicalInputBefore);
+    evidence.inputFingerprintAfter = evaluationFingerprint(evidence.canonicalInputAfter);
+    expect(validateOperatorAuthorityBoundary(evidence).issues).toContainEqual(
+      expect.objectContaining({ code: "CONSTRAINT_INTEGRITY" }),
+    );
+  });
+
+  it("cross-binds disposition availability to the same canonical input", () => {
+    const evidence = clone(validAuthorityEvidence());
+    evidence.dispositionEvidence.availability = {
+      ...evidence.dispositionEvidence.availability,
+      availabilityFingerprint: "fnv1a64:0000000000000000",
+    };
+    evidence.dispositionEvidenceFingerprint = evaluationFingerprint(evidence.dispositionEvidence);
+    refreeze(evidence.canonicalInputBefore);
+    refreeze(evidence.canonicalInputAfter);
+    expect(validateOperatorAuthorityBoundary(evidence).issues).toContainEqual(
+      expect.objectContaining({ code: "ACTION_SPACE_INTEGRITY" }),
+    );
   });
 
   it("rejects disposition fingerprint tampering and unknown fields", () => {
