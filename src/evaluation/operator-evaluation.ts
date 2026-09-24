@@ -7,6 +7,14 @@ import type {
   OperatorObservationInformationClass,
 } from "../operator/types.js";
 import {
+  CANONICAL_OPERATOR_INTERFACE_VERSION,
+  canonicalInputFingerprint,
+  ensureCanonicalOperatorV2,
+  validateCanonicalDecisionEnvelope,
+  type CanonicalOperatorInputV2,
+  type CanonicalOperatorV2,
+} from "../operator/canonical-interface.js";
+import {
   type ActionAvailabilitySnapshot,
   type BaselineEvaluationContract,
   type ConstraintIssue,
@@ -60,6 +68,71 @@ export interface ProposalConstraintAssessment {
   readonly explicitModifiedAction?: Action;
 }
 
+export function buildCanonicalOperatorInput(
+  contract: BaselineEvaluationContract,
+  opportunity: DecisionOpportunity,
+  observation: OperatorObservationSnapshot,
+  availability: ActionAvailabilitySnapshot,
+  legacyInput: OperatorDecisionInput,
+): CanonicalOperatorInputV2 {
+  return deepFreezeEvaluation({
+    schemaVersion: "1.0.0",
+    ...legacyInput,
+    decisionContext: {
+      sequence: opportunity.sequence,
+      trigger: opportunity.trigger,
+    },
+    constraints: {
+      dimensions: [...contract.businessConstraints.dimensions],
+      evaluationBoundary: contract.businessConstraints.evaluationBoundary,
+      invalidActionHandling:
+        contract.businessConstraints.invalidActionHandling,
+      infeasibleActionHandling:
+        contract.businessConstraints.infeasibleActionHandling,
+      partialFeasibilityHandling:
+        contract.businessConstraints.partialFeasibilityHandling,
+      conflictHandling: contract.businessConstraints.conflictHandling,
+      silentModificationForbidden:
+        contract.businessConstraints.silentModificationForbidden,
+    },
+    provenance: {
+      schemaVersion: "1.0.0",
+      evaluationContractFingerprint: contract.contractFingerprint,
+      evaluationContractVersion: contract.contractVersion,
+      observationFingerprint: observation.observationFingerprint,
+      legalActionSpaceFingerprint: availability.availabilityFingerprint,
+      actionOntologyVersion: contract.actionSpace.ontologySchemaVersion,
+      source: "step3.1-governed-evaluator-adapter",
+    },
+  });
+}
+
+export function assertCanonicalOperatorCompatibleWithContract(
+  contract: BaselineEvaluationContract,
+  operator: CanonicalOperatorV2,
+): void {
+  const metadata = operator.metadata;
+  requireCondition(
+    metadata.interfaceVersion === CANONICAL_OPERATOR_INTERFACE_VERSION,
+    "operator does not implement canonical v2 interface",
+  );
+  requireCondition(
+    metadata.supportedEvaluationContract.contractId === contract.contractId &&
+      metadata.supportedEvaluationContract.contractVersion ===
+        contract.contractVersion &&
+      metadata.supportedEvaluationContract.contractFingerprint ===
+        contract.contractFingerprint,
+    "canonical operator does not support this frozen evaluation contract",
+  );
+  requireCondition(
+    metadata.supportedActionOntologyVersion ===
+      contract.actionSpace.ontologySchemaVersion,
+    "canonical operator does not support this Action Ontology version",
+  );
+}
+
+
+
 export type ProposalConstraintAssessor = (
   action: Action,
   proposalIndex: number,
@@ -77,9 +150,13 @@ export interface RecordedOperatorDecisionAudit {
 
 export interface OperatorInvocationAudit {
   readonly invocationId: string;
+  readonly interfaceVersion: typeof CANONICAL_OPERATOR_INTERFACE_VERSION;
   readonly operatorId: string;
   readonly operatorVersion: string;
+  readonly operatorFamily: string;
   readonly operatorFingerprint: string;
+  readonly configurationFingerprint: string;
+  readonly interfaceAdapterFingerprint: string;
   readonly opportunityId: string;
   readonly decisionTime: string;
   readonly observationFingerprint: string;
@@ -178,46 +255,39 @@ export function toOperatorDecisionInput(
   });
 }
 
-function assertDecisionOutput(
-  value: unknown,
-): asserts value is { readonly actions: readonly Action[] } {
-  requireCondition(
-    typeof value === "object" &&
-      value !== null &&
-      !Array.isArray(value),
-    "operator decision output must be an object",
-  );
-  const record = value as Record<string, unknown>;
-  requireCondition(
-    Object.keys(record).length === 1 &&
-      Object.prototype.hasOwnProperty.call(record, "actions"),
-    "operator decision output must contain exactly the actions field",
-  );
-  requireCondition(
-    Array.isArray(record["actions"]),
-    "operator decision output actions must be an array",
-  );
-}
-
 export function invokeOperatorAtDecision(
   contract: BaselineEvaluationContract,
-  operator: CanonicalOperator,
+  operator: CanonicalOperator | CanonicalOperatorV2,
   opportunity: DecisionOpportunity,
   observation: OperatorObservationSnapshot,
   availability: ActionAvailabilitySnapshot,
   assessConstraints?: ProposalConstraintAssessor,
 ): EvaluatedOperatorDecision {
-  assertOperatorCompatibleWithContract(contract, operator);
-
-  const input = toOperatorDecisionInput(
+  const legacyInput = toOperatorDecisionInput(
     opportunity,
     observation,
     availability,
   );
-  const output = operator.decide(input);
-  assertDecisionOutput(output);
+  const canonicalOperator = ensureCanonicalOperatorV2(operator);
+  assertCanonicalOperatorCompatibleWithContract(
+    contract,
+    canonicalOperator,
+  );
+  const input = buildCanonicalOperatorInput(
+    contract,
+    opportunity,
+    observation,
+    availability,
+    legacyInput,
+  );
+  const rawOutput = canonicalOperator.decide(input);
+  const output = validateCanonicalDecisionEnvelope(
+    input,
+    canonicalOperator.metadata,
+    rawOutput,
+  );
 
-  const decisionAudit = operator.auditDecision?.(input, output);
+  const decisionAudit = canonicalOperator.auditDecision?.(input, output);
   const recordedDecisionAudit =
     decisionAudit === undefined
       ? undefined
@@ -275,13 +345,21 @@ export function invokeOperatorAtDecision(
       actionAttempts: attempts,
     });
 
-  const inputFingerprint = evaluationFingerprint(input);
-  const outputFingerprint = evaluationFingerprint(output);
+  const inputFingerprint = canonicalInputFingerprint(input);
+  const outputFingerprint = evaluationFingerprint({
+    actions: output.actions,
+  });
   const invocationBody = {
-    operatorId: operator.metadata.operatorId,
-    operatorVersion: operator.metadata.operatorVersion,
+    interfaceVersion: CANONICAL_OPERATOR_INTERFACE_VERSION,
+    operatorId: canonicalOperator.metadata.operatorId,
+    operatorVersion: canonicalOperator.metadata.operatorVersion,
+    operatorFamily: canonicalOperator.metadata.operatorFamily,
     operatorFingerprint:
-      operator.metadata.implementationFingerprint,
+      canonicalOperator.metadata.implementationFingerprint,
+    configurationFingerprint:
+      canonicalOperator.metadata.configurationFingerprint,
+    interfaceAdapterFingerprint:
+      canonicalOperator.metadata.adapterFingerprint,
     opportunityId: opportunity.opportunityId,
     decisionTime: opportunity.at,
     observationFingerprint:

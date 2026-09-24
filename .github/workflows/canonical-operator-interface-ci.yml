@@ -1,0 +1,77 @@
+name: Step 3.10 Canonical Operator Interface CI
+
+on:
+  push:
+    branches:
+      - baseline/step3.10-canonical-operator-interface
+  pull_request:
+    branches:
+      - baseline/step3.9-flawed-optimizers
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - name: Install
+        run: npm install --no-audit --no-fund
+
+      - name: Architecture boundary
+        run: npm run architecture
+
+      - name: Strict typecheck
+        run: npm run typecheck
+
+      - name: Step 3.10 focused conformance
+        run: npm run test:canonical-operator-interface
+
+      - name: Full inherited and Step 3.10 suite
+        run: npm test
+
+      - name: Build
+        run: npm run build
+
+      - name: Frozen Step 3.10 interface fingerprints
+        run: |
+          node --input-type=module <<'NODE'
+          import {
+            CANONICAL_OPERATOR_INTERFACE_VERSION,
+            CANONICAL_OPERATOR_INTERFACE_SCHEMA_FINGERPRINT,
+            CANONICAL_OPERATOR_INPUT_SCHEMA_FINGERPRINT,
+            CANONICAL_OPERATOR_OUTPUT_SCHEMA_FINGERPRINT,
+            CANONICAL_OPERATOR_METADATA_SCHEMA_FINGERPRINT,
+            CANONICAL_OPERATOR_CAPABILITY_SCHEMA_FINGERPRINT,
+            CANONICAL_OPERATOR_COMPATIBILITY_RULES,
+            CANONICAL_OPERATOR_FROZEN_STEP_3_1_COMMIT,
+            CANONICAL_OPERATOR_FROZEN_STEP_3_9_COMMIT,
+          } from "./dist/operator/index.js";
+          import {
+            CANONICAL_BASELINE_EVALUATION_CONTRACT_V1,
+          } from "./dist/evaluation/index.js";
+          import {
+            ACTION_SCHEMA_VERSION,
+          } from "./dist/action_ontology/index.js";
+
+          console.log("interface_version=" + CANONICAL_OPERATOR_INTERFACE_VERSION);
+          console.log("interface_schema_fingerprint=" + CANONICAL_OPERATOR_INTERFACE_SCHEMA_FINGERPRINT);
+          console.log("input_schema_fingerprint=" + CANONICAL_OPERATOR_INPUT_SCHEMA_FINGERPRINT);
+          console.log("output_schema_fingerprint=" + CANONICAL_OPERATOR_OUTPUT_SCHEMA_FINGERPRINT);
+          console.log("metadata_schema_fingerprint=" + CANONICAL_OPERATOR_METADATA_SCHEMA_FINGERPRINT);
+          console.log("capability_schema_fingerprint=" + CANONICAL_OPERATOR_CAPABILITY_SCHEMA_FINGERPRINT);
+          console.log("step3_1_frozen_commit=" + CANONICAL_OPERATOR_FROZEN_STEP_3_1_COMMIT);
+          console.log("step3_9_frozen_commit=" + CANONICAL_OPERATOR_FROZEN_STEP_3_9_COMMIT);
+          console.log("step3_1_contract_fingerprint=" + CANONICAL_BASELINE_EVALUATION_CONTRACT_V1.contractFingerprint);
+          console.log("action_ontology_version=" + ACTION_SCHEMA_VERSION);
+          console.log("compatibility_rules=" + JSON.stringify(CANONICAL_OPERATOR_COMPATIBILITY_RULES));
+          NODE
