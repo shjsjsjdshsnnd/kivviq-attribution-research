@@ -248,3 +248,53 @@ If a future frozen operator cannot be adapted without changing its decision sema
 That incompatibility requires an explicitly versioned successor.
 
 For current Steps 3.2–3.9, no such incompatibility was required: the generic adapter preserves their decision logic and identities.
+
+
+## Frozen verification
+
+Validated head:
+
+`a25b0c5683077ac6cfbd6a5000142eed4ddd538f`
+
+GitHub Actions run:
+
+`35995888503`
+
+Results:
+
+- Architecture boundary: PASS
+- Strict TypeScript: PASS
+- Focused canonical-interface conformance: 114/114 tests, 1/1 file
+- Full inherited + Step 3.10 suite: 778/778 tests, 83/83 files
+- Build: PASS
+- Frozen interface fingerprint emission: PASS
+
+The inherited DO_NOTHING output fingerprint remains the frozen Action-only evaluator fingerprint. The v2 canonical decision-envelope fingerprint is available separately through the interface helper and does not replace historical evaluation provenance.
+
+The inherited Step 3.4 90-opportunity artifact test retains its full workload with a test-local 15-second budget; operator/evaluator runtime semantics are unchanged.
+
+## Frozen schema fingerprints
+
+- canonical interface version: `2.0.0`
+- interface schema fingerprint: `fnv1a64:771759d019aefa24`
+- input schema fingerprint: `fnv1a64:9baa3fb770f593ae`
+- output schema fingerprint: `fnv1a64:7c852fa831cf12a8`
+- metadata schema fingerprint: `fnv1a64:b199f4d287d99937`
+- capability schema fingerprint: `fnv1a64:57fc390e508fd575`
+
+Dependencies:
+
+- Step 3.1 commit: `c74e9a4ba32f16aa016f06782cbb60e07e765af6`
+- Step 3.1 contract fingerprint: `fnv1a64:b1cc22917a3e566b`
+- Step 3.9 parent: `772546d5d6c23eada255d1b5f7997a1a04896ca2`
+- Action Ontology: `1.6.0`
+
+## Completion gate
+
+Step 3.10 is complete when this validated head is frozen.
+
+The final boundary is:
+
+`Observable Business State → Canonical Operator v2 → Action[] → evaluator-owned validation → execution → outcomes → evaluation`
+
+Every existing baseline reaches that boundary through the same evaluator invocation path. Frozen v1 operators are adapted generically without changing their policy logic or implementation/configuration identity. Future native v2 Kivviq decision systems can use the same path without adding operator-family branching.
