@@ -8,6 +8,11 @@ import type {
   RetentionLtvScenario,
   RetentionRuntimeGodModeState,
 } from "../retention_ltv/runtime-types.js";
+import type {
+  WebsiteGodModeTruth,
+  WebsiteState,
+  WebsiteSurface,
+} from "../website_simulation/types.js";
 
 export type ObservableJourneyEventKind =
   | "impression"
@@ -17,14 +22,22 @@ export type ObservableJourneyEventKind =
   | "visit"
   | "session_start"
   | "landing_page_view"
+  | "homepage_viewed"
   | "collection_view"
   | "site_search"
+  | "search_performed"
+  | "search_results_viewed"
   | "product_view"
   | "add_to_cart"
   | "remove_from_cart"
+  | "cart_viewed"
   | "checkout_start"
+  | "coupon_applied"
+  | "coupon_failed"
+  | "payment_failed"
   | "checkout_abandon"
   | "purchase"
+  | "purchase_completed"
   | "session_end";
 
 export type ObservableSource =
@@ -59,6 +72,14 @@ export interface PerfectObservableJourneyEvent {
   readonly quantity?: number;
   readonly amountMinor?: number;
   readonly discountMinor?: number;
+  /**
+   * Step 12 operator-observable website measurements. These fields describe
+   * measured behavior only; hidden website state and causal penalties never
+   * appear in event payloads.
+   */
+  readonly surface?: WebsiteSurface;
+  readonly pageLoadTimeMs?: number;
+  readonly searchZeroResults?: boolean;
 }
 
 export interface PurchaseLine {
@@ -192,6 +213,11 @@ export interface GodModeSimulationTruth {
    * godMode and is never exported by the Operator-safe root API.
    */
   readonly inventory?: InventoryGodModeTruth;
+  /**
+   * Step 12 evaluator-only website truth. Never exported by the Operator-safe
+   * package root.
+   */
+  readonly website?: WebsiteGodModeTruth;
 }
 
 export interface PlatformStyleChannelMetric {
@@ -221,6 +247,8 @@ export interface SimulationProvenance {
   readonly endTime: string;
   readonly interventions: readonly Intervention[];
   readonly sharedRandomness: true;
+  readonly websiteModelVersion?: string;
+  readonly websiteStateFingerprint?: string;
 }
 
 export interface SimulationResult {
@@ -254,6 +282,11 @@ export interface SimulationCommercePolicy {
    * frozen Step 1-10 simulation path.
    */
   readonly retentionScenario?: RetentionLtvScenario;
+  /**
+   * Opt-in Step 12 simulated storefront. Omitted preserves the frozen
+   * Step 1-11 execution path exactly.
+   */
+  readonly websiteState?: WebsiteState;
   /**
    * Step 9 physical-return parameters are supplied by the Step 7 economic
    * profiles so inventory and return accounting use the same product truth.
