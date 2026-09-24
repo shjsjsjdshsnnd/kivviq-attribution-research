@@ -80,6 +80,13 @@ import {
   startSession,
   type RuntimeSession,
 } from "./session.js";
+import {
+  validateWebsiteState,
+  websiteStateFingerprint,
+} from "../website_simulation/model.js";
+import {
+  checkoutBehavior,
+} from "../website_simulation/runtime.js";
 import type {
   ExposureCausalTruth,
   PerfectObservableJourneyEvent,
@@ -728,6 +735,9 @@ export function simulateWorld(
     validateRetentionLtvScenario(
       request.commercePolicy.retentionScenario,
     );
+  }
+  if (request.commercePolicy?.websiteState !== undefined) {
+    validateWebsiteState(request.commercePolicy.websiteState);
   }
 
   const runtime = createRuntimeWorldState(
@@ -1949,6 +1959,7 @@ export function simulateWorld(
         event.timestampMs,
         sessionId,
         randomness,
+        request.commercePolicy?.websiteState,
       );
       sessions.set(sessionId, started.session);
       observableEvents.push(...started.observableEvents);
@@ -2035,7 +2046,7 @@ export function simulateWorld(
           }
         }
 
-        const purchaseProbability =
+        let purchaseProbability =
           checkoutPurchaseProbability(
             runtime,
             customer,
@@ -2195,6 +2206,20 @@ export function simulateWorld(
               orderId,
               amountMinor: purchase.netRevenueMinor,
             });
+            if (request.commercePolicy?.websiteState !== undefined) {
+              observableEvents.push({
+                eventId: `purchase-completed:${orderId}`,
+                eventType: "purchase_completed",
+                occurredAt: purchase.occurredAt,
+                anonymousSubjectId: customer.customerId,
+                sessionId: session.sessionId,
+                source: session.source,
+                device: session.device,
+                orderId,
+                amountMinor: purchase.netRevenueMinor,
+                surface: "checkout",
+              });
+            }
 
             session.ended = true;
             session.currentPage = "ended";
@@ -2527,6 +2552,22 @@ export function simulateWorld(
         : {}),
       interactionEffects: interactionTruth,
       purchaseTruth,
+      ...(request.commercePolicy?.websiteState === undefined
+        ? {}
+        : {
+            website: {
+              modelVersion:
+                request.commercePolicy.websiteState.version,
+              schemaVersion:
+                request.commercePolicy.websiteState.schemaVersion,
+              stateFingerprint:
+                websiteStateFingerprint(
+                  request.commercePolicy.websiteState,
+                ),
+              websiteState:
+                request.commercePolicy.websiteState,
+            },
+          }),
       customerFinalStates: [...runtime.customers.values()].map(
         (customer) => ({
           customerId: customer.customerId,
@@ -2599,6 +2640,16 @@ export function simulateWorld(
       endTime: request.endTime,
       interventions: request.interventions ?? [],
       sharedRandomness: true,
+      ...(request.commercePolicy?.websiteState === undefined
+        ? {}
+        : {
+            websiteModelVersion:
+              request.commercePolicy.websiteState.version,
+            websiteStateFingerprint:
+              websiteStateFingerprint(
+                request.commercePolicy.websiteState,
+              ),
+          }),
     },
   };
 }
