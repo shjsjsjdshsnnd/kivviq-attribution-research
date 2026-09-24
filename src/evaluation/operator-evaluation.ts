@@ -8,12 +8,11 @@ import type {
 } from "../operator/types.js";
 import {
   CANONICAL_OPERATOR_INTERFACE_VERSION,
-  assertCanonicalOperatorCompatibleWithContract,
-  buildCanonicalOperatorInput,
   canonicalInputFingerprint,
   canonicalOperatorDecisionFingerprint,
   ensureCanonicalOperatorV2,
   validateCanonicalDecisionEnvelope,
+  type CanonicalOperatorInputV2,
   type CanonicalOperatorV2,
 } from "../operator/canonical-interface.js";
 import {
@@ -69,6 +68,71 @@ export interface ProposalConstraintAssessment {
   readonly issues: readonly ConstraintIssue[];
   readonly explicitModifiedAction?: Action;
 }
+
+export function buildCanonicalOperatorInput(
+  contract: BaselineEvaluationContract,
+  opportunity: DecisionOpportunity,
+  observation: OperatorObservationSnapshot,
+  availability: ActionAvailabilitySnapshot,
+  legacyInput: OperatorDecisionInput,
+): CanonicalOperatorInputV2 {
+  return deepFreezeEvaluation({
+    schemaVersion: "1.0.0",
+    ...legacyInput,
+    decisionContext: {
+      sequence: opportunity.sequence,
+      trigger: opportunity.trigger,
+    },
+    constraints: {
+      dimensions: [...contract.businessConstraints.dimensions],
+      evaluationBoundary: contract.businessConstraints.evaluationBoundary,
+      invalidActionHandling:
+        contract.businessConstraints.invalidActionHandling,
+      infeasibleActionHandling:
+        contract.businessConstraints.infeasibleActionHandling,
+      partialFeasibilityHandling:
+        contract.businessConstraints.partialFeasibilityHandling,
+      conflictHandling: contract.businessConstraints.conflictHandling,
+      silentModificationForbidden:
+        contract.businessConstraints.silentModificationForbidden,
+    },
+    provenance: {
+      schemaVersion: "1.0.0",
+      evaluationContractFingerprint: contract.contractFingerprint,
+      evaluationContractVersion: contract.contractVersion,
+      observationFingerprint: observation.observationFingerprint,
+      legalActionSpaceFingerprint: availability.availabilityFingerprint,
+      actionOntologyVersion: contract.actionSpace.ontologySchemaVersion,
+      source: "step3.1-governed-evaluator-adapter",
+    },
+  });
+}
+
+export function assertCanonicalOperatorCompatibleWithContract(
+  contract: BaselineEvaluationContract,
+  operator: CanonicalOperatorV2,
+): void {
+  const metadata = operator.metadata;
+  requireCondition(
+    metadata.interfaceVersion === CANONICAL_OPERATOR_INTERFACE_VERSION,
+    "operator does not implement canonical v2 interface",
+  );
+  requireCondition(
+    metadata.supportedEvaluationContract.contractId === contract.contractId &&
+      metadata.supportedEvaluationContract.contractVersion ===
+        contract.contractVersion &&
+      metadata.supportedEvaluationContract.contractFingerprint ===
+        contract.contractFingerprint,
+    "canonical operator does not support this frozen evaluation contract",
+  );
+  requireCondition(
+    metadata.supportedActionOntologyVersion ===
+      contract.actionSpace.ontologySchemaVersion,
+    "canonical operator does not support this Action Ontology version",
+  );
+}
+
+
 
 export type ProposalConstraintAssessor = (
   action: Action,
