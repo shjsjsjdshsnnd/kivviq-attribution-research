@@ -705,11 +705,9 @@ export function conformLegacyOperator(
       : {
           auditDecision(
             input: Readonly<CanonicalOperatorInputV2>,
-            output: Readonly<CanonicalOperatorDecisionV2>,
+            _output: Readonly<CanonicalOperatorDecisionV2>,
           ): OperatorDecisionAudit {
-            const legacyOutput: OperatorDecisionOutput = {
-              actions: output.actions,
-            };
+            const legacyOutput = operator.decide(input);
             return operator.auditDecision!(input, legacyOutput);
           },
         }),
