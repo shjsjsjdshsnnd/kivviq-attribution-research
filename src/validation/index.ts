@@ -7,3 +7,5 @@ export * from "./provenance.js";
 export * from "./determinism.js";
 export * from "./leakage.js";
 export * from "./temporal-boundaries.js";
+export * from "./action-conformance.js";
+export * from "./constraint-conformance.js";
