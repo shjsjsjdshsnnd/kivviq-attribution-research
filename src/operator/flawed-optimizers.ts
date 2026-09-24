@@ -1295,22 +1295,14 @@ function enumerateAdvertisingCandidates(
       }
 
       if (config.objective === "MAX_REVENUE") {
-        if (
-          channel.spendMinor !== null &&
-          channel.spendMinor >=
-            config.minimumEvidence.minimumSpendMinor &&
-          channel.attributedRevenueMinor !== null
-        ) {
-          kpi =
-            (channel.attributedRevenueMinor /
-              channel.spendMinor) *
-            increaseMinor;
+        if (channel.attributedRevenueMinor !== null) {
+          kpi = channel.attributedRevenueMinor;
           evidence = {
             spendMinor: channel.spendMinor,
             attributedRevenueMinor: channel.attributedRevenueMinor,
             proposedSpendIncreaseMinor: increaseMinor,
             estimator:
-              "ATTRIBUTED_REVENUE_PER_SPEND_TIMES_SPEND_INCREASE",
+              "OBSERVED_TRAILING_ATTRIBUTED_REVENUE_LEVEL_FOR_TARGET",
           };
         } else {
           missingReason = "INSUFFICIENT_REVENUE_EVIDENCE";
@@ -1440,10 +1432,11 @@ function enumeratePricingCandidates(
       ) {
         throw new TypeError("MAX_REVENUE pricing candidate must be SET");
       }
+      const targetPriceMinor =
+        action.parameters.operation.value.amountMinor;
       const priceDelta =
-        action.parameters.operation.value.amountMinor -
-        product.currentPriceMinor;
-      const kpi = product.recentUnits * priceDelta;
+        targetPriceMinor - product.currentPriceMinor;
+      const kpi = product.recentUnits * targetPriceMinor;
       candidates.push({
         candidateId: id,
         domain: "pricing",
@@ -1460,6 +1453,9 @@ function enumeratePricingCandidates(
           recentUnits: product.recentUnits,
           currentPriceMinor: product.currentPriceMinor,
           immediatePriceDeltaMinor: priceDelta,
+          estimatedShortTermRevenueMinor: kpi,
+          estimator:
+            "RECENT_UNITS_TIMES_TARGET_PRICE",
           ignoredCosts: [
             "COGS",
             "discount_cost_beyond_price_delta",
@@ -1684,12 +1680,16 @@ function enumeratePromotionCandidates(
         });
         continue;
       }
+      const discountedPriceMinor = Math.floor(
+        (product.currentPriceMinor *
+          (10_000 - template.discountBasisPoints)) /
+          10_000,
+      );
       const immediateDiscountCost =
         product.recentUnits *
-        ((product.currentPriceMinor *
-          template.discountBasisPoints) /
-          10_000);
-      const kpi = -immediateDiscountCost;
+        (product.currentPriceMinor - discountedPriceMinor);
+      const kpi =
+        product.recentUnits * discountedPriceMinor;
       candidates.push({
         candidateId: id,
         domain: "promotion",
@@ -1706,7 +1706,11 @@ function enumeratePromotionCandidates(
           recentUnits: product.recentUnits,
           currentPriceMinor: product.currentPriceMinor,
           discountBasisPoints: template.discountBasisPoints,
-          immediateRevenueEffectMinor: kpi,
+          immediateDiscountCostMinor: immediateDiscountCost,
+          discountedPriceMinor,
+          estimatedShortTermRevenueMinor: kpi,
+          estimator:
+            "RECENT_UNITS_TIMES_DISCOUNTED_PRICE_WITH_NO_DEMAND_LIFT",
           demandLiftAssumption: "NONE",
         },
       });
