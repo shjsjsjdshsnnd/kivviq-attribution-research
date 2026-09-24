@@ -90,8 +90,13 @@ import {
 } from "../website_cro/runtime.js";
 import {
   WEBSITE_CRO_VERSION,
+  WEBSITE_MODEL_VERSION,
+  WEBSITE_SCHEMA_VERSION,
   type WebsiteCausalEvent,
 } from "../website_cro/types.js";
+import {
+  websiteScenarioFingerprint,
+} from "../website_cro/fingerprint.js";
 import type {
   ExposureCausalTruth,
   PerfectObservableJourneyEvent,
@@ -2879,6 +2884,12 @@ export function simulateWorld(
         : {
             website: {
               version: WEBSITE_CRO_VERSION,
+              modelVersion: WEBSITE_MODEL_VERSION,
+              schemaVersion: WEBSITE_SCHEMA_VERSION,
+              scenarioFingerprint:
+                websiteScenarioFingerprint(
+                  request.commercePolicy.websiteScenario,
+                ),
               godModeOnly: true as const,
               scenarioId:
                 request.commercePolicy
@@ -2974,6 +2985,16 @@ export function simulateWorld(
       endTime: request.endTime,
       interventions: request.interventions ?? [],
       sharedRandomness: true,
+      ...(request.commercePolicy?.websiteScenario === undefined
+        ? {}
+        : {
+            websiteModelVersion: WEBSITE_MODEL_VERSION,
+            websiteSchemaVersion: WEBSITE_SCHEMA_VERSION,
+            websiteScenarioFingerprint:
+              websiteScenarioFingerprint(
+                request.commercePolicy.websiteScenario,
+              ),
+          }),
     },
   };
 }
