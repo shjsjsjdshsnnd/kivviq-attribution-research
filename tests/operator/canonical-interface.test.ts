@@ -12,6 +12,7 @@ import {
   createFixedIntervalDecisionOpportunity,
 } from "../../src/evaluation/baseline-contract.js";
 import {
+  buildCanonicalOperatorInput,
   invokeOperatorAtDecision,
   toOperatorDecisionInput,
 } from "../../src/evaluation/operator-evaluation.js";
@@ -27,7 +28,6 @@ import {
   CANONICAL_OPERATOR_METADATA_SCHEMA_FINGERPRINT,
   CANONICAL_OPERATOR_OUTPUT_SCHEMA_FINGERPRINT,
   CANONICAL_OPERATOR_PROVENANCE_SCHEMA_VERSION,
-  buildCanonicalOperatorInput,
   canonicalInputFingerprint,
   canonicalOperatorDecisionFingerprint,
   conformLegacyOperator,
