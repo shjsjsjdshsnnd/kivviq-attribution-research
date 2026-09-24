@@ -40,7 +40,7 @@ describe("determinism validation", () => {
     });
   });
 
-  it("uses only the frozen action provenance-ID allowlist", () => {
+  it("uses the authoritative action projection and rejects caller exclusions", () => {
     const randomizeProvenanceIds = (sampleId: string) => ({
       ...decision(sampleId),
       actions: [{

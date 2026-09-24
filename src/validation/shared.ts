@@ -1,13 +1,8 @@
 import type { Action } from "../action_ontology/types.js";
+import { actionFingerprint } from "../action_ontology/semantics.js";
 import { assertValidAction } from "../action_ontology/validation.js";
-import { deepFreezeEvaluation, evaluationFingerprint, stableEvaluationJson } from "../evaluation/baseline-contract.js";
+import { deepFreezeEvaluation, evaluationFingerprint } from "../evaluation/baseline-contract.js";
 import { BASELINE_VALIDATION_FINGERPRINT_PATTERN, type BaselineValidationCheckId, type BaselineValidationCheckResult, type BaselineValidationIssue } from "./contract.js";
-
-export const CANONICAL_PROVENANCE_ONLY_ACTION_PATHS = deepFreezeEvaluation([
-  "actions[*].actionId",
-  "actions[*].provenance.sourceId",
-  "actions[*].provenance.evidenceRefs",
-] as const);
 
 export function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
@@ -64,18 +59,7 @@ export function isStrictJson(value: unknown, ancestors = new Set<object>()): boo
 export function canonicalActionFingerprints(value: unknown): readonly string[] | undefined {
   if (!Array.isArray(value)) return undefined;
   try {
-    return value.map((action) => {
-      const validated = assertValidAction(action);
-      const projection = JSON.parse(stableEvaluationJson(validated)) as Record<string, unknown>;
-      // Keep this projection local and closed: callers cannot add exclusion paths.
-      delete projection["actionId"];
-      const provenance = projection["provenance"];
-      if (isRecord(provenance)) {
-        delete provenance["sourceId"];
-        delete provenance["evidenceRefs"];
-      }
-      return evaluationFingerprint(projection);
-    }) as readonly string[];
+    return value.map((action) => actionFingerprint(assertValidAction(action))) as readonly string[];
   } catch {
     return undefined;
   }

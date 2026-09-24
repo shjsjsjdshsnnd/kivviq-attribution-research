@@ -2,8 +2,6 @@ import { evaluationFingerprint } from "../evaluation/baseline-contract.js";
 import type { BaselineValidationCheckId, BaselineValidationCheckResult, BaselineValidationIssue } from "./contract.js";
 import { canonicalActionFingerprints, hasExactKeys, isFingerprint, isNonEmptyString, isRecord, isStrictJson, issue, result, safeFingerprint } from "./shared.js";
 
-export { CANONICAL_PROVENANCE_ONLY_ACTION_PATHS } from "./shared.js";
-
 export interface DeterministicDecisionSample {
   readonly sampleId: string;
   readonly canonicalInputFingerprint: string;
