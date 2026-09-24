@@ -25,15 +25,16 @@ function instant(value: unknown): number | undefined {
 
 function observations(value: unknown, issues: BaselineValidationIssue[]): Array<{ index: number; value: Record<string, unknown>; time: number }> {
   if (!Array.isArray(value)) { issues.push(issue("INVALID_TEMPORAL_EVIDENCE", "observations", "observations must be an array")); return []; }
-  const entries: Array<{ index: number; value: Record<string, unknown>; time: number }> = []; const ids = new Set<string>(); let previousKey: string | undefined;
+  const entries: Array<{ index: number; value: Record<string, unknown>; time: number }> = []; const ids = new Set<string>(); let previous: { time: number; eventId: string } | undefined;
   value.forEach((raw, index) => {
     const path = `observations[${index}]`;
     if (!isRecord(raw) || !hasExactKeys(raw, OBSERVATION_KEYS) || !isNonEmptyString(raw["eventId"]) || ids.has(raw["eventId"] as string) || !(TEMPORAL_OBSERVATION_KINDS as readonly unknown[]).includes(raw["kind"]) || !isStrictJson(raw["payload"])) { issues.push(issue("INVALID_TEMPORAL_EVIDENCE", path, "observation must have an exact shape, unique ID, known kind, and strict JSON payload")); return; }
     const time = instant(raw["occurredAt"]);
     if (time === undefined) { issues.push(issue("INVALID_TEMPORAL_EVIDENCE", `${path}.occurredAt`, "occurredAt must be a strict ISO instant")); return; }
-    ids.add(raw["eventId"]); const key = `${raw["occurredAt"]}\u0000${raw["eventId"]}`;
-    if (previousKey !== undefined && compareCodeUnits(previousKey, key) > 0) issues.push(issue("UNSTABLE_OBSERVATION_ORDER", path, "observations must be ordered by occurredAt then eventId"));
-    previousKey = key; entries.push({ index, value: raw, time });
+    const eventId = raw["eventId"];
+    ids.add(eventId);
+    if (previous !== undefined && (previous.time > time || (previous.time === time && compareCodeUnits(previous.eventId, eventId) > 0))) issues.push(issue("UNSTABLE_OBSERVATION_ORDER", path, "observations must be ordered by occurredAt then eventId"));
+    previous = { time, eventId }; entries.push({ index, value: raw, time });
   });
   return entries;
 }

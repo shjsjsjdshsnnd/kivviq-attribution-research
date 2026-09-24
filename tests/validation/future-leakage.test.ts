@@ -43,6 +43,16 @@ describe("future information and temporal boundaries", () => {
     ]);
   });
 
+  it("orders equal instants by event ID across canonical timestamp formats", () => {
+    expect(validateTemporalObservationBoundary({
+      decisionTimestamp: "2026-02-01T00:00:00Z",
+      observations: [
+        { eventId: "a", kind: "order", occurredAt: "2026-02-01T00:00:00Z", payload: {} },
+        { eventId: "b", kind: "conversion", occurredAt: "2026-02-01T00:00:00.000Z", payload: {} },
+      ],
+    })).toMatchObject({ status: "PASS", issues: [] });
+  });
+
   it("fails closed for invalid instants, unknown kinds, duplicate IDs, unstable order, malformed payloads, and unknown keys", () => {
     const good = { eventId: "a", kind: "order", occurredAt: "2026-01-01T00:00:00.000Z", payload: { ok: true } };
     const badInputs: unknown[] = [
