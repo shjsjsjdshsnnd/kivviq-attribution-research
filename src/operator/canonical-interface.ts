@@ -714,6 +714,24 @@ export function conformLegacyOperator(
   });
 }
 
+export function isCanonicalOperatorV2(
+  operator: CanonicalOperator | CanonicalOperatorV2,
+): operator is CanonicalOperatorV2 {
+  return (
+    "schemaVersion" in operator.metadata &&
+    operator.metadata.interfaceVersion ===
+      CANONICAL_OPERATOR_INTERFACE_VERSION
+  );
+}
+
+export function ensureCanonicalOperatorV2(
+  operator: CanonicalOperator | CanonicalOperatorV2,
+): CanonicalOperatorV2 {
+  return isCanonicalOperatorV2(operator)
+    ? operator
+    : conformLegacyOperator(operator);
+}
+
 export function assertCanonicalOperatorCompatibleWithContract(
   contract: BaselineEvaluationContract,
   operator: CanonicalOperatorV2,
