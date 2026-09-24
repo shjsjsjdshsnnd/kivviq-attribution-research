@@ -234,6 +234,18 @@ describe("Action conformance evidence", () => {
     expect(second).toEqual(first);
   });
 
+  it("rejects extra fields in operator metadata through the canonical boundary", () => {
+    const evidence = withActions([]);
+    evidence.operatorMetadata = { ...evidence.operatorMetadata, extra: true } as any;
+    evidence.decisionEnvelope = {
+      ...evidence.decisionEnvelope,
+      operatorMetadata: evidence.operatorMetadata,
+    };
+    expect(validateDecisionActionConformance(evidence).issues).toContainEqual(
+      expect.objectContaining({ code: "INVALID_DECISION_ENVELOPE" }),
+    );
+  });
+
   it.each([
     ["top level", (input: any) => { input.extra = true; }],
     ["observation", (input: any) => { input.observation.extra = true; }],

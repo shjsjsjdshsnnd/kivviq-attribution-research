@@ -2,6 +2,7 @@ import {
   ACTION_CATEGORIES,
   ACTION_SCHEMA_VERSION,
   type Action,
+  type ActionTarget,
   type CoreActionCategory,
 } from "../action_ontology/types.js";
 import {
@@ -413,6 +414,40 @@ const CANONICAL_INPUT_CONTEXT_KEYS = ["sequence", "trigger"] as const;
 const CANONICAL_INPUT_CONSTRAINT_KEYS = ["dimensions", "evaluationBoundary", "invalidActionHandling", "infeasibleActionHandling", "partialFeasibilityHandling", "conflictHandling", "silentModificationForbidden"] as const;
 const CANONICAL_INPUT_PROVENANCE_KEYS = ["schemaVersion", "evaluationContractFingerprint", "evaluationContractVersion", "observationFingerprint", "legalActionSpaceFingerprint", "actionOntologyVersion", "source"] as const;
 
+const ACTION_TARGET_FIELDS = {
+  advertising_channel: { required: ["channelId"], optional: [] },
+  advertising_account: { required: ["channelId", "accountId"], optional: [] },
+  campaign: { required: ["channelId", "campaignId"], optional: [] },
+  campaign_group: { required: ["channelId", "campaignGroupId"], optional: ["accountId"] },
+  ad_set: { required: ["channelId", "campaignId", "adSetId"], optional: [] },
+  ad_group: { required: ["channelId", "campaignId", "adGroupId"], optional: [] },
+  ad: { required: ["channelId", "campaignId", "adId"], optional: ["adSetId", "adGroupId"] },
+  creative: { required: ["channelId", "creativeId"], optional: ["campaignId"] },
+  audience: { required: ["audienceId"], optional: [] },
+  product: { required: ["productId"], optional: [] },
+  sku: { required: ["skuId"], optional: ["productId"] },
+  category: { required: ["categoryId"], optional: [] },
+  collection: { required: ["collectionId"], optional: [] },
+  brand: { required: ["brandId"], optional: [] },
+  product_set: { required: ["productSetId"], optional: [] },
+  product_group: { required: ["productGroupId"], optional: ["collectionId", "categoryId"] },
+  customer_segment: { required: ["segmentId"], optional: [] },
+  funnel_stage: { required: ["funnelId", "stageId"], optional: [] },
+  page: { required: ["pageId"], optional: [] },
+  lifecycle_program: { required: ["programId"], optional: [] },
+  shipping_policy: { required: ["shippingPolicyId"], optional: [] },
+  shipping_offer: { required: ["shippingOfferId"], optional: [] },
+  inventory_policy: { required: ["inventoryPolicyId"], optional: [] },
+  inventory_location: { required: ["inventoryLocationId"], optional: [] },
+  supplier_relationship: { required: ["supplierRelationshipId"], optional: [] },
+  inventory_set: { required: ["inventorySetId"], optional: [] },
+  experiment: { required: ["experimentId"], optional: [] },
+  promotion: { required: ["promotionId"], optional: [] },
+  merchandising_placement: { required: ["placementId"], optional: [] },
+  merchandising_relationship: { required: ["relationshipId"], optional: [] },
+  merchant: { required: ["merchantId"], optional: [] },
+} as const satisfies Record<ActionTarget["kind"], { readonly required: readonly string[]; readonly optional: readonly string[] }>;
+
 function exactKeys(value: Record<string, unknown>, expected: readonly string[]): boolean {
   const actual = Reflect.ownKeys(value);
   const sortedExpected = [...expected].sort();
@@ -426,6 +461,18 @@ function allowedKeys(value: Record<string, unknown>, allowed: readonly string[],
     required.every((key) => Object.prototype.hasOwnProperty.call(value, key));
 }
 
+function validActionTarget(value: unknown): value is ActionTarget {
+  if (!record(value) || typeof value["kind"] !== "string") return false;
+  const fields = ACTION_TARGET_FIELDS[value["kind"] as ActionTarget["kind"]];
+  if (fields === undefined) return false;
+  const required = fields.required as readonly string[];
+  const optional = fields.optional as readonly string[];
+  if (!allowedKeys(value, ["kind", ...required, ...optional], ["kind", ...required])) return false;
+  return [...required, ...optional]
+    .filter((key) => Object.prototype.hasOwnProperty.call(value, key))
+    .every((key) => typeof value[key] === "string" && (value[key] as string).trim().length > 0);
+}
+
 function exactCanonicalInputStructure(value: Record<string, unknown>): boolean {
   if (!exactKeys(value, CANONICAL_INPUT_KEYS) ||
     !record(value["observation"]) || !exactKeys(value["observation"], CANONICAL_INPUT_OBSERVATION_KEYS) ||
@@ -435,6 +482,7 @@ function exactCanonicalInputStructure(value: Record<string, unknown>): boolean {
     !Array.isArray(value["legalActionSpace"]["rules"]) ||
     !value["legalActionSpace"]["rules"].every((entry) => record(entry) && exactKeys(entry, CANONICAL_INPUT_ACTION_RULE_KEYS) &&
       Array.isArray(entry["eligibleTargets"]) && Array.isArray(entry["parameterBounds"]) &&
+      entry["eligibleTargets"].every(validActionTarget) &&
       entry["parameterBounds"].every((bound) => record(bound) && allowedKeys(bound, CANONICAL_INPUT_BOUND_KEYS, ["path"])) &&
       Array.isArray(entry["requiredPreconditionIds"])) ||
     !Array.isArray(value["legalActionSpace"]["mutualExclusionGroups"]) ||
@@ -623,6 +671,25 @@ function assertCapabilityConformance(
 export function assertCanonicalOperatorMetadataV2(
   metadata: CanonicalOperatorMetadataV2,
 ): void {
+  if (!record(metadata) || !exactKeys(metadata, [
+    "schemaVersion", "interfaceVersion", "operatorId", "operatorVersion",
+    "operatorFamily", "description", "implementationFingerprint",
+    "configurationFingerprint", "legacyInterfaceVersion",
+    "supportedEvaluationContract", "supportedActionOntologyVersion",
+    "capabilities", "adapterFingerprint",
+  ]) || !record(metadata.supportedEvaluationContract) ||
+    !exactKeys(metadata.supportedEvaluationContract, ["contractId", "contractVersion", "contractFingerprint", "frozenCommit"]) ||
+    !record(metadata.capabilities) || !exactKeys(metadata.capabilities, [
+      "schemaVersion", "actionDomains", "supportsZeroActions", "supportsOneAction",
+      "supportsMultipleActions", "maximumActionsPerDecision", "randomness",
+    ]) || !record(metadata.capabilities.randomness) ||
+    (metadata.capabilities.randomness.kind === "deterministic"
+      ? !exactKeys(metadata.capabilities.randomness, ["kind"])
+      : metadata.capabilities.randomness.kind === "seeded_stochastic"
+        ? !exactKeys(metadata.capabilities.randomness, ["kind", "seedNamespace", "seedRequired"])
+        : true)) {
+    throw new TypeError("canonical operator metadata fields are malformed");
+  }
   if (
     metadata.schemaVersion !==
       CANONICAL_OPERATOR_METADATA_SCHEMA_VERSION ||
@@ -642,6 +709,10 @@ export function assertCanonicalOperatorMetadataV2(
   if (
     metadata.capabilities.schemaVersion !==
       CANONICAL_OPERATOR_CAPABILITY_SCHEMA_VERSION ||
+    metadata.capabilities.supportsZeroActions !== true ||
+    metadata.capabilities.supportsOneAction !== true ||
+    metadata.capabilities.supportsMultipleActions !== true ||
+    !Array.isArray(metadata.capabilities.actionDomains) ||
     !Number.isInteger(
       metadata.capabilities.maximumActionsPerDecision,
     ) ||
@@ -664,7 +735,8 @@ export function assertCanonicalOperatorMetadataV2(
   }
   if (
     metadata.capabilities.randomness.kind === "seeded_stochastic" &&
-    metadata.capabilities.randomness.seedNamespace !== "operator_internal"
+    (metadata.capabilities.randomness.seedNamespace !== "operator_internal" ||
+      metadata.capabilities.randomness.seedRequired !== true)
   ) {
     throw new TypeError(
       "stochastic operator randomness must bind operator_internal seed",

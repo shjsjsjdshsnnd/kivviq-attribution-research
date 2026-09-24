@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { increaseGoogleShoppingBudget20 } from "../../src/action_ontology/fixtures.js";
+import { increaseGoogleShoppingBudget20, pauseUnderperformingMetaCampaign } from "../../src/action_ontology/fixtures.js";
 import {
   CANONICAL_BASELINE_EVALUATION_CONTRACT_V1,
   buildActionAvailabilitySnapshot,
@@ -8,7 +8,9 @@ import {
   createFixedIntervalDecisionOpportunity,
   evaluationFingerprint,
 } from "../../src/evaluation/baseline-contract.js";
-import { buildCanonicalOperatorInput, toOperatorDecisionInput } from "../../src/evaluation/operator-evaluation.js";
+import { buildCanonicalOperatorInput, invokeOperatorAtDecision, toOperatorDecisionInput } from "../../src/evaluation/operator-evaluation.js";
+import { canonicalizeActionOrdering, ensureCanonicalOperatorV2 } from "../../src/operator/canonical-interface.js";
+import { DO_NOTHING_OPERATOR } from "../../src/operator/do-nothing.js";
 import {
   validateConstraintDispositionEvidence,
   validateOperatorAuthorityBoundary,
@@ -46,6 +48,26 @@ function context() {
     toOperatorDecisionInput(opportunity, observation, availability),
   );
   return { opportunity, observation, availability, canonicalInput };
+}
+
+function multiActionContext() {
+  const opportunity = createFixedIntervalDecisionOpportunity(contract, start, 0);
+  const observation = buildOperatorObservationSnapshot(contract, opportunity, []);
+  const availability = buildActionAvailabilitySnapshot(contract, opportunity, [
+    {
+      actionType: String(increaseGoogleShoppingBudget20.actionType),
+      eligibleTargets: [increaseGoogleShoppingBudget20.target],
+      parameterBounds: [{ path: "parameters.operation.factor", minInclusive: 1, maxInclusive: 2 }],
+      requiredPreconditionIds: ["campaign_exists"],
+    },
+    {
+      actionType: String(pauseUnderperformingMetaCampaign.actionType),
+      eligibleTargets: [pauseUnderperformingMetaCampaign.target],
+      parameterBounds: [],
+      requiredPreconditionIds: [],
+    },
+  ]);
+  return { opportunity, observation, availability };
 }
 
 function modifiedAction() {
@@ -96,6 +118,32 @@ function dispositionEvidence() {
 }
 
 describe("constraint disposition conformance", () => {
+  it("accepts deterministic empty evidence for a zero-Action decision", () => {
+    const { opportunity, availability } = context();
+    const evidence = { contract, opportunity, availability, attempts: [] };
+    const result = validateConstraintDispositionEvidence(evidence);
+    expect(result.status).toBe("PASS");
+    expect(validateConstraintDispositionEvidence(clone(evidence))).toEqual(result);
+  });
+
+  it("uses canonical Action ordering rather than lexical fingerprint ordering", () => {
+    const { opportunity, availability } = multiActionContext();
+    const actions = canonicalizeActionOrdering([
+      pauseUnderperformingMetaCampaign,
+      increaseGoogleShoppingBudget20,
+    ]);
+    const attempts = actions.map((action) => ({
+      rawProposal: action,
+      constraintIssues: [],
+      explicitModifiedAction: null,
+      attemptRecord: createEvaluationActionAttemptRecord(contract, opportunity, availability, action),
+    }));
+    const evidence = { contract, opportunity, availability, attempts };
+    expect(validateConstraintDispositionEvidence(evidence).status).toBe("PASS");
+    expect(validateConstraintDispositionEvidence({ ...evidence, attempts: [...attempts].reverse() }).issues).toContainEqual(
+      expect.objectContaining({ code: "UNSTABLE_ATTEMPT_ORDER" }),
+    );
+  });
   it("validates ACCEPTED, REJECTED, and deterministic MODIFIED evaluator records", () => {
     const evidence = dispositionEvidence();
     const result = validateConstraintDispositionEvidence(evidence);
@@ -128,13 +176,7 @@ describe("constraint disposition conformance", () => {
     );
   });
 
-  it("rejects unstable attempt ordering, unknown fields, and malformed evidence", () => {
-    const unstable = dispositionEvidence();
-    unstable.attempts = [...unstable.attempts].reverse();
-    expect(validateConstraintDispositionEvidence(unstable).issues).toContainEqual(
-      expect.objectContaining({ code: "UNSTABLE_ATTEMPT_ORDER", path: "evidence.attempts" }),
-    );
-
+  it("rejects unknown fields and malformed evidence", () => {
     expect(validateConstraintDispositionEvidence({ ...dispositionEvidence(), extra: true }).issues).toContainEqual(
       expect.objectContaining({ code: "INVALID_EVIDENCE_SHAPE" }),
     );
@@ -193,24 +235,26 @@ describe("constraint disposition conformance", () => {
 
 describe("operator authority boundary", () => {
   function validAuthorityEvidence() {
-    const { canonicalInput } = context();
-    const constraintsFingerprint = evaluationFingerprint(canonicalInput.constraints);
+    const { opportunity, observation, availability, canonicalInput } = context();
+    const operator = ensureCanonicalOperatorV2(DO_NOTHING_OPERATOR);
+    const evaluatedDecision = invokeOperatorAtDecision(
+      contract,
+      operator,
+      opportunity,
+      observation,
+      availability,
+    );
     return {
       canonicalInputBefore: canonicalInput,
       canonicalInputAfter: canonicalInput,
-      inputFingerprintBefore: evaluationFingerprint(canonicalInput),
-      inputFingerprintAfter: evaluationFingerprint(canonicalInput),
-      observationFingerprintBefore: canonicalInput.provenance.observationFingerprint,
-      observationFingerprintAfter: canonicalInput.provenance.observationFingerprint,
-      legalActionSpaceFingerprintBefore: canonicalInput.provenance.legalActionSpaceFingerprint,
-      legalActionSpaceFingerprintAfter: canonicalInput.provenance.legalActionSpaceFingerprint,
-      constraintsFingerprintBefore: constraintsFingerprint,
-      constraintsFingerprintAfter: constraintsFingerprint,
-      dispositionEvidence: dispositionEvidence(),
-      dispositionEvidenceFingerprint: evaluationFingerprint(dispositionEvidence()),
-      dispositionCreatedByEvaluator: true,
-      operatorExecutedActions: false,
-      operatorMutatedSimulatorState: false,
+      operatorMetadata: operator.metadata,
+      evaluatedDecision,
+      dispositionEvidence: {
+        contract,
+        opportunity,
+        availability,
+        attempts: [],
+      },
     };
   }
 
@@ -221,16 +265,66 @@ describe("operator authority boundary", () => {
   });
 
   it.each([
-    ["direct execution", "DIRECT_EXECUTION_CLAIM", (e: any) => { e.operatorExecutedActions = true; }],
-    ["simulator mutation", "SIMULATOR_MUTATION_CLAIM", (e: any) => { e.operatorMutatedSimulatorState = true; }],
-    ["evaluator bypass", "EVALUATOR_BYPASS", (e: any) => { e.dispositionCreatedByEvaluator = false; }],
-  ])("fails authority violation: %s", (_label, code, mutate) => {
+    ["direct execution", (e: any) => { e.executedActions = []; }],
+    ["simulator mutation", (e: any) => { e.simulatorStateMutation = {}; }],
+    ["constraint bypass", (e: any) => { e.constraintBypass = true; }],
+  ])("rejects structurally forbidden authority claim: %s", (_label, mutate) => {
     const evidence = clone(validAuthorityEvidence());
     mutate(evidence);
     refreeze(evidence.canonicalInputBefore);
     refreeze(evidence.canonicalInputAfter);
     expect(validateOperatorAuthorityBoundary(evidence).issues).toContainEqual(
-      expect.objectContaining({ code }),
+      expect.objectContaining({ code: "INVALID_EVIDENCE_SHAPE" }),
+    );
+  });
+
+  it("rejects missing and tampered evaluator invocation audits", () => {
+    const missing = clone(validAuthorityEvidence());
+    delete missing.evaluatedDecision;
+    expect(validateOperatorAuthorityBoundary(missing).issues).toContainEqual(
+      expect.objectContaining({ code: "INVALID_EVIDENCE_SHAPE" }),
+    );
+
+    const tampered = clone(validAuthorityEvidence());
+    tampered.evaluatedDecision.invocation.inputFingerprint = "fnv1a64:0000000000000000";
+    refreeze(tampered.canonicalInputBefore);
+    refreeze(tampered.canonicalInputAfter);
+    expect(validateOperatorAuthorityBoundary(tampered).issues).toContainEqual(
+      expect.objectContaining({ code: "INVOCATION_AUDIT_TAMPERED" }),
+    );
+  });
+
+  it.each([
+    ["interface", (audit: any) => { audit.interfaceVersion = "99.0.0"; }],
+    ["operator identity", (audit: any) => { audit.operatorId = "other"; }],
+    ["configuration", (audit: any) => { audit.configurationFingerprint = "fnv1a64:0000000000000000"; }],
+    ["output", (audit: any) => { audit.outputFingerprint = "fnv1a64:0000000000000000"; }],
+    ["decision timestamp", (audit: any) => { audit.decisionTime = "2027-01-01T00:00:00.000Z"; }],
+  ])("cross-binds invocation %s", (_label, mutate) => {
+    const evidence = clone(validAuthorityEvidence());
+    mutate(evidence.evaluatedDecision.invocation);
+    refreeze(evidence.canonicalInputBefore);
+    refreeze(evidence.canonicalInputAfter);
+    expect(validateOperatorAuthorityBoundary(evidence).issues).toContainEqual(
+      expect.objectContaining({ code: "INVOCATION_AUDIT_TAMPERED" }),
+    );
+  });
+
+  it("rejects a decision record observation body that only preserves the stored fingerprint", () => {
+    const evidence = clone(validAuthorityEvidence());
+    evidence.evaluatedDecision.decisionRecord.observation.records = [{
+      observationKey: "tampered",
+      informationClass: "observable_merchant_data",
+      sourceMinOccurredAt: start,
+      sourceMaxOccurredAt: start,
+      availableAt: start,
+      sourceRef: "tampered",
+      value: 1,
+    }];
+    refreeze(evidence.canonicalInputBefore);
+    refreeze(evidence.canonicalInputAfter);
+    expect(validateOperatorAuthorityBoundary(evidence).issues).toContainEqual(
+      expect.objectContaining({ code: "EVALUATED_DECISION_MISMATCH" }),
     );
   });
 
@@ -244,10 +338,6 @@ describe("operator authority boundary", () => {
       mutualExclusionGroups: input.legalActionSpace.mutualExclusionGroups,
     });
     refreeze(input);
-    evidence.legalActionSpaceFingerprintBefore = evidence.canonicalInputBefore.provenance.legalActionSpaceFingerprint;
-    evidence.legalActionSpaceFingerprintAfter = evidence.canonicalInputAfter.provenance.legalActionSpaceFingerprint;
-    evidence.inputFingerprintBefore = evaluationFingerprint(evidence.canonicalInputBefore);
-    evidence.inputFingerprintAfter = evaluationFingerprint(evidence.canonicalInputAfter);
     expect(validateOperatorAuthorityBoundary(evidence).issues).toContainEqual(
       expect.objectContaining({ code: "ACTION_SPACE_INTEGRITY" }),
     );
@@ -258,10 +348,6 @@ describe("operator authority boundary", () => {
     const input = evidence.canonicalInputBefore;
     input.constraints.dimensions = input.constraints.dimensions.slice(1);
     refreeze(input);
-    evidence.constraintsFingerprintBefore = evaluationFingerprint(evidence.canonicalInputBefore.constraints);
-    evidence.constraintsFingerprintAfter = evaluationFingerprint(evidence.canonicalInputAfter.constraints);
-    evidence.inputFingerprintBefore = evaluationFingerprint(evidence.canonicalInputBefore);
-    evidence.inputFingerprintAfter = evaluationFingerprint(evidence.canonicalInputAfter);
     expect(validateOperatorAuthorityBoundary(evidence).issues).toContainEqual(
       expect.objectContaining({ code: "CONSTRAINT_INTEGRITY" }),
     );
@@ -273,7 +359,6 @@ describe("operator authority boundary", () => {
       ...evidence.dispositionEvidence.availability,
       availabilityFingerprint: "fnv1a64:0000000000000000",
     };
-    evidence.dispositionEvidenceFingerprint = evaluationFingerprint(evidence.dispositionEvidence);
     refreeze(evidence.canonicalInputBefore);
     refreeze(evidence.canonicalInputAfter);
     expect(validateOperatorAuthorityBoundary(evidence).issues).toContainEqual(
@@ -281,15 +366,28 @@ describe("operator authority boundary", () => {
     );
   });
 
-  it("rejects disposition fingerprint tampering and unknown fields", () => {
+  it("rejects mismatched evaluator disposition records and unknown fields", () => {
     const tampered = validAuthorityEvidence();
-    const result = validateOperatorAuthorityBoundary({
-      ...tampered,
-      dispositionEvidenceFingerprint: "fnv1a64:0000000000000000",
-    });
-    expect(result.issues).toContainEqual(expect.objectContaining({ code: "DISPOSITION_EVIDENCE_TAMPERED" }));
+    const mismatched = clone(tampered);
+    mismatched.dispositionEvidence.attempts = dispositionEvidence().attempts;
+    refreeze(mismatched.canonicalInputBefore);
+    refreeze(mismatched.canonicalInputAfter);
+    expect(validateOperatorAuthorityBoundary(mismatched).issues).toContainEqual(
+      expect.objectContaining({ code: "EVALUATED_DECISION_MISMATCH" }),
+    );
     expect(validateOperatorAuthorityBoundary({ ...tampered, extra: true }).issues).toContainEqual(
       expect.objectContaining({ code: "INVALID_EVIDENCE_SHAPE" }),
     );
+  });
+
+  it("returns deterministic FAIL for deeply frozen cyclic evidence", () => {
+    const evidence = validAuthorityEvidence() as any;
+    const cycle: any = {};
+    cycle.self = cycle;
+    Object.freeze(cycle);
+    evidence.dispositionEvidence.contract = cycle;
+    const result = validateOperatorAuthorityBoundary(evidence);
+    expect(result.status).toBe("FAIL");
+    expect(result.issues).toContainEqual(expect.objectContaining({ code: "INVALID_JSON_EVIDENCE" }));
   });
 });

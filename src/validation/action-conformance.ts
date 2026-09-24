@@ -49,6 +49,17 @@ function caughtMessage(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
 }
 
+function containsNonFiniteNumber(value: unknown, seen = new WeakSet<object>()): boolean {
+  if (typeof value === "number") return !Number.isFinite(value);
+  if (value === null || typeof value !== "object" || seen.has(value)) return false;
+  seen.add(value);
+  for (const key of Reflect.ownKeys(value)) {
+    const descriptor = Object.getOwnPropertyDescriptor(value, key);
+    if (descriptor !== undefined && "value" in descriptor && containsNonFiniteNumber(descriptor.value, seen)) return true;
+  }
+  return false;
+}
+
 function envelopeIssue(error: unknown): BaselineValidationIssue {
   const message = caughtMessage(error);
   if (/duplicate/i.test(message)) {
@@ -154,7 +165,21 @@ export function validateDecisionActionConformance(
     ], []);
   }
   if (!isStrictJson(value)) {
-    issues.push(issue("INVALID_JSON_EVIDENCE", "evidence", "Action conformance evidence must be strict deterministic JSON"));
+    const invalidJsonIssues = [
+      issue("INVALID_JSON_EVIDENCE", "evidence", "Action conformance evidence must be strict deterministic JSON"),
+    ];
+    const rawEnvelope = value["decisionEnvelope"];
+    const nonJsonActions = isRecord(rawEnvelope) && Array.isArray(rawEnvelope["actions"])
+      ? rawEnvelope["actions"] : [];
+    nonJsonActions.forEach((rawAction, index) => {
+      if (!containsNonFiniteNumber(rawAction)) return;
+      try {
+        assertValidAction(rawAction);
+      } catch (error) {
+        invalidJsonIssues.push(issue("INVALID_ACTION", `evidence.decisionEnvelope.actions[${index}]`, caughtMessage(error)));
+      }
+    });
+    return result("action_ontology_conformance", invalidJsonIssues, []);
   }
 
   const bindings = validateBindings(value, issues);

@@ -33,6 +33,7 @@ import {
   conformLegacyOperator,
   ensureCanonicalOperatorV2,
   assertCanonicalOperatorInputV2,
+  assertCanonicalOperatorMetadataV2,
   validateCanonicalDecisionEnvelope,
   type CanonicalOperatorDecisionMetadata,
   type CanonicalOperatorMetadataV2,
@@ -176,7 +177,7 @@ describe("Step 3.10 canonical operator interface", () => {
     ["constraints", (input: any) => { input.constraints.extra = true; }],
     ["provenance", (input: any) => { input.provenance.extra = true; }],
   ])("rejects unknown or malformed %s canonical-input fields", (_label, mutate) => {
-    const input = structuredClone(canonicalInput());
+    const input: any = structuredClone(canonicalInput());
     mutate(input);
     expect(() => assertCanonicalOperatorInputV2(input, inputBindings())).toThrow(/canonical operator input/i);
   });
@@ -194,6 +195,79 @@ describe("Step 3.10 canonical operator interface", () => {
     const provenance = structuredClone(canonicalInput());
     (provenance.provenance as any).observationFingerprint = "fnv1a64:0000000000000000";
     expect(() => assertCanonicalOperatorInputV2(provenance, inputBindings())).toThrow(/binding/i);
+  });
+
+  it("rejects unknown metadata, capability, and randomness fields", () => {
+    const metadata = ensureCanonicalOperatorV2(DO_NOTHING_OPERATOR).metadata;
+    for (const mutate of [
+      (value: any) => { value.extra = true; },
+      (value: any) => { value.capabilities.extra = true; },
+      (value: any) => { value.capabilities.randomness.extra = true; },
+    ]) {
+      const candidate = structuredClone(metadata);
+      mutate(candidate);
+      expect(() => assertCanonicalOperatorMetadataV2(candidate)).toThrow(/metadata|capabilit|randomness/i);
+    }
+    expect(() => assertCanonicalOperatorMetadataV2(metadata)).not.toThrow();
+  });
+
+  it.each([
+    { kind: "advertising_channel", channelId: "google_ads" },
+    { kind: "advertising_account", channelId: "google_ads", accountId: "acct" },
+    { kind: "campaign", channelId: "google_ads", campaignId: "campaign" },
+    { kind: "campaign_group", channelId: "google_ads", campaignGroupId: "group", accountId: "acct" },
+    { kind: "ad_set", channelId: "meta_ads", campaignId: "campaign", adSetId: "set" },
+    { kind: "ad_group", channelId: "google_ads", campaignId: "campaign", adGroupId: "group" },
+    { kind: "ad", channelId: "meta_ads", campaignId: "campaign", adSetId: "set", adId: "ad" },
+    { kind: "creative", channelId: "meta_ads", creativeId: "creative", campaignId: "campaign" },
+    { kind: "audience", audienceId: "audience" },
+    { kind: "product", productId: "product" },
+    { kind: "sku", productId: "product", skuId: "sku" },
+    { kind: "category", categoryId: "category" },
+    { kind: "collection", collectionId: "collection" },
+    { kind: "brand", brandId: "brand" },
+    { kind: "product_set", productSetId: "set" },
+    { kind: "product_group", productGroupId: "group", collectionId: "collection", categoryId: "category" },
+    { kind: "customer_segment", segmentId: "segment" },
+    { kind: "funnel_stage", funnelId: "funnel", stageId: "stage" },
+    { kind: "page", pageId: "page" },
+    { kind: "lifecycle_program", programId: "program" },
+    { kind: "shipping_policy", shippingPolicyId: "policy" },
+    { kind: "shipping_offer", shippingOfferId: "offer" },
+    { kind: "inventory_policy", inventoryPolicyId: "policy" },
+    { kind: "inventory_location", inventoryLocationId: "location" },
+    { kind: "supplier_relationship", supplierRelationshipId: "supplier" },
+    { kind: "inventory_set", inventorySetId: "set" },
+    { kind: "experiment", experimentId: "experiment" },
+    { kind: "promotion", promotionId: "promotion" },
+    { kind: "merchandising_placement", placementId: "placement" },
+    { kind: "merchandising_relationship", relationshipId: "relationship" },
+    { kind: "merchant", merchantId: "merchant" },
+  ])("accepts canonical eligible target $kind", (target) => {
+    const input: any = structuredClone(canonicalInput());
+    input.legalActionSpace.rules = [{
+      actionType: "test.action",
+      eligibleTargets: [target],
+      parameterBounds: [],
+      requiredPreconditionIds: [],
+    }];
+    expect(() => assertCanonicalOperatorInputV2(input, inputBindings(input as any))).not.toThrow();
+  });
+
+  it.each([
+    { kind: "campaign", channelId: "google_ads", campaignId: "campaign", extra: true },
+    { kind: "campaign", channelId: "google_ads" },
+    { kind: "product", productId: 42 },
+    { kind: "unknown", targetId: "target" },
+  ])("rejects malformed eligible target %#", (target) => {
+    const input: any = structuredClone(canonicalInput());
+    input.legalActionSpace.rules = [{
+      actionType: "test.action",
+      eligibleTargets: [target],
+      parameterBounds: [],
+      requiredPreconditionIds: [],
+    }];
+    expect(() => assertCanonicalOperatorInputV2(input, inputBindings(input as any))).toThrow(/target|fields/i);
   });
 
   it("freezes explicit v2 interface and schema fingerprints", () => {
