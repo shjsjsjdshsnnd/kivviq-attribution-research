@@ -9,7 +9,6 @@ import type {
 import {
   CANONICAL_OPERATOR_INTERFACE_VERSION,
   canonicalInputFingerprint,
-  canonicalOperatorDecisionFingerprint,
   ensureCanonicalOperatorV2,
   validateCanonicalDecisionEnvelope,
   type CanonicalOperatorInputV2,
@@ -347,7 +346,9 @@ export function invokeOperatorAtDecision(
     });
 
   const inputFingerprint = canonicalInputFingerprint(input);
-  const outputFingerprint = canonicalOperatorDecisionFingerprint(output);
+  const outputFingerprint = evaluationFingerprint({
+    actions: output.actions,
+  });
   const invocationBody = {
     interfaceVersion: CANONICAL_OPERATOR_INTERFACE_VERSION,
     operatorId: canonicalOperator.metadata.operatorId,
