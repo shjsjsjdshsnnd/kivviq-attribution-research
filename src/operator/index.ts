@@ -13,3 +13,5 @@ export * from "./pricing-promotion-heuristics.js";
 export * from "./merchandising-heuristics.js";
 
 export * from "./greedy-operators.js";
+
+export * from "./flawed-optimizers.js";
