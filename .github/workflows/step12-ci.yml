@@ -1,0 +1,37 @@
+name: Step 12 Website Funnel CRO CI
+
+on:
+  push:
+    branches:
+      - step12/website-cro-simulation
+  pull_request:
+    branches:
+      - step11/retention-ltv
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: Install
+        run: npm install --no-audit --no-fund
+      - name: Architecture boundary
+        run: npm run architecture
+      - name: Typecheck
+        run: npm run typecheck
+      # Long causal trap files stay below Vitest 3's fixed worker RPC timeout.
+      - name: Step 12 tests
+        run: npm run test:step12 -- --maxWorkers=1
+      - name: Test
+        run: npm test
+      - name: Build
+        run: npm run build

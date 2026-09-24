@@ -1,6 +1,7 @@
 import type { GeneratedMerchantWorld } from "../generation/config.js";
 import type { SharedRandomness } from "./kernel.js";
 import type { SimulationInterventionState } from "./interventions.js";
+import { websiteProductDiscoveryMultiplier } from "../website_cro/runtime.js";
 import type {
   PersistentCart,
   RuntimeCustomerState,
@@ -362,6 +363,10 @@ export function chooseProduct(
   randomness: SharedRandomness,
   key: string,
   commercePolicy?: SimulationCommercePolicy,
+  websiteContext?: {
+    readonly surface: "collection" | "search_results" | "pdp";
+    readonly device: "mobile" | "desktop" | "tablet";
+  },
 ): ProductOffer | undefined {
   const preferred = customer.source.productPreferences.map(
     (preference) => preference.productId,
@@ -407,15 +412,34 @@ export function chooseProduct(
       const cartProductIds = new Set(
         customer.cart?.lines.map((line) => line.productId) ?? [],
       );
-      const complementMultiplier =
-        commercePolicy?.enableProductRelationships === true &&
-        [...cartProductIds].some(
-          (cartProductId) =>
-            runtime.merchantWorld.manifest.productDemandMechanisms
-              .find((item) => item.productId === cartProductId)
-              ?.complementaryProductIds?.includes(productId) ?? false,
-        )
-          ? 2.4
+      const relationshipMultiplier =
+        commercePolicy?.enableProductRelationships === true
+          ? [...cartProductIds].reduce(
+              (multiplier, cartProductId) => {
+                const cartDemand =
+                  runtime.merchantWorld.manifest.productDemandMechanisms.find(
+                    (item) =>
+                      item.productId === cartProductId,
+                  );
+                if (
+                  cartDemand?.complementaryProductIds?.includes(
+                    productId,
+                  ) === true
+                ) {
+                  return Math.max(multiplier, 2.4);
+                }
+                if (
+                  commercePolicy?.websiteScenario !== undefined &&
+                  cartDemand?.substitutionProductIds?.includes(
+                    productId,
+                  ) === true
+                ) {
+                  return Math.max(multiplier, 1.55);
+                }
+                return multiplier;
+              },
+              1,
+            )
           : 1;
       const memory = totalMemoryLift(customer);
       const retentionChoiceMultiplier =
@@ -426,7 +450,7 @@ export function chooseProduct(
               retentionCustomerContext(customer),
               productId,
             );
-      const latentWeight =
+      const structuralWeight =
         Math.max(1e-9, preference) *
         Math.max(
           1e-9,
@@ -435,14 +459,27 @@ export function chooseProduct(
           0.25 *
         offer.priceUtilityMultiplier *
         offer.promotionUtilityMultiplier *
-        complementMultiplier *
+        relationshipMultiplier *
         retentionChoiceMultiplier *
         (1 + memory.productPreference);
+      const websiteDiscoveryMultiplier =
+        websiteContext === undefined
+          ? 1
+          : websiteProductDiscoveryMultiplier({
+              scenario: commercePolicy?.websiteScenario,
+              timestampMs,
+              device: websiteContext.device,
+              surface: websiteContext.surface,
+              productId,
+              latentPreference: preference,
+            });
+      const observedChoiceWeight =
+        structuralWeight * websiteDiscoveryMultiplier;
 
       return {
         value: offer,
-        weight: latentWeight * inventoryMultiplier,
-        latentWeight,
+        weight: observedChoiceWeight * inventoryMultiplier,
+        latentWeight: observedChoiceWeight,
       };
     })
     .filter((entry) => entry.weight > 0);

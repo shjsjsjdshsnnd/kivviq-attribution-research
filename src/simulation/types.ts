@@ -8,6 +8,11 @@ import type {
   RetentionLtvScenario,
   RetentionRuntimeGodModeState,
 } from "../retention_ltv/runtime-types.js";
+import type {
+  WebsiteGodModeTruth,
+  WebsiteScenario,
+  WebsiteComponentName,
+} from "../website_cro/types.js";
 
 export type ObservableJourneyEventKind =
   | "impression"
@@ -17,12 +22,24 @@ export type ObservableJourneyEventKind =
   | "visit"
   | "session_start"
   | "landing_page_view"
+  | "page_performance"
   | "collection_view"
   | "site_search"
+  | "search_zero_result"
+  | "search_reformulation"
   | "product_view"
+  | "cart_view"
   | "add_to_cart"
   | "remove_from_cart"
   | "checkout_start"
+  | "checkout_stage"
+  | "coupon_search"
+  | "coupon_attempt"
+  | "coupon_invalid"
+  | "coupon_error"
+  | "shipping_cost_reveal"
+  | "payment_failure"
+  | "address_validation_failure"
   | "checkout_abandon"
   | "purchase"
   | "session_end";
@@ -59,6 +76,18 @@ export interface PerfectObservableJourneyEvent {
   readonly quantity?: number;
   readonly amountMinor?: number;
   readonly discountMinor?: number;
+  readonly availability?:
+    | "in_stock"
+    | "low_stock"
+    | "backorder"
+    | "out_of_stock";
+  readonly deliveryEstimateDays?: number;
+  /**
+   * Step 12 observable measurement, intentionally noisy rather than a direct
+   * copy of hidden website configuration.
+   */
+  readonly websiteComponent?: WebsiteComponentName;
+  readonly measuredPageLoadMs?: number;
 }
 
 export interface PurchaseLine {
@@ -192,6 +221,11 @@ export interface GodModeSimulationTruth {
    * godMode and is never exported by the Operator-safe root API.
    */
   readonly inventory?: InventoryGodModeTruth;
+  /**
+   * Step 12 hidden website state and causal friction events. Omitted unless
+   * the website/CRO sidecar is explicitly enabled.
+   */
+  readonly website?: WebsiteGodModeTruth;
 }
 
 export interface PlatformStyleChannelMetric {
@@ -221,6 +255,12 @@ export interface SimulationProvenance {
   readonly endTime: string;
   readonly interventions: readonly Intervention[];
   readonly sharedRandomness: true;
+  /**
+   * Step 12 fingerprint metadata. Omitted on the frozen Step 1-11 path.
+   */
+  readonly websiteModelVersion?: string;
+  readonly websiteSchemaVersion?: number;
+  readonly websiteScenarioFingerprint?: string;
 }
 
 export interface SimulationResult {
@@ -254,6 +294,11 @@ export interface SimulationCommercePolicy {
    * frozen Step 1-10 simulation path.
    */
   readonly retentionScenario?: RetentionLtvScenario;
+  /**
+   * Opt-in Step 12 website/funnel/CRO sidecar. The hidden scenario is kept
+   * under God mode and never exported by the Operator-safe root.
+   */
+  readonly websiteScenario?: WebsiteScenario;
   /**
    * Step 9 physical-return parameters are supplied by the Step 7 economic
    * profiles so inventory and return accounting use the same product truth.

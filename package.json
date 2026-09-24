@@ -6,7 +6,7 @@
   "description": "Synthetic-only research contracts for the future Kivviq Growth Operator.",
   "scripts": {
     "typecheck": "tsc --noEmit",
-    "test": "vitest run",
+    "test": "vitest run --maxWorkers=1",
     "build": "tsc -p tsconfig.build.json",
     "check": "npm run architecture && npm run typecheck && npm test && npm run build",
     "architecture": "depcruise --config .dependency-cruiser.cjs src",
@@ -19,7 +19,8 @@
     "test:step8": "vitest run tests/product_economics --reporter=verbose",
     "test:step9": "vitest run tests/inventory_dynamics --reporter=verbose",
     "test:step10": "vitest run tests/pricing_promotions --reporter=verbose",
-    "test:step11": "vitest run tests/retention_ltv --reporter=verbose"
+    "test:step11": "vitest run tests/retention_ltv --reporter=verbose",
+    "test:step12": "vitest run tests/website_cro --reporter=verbose"
   },
   "exports": {
     ".": "./dist/index.js",
@@ -34,11 +35,12 @@
     "./product-economics": "./dist/product_economics/index.js",
     "./inventory-dynamics": "./dist/inventory_dynamics/index.js",
     "./pricing-promotions": "./dist/pricing_promotions/index.js",
-    "./retention-ltv": "./dist/retention_ltv/index.js"
+    "./retention-ltv": "./dist/retention_ltv/index.js",
+    "./website-cro": "./dist/website_cro/index.js"
   },
   "devDependencies": {
     "typescript": "^5.9.2",
-    "vitest": "^3.2.4",
+    "vitest": "^5.0.1",
     "dependency-cruiser": "^16.10.4"
   },
   "dependencies": {
