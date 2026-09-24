@@ -17,6 +17,21 @@ import {
   bundleAttachmentOpportunity,
   effectiveFreeShippingThreshold,
 } from "../pricing_promotions/runtime.js";
+import {
+  cartBehavior,
+  collectionBehavior,
+  homepageBehavior,
+  pdpBehavior,
+  searchBehavior,
+} from "../website_simulation/runtime.js";
+import {
+  measuredWebsiteLoadTimeMs,
+} from "../website_simulation/model.js";
+import type {
+  WebsiteBehaviorContext,
+  WebsiteState,
+  WebsiteSurface,
+} from "../website_simulation/types.js";
 
 export type SessionPage =
   | "landing"
@@ -38,6 +53,7 @@ export interface RuntimeSession {
   step: number;
   ended: boolean;
   checkoutStarted: boolean;
+  searchZeroResults?: boolean;
 }
 
 export interface SessionStartResult {
@@ -147,12 +163,38 @@ function initialPage(
   return "landing";
 }
 
+function websiteSurfaceForPage(
+  page: SessionPage,
+): WebsiteSurface | undefined {
+  if (page === "landing") return "homepage";
+  if (page === "collection") return "collections";
+  if (page === "search_results") return "search";
+  if (page === "pdp") return "pdp";
+  if (page === "cart") return "cart";
+  if (page === "checkout") return "checkout";
+  return undefined;
+}
+
+function websiteContext(
+  runtime: RuntimeWorldState,
+  session: RuntimeSession,
+): WebsiteBehaviorContext {
+  return {
+    device: session.device,
+    assortmentSize: runtime.merchantWorld.summary.skuCount,
+    highConsideration:
+      runtime.merchantWorld.summary.expectedAovMinor >
+      runtime.merchantWorld.summary.catalogMedianPriceMinor * 1.8,
+  };
+}
+
 export function startSession(
   customer: RuntimeCustomerState,
   source: ObservableSource,
   timestampMs: number,
   sessionId: string,
   randomness: SharedRandomness,
+  websiteState?: WebsiteState,
 ): SessionStartResult {
   const device = chooseDevice(
     customer,
@@ -208,6 +250,90 @@ export function startSession(
       landingType,
     },
   ];
+
+  if (websiteState !== undefined) {
+    const surface: WebsiteSurface =
+      landingType === "collection"
+        ? "collections"
+        : landingType === "search_results"
+          ? "search"
+          : landingType === "pdp"
+            ? "pdp"
+            : "homepage";
+    const measuredLoad = measuredWebsiteLoadTimeMs(
+      websiteState,
+      device,
+      surface,
+      randomness.uniform(`${sessionId}:landing-load`),
+    );
+    events[2] = {
+      ...events[2]!,
+      surface,
+      pageLoadTimeMs: measuredLoad,
+    };
+
+    if (landingType === "homepage") {
+      events.push({
+        eventId: eventId(sessionId, "homepage"),
+        eventType: "homepage_viewed",
+        occurredAt: new Date(timestampMs + 251).toISOString(),
+        anonymousSubjectId: customer.customerId,
+        sessionId,
+        source,
+        device,
+        surface: "homepage",
+        pageLoadTimeMs: measuredLoad,
+      });
+    } else if (landingType === "collection") {
+      events.push({
+        eventId: eventId(sessionId, "collection_landing"),
+        eventType: "collection_view",
+        occurredAt: new Date(timestampMs + 251).toISOString(),
+        anonymousSubjectId: customer.customerId,
+        sessionId,
+        source,
+        device,
+        surface: "collections",
+        pageLoadTimeMs: measuredLoad,
+      });
+    } else if (landingType === "search_results") {
+      const effect = searchBehavior(
+        websiteState,
+        { device },
+        randomness.uniform(`${sessionId}:search-landing-load`),
+      );
+      const zero = randomness.bool(
+        `${sessionId}:search-landing-zero`,
+        effect.zeroResultProbability,
+      );
+      session.searchZeroResults = zero;
+      events.push(
+        {
+          eventId: eventId(sessionId, "search_performed_landing"),
+          eventType: "search_performed",
+          occurredAt: new Date(timestampMs + 251).toISOString(),
+          anonymousSubjectId: customer.customerId,
+          sessionId,
+          source,
+          device,
+          surface: "search",
+          pageLoadTimeMs: effect.measuredLoadTimeMs,
+        },
+        {
+          eventId: eventId(sessionId, "search_results_landing"),
+          eventType: "search_results_viewed",
+          occurredAt: new Date(timestampMs + 252).toISOString(),
+          anonymousSubjectId: customer.customerId,
+          sessionId,
+          source,
+          device,
+          surface: "search",
+          pageLoadTimeMs: effect.measuredLoadTimeMs,
+          searchZeroResults: zero,
+        },
+      );
+    }
+  }
 
   return { session, observableEvents: events };
 }
@@ -288,10 +414,52 @@ export function advanceSession(
     0.12,
     0.92,
   );
+  const websiteState = commercePolicy?.websiteState;
+  const webContext = websiteContext(runtime, session);
+  let effectiveStayProbability = stayProbability;
+  if (websiteState !== undefined) {
+    const exitMultiplier =
+      session.currentPage === "landing"
+        ? homepageBehavior(
+            websiteState,
+            webContext,
+            randomness.uniform(`${stepKey}:homepage-stay-load`),
+          ).exitWeightMultiplier
+        : session.currentPage === "collection"
+          ? collectionBehavior(
+              websiteState,
+              webContext,
+              randomness.uniform(`${stepKey}:collection-stay-load`),
+            ).exitProbabilityMultiplier
+          : session.currentPage === "search_results"
+            ? searchBehavior(
+                websiteState,
+                webContext,
+                randomness.uniform(`${stepKey}:search-stay-load`),
+              ).exitProbabilityMultiplier
+            : session.currentPage === "pdp"
+              ? pdpBehavior(
+                  websiteState,
+                  webContext,
+                  randomness.uniform(`${stepKey}:pdp-stay-load`),
+                ).exitProbabilityMultiplier
+              : session.currentPage === "cart"
+                ? cartBehavior(
+                    websiteState,
+                    webContext,
+                    randomness.uniform(`${stepKey}:cart-stay-load`),
+                  ).abandonmentProbabilityMultiplier
+                : 1;
+    effectiveStayProbability = clamp(
+      stayProbability / Math.max(0.45, exitMultiplier),
+      0.04,
+      0.95,
+    );
+  }
 
   if (
     session.step > 1 &&
-    !randomness.bool(`${stepKey}:stay`, stayProbability)
+    !randomness.bool(`${stepKey}:stay`, effectiveStayProbability)
   ) {
     session.ended = true;
     session.currentPage = "ended";
@@ -313,11 +481,39 @@ export function advanceSession(
   }
 
   if (session.currentPage === "landing") {
+    const homepageEffect =
+      websiteState === undefined
+        ? undefined
+        : homepageBehavior(
+            websiteState,
+            webContext,
+            randomness.uniform(`${stepKey}:homepage-load`),
+          );
     const next = randomness.weightedPick(`${stepKey}:landing-next`, [
-      { value: "collection" as const, weight: 0.38 },
-      { value: "search_results" as const, weight: 0.22 },
-      { value: "pdp" as const, weight: 0.31 + intent * 0.25 },
-      { value: "ended" as const, weight: 0.14 },
+      {
+        value: "collection" as const,
+        weight:
+          0.38 *
+          (homepageEffect?.collectionWeightMultiplier ?? 1),
+      },
+      {
+        value: "search_results" as const,
+        weight:
+          0.22 *
+          (homepageEffect?.searchWeightMultiplier ?? 1),
+      },
+      {
+        value: "pdp" as const,
+        weight:
+          (0.31 + intent * 0.25) *
+          (homepageEffect?.pdpWeightMultiplier ?? 1),
+      },
+      {
+        value: "ended" as const,
+        weight:
+          0.14 *
+          (homepageEffect?.exitWeightMultiplier ?? 1),
+      },
     ]);
     session.currentPage = next;
     if (next === "collection") {
@@ -329,8 +525,35 @@ export function advanceSession(
         sessionId: session.sessionId,
         source: session.source,
         device: session.device,
+        ...(websiteState === undefined
+          ? {}
+          : {
+              surface: "collections" as const,
+              pageLoadTimeMs: measuredWebsiteLoadTimeMs(
+                websiteState,
+                session.device,
+                "collections",
+                randomness.uniform(`${stepKey}:collection-view-load`),
+              ),
+            }),
       });
     } else if (next === "search_results") {
+      const searchEffect =
+        websiteState === undefined
+          ? undefined
+          : searchBehavior(
+              websiteState,
+              webContext,
+              randomness.uniform(`${stepKey}:search-load`),
+            );
+      const zero =
+        searchEffect === undefined
+          ? false
+          : randomness.bool(
+              `${stepKey}:search-zero`,
+              searchEffect.zeroResultProbability,
+            );
+      session.searchZeroResults = zero;
       events.push({
         eventId: eventId(session.sessionId, `search_${session.step}`),
         eventType: "site_search",
@@ -339,7 +562,47 @@ export function advanceSession(
         sessionId: session.sessionId,
         source: session.source,
         device: session.device,
+        ...(searchEffect === undefined
+          ? {}
+          : {
+              surface: "search" as const,
+              pageLoadTimeMs: searchEffect.measuredLoadTimeMs,
+              searchZeroResults: zero,
+            }),
       });
+      if (searchEffect !== undefined) {
+        events.push(
+          {
+            eventId: eventId(
+              session.sessionId,
+              `search_performed_${session.step}`,
+            ),
+            eventType: "search_performed",
+            occurredAt: new Date(timestampMs).toISOString(),
+            anonymousSubjectId: customer.customerId,
+            sessionId: session.sessionId,
+            source: session.source,
+            device: session.device,
+            surface: "search",
+            pageLoadTimeMs: searchEffect.measuredLoadTimeMs,
+          },
+          {
+            eventId: eventId(
+              session.sessionId,
+              `search_results_${session.step}`,
+            ),
+            eventType: "search_results_viewed",
+            occurredAt: new Date(timestampMs + 1).toISOString(),
+            anonymousSubjectId: customer.customerId,
+            sessionId: session.sessionId,
+            source: session.source,
+            device: session.device,
+            surface: "search",
+            pageLoadTimeMs: searchEffect.measuredLoadTimeMs,
+            searchZeroResults: zero,
+          },
+        );
+      }
     } else if (next === "ended") {
       session.ended = true;
       events.push({
@@ -358,6 +621,46 @@ export function advanceSession(
     session.currentPage === "collection" ||
     session.currentPage === "search_results"
   ) {
+    const listEffect =
+      websiteState === undefined
+        ? undefined
+        : session.currentPage === "search_results"
+          ? searchBehavior(
+              websiteState,
+              webContext,
+              randomness.uniform(`${stepKey}:list-search-load`),
+            )
+          : collectionBehavior(
+              websiteState,
+              webContext,
+              randomness.uniform(`${stepKey}:list-collection-load`),
+            );
+    if (
+      websiteState !== undefined &&
+      session.currentPage === "search_results"
+    ) {
+      const searchEffect = listEffect as ReturnType<typeof searchBehavior>;
+      const zero = randomness.bool(
+        `${stepKey}:search-results-zero`,
+        searchEffect.zeroResultProbability,
+      );
+      session.searchZeroResults = zero;
+      events.push({
+        eventId: eventId(
+          session.sessionId,
+          `search_results_view_${session.step}`,
+        ),
+        eventType: "search_results_viewed",
+        occurredAt: new Date(timestampMs).toISOString(),
+        anonymousSubjectId: customer.customerId,
+        sessionId: session.sessionId,
+        source: session.source,
+        device: session.device,
+        surface: "search",
+        pageLoadTimeMs: searchEffect.measuredLoadTimeMs,
+        searchZeroResults: zero,
+      });
+    }
     const toPdp =
       funnelProbability(
         runtime,
@@ -365,7 +668,16 @@ export function advanceSession(
         "pdp",
         0.48,
       ) *
-      (0.68 + intent * 0.5);
+      (0.68 + intent * 0.5) *
+      (listEffect === undefined
+        ? 1
+        : "toPdpMultiplier" in listEffect
+          ? listEffect.toPdpMultiplier
+          : 1) *
+      (session.currentPage === "search_results" &&
+      session.searchZeroResults === true
+        ? 0.08
+        : 1);
 
     if (
       randomness.bool(
@@ -396,7 +708,17 @@ export function advanceSession(
         );
       }
     } else if (
-      randomness.bool(`${stepKey}:leave-list`, 0.3)
+      randomness.bool(
+        `${stepKey}:leave-list`,
+        clamp(
+          0.3 *
+            (listEffect === undefined
+              ? 1
+              : listEffect.exitProbabilityMultiplier),
+          0.04,
+          0.92,
+        ),
+      )
     ) {
       session.currentPage = "ended";
       session.ended = true;
@@ -433,12 +755,21 @@ export function advanceSession(
     }
 
     if (offer) {
+      const pdpEffect =
+        websiteState === undefined
+          ? undefined
+          : pdpBehavior(
+              websiteState,
+              webContext,
+              randomness.uniform(`${stepKey}:pdp-effect-load`),
+            );
       const atcProbability =
         funnelProbability(runtime, "pdp", "add_to_cart", 0.1) *
         (0.45 + intent * 0.85) *
         (0.55 + need * 0.65) *
         offer.priceUtilityMultiplier *
-        offer.promotionUtilityMultiplier;
+        offer.promotionUtilityMultiplier *
+        (pdpEffect?.addToCartMultiplier ?? 1);
 
       const inventoryMechanism =
         runtime.merchantWorld.manifest.inventoryMechanisms.find(
@@ -558,8 +889,35 @@ export function advanceSession(
           quantity: 1,
           amountMinor: offer.finalPriceMinor,
         });
+        if (websiteState !== undefined) {
+          events.push({
+            eventId: eventId(
+              session.sessionId,
+              `cart_view_${session.step}`,
+            ),
+            eventType: "cart_viewed",
+            occurredAt: new Date(timestampMs + 1).toISOString(),
+            anonymousSubjectId: customer.customerId,
+            sessionId: session.sessionId,
+            source: session.source,
+            device: session.device,
+            surface: "cart",
+            pageLoadTimeMs: cartBehavior(
+              websiteState,
+              webContext,
+              randomness.uniform(`${stepKey}:cart-view-load`),
+            ).measuredLoadTimeMs,
+          });
+        }
       } else if (
-        randomness.bool(`${stepKey}:pdp-loop`, 0.36)
+        randomness.bool(
+          `${stepKey}:pdp-loop`,
+          clamp(
+            0.36 * (pdpEffect?.comparisonMultiplier ?? 1),
+            0.05,
+            0.82,
+          ),
+        )
       ) {
         session.currentPage = randomness.bool(
           `${stepKey}:back-to-collection`,
@@ -614,6 +972,14 @@ export function advanceSession(
         ? 0.82
         : 1;
 
+    const cartEffect =
+      websiteState === undefined
+        ? undefined
+        : cartBehavior(
+            websiteState,
+            webContext,
+            randomness.uniform(`${stepKey}:cart-effect-load`),
+          );
     const checkoutProbability =
       funnelProbability(
         runtime,
@@ -622,7 +988,8 @@ export function advanceSession(
         0.52,
       ) *
       (0.55 + intent * 0.55) *
-      fillBasketMultiplier;
+      fillBasketMultiplier *
+      (cartEffect?.checkoutMultiplier ?? 1);
 
     if (
       randomness.bool(
@@ -640,6 +1007,17 @@ export function advanceSession(
         sessionId: session.sessionId,
         source: session.source,
         device: session.device,
+        ...(websiteState === undefined
+          ? {}
+          : {
+              surface: "checkout" as const,
+              pageLoadTimeMs: measuredWebsiteLoadTimeMs(
+                websiteState,
+                session.device,
+                "checkout",
+                randomness.uniform(`${stepKey}:checkout-start-load`),
+              ),
+            }),
       });
     } else if (
       randomness.bool(
@@ -657,11 +1035,24 @@ export function advanceSession(
   }
 
   const checkoutReady = session.currentPage === "checkout";
-  const delayMs = randomness.integer(
+  const baseDelayMs = randomness.integer(
     `${stepKey}:delay`,
     8_000,
     130_000,
   );
+  const nextSurface = websiteSurfaceForPage(session.currentPage);
+  const delayMs =
+    websiteState === undefined || nextSurface === undefined
+      ? baseDelayMs
+      : baseDelayMs +
+        Math.round(
+          measuredWebsiteLoadTimeMs(
+            websiteState,
+            session.device,
+            nextSurface,
+            randomness.uniform(`${stepKey}:next-page-load`),
+          ) * 0.65,
+        );
 
   return {
     observableEvents: events,
