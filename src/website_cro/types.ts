@@ -9,6 +9,8 @@ import type { GeneratedMerchantWorld } from "../generation/config.js";
 import type { LatentCustomerPopulation } from "../customer_population/types.js";
 
 export const WEBSITE_CRO_VERSION = "12.0.0" as const;
+export const WEBSITE_MODEL_VERSION = "website_model_v1" as const;
+export const WEBSITE_SCHEMA_VERSION = 1 as const;
 
 export type WebsiteDevice = "mobile" | "desktop" | "tablet";
 export type WebsiteComponentName =
@@ -222,6 +224,9 @@ export interface WebsiteCausalEvent {
 
 export interface WebsiteGodModeTruth {
   readonly version: typeof WEBSITE_CRO_VERSION;
+  readonly modelVersion: typeof WEBSITE_MODEL_VERSION;
+  readonly schemaVersion: typeof WEBSITE_SCHEMA_VERSION;
+  readonly scenarioFingerprint: string;
   readonly godModeOnly: true;
   readonly scenarioId: string;
   readonly states: readonly WebsiteState[];
