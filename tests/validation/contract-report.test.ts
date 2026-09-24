@@ -7,6 +7,7 @@ import {
   BASELINE_VALIDATION_REQUIRED_CHECKS,
   BASELINE_VALIDATION_SUITE_VERSION,
   BaselineValidationError,
+  baselineValidationContractFingerprint,
   createBaselineConformanceReport,
   baselineConformanceReportFingerprint,
   stableBaselineConformanceReportJson,
@@ -75,7 +76,7 @@ describe("Step 3.11 validation contract", () => {
     expect(BASELINE_VALIDATION_REQUIRED_CHECKS).toEqual(REQUIRED_CHECKS);
     expect(Object.isFrozen(BASELINE_VALIDATION_REQUIRED_CHECKS)).toBe(true);
     expect(Object.isFrozen(BASELINE_VALIDATION_CONTRACT)).toBe(true);
-    expect(validateBaselineValidationContract(BASELINE_VALIDATION_CONTRACT)).toBe(
+    expect(validateBaselineValidationContract(BASELINE_VALIDATION_CONTRACT)).toEqual(
       BASELINE_VALIDATION_CONTRACT,
     );
   });
@@ -87,6 +88,34 @@ describe("Step 3.11 validation contract", () => {
         contractFingerprint: "fnv1a64:0000000000000000",
       }),
     ).toThrow(/contract fingerprint mismatch/);
+  });
+
+  it("rejects undeclared contract fields even when the fingerprint is recomputed", () => {
+    const withAmbientField = {
+      ...BASELINE_VALIDATION_CONTRACT,
+      createdAt: "2026-09-24T00:00:00.000Z",
+    };
+    const recomputed = {
+      ...withAmbientField,
+      contractFingerprint: baselineValidationContractFingerprint(withAmbientField),
+    };
+
+    expect(() => validateBaselineValidationContract(recomputed)).toThrow(
+      /unexpected keys/,
+    );
+  });
+
+  it("returns a deeply frozen canonical copy from contract validation", () => {
+    const mutable = JSON.parse(
+      JSON.stringify(BASELINE_VALIDATION_CONTRACT),
+    ) as Record<string, unknown>;
+    const validated = validateBaselineValidationContract(mutable);
+
+    expect(validated).not.toBe(mutable);
+    expect(Object.isFrozen(validated)).toBe(true);
+    expect(Object.isFrozen(validated.requiredChecks)).toBe(true);
+    (mutable["requiredChecks"] as string[])[0] = "mutated";
+    expect(validated.requiredChecks[0]).toBe("determinism");
   });
 });
 
@@ -105,7 +134,7 @@ describe("Step 3.11 conformance reports", () => {
     expect(baselineConformanceReportFingerprint(left)).toBe(
       left.reportFingerprint,
     );
-    expect(validateBaselineConformanceReport(left)).toBe(left);
+    expect(validateBaselineConformanceReport(left)).toEqual(left);
     expect(stableBaselineConformanceReportJson(left)).not.toMatch(
       /createdAt|timestamp/i,
     );
@@ -142,6 +171,71 @@ describe("Step 3.11 conformance reports", () => {
       { code: "A", path: "z", message: "third" },
       { code: "Z", path: "b", message: "second" },
     ]);
+  });
+
+  it("uses locale-independent code-unit issue ordering", () => {
+    const evidence = passingEvidence();
+    const report = createBaselineConformanceReport({
+      ...evidence,
+      checks: evidence.checks.map((check, index) =>
+        index === 0
+          ? {
+              ...check,
+              status: "FAIL" as const,
+              issues: [
+                { code: "a", path: "x", message: "lower" },
+                { code: "Z", path: "x", message: "upper" },
+              ],
+            }
+          : check,
+      ),
+    });
+
+    expect(report.checks[0]?.issues.map((issue) => issue.code)).toEqual([
+      "Z",
+      "a",
+    ]);
+  });
+
+  it("rejects undeclared evidence, operator, check, and issue fields", () => {
+    const base = passingEvidence();
+    const cases: unknown[] = [
+      { ...base, createdAt: "ambient" },
+      { ...base, operator: { ...base.operator, createdAt: "ambient" } },
+      {
+        ...base,
+        checks: [
+          { ...base.checks[0]!, createdAt: "ambient" },
+          ...base.checks.slice(1),
+        ],
+      },
+      {
+        ...base,
+        checks: [
+          {
+            ...base.checks[0]!,
+            status: "FAIL",
+            issues: [
+              {
+                code: "FAILURE",
+                path: "checks.determinism",
+                message: "failed",
+                createdAt: "ambient",
+              },
+            ],
+          },
+          ...base.checks.slice(1),
+        ],
+      },
+    ];
+
+    for (const evidence of cases) {
+      expect(() =>
+        createBaselineConformanceReport(
+          evidence as BaselineConformanceEvidence,
+        ),
+      ).toThrow(/unexpected keys/);
+    }
   });
 
   it("fails closed with deterministic missing-evidence checks", () => {
@@ -221,6 +315,42 @@ describe("Step 3.11 conformance reports", () => {
     expect(() => validateBaselineConformanceReport(badReport)).toThrow(
       /report fingerprint mismatch/,
     );
+  });
+
+  it("rejects undeclared report fields even with recomputed fingerprints", () => {
+    const report = createBaselineConformanceReport(passingEvidence());
+    const withAmbientField = {
+      ...report,
+      createdAt: "2026-09-24T00:00:00.000Z",
+    };
+    const recomputed = {
+      ...withAmbientField,
+      reportFingerprint: baselineConformanceReportFingerprint(withAmbientField),
+    };
+
+    expect(() => validateBaselineConformanceReport(recomputed)).toThrow(
+      /unexpected keys/,
+    );
+  });
+
+  it("returns a deeply frozen canonical copy from report validation", () => {
+    const mutable = mutableReport(
+      createBaselineConformanceReport(passingEvidence()),
+    );
+    const validated = validateBaselineConformanceReport(mutable);
+    const originalOperator = validated.operator.operatorId;
+    const originalIssueCount = validated.checks[0]!.issues.length;
+
+    expect(validated).not.toBe(mutable);
+    expect(Object.isFrozen(validated)).toBe(true);
+    expect(Object.isFrozen(validated.operator)).toBe(true);
+    expect(Object.isFrozen(validated.checks)).toBe(true);
+    (mutable["operator"] as Record<string, unknown>)["operatorId"] = "mutated";
+    ((mutable["checks"] as Array<Record<string, unknown>>)[0]![
+      "issues"
+    ] as unknown[]).push({ code: "LATE", path: "x", message: "late" });
+    expect(validated.operator.operatorId).toBe(originalOperator);
+    expect(validated.checks[0]!.issues).toHaveLength(originalIssueCount);
   });
 
   it("rejects invalid versions, coverage, unknown checks, and issue shapes", () => {

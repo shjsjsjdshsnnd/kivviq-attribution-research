@@ -56,6 +56,20 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
+function assertExactKeys(
+  value: Record<string, unknown>,
+  expected: readonly string[],
+  label: string,
+): void {
+  const actual = Object.keys(value).sort();
+  const allowed = [...expected].sort();
+  requireCondition(
+    actual.length === allowed.length &&
+      actual.every((key, index) => key === allowed[index]),
+    `${label} has unexpected keys`,
+  );
+}
+
 function cloneJson<T>(value: T): T {
   return JSON.parse(stableEvaluationJson(value)) as T;
 }
@@ -66,6 +80,7 @@ function requiredIndex(checkId: BaselineValidationCheckId): number {
 
 function validateIssue(value: unknown): asserts value is BaselineValidationIssue {
   requireCondition(isRecord(value), "validation issue must be an object");
+  assertExactKeys(value, ["code", "path", "message"], "validation issue");
   for (const field of ["code", "path", "message"] as const) {
     requireCondition(
       typeof value[field] === "string" && value[field].trim().length > 0,
@@ -76,7 +91,15 @@ function validateIssue(value: unknown): asserts value is BaselineValidationIssue
 
 function normalizeIssue(issue: BaselineValidationIssue): BaselineValidationIssue {
   validateIssue(issue);
-  return cloneJson(issue);
+  return {
+    code: issue.code,
+    path: issue.path,
+    message: issue.message,
+  };
+}
+
+function compareCodeUnits(left: string, right: string): number {
+  return left < right ? -1 : left > right ? 1 : 0;
 }
 
 function compareIssues(
@@ -84,14 +107,19 @@ function compareIssues(
   right: BaselineValidationIssue,
 ): number {
   return (
-    left.code.localeCompare(right.code) ||
-    left.path.localeCompare(right.path) ||
-    left.message.localeCompare(right.message)
+    compareCodeUnits(left.code, right.code) ||
+    compareCodeUnits(left.path, right.path) ||
+    compareCodeUnits(left.message, right.message)
   );
 }
 
 function normalizeCheck(value: unknown): BaselineValidationCheckResult {
   requireCondition(isRecord(value), "validation check result must be an object");
+  assertExactKeys(
+    value,
+    ["checkId", "status", "evidenceFingerprints", "issues"],
+    "validation check result",
+  );
   const checkId = value["checkId"];
   requireCondition(
     typeof checkId === "string" &&
@@ -125,6 +153,16 @@ function normalizeCheck(value: unknown): BaselineValidationCheckResult {
 
 function normalizeOperator(value: unknown): BaselineValidationOperatorIdentity {
   requireCondition(isRecord(value), "operator identity must be an object");
+  assertExactKeys(
+    value,
+    [
+      "operatorId",
+      "operatorVersion",
+      "implementationFingerprint",
+      "configurationFingerprint",
+    ],
+    "operator identity",
+  );
   requireCondition(
     typeof value["operatorId"] === "string" && value["operatorId"].trim().length > 0,
     "operatorId must be a non-empty string",
@@ -142,7 +180,12 @@ function normalizeOperator(value: unknown): BaselineValidationOperatorIdentity {
     value["configurationFingerprint"],
     "configuration fingerprint",
   );
-  return cloneJson(value) as unknown as BaselineValidationOperatorIdentity;
+  return {
+    operatorId: value["operatorId"],
+    operatorVersion: value["operatorVersion"],
+    implementationFingerprint: value["implementationFingerprint"],
+    configurationFingerprint: value["configurationFingerprint"],
+  } as BaselineValidationOperatorIdentity;
 }
 
 function normalizeCompleteChecks(
@@ -210,6 +253,7 @@ export function createBaselineConformanceReport(
   evidence: BaselineConformanceEvidence,
 ): BaselineConformanceReport {
   requireCondition(isRecord(evidence), "conformance evidence must be an object");
+  assertExactKeys(evidence, ["operator", "checks"], "conformance evidence");
   requireCondition(Array.isArray(evidence.checks), "checks must be an array");
   const operator = normalizeOperator(evidence.operator);
   const checks = normalizeCompleteChecks(evidence.checks);
@@ -237,6 +281,21 @@ export function validateBaselineConformanceReport(
   value: unknown,
 ): BaselineConformanceReport {
   requireCondition(isRecord(value), "conformance report must be an object");
+  assertExactKeys(
+    value,
+    [
+      "kind",
+      "schemaVersion",
+      "validationSuiteVersion",
+      "validationContractFingerprint",
+      "operator",
+      "checks",
+      "overall",
+      "evidenceFingerprint",
+      "reportFingerprint",
+    ],
+    "conformance report",
+  );
   requireCondition(
     value["kind"] === "baseline_conformance_report",
     "report kind mismatch",
@@ -309,5 +368,7 @@ export function validateBaselineConformanceReport(
       ),
     "report fingerprint mismatch",
   );
-  return value as unknown as BaselineConformanceReport;
+  return deepFreezeEvaluation(
+    cloneJson(value) as unknown as BaselineConformanceReport,
+  );
 }

@@ -1,6 +1,7 @@
 import {
   deepFreezeEvaluation,
   evaluationFingerprint,
+  stableEvaluationJson,
 } from "../evaluation/baseline-contract.js";
 import {
   BASELINE_VALIDATION_CONTRACT_SCHEMA_VERSION,
@@ -81,6 +82,20 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
+function assertExactKeys(
+  value: Record<string, unknown>,
+  expected: readonly string[],
+  label: string,
+): void {
+  const actual = Object.keys(value).sort();
+  const allowed = [...expected].sort();
+  requireCondition(
+    actual.length === allowed.length &&
+      actual.every((key, index) => key === allowed[index]),
+    `${label} has unexpected keys`,
+  );
+}
+
 const CONTRACT_BODY: BaselineValidationContractBody = {
   kind: "baseline_validation_contract",
   schemaVersion: BASELINE_VALIDATION_CONTRACT_SCHEMA_VERSION,
@@ -110,6 +125,21 @@ export function validateBaselineValidationContract(
   value: unknown,
 ): BaselineValidationContract {
   requireCondition(isRecord(value), "validation contract must be an object");
+  assertExactKeys(
+    value,
+    [
+      "kind",
+      "schemaVersion",
+      "validationSuiteVersion",
+      "frozenParentCommit",
+      "requiredChecks",
+      "resultStatuses",
+      "missingEvidenceDisposition",
+      "checkOrdering",
+      "contractFingerprint",
+    ],
+    "validation contract",
+  );
   requireCondition(
     value["kind"] === CONTRACT_BODY.kind,
     "validation contract kind mismatch",
@@ -146,7 +176,9 @@ export function validateBaselineValidationContract(
         baselineValidationContractFingerprint(value as unknown as BaselineValidationContract),
     "validation contract fingerprint mismatch",
   );
-  return value as unknown as BaselineValidationContract;
+  return deepFreezeEvaluation(
+    JSON.parse(stableEvaluationJson(value)) as BaselineValidationContract,
+  );
 }
 
 export const BASELINE_VALIDATION_FINGERPRINT_PATTERN =
