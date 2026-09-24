@@ -12,7 +12,9 @@ import {
   buildCanonicalOperatorInput,
   canonicalInputFingerprint,
   canonicalOperatorDecisionFingerprint,
-  conformLegacyOperator,
+  ensureCanonicalOperatorV2,
+  validateCanonicalDecisionEnvelope,
+  type CanonicalOperatorV2,
 } from "../operator/canonical-interface.js";
 import {
   type ActionAvailabilitySnapshot,
@@ -190,43 +192,20 @@ export function toOperatorDecisionInput(
   });
 }
 
-function assertDecisionOutput(
-  value: unknown,
-): asserts value is { readonly actions: readonly Action[] } {
-  requireCondition(
-    typeof value === "object" &&
-      value !== null &&
-      !Array.isArray(value),
-    "operator decision output must be an object",
-  );
-  const record = value as Record<string, unknown>;
-  requireCondition(
-    Object.keys(record).length === 1 &&
-      Object.prototype.hasOwnProperty.call(record, "actions"),
-    "operator decision output must contain exactly the actions field",
-  );
-  requireCondition(
-    Array.isArray(record["actions"]),
-    "operator decision output actions must be an array",
-  );
-}
-
 export function invokeOperatorAtDecision(
   contract: BaselineEvaluationContract,
-  operator: CanonicalOperator,
+  operator: CanonicalOperator | CanonicalOperatorV2,
   opportunity: DecisionOpportunity,
   observation: OperatorObservationSnapshot,
   availability: ActionAvailabilitySnapshot,
   assessConstraints?: ProposalConstraintAssessor,
 ): EvaluatedOperatorDecision {
-  assertOperatorCompatibleWithContract(contract, operator);
-
   const legacyInput = toOperatorDecisionInput(
     opportunity,
     observation,
     availability,
   );
-  const canonicalOperator = conformLegacyOperator(operator);
+  const canonicalOperator = ensureCanonicalOperatorV2(operator);
   assertCanonicalOperatorCompatibleWithContract(
     contract,
     canonicalOperator,
@@ -238,7 +217,12 @@ export function invokeOperatorAtDecision(
     availability,
     legacyInput,
   );
-  const output = canonicalOperator.decide(input);
+  const rawOutput = canonicalOperator.decide(input);
+  const output = validateCanonicalDecisionEnvelope(
+    input,
+    canonicalOperator.metadata,
+    rawOutput,
+  );
 
   const decisionAudit = canonicalOperator.auditDecision?.(input, output);
   const recordedDecisionAudit =
