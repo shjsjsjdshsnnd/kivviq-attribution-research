@@ -2,7 +2,7 @@ import { evaluationFingerprint } from "../evaluation/baseline-contract.js";
 import { ensureCanonicalOperatorV2, type CanonicalOperatorV2 } from "../operator/canonical-interface.js";
 import type { CanonicalOperator } from "../operator/types.js";
 import { validateDecisionActionConformance, type DecisionActionConformanceEvidence } from "./action-conformance.js";
-import { runExecutableConformanceProbe, failedValidationCheck, type ExecutableConformanceProbe } from "./conformance.js";
+import { runExecutableConformanceProbe, runProhibitedInformationProbe, failedValidationCheck, type ExecutableConformanceProbe, type ProhibitedInformationProbe } from "./conformance.js";
 import { validateConstraintDispositionEvidence, validateOperatorAuthorityBoundary, type ConstraintDispositionEvidence, type OperatorAuthorityBoundaryEvidence } from "./constraint-conformance.js";
 import { BASELINE_VALIDATION_REQUIRED_CHECKS, BaselineValidationError, type BaselineValidationCheckId, type BaselineValidationCheckResult } from "./contract.js";
 import { detectUncontrolledRandomness, validateDeterministicDecisions, validateSeedReproducibility, type DeterministicDecisionSample, type SeedReproducibilitySample } from "./determinism.js";
@@ -24,7 +24,7 @@ export interface BaselineValidationCaseEvidence {
   readonly constraintConformance: ConstraintDispositionEvidence;
   readonly policySemantics: ExecutableConformanceProbe;
   readonly permittedInformationSensitivity: ExecutableConformanceProbe;
-  readonly prohibitedInformationInvariance: ExecutableConformanceProbe;
+  readonly prohibitedInformationInvariance: ProhibitedInformationProbe;
   readonly tieBreaking: ExecutableConformanceProbe;
   readonly missingDataBehavior: ExecutableConformanceProbe;
   readonly zeroActionBehavior: ExecutableConformanceProbe;
@@ -123,7 +123,7 @@ export function runBaselineValidationCase(value: BaselineValidationCase): Baseli
     missing("constraintConformance", () => validateConstraintDispositionEvidence(evidence["constraintConformance"])),
     operatorRequired("policySemantics", (operator) => runExecutableConformanceProbe(operator, evidence["policySemantics"], "policy_semantics", caseId)),
     operatorRequired("permittedInformationSensitivity", (operator) => runExecutableConformanceProbe(operator, evidence["permittedInformationSensitivity"], "permitted_information_sensitivity", caseId)),
-    operatorRequired("prohibitedInformationInvariance", (operator) => runExecutableConformanceProbe(operator, evidence["prohibitedInformationInvariance"], "prohibited_information_invariance", caseId)),
+    operatorRequired("prohibitedInformationInvariance", (operator) => runProhibitedInformationProbe(operator, evidence["prohibitedInformationInvariance"], caseId)),
     operatorRequired("tieBreaking", (operator) => runExecutableConformanceProbe(operator, evidence["tieBreaking"], "tie_breaking", caseId)),
     operatorRequired("missingDataBehavior", (operator) => runExecutableConformanceProbe(operator, evidence["missingDataBehavior"], "missing_data_behavior", caseId)),
     operatorRequired("zeroActionBehavior", (operator) => runExecutableConformanceProbe(operator, evidence["zeroActionBehavior"], "zero_action_behavior", caseId)),

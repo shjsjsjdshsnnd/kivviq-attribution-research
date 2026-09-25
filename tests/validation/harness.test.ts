@@ -20,11 +20,13 @@ import {
   runBaselineValidationCase,
   runBaselineValidationSuite,
   runExecutableConformanceProbe,
+  runProhibitedInformationProbe,
   stableBaselineConformanceReportJson,
   canonicalProbeDecisionFingerprint,
   FROZEN_BASELINE_VALIDATION_SEED_SET,
   type BaselineValidationCase,
   type ExecutableConformanceProbe,
+  type ProhibitedInformationProbe,
 } from "../../src/validation/index.js";
 
 const contract = CANONICAL_BASELINE_EVALUATION_CONTRACT_V1;
@@ -59,6 +61,25 @@ function probe(checkId: ExecutableConformanceProbe["checkId"], caseId: string, s
     caseFingerprint: baselineValidationCaseFingerprint(caseId, probeOperator.metadata.operatorId),
     invocations: sequences.map((sequence, index) => ({ fixtureId: index === 0 ? "empty" : sequence === 2 ? "multi_action" : "single_action", canonicalInput: context(sequence).input, inputFingerprint: canonicalInputFingerprint(context(sequence).input) })),
     expectation,
+  };
+}
+
+function prohibitedProbe(caseId: string): ProhibitedInformationProbe {
+  return {
+    probeId: "probe:prohibited_information_invariance",
+    checkId: "prohibited_information_invariance",
+    operatorId: probeOperator.metadata.operatorId,
+    configurationFingerprint: probeOperator.metadata.configurationFingerprint,
+    caseFingerprint: baselineValidationCaseFingerprint(caseId, probeOperator.metadata.operatorId),
+    pairs: [{
+      pairId: "prohibited-pair",
+      leftFixtureId: "hidden_truth_pair",
+      rightFixtureId: "future_pair",
+      leftInput: input,
+      rightInput: input,
+      leftWitnessFingerprint: evaluationFingerprint({ witness: "left" }),
+      rightWitnessFingerprint: evaluationFingerprint({ witness: "right" }),
+    }],
   };
 }
 
@@ -110,7 +131,7 @@ function passingCase(caseId = "case-a"): BaselineValidationCase {
       constraintConformance: disposition,
       policySemantics: probe("policy_semantics", caseId, [0], { kind: "exact", expectedDecisionFingerprints: [canonicalProbeDecisionFingerprint([])], expectedActionFingerprints: [[]] }),
       permittedInformationSensitivity: probe("permitted_information_sensitivity", caseId, [0, 1], { kind: "sensitive" }),
-      prohibitedInformationInvariance: probe("prohibited_information_invariance", caseId, [0, 0], { kind: "invariant" }),
+      prohibitedInformationInvariance: prohibitedProbe(caseId),
       tieBreaking: probe("tie_breaking", caseId, [0], { kind: "exact", expectedDecisionFingerprints: [canonicalProbeDecisionFingerprint([])], expectedActionFingerprints: [[]] }),
       missingDataBehavior: probe("missing_data_behavior", caseId, [0], { kind: "exact", expectedDecisionFingerprints: [canonicalProbeDecisionFingerprint([])], expectedActionFingerprints: [[]] }),
       zeroActionBehavior: probe("zero_action_behavior", caseId, [0, 0], { kind: "zero_actions" }),
@@ -148,6 +169,29 @@ describe("baseline validation harness", () => {
     expect(runExecutableConformanceProbe(operator, realProbe, "policy_semantics", caseId).status).toBe("PASS");
     expect(runExecutableConformanceProbe(operator, { ...realProbe, returnedActions: [] }, "policy_semantics", caseId).issues.map((x) => x.code)).toContain("INVALID_PROBE_EVIDENCE");
     expect(runExecutableConformanceProbe(operator, { ...realProbe, execute: () => ({ beforeActions: [] }) }, "policy_semantics", caseId).status).toBe("FAIL");
+  });
+
+  it("preserves paired-witness semantics for prohibited-information invariance", () => {
+    const caseId = "paired-witness";
+    const base = prohibitedProbe(caseId);
+    expect(runProhibitedInformationProbe(probeOperator, base, caseId).status).toBe("PASS");
+
+    const sameWitness: any = structuredClone(base);
+    sameWitness.pairs[0].rightWitnessFingerprint = sameWitness.pairs[0].leftWitnessFingerprint;
+    expect(runProhibitedInformationProbe(probeOperator, sameWitness, caseId).issues.map((x) => x.code)).toContain("INVALID_PAIRED_EVIDENCE");
+
+    const differentVisible: any = structuredClone(base);
+    differentVisible.pairs[0].rightInput = context(1).input;
+    expect(runProhibitedInformationProbe(probeOperator, differentVisible, caseId).issues.map((x) => x.code)).toContain("INVALID_PAIRED_EVIDENCE");
+
+    let calls = 0;
+    const divergent: CanonicalOperatorV2 = { ...probeOperator, decide(value) { calls += 1; return calls % 2 === 1 ? probeOperator.decide(value) : { ...probeOperator.decide(value), actions: [googleBudgetUp2000] }; } };
+    expect(runProhibitedInformationProbe(divergent, base, caseId).issues.map((x) => x.code)).toContain("PROHIBITED_INFORMATION_LEAKAGE");
+
+    const missing: any = structuredClone(base);
+    delete missing.pairs[0].leftWitnessFingerprint;
+    expect(runProhibitedInformationProbe(probeOperator, missing, caseId).status).toBe("FAIL");
+    expect(runProhibitedInformationProbe(probeOperator, { ...base, ambient: true }, caseId).status).toBe("FAIL");
   });
 
   it("fails closed for every missing evidence section", () => {

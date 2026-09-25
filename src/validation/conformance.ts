@@ -3,10 +3,11 @@ import { evaluationFingerprint, stableEvaluationJson } from "../evaluation/basel
 import { assertCanonicalOperatorInputV2, canonicalInputFingerprint, ensureCanonicalOperatorV2, validateCanonicalDecisionEnvelope, type CanonicalOperatorInputV2, type CanonicalOperatorV2 } from "../operator/canonical-interface.js";
 import type { CanonicalOperator } from "../operator/types.js";
 import { FROZEN_BASELINE_VALIDATION_FIXTURES } from "./fixtures.js";
+import { canonicalPolicyDecisionFingerprint, validateProhibitedInformationInvariance, type InformationIsolationPair } from "./leakage.js";
 import type { BaselineValidationCheckId, BaselineValidationCheckResult } from "./contract.js";
 import { hasExactKeys, isFingerprint, isNonEmptyString, isRecord, issue, result } from "./shared.js";
 
-export type ExecutableProbeCheckId = "policy_semantics" | "permitted_information_sensitivity" | "prohibited_information_invariance" | "tie_breaking" | "missing_data_behavior" | "zero_action_behavior" | "multi_action_behavior";
+export type ExecutableProbeCheckId = "policy_semantics" | "permitted_information_sensitivity" | "tie_breaking" | "missing_data_behavior" | "zero_action_behavior" | "multi_action_behavior";
 export type DeclarativeProbeExpectation = { readonly kind: "exact"; readonly expectedDecisionFingerprints: readonly string[]; readonly expectedActionFingerprints: readonly (readonly string[])[] } | { readonly kind: "invariant" } | { readonly kind: "sensitive" } | { readonly kind: "zero_actions" } | { readonly kind: "multi_action" };
 export interface DeclarativeProbeInvocation { readonly fixtureId: string; readonly canonicalInput: CanonicalOperatorInputV2; readonly inputFingerprint: string; }
 /** Historical name retained for API compatibility; this type is declarative and has no callback. */
@@ -14,7 +15,12 @@ export interface ExecutableConformanceProbe { readonly probeId: string; readonly
 
 const PROBE_KEYS = ["probeId", "checkId", "operatorId", "configurationFingerprint", "caseFingerprint", "invocations", "expectation"] as const;
 const INVOCATION_KEYS = ["fixtureId", "canonicalInput", "inputFingerprint"] as const;
-const EXPECTED_KIND: Record<ExecutableProbeCheckId, DeclarativeProbeExpectation["kind"]> = { policy_semantics: "exact", permitted_information_sensitivity: "sensitive", prohibited_information_invariance: "invariant", tie_breaking: "exact", missing_data_behavior: "exact", zero_action_behavior: "zero_actions", multi_action_behavior: "multi_action" };
+const EXPECTED_KIND: Record<ExecutableProbeCheckId, DeclarativeProbeExpectation["kind"]> = { policy_semantics: "exact", permitted_information_sensitivity: "sensitive", tie_breaking: "exact", missing_data_behavior: "exact", zero_action_behavior: "zero_actions", multi_action_behavior: "multi_action" };
+
+export interface ProhibitedInformationProbePair { readonly pairId: string; readonly leftFixtureId: string; readonly rightFixtureId: string; readonly leftInput: CanonicalOperatorInputV2; readonly rightInput: CanonicalOperatorInputV2; readonly leftWitnessFingerprint: string; readonly rightWitnessFingerprint: string; }
+export interface ProhibitedInformationProbe { readonly probeId: string; readonly checkId: "prohibited_information_invariance"; readonly operatorId: string; readonly configurationFingerprint: string; readonly caseFingerprint: string; readonly pairs: readonly ProhibitedInformationProbePair[]; }
+const PROHIBITED_KEYS = ["probeId", "checkId", "operatorId", "configurationFingerprint", "caseFingerprint", "pairs"] as const;
+const PROHIBITED_PAIR_KEYS = ["pairId", "leftFixtureId", "rightFixtureId", "leftInput", "rightInput", "leftWitnessFingerprint", "rightWitnessFingerprint"] as const;
 
 export function baselineValidationCaseFingerprint(caseId: string, operatorId: string): string { return evaluationFingerprint({ caseId, operatorId }); }
 export function canonicalProbeDecisionFingerprint(actionFingerprints: readonly string[]): string { return evaluationFingerprint(actionFingerprints); }
@@ -55,6 +61,29 @@ export function runExecutableConformanceProbe(operatorValue: CanonicalOperator |
   else matches = observed.some((entry) => entry.actionFingerprints.length > 1);
   const evidenceFingerprint = evaluationFingerprint({ probeId: value["probeId"], checkId: expectedCheckId, operatorId: operator.metadata.operatorId, configurationFingerprint: operator.metadata.configurationFingerprint, caseFingerprint: value["caseFingerprint"], expectation, observed });
   return result(expectedCheckId, matches ? [] : [issue("PROBE_EXPECTATION_FAILED", `evidence.${expectedCheckId}`, "operator decisions did not satisfy the declared frozen expectation")], [evidenceFingerprint]);
+}
+
+export function runProhibitedInformationProbe(operatorValue: CanonicalOperator | CanonicalOperatorV2, value: unknown, caseId: string): BaselineValidationCheckResult {
+  const fail = (code: string, message: string) => result("prohibited_information_invariance", [issue(code, "evidence.prohibited_information_invariance", message)], []);
+  let operator: CanonicalOperatorV2;
+  try { operator = ensureCanonicalOperatorV2(operatorValue); } catch { return fail("INVALID_OPERATOR", "operator cannot be canonicalized"); }
+  if (!isRecord(value) || !hasExactKeys(value, PROHIBITED_KEYS) || value["checkId"] !== "prohibited_information_invariance" || !isNonEmptyString(value["probeId"]) || value["operatorId"] !== operator.metadata.operatorId || value["configurationFingerprint"] !== operator.metadata.configurationFingerprint || value["caseFingerprint"] !== baselineValidationCaseFingerprint(caseId, operator.metadata.operatorId) || !Array.isArray(value["pairs"]) || value["pairs"].length === 0) return fail("INVALID_PAIRED_EVIDENCE", "paired probe shape or operator binding is invalid");
+  const allowedFixtures = new Set(FROZEN_BASELINE_VALIDATION_FIXTURES.fixtures.map((entry) => entry.fixtureId));
+  const generated: InformationIsolationPair[] = [];
+  for (const raw of value["pairs"]) {
+    if (!isRecord(raw) || !hasExactKeys(raw, PROHIBITED_PAIR_KEYS) || !isNonEmptyString(raw["pairId"]) || !allowedFixtures.has(raw["leftFixtureId"] as never) || !allowedFixtures.has(raw["rightFixtureId"] as never) || !isFingerprint(raw["leftWitnessFingerprint"]) || !isFingerprint(raw["rightWitnessFingerprint"]) || raw["leftWitnessFingerprint"] === raw["rightWitnessFingerprint"]) return fail("INVALID_PAIRED_EVIDENCE", "pair keys, fixture bindings, or witness fingerprints are invalid");
+    try {
+      const leftInput = assertCanonicalOperatorInputV2(raw["leftInput"], bindings(raw["leftInput"] as CanonicalOperatorInputV2));
+      const rightInput = assertCanonicalOperatorInputV2(raw["rightInput"], bindings(raw["rightInput"] as CanonicalOperatorInputV2));
+      const leftInputFingerprint = canonicalInputFingerprint(leftInput);
+      const rightInputFingerprint = canonicalInputFingerprint(rightInput);
+      if (leftInputFingerprint !== rightInputFingerprint || stableEvaluationJson(leftInput) !== stableEvaluationJson(rightInput)) return fail("INVALID_PAIRED_EVIDENCE", "paired visible canonical inputs must be identical");
+      const leftDecision = validateCanonicalDecisionEnvelope(leftInput, operator.metadata, operator.decide(leftInput));
+      const rightDecision = validateCanonicalDecisionEnvelope(rightInput, operator.metadata, operator.decide(rightInput));
+      generated.push({ pairId: raw["pairId"], baseline: { visibleInputFingerprint: leftInputFingerprint, witnessFingerprint: raw["leftWitnessFingerprint"], decisionFingerprint: canonicalPolicyDecisionFingerprint(leftDecision.actions), actions: leftDecision.actions }, variant: { visibleInputFingerprint: rightInputFingerprint, witnessFingerprint: raw["rightWitnessFingerprint"], decisionFingerprint: canonicalPolicyDecisionFingerprint(rightDecision.actions), actions: rightDecision.actions } });
+    } catch { return fail("OPERATOR_INVOCATION_FAILED", "operator invocation or paired canonical decision validation failed"); }
+  }
+  return validateProhibitedInformationInvariance(generated);
 }
 
 export function failedValidationCheck(checkId: BaselineValidationCheckId, code: string, message: string): BaselineValidationCheckResult { return result(checkId, [issue(code, `checks.${checkId}`, message)], []); }
