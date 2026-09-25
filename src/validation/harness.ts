@@ -6,7 +6,7 @@ import { runExecutableConformanceProbe, failedValidationCheck, type ExecutableCo
 import { validateConstraintDispositionEvidence, validateOperatorAuthorityBoundary, type ConstraintDispositionEvidence, type OperatorAuthorityBoundaryEvidence } from "./constraint-conformance.js";
 import { BASELINE_VALIDATION_REQUIRED_CHECKS, BaselineValidationError, type BaselineValidationCheckId, type BaselineValidationCheckResult } from "./contract.js";
 import { detectUncontrolledRandomness, validateDeterministicDecisions, validateSeedReproducibility, type DeterministicDecisionSample, type SeedReproducibilitySample } from "./determinism.js";
-import { validateFutureInformationIsolation, validateHiddenTruthIsolation, validateProhibitedInformationInvariance, type InformationIsolationPair } from "./leakage.js";
+import { validateFutureInformationIsolation, validateHiddenTruthIsolation, type InformationIsolationPair } from "./leakage.js";
 import { validateProvenanceEvidence, type RecordedFingerprintEvidence } from "./provenance.js";
 import { replayRecordedDecision, type RecordedDecisionArtifact } from "./replay.js";
 import { createBaselineConformanceReport, type BaselineConformanceReport, type BaselineValidationOperatorIdentity } from "./report.js";
@@ -24,7 +24,7 @@ export interface BaselineValidationCaseEvidence {
   readonly constraintConformance: ConstraintDispositionEvidence;
   readonly policySemantics: ExecutableConformanceProbe;
   readonly permittedInformationSensitivity: ExecutableConformanceProbe;
-  readonly prohibitedInformationInvariance: readonly InformationIsolationPair[];
+  readonly prohibitedInformationInvariance: ExecutableConformanceProbe;
   readonly tieBreaking: ExecutableConformanceProbe;
   readonly missingDataBehavior: ExecutableConformanceProbe;
   readonly zeroActionBehavior: ExecutableConformanceProbe;
@@ -80,7 +80,7 @@ function safeRun(checkId: BaselineValidationCheckId, fn: () => BaselineValidatio
     const value = fn();
     return value.checkId === checkId ? value : failedValidationCheck(checkId, "VALIDATOR_RESULT_MISMATCH", "focused validator returned the wrong check ID");
   } catch (error) {
-    return failedValidationCheck(checkId, "VALIDATOR_EXECUTION_FAILED", error instanceof Error ? error.message : String(error));
+    return failedValidationCheck(checkId, "VALIDATOR_EXECUTION_FAILED", "focused validator execution failed");
   }
 }
 
@@ -121,13 +121,13 @@ export function runBaselineValidationCase(value: BaselineValidationCase): Baseli
     missing("lookbackWindow", () => validateLookbackWindow(evidence["lookbackWindow"] as never)),
     missing("actionConformance", () => validateDecisionActionConformance(evidence["actionConformance"])),
     missing("constraintConformance", () => validateConstraintDispositionEvidence(evidence["constraintConformance"])),
-    missing("policySemantics", () => runExecutableConformanceProbe(evidence["policySemantics"], "policy_semantics", caseId, identity.operatorId)),
-    missing("permittedInformationSensitivity", () => runExecutableConformanceProbe(evidence["permittedInformationSensitivity"], "permitted_information_sensitivity", caseId, identity.operatorId)),
-    missing("prohibitedInformationInvariance", () => validateProhibitedInformationInvariance(evidence["prohibitedInformationInvariance"] as never)),
-    missing("tieBreaking", () => runExecutableConformanceProbe(evidence["tieBreaking"], "tie_breaking", caseId, identity.operatorId)),
-    missing("missingDataBehavior", () => runExecutableConformanceProbe(evidence["missingDataBehavior"], "missing_data_behavior", caseId, identity.operatorId)),
-    missing("zeroActionBehavior", () => runExecutableConformanceProbe(evidence["zeroActionBehavior"], "zero_action_behavior", caseId, identity.operatorId)),
-    missing("multiActionBehavior", () => runExecutableConformanceProbe(evidence["multiActionBehavior"], "multi_action_behavior", caseId, identity.operatorId)),
+    operatorRequired("policySemantics", (operator) => runExecutableConformanceProbe(operator, evidence["policySemantics"], "policy_semantics", caseId)),
+    operatorRequired("permittedInformationSensitivity", (operator) => runExecutableConformanceProbe(operator, evidence["permittedInformationSensitivity"], "permitted_information_sensitivity", caseId)),
+    operatorRequired("prohibitedInformationInvariance", (operator) => runExecutableConformanceProbe(operator, evidence["prohibitedInformationInvariance"], "prohibited_information_invariance", caseId)),
+    operatorRequired("tieBreaking", (operator) => runExecutableConformanceProbe(operator, evidence["tieBreaking"], "tie_breaking", caseId)),
+    operatorRequired("missingDataBehavior", (operator) => runExecutableConformanceProbe(operator, evidence["missingDataBehavior"], "missing_data_behavior", caseId)),
+    operatorRequired("zeroActionBehavior", (operator) => runExecutableConformanceProbe(operator, evidence["zeroActionBehavior"], "zero_action_behavior", caseId)),
+    operatorRequired("multiActionBehavior", (operator) => runExecutableConformanceProbe(operator, evidence["multiActionBehavior"], "multi_action_behavior", caseId)),
     operatorRequired("artifactReplay", (operator) => replayRecordedDecision(operator, evidence["artifactReplay"])),
     missing("provenanceIntegrity", () => validateProvenanceEvidence(evidence["provenanceIntegrity"] as never)),
     missing("uncontrolledRandomness", () => detectUncontrolledRandomness(evidence["uncontrolledRandomness"] as never)),

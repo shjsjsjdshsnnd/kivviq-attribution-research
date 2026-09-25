@@ -9,8 +9,9 @@ import {
   evaluationFingerprint,
 } from "../../src/evaluation/baseline-contract.js";
 import { buildCanonicalOperatorInput, invokeOperatorAtDecision, toOperatorDecisionInput } from "../../src/evaluation/operator-evaluation.js";
-import { canonicalInputFingerprint, canonicalOperatorDecisionFingerprint, ensureCanonicalOperatorV2 } from "../../src/operator/canonical-interface.js";
+import { CANONICAL_OPERATOR_DECISION_SCHEMA_VERSION, CANONICAL_OPERATOR_INTERFACE_VERSION, canonicalInputFingerprint, canonicalOperatorDecisionFingerprint, ensureCanonicalOperatorV2, type CanonicalOperatorV2 } from "../../src/operator/canonical-interface.js";
 import { DO_NOTHING_OPERATOR } from "../../src/operator/do-nothing.js";
+import { operatorFingerprint } from "../../src/operator/identity.js";
 import {
   baselineValidationCaseFingerprint,
   canonicalReplaySchemaFingerprint,
@@ -18,32 +19,51 @@ import {
   createRecordedDecisionArtifact,
   runBaselineValidationCase,
   runBaselineValidationSuite,
+  runExecutableConformanceProbe,
   stableBaselineConformanceReportJson,
+  canonicalProbeDecisionFingerprint,
+  FROZEN_BASELINE_VALIDATION_SEED_SET,
   type BaselineValidationCase,
   type ExecutableConformanceProbe,
 } from "../../src/validation/index.js";
 
 const contract = CANONICAL_BASELINE_EVALUATION_CONTRACT_V1;
-const opportunity = createFixedIntervalDecisionOpportunity(contract, "2026-10-01T00:00:00.000Z", 0);
-const observation = buildOperatorObservationSnapshot(contract, opportunity, []);
-const availability = buildActionAvailabilitySnapshot(contract, opportunity, []);
-const input = buildCanonicalOperatorInput(contract, opportunity, observation, availability, toOperatorDecisionInput(opportunity, observation, availability));
+function context(sequence: number) {
+  const opportunity = createFixedIntervalDecisionOpportunity(contract, "2026-10-01T00:00:00.000Z", sequence);
+  const observation = buildOperatorObservationSnapshot(contract, opportunity, []);
+  const availability = buildActionAvailabilitySnapshot(contract, opportunity, []);
+  const input = buildCanonicalOperatorInput(contract, opportunity, observation, availability, toOperatorDecisionInput(opportunity, observation, availability));
+  return { opportunity, observation, availability, input };
+}
+const baseContext = context(0);
+const input = baseContext.input;
+const opportunity = baseContext.opportunity;
+const observation = baseContext.observation;
+const availability = baseContext.availability;
 
-function probe(checkId: ExecutableConformanceProbe["checkId"], caseId: string, expectation: ExecutableConformanceProbe["expectation"]): ExecutableConformanceProbe {
-  const before = expectation === "multiple_actions" ? [googleBudgetUp2000, reduceSkuPrice899To849] : [];
-  const after = expectation === "different" ? [googleBudgetUp2000] : before;
+const probeOperator: CanonicalOperatorV2 = (() => {
+  const base = ensureCanonicalOperatorV2(DO_NOTHING_OPERATOR);
+  const metadata = { ...base.metadata, operatorId: "test.harness-probe", operatorFamily: "advanced_decision_system" as const, implementationFingerprint: operatorFingerprint({ implementation: "harness-probe" }), configurationFingerprint: operatorFingerprint({ configuration: "harness-probe" }), adapterFingerprint: operatorFingerprint({ adapter: "harness-probe" }), legacyInterfaceVersion: null, capabilities: { ...base.metadata.capabilities, actionDomains: ["advertising" as const, "pricing" as const], maximumActionsPerDecision: 2 } };
+  return { metadata, decide(value) {
+    const actions = value.decisionContext.sequence === 2 ? [googleBudgetUp2000, reduceSkuPrice899To849] : value.decisionContext.sequence === 1 ? [googleBudgetUp2000] : [];
+    return { schemaVersion: CANONICAL_OPERATOR_DECISION_SCHEMA_VERSION, actions, operatorMetadata: metadata, decisionMetadata: { interfaceVersion: CANONICAL_OPERATOR_INTERFACE_VERSION, decisionTimestamp: value.decisionTime, deterministicReplayExpected: true, randomness: { kind: "deterministic" }, canonicalActionOrdering: "ACTION_TYPE_TARGET_PARAMETERS_ACTION_ID_ASC" } };
+  } };
+})();
+
+function probe(checkId: ExecutableConformanceProbe["checkId"], caseId: string, sequences: readonly number[], expectation: ExecutableConformanceProbe["expectation"]): ExecutableConformanceProbe {
   return {
     probeId: `probe:${checkId}`,
     checkId,
-    operatorId: DO_NOTHING_OPERATOR.metadata.operatorId,
-    caseFingerprint: baselineValidationCaseFingerprint(caseId, DO_NOTHING_OPERATOR.metadata.operatorId),
+    operatorId: probeOperator.metadata.operatorId,
+    configurationFingerprint: probeOperator.metadata.configurationFingerprint,
+    caseFingerprint: baselineValidationCaseFingerprint(caseId, probeOperator.metadata.operatorId),
+    invocations: sequences.map((sequence, index) => ({ fixtureId: index === 0 ? "empty" : sequence === 2 ? "multi_action" : "single_action", canonicalInput: context(sequence).input, inputFingerprint: canonicalInputFingerprint(context(sequence).input) })),
     expectation,
-    execute: () => ({ beforeActions: before, afterActions: after }),
   };
 }
 
 function passingCase(caseId = "case-a"): BaselineValidationCase {
-  const operator = ensureCanonicalOperatorV2(DO_NOTHING_OPERATOR);
+  const operator = probeOperator;
   const decision = operator.decide(input);
   const decisionFp = canonicalOperatorDecisionFingerprint(decision);
   const sample = (sampleId: string) => ({
@@ -61,17 +81,21 @@ function passingCase(caseId = "case-a"): BaselineValidationCase {
     decisionFingerprint: canonicalPolicyDecisionFingerprint([]),
     actions: [],
   });
-  const evaluated = invokeOperatorAtDecision(contract, DO_NOTHING_OPERATOR, opportunity, observation, availability);
+  const evaluated = invokeOperatorAtDecision(contract, operator, opportunity, observation, availability);
   const disposition = { contract, opportunity, availability, attempts: [] };
+  const frozenSeedCase = FROZEN_BASELINE_VALIDATION_SEED_SET.cases[0]!;
   const replay = createRecordedDecisionArtifact(operator, input, decision, {
     constraintFingerprint: evaluationFingerprint(input.constraints),
     schemaFingerprint: canonicalReplaySchemaFingerprint(),
-    seedBinding: { seed: 1 },
-    seedFingerprint: evaluationFingerprint({ seed: 1 }),
+    seedCaseId: frozenSeedCase.caseId,
+    seedSetVersion: FROZEN_BASELINE_VALIDATION_SEED_SET.schemaVersion,
+    seedSetFingerprint: FROZEN_BASELINE_VALIDATION_SEED_SET.seedSetFingerprint,
+    seeds: frozenSeedCase.seeds,
+    seedFingerprint: evaluationFingerprint(frozenSeedCase.seeds),
   });
   return {
     caseId,
-    operator: DO_NOTHING_OPERATOR,
+    operator,
     evidence: {
       determinism: [sample("a"), sample("b")],
       seedReproducibility: [
@@ -84,13 +108,13 @@ function passingCase(caseId = "case-a"): BaselineValidationCase {
       lookbackWindow: { startInclusive: "2026-09-01T00:00:00.000Z", endInclusive: opportunity.at, decisionTimestamp: opportunity.at, observations: [] },
       actionConformance: { contract, opportunity, availability, canonicalInput: input, operatorMetadata: operator.metadata, decisionEnvelope: decision },
       constraintConformance: disposition,
-      policySemantics: probe("policy_semantics", caseId, "equal"),
-      permittedInformationSensitivity: probe("permitted_information_sensitivity", caseId, "different"),
-      prohibitedInformationInvariance: [{ pairId: "prohibited", baseline: isolationSide(5), variant: isolationSide(6) }],
-      tieBreaking: probe("tie_breaking", caseId, "equal"),
-      missingDataBehavior: probe("missing_data_behavior", caseId, "equal"),
-      zeroActionBehavior: probe("zero_action_behavior", caseId, "zero_actions"),
-      multiActionBehavior: probe("multi_action_behavior", caseId, "multiple_actions"),
+      policySemantics: probe("policy_semantics", caseId, [0], { kind: "exact", expectedDecisionFingerprints: [canonicalProbeDecisionFingerprint([])], expectedActionFingerprints: [[]] }),
+      permittedInformationSensitivity: probe("permitted_information_sensitivity", caseId, [0, 1], { kind: "sensitive" }),
+      prohibitedInformationInvariance: probe("prohibited_information_invariance", caseId, [0, 0], { kind: "invariant" }),
+      tieBreaking: probe("tie_breaking", caseId, [0], { kind: "exact", expectedDecisionFingerprints: [canonicalProbeDecisionFingerprint([])], expectedActionFingerprints: [[]] }),
+      missingDataBehavior: probe("missing_data_behavior", caseId, [0], { kind: "exact", expectedDecisionFingerprints: [canonicalProbeDecisionFingerprint([])], expectedActionFingerprints: [[]] }),
+      zeroActionBehavior: probe("zero_action_behavior", caseId, [0, 0], { kind: "zero_actions" }),
+      multiActionBehavior: probe("multi_action_behavior", caseId, [0, 2], { kind: "multi_action" }),
       artifactReplay: replay,
       provenanceIntegrity: [{ label: "input", value: input, recordedFingerprint: evaluationFingerprint(input) }],
       uncontrolledRandomness: [sample("a"), sample("b"), sample("c")],
@@ -109,6 +133,23 @@ describe("baseline validation harness", () => {
     expect(Object.isFrozen(first)).toBe(true);
   });
 
+  it("uses real operator invocations and rejects fabricated-output probe fields", () => {
+    const operator = ensureCanonicalOperatorV2(DO_NOTHING_OPERATOR);
+    const caseId = "real-do-nothing";
+    const realProbe: ExecutableConformanceProbe = {
+      probeId: "probe:real-do-nothing",
+      checkId: "policy_semantics",
+      operatorId: operator.metadata.operatorId,
+      configurationFingerprint: operator.metadata.configurationFingerprint,
+      caseFingerprint: baselineValidationCaseFingerprint(caseId, operator.metadata.operatorId),
+      invocations: [{ fixtureId: "empty", canonicalInput: input, inputFingerprint: canonicalInputFingerprint(input) }],
+      expectation: { kind: "exact", expectedDecisionFingerprints: [canonicalProbeDecisionFingerprint([])], expectedActionFingerprints: [[]] },
+    };
+    expect(runExecutableConformanceProbe(operator, realProbe, "policy_semantics", caseId).status).toBe("PASS");
+    expect(runExecutableConformanceProbe(operator, { ...realProbe, returnedActions: [] }, "policy_semantics", caseId).issues.map((x) => x.code)).toContain("INVALID_PROBE_EVIDENCE");
+    expect(runExecutableConformanceProbe(operator, { ...realProbe, execute: () => ({ beforeActions: [] }) }, "policy_semantics", caseId).status).toBe("FAIL");
+  });
+
   it("fails closed for every missing evidence section", () => {
     const complete = passingCase();
     for (const key of Object.keys(complete.evidence)) {
@@ -121,26 +162,33 @@ describe("baseline validation harness", () => {
   });
 
   it("sorts suites by code unit and rejects duplicate operator IDs", () => {
-    const a: any = passingCase("a");
-    const b: any = passingCase("b");
-    b.operator = { ...b.operator, metadata: { ...b.operator.metadata, operatorId: "z" } };
-    for (const value of Object.values(b.evidence) as any[]) if (value?.operatorId) value.operatorId = "z";
-    const reports = runBaselineValidationSuite({ cases: [b, a] });
-    expect(reports.map((entry) => entry.operator.operatorId)).toEqual(["baseline.do_nothing", "z"]);
+    const withId = (operatorId: string, caseId: string) => {
+      const value: any = passingCase(caseId);
+      value.operator = { ...value.operator, metadata: { ...value.operator.metadata, operatorId } };
+      return value;
+    };
+    const reports = runBaselineValidationSuite({ cases: [withId("é", "4"), withId("a", "2"), withId("e\u0301", "3"), withId("Z", "1")] });
+    expect(reports.map((entry) => entry.operator.operatorId)).toEqual(["Z", "a", "e\u0301", "é"]);
+    const a = passingCase("a");
     expect(() => runBaselineValidationSuite({ cases: [a, passingCase("duplicate")] })).toThrow(/duplicate operator ID/);
   });
 
   it("converts operator throws, mutation attempts, and malformed probe evidence to deterministic FAIL", () => {
     const throwing: any = passingCase();
-    throwing.operator = { ...throwing.operator, decide() { throw new Error("boom"); } };
-    expect(runBaselineValidationCase(throwing).overall).toBe("FAIL");
+    let throwCount = 0;
+    throwing.operator = { ...throwing.operator, decide() { throwCount += 1; throw new Error(`ambient-${throwCount}-${Date.now()}`); } };
+    const thrownFirst = runBaselineValidationCase(throwing);
+    const thrownSecond = runBaselineValidationCase(throwing);
+    expect(thrownFirst.overall).toBe("FAIL");
+    expect(stableBaselineConformanceReportJson(thrownFirst)).toBe(stableBaselineConformanceReportJson(thrownSecond));
+    expect(thrownFirst.reportFingerprint).toBe(thrownSecond.reportFingerprint);
 
     const mutating: any = passingCase();
     mutating.operator = { ...mutating.operator, decide(value: any) { value.opportunityId = "mutated"; return ensureCanonicalOperatorV2(DO_NOTHING_OPERATOR).decide(value); } };
     expect(runBaselineValidationCase(mutating).overall).toBe("FAIL");
 
     const malformed: any = passingCase();
-    malformed.evidence.policySemantics = { ...malformed.evidence.policySemantics, ambient: true };
+    malformed.evidence.policySemantics = { ...malformed.evidence.policySemantics, fabricatedActions: [] };
     const first = runBaselineValidationCase(malformed);
     const second = runBaselineValidationCase(malformed);
     expect(first.overall).toBe("FAIL");

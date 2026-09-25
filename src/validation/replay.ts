@@ -20,13 +20,17 @@ import {
 import type { CanonicalOperator } from "../operator/types.js";
 import type { BaselineValidationCheckResult, BaselineValidationIssue } from "./contract.js";
 import { hasExactKeys, isFingerprint, isRecord, isStrictJson, issue, result, safeFingerprint } from "./shared.js";
+import { FROZEN_BASELINE_VALIDATION_SEED_SET, type BaselineValidationSeeds } from "./seed-sets.js";
 
 export const RECORDED_DECISION_ARTIFACT_SCHEMA_VERSION = "1.0.0" as const;
 
 export interface ReplayProvenanceInput {
   readonly constraintFingerprint: string;
   readonly schemaFingerprint: string;
-  readonly seedBinding: unknown;
+  readonly seedCaseId: string;
+  readonly seedSetVersion: string;
+  readonly seedSetFingerprint: string;
+  readonly seeds: BaselineValidationSeeds;
   readonly seedFingerprint: string;
 }
 
@@ -55,7 +59,7 @@ export interface RecordedDecisionArtifact extends RecordedDecisionArtifactBody {
 }
 
 const ARTIFACT_KEYS = ["kind", "schemaVersion", "operatorMetadata", "canonicalInput", "decisionTimestamp", "provenance", "canonicalDecision", "canonicalActionJson", "actionFingerprints", "decisionFingerprint", "artifactFingerprint"] as const;
-const PROVENANCE_KEYS = ["evaluationFingerprint", "observationFingerprint", "legalActionSpaceFingerprint", "constraintFingerprint", "schemaFingerprint", "seedBinding", "seedFingerprint", "canonicalInputFingerprint"] as const;
+const PROVENANCE_KEYS = ["evaluationFingerprint", "observationFingerprint", "legalActionSpaceFingerprint", "constraintFingerprint", "schemaFingerprint", "seedCaseId", "seedSetVersion", "seedSetFingerprint", "seeds", "seedFingerprint", "canonicalInputFingerprint"] as const;
 
 function cloneFreeze<T>(value: T): T {
   return deepFreezeEvaluation(JSON.parse(stableEvaluationJson(value)) as T);
@@ -123,7 +127,9 @@ export function createRecordedDecisionArtifact(
   const validatedDecision = validateCanonicalDecisionEnvelope(validatedInput, canonical.metadata, decision);
   if (!isFingerprint(provenance.constraintFingerprint) || provenance.constraintFingerprint !== evaluationFingerprint(validatedInput.constraints)) throw new TypeError("replay constraint fingerprint does not match canonical input");
   if (!isFingerprint(provenance.schemaFingerprint) || provenance.schemaFingerprint !== canonicalReplaySchemaFingerprint()) throw new TypeError("replay schema fingerprint does not match canonical schemas");
-  if (!isStrictJson(provenance.seedBinding) || !isFingerprint(provenance.seedFingerprint) || provenance.seedFingerprint !== evaluationFingerprint(provenance.seedBinding)) throw new TypeError("replay seed fingerprint does not match strict deterministic seed binding");
+  const frozenSeedCase = FROZEN_BASELINE_VALIDATION_SEED_SET.cases.find((entry) => entry.caseId === provenance.seedCaseId);
+  if (frozenSeedCase === undefined || provenance.seedSetVersion !== FROZEN_BASELINE_VALIDATION_SEED_SET.schemaVersion || provenance.seedSetFingerprint !== FROZEN_BASELINE_VALIDATION_SEED_SET.seedSetFingerprint || stableEvaluationJson(provenance.seeds) !== stableEvaluationJson(frozenSeedCase.seeds) || provenance.seedFingerprint !== evaluationFingerprint(frozenSeedCase.seeds)) throw new TypeError("replay seed provenance does not match a frozen seed case");
+  if (canonical.metadata.capabilities.randomness.kind !== "deterministic") throw new TypeError("v1 replay requires a deterministic operator until canonical inputs bind operator seeds");
   const body: RecordedDecisionArtifactBody = {
     kind: "canonical_operator_decision_recording",
     schemaVersion: RECORDED_DECISION_ARTIFACT_SCHEMA_VERSION,
@@ -159,17 +165,23 @@ function checkArtifact(value: unknown): { artifact?: RecordedDecisionArtifact; i
   if (artifact.kind !== "canonical_operator_decision_recording" || artifact.schemaVersion !== RECORDED_DECISION_ARTIFACT_SCHEMA_VERSION) {
     issues.push(issue("INVALID_REPLAY_ARTIFACT", "evidence.schemaVersion", "recorded decision artifact kind or schema version is unsupported"));
   }
-  try { assertCanonicalOperatorMetadataV2(artifact.operatorMetadata); } catch (error) {
-    issues.push(issue("REPLAY_OPERATOR_METADATA_INVALID", "evidence.operatorMetadata", error instanceof Error ? error.message : String(error)));
+  try { assertCanonicalOperatorMetadataV2(artifact.operatorMetadata); } catch {
+    issues.push(issue("REPLAY_OPERATOR_METADATA_INVALID", "evidence.operatorMetadata", "recorded operator metadata is invalid"));
   }
-  try { assertCanonicalOperatorInputV2(artifact.canonicalInput, inputBindings(artifact.canonicalInput)); } catch (error) {
-    issues.push(issue("REPLAY_INPUT_INVALID", "evidence.canonicalInput", error instanceof Error ? error.message : String(error)));
+  if (artifact.operatorMetadata.capabilities.randomness.kind !== "deterministic") issues.push(issue("REPLAY_SEEDED_OPERATOR_UNSUPPORTED", "evidence.operatorMetadata.capabilities.randomness", "v1 replay supports deterministic operators only until canonical input carries an explicit seed binding"));
+  try { assertCanonicalOperatorInputV2(artifact.canonicalInput, inputBindings(artifact.canonicalInput)); } catch {
+    issues.push(issue("REPLAY_INPUT_INVALID", "evidence.canonicalInput", "recorded canonical input is invalid"));
   }
   if (artifact.decisionTimestamp !== artifact.canonicalInput.decisionTime) {
     issues.push(issue("REPLAY_TIMESTAMP_MISMATCH", "evidence.decisionTimestamp", "recorded decision timestamp differs from canonical input"));
   }
+  if (artifact.canonicalInput.provenance.evaluationContractFingerprint !== artifact.operatorMetadata.supportedEvaluationContract.contractFingerprint ||
+    artifact.canonicalInput.provenance.evaluationContractVersion !== artifact.operatorMetadata.supportedEvaluationContract.contractVersion ||
+    artifact.canonicalInput.provenance.actionOntologyVersion !== artifact.operatorMetadata.supportedActionOntologyVersion) {
+    issues.push(issue("REPLAY_INPUT_PROVENANCE_MISMATCH", "evidence.canonicalInput.provenance", "canonical input provenance differs from operator contract or ontology support"));
+  }
   const p = artifact.provenance;
-  for (const key of PROVENANCE_KEYS.filter((entry) => entry !== "seedBinding")) {
+  for (const key of ["evaluationFingerprint", "observationFingerprint", "legalActionSpaceFingerprint", "constraintFingerprint", "schemaFingerprint", "seedSetFingerprint", "seedFingerprint", "canonicalInputFingerprint"] as const) {
     if (!isFingerprint(p[key])) issues.push(issue("REPLAY_PROVENANCE_INVALID", `evidence.provenance.${key}`, "replay provenance field must be a canonical fingerprint"));
   }
   if (p.evaluationFingerprint !== artifact.canonicalInput.provenance.evaluationContractFingerprint) issues.push(issue("REPLAY_EVALUATION_PROVENANCE_MISMATCH", "evidence.provenance.evaluationFingerprint", "evaluation provenance differs from canonical input"));
@@ -177,14 +189,16 @@ function checkArtifact(value: unknown): { artifact?: RecordedDecisionArtifact; i
   if (p.legalActionSpaceFingerprint !== expectedActionSpaceFingerprint(artifact.canonicalInput) || p.legalActionSpaceFingerprint !== artifact.canonicalInput.provenance.legalActionSpaceFingerprint) issues.push(issue("REPLAY_ACTION_SPACE_PROVENANCE_MISMATCH", "evidence.provenance.legalActionSpaceFingerprint", "Action-space provenance could not be recomputed"));
   if (p.constraintFingerprint !== evaluationFingerprint(artifact.canonicalInput.constraints)) issues.push(issue("REPLAY_CONSTRAINT_PROVENANCE_MISMATCH", "evidence.provenance.constraintFingerprint", "constraint provenance could not be recomputed"));
   if (p.schemaFingerprint !== canonicalReplaySchemaFingerprint()) issues.push(issue("REPLAY_SCHEMA_PROVENANCE_MISMATCH", "evidence.provenance.schemaFingerprint", "schema provenance could not be recomputed"));
-  if (!isStrictJson(p.seedBinding) || p.seedFingerprint !== evaluationFingerprint(p.seedBinding)) issues.push(issue("REPLAY_SEED_PROVENANCE_MISMATCH", "evidence.provenance.seedFingerprint", "seed provenance could not be recomputed"));
+  const frozenSeedCase = FROZEN_BASELINE_VALIDATION_SEED_SET.cases.find((entry) => entry.caseId === p.seedCaseId);
+  if (frozenSeedCase === undefined) issues.push(issue("REPLAY_SEED_CASE_UNKNOWN", "evidence.provenance.seedCaseId", "seed case is not in the frozen validation seed set"));
+  else if (p.seedSetVersion !== FROZEN_BASELINE_VALIDATION_SEED_SET.schemaVersion || p.seedSetFingerprint !== FROZEN_BASELINE_VALIDATION_SEED_SET.seedSetFingerprint || stableEvaluationJson(p.seeds) !== stableEvaluationJson(frozenSeedCase.seeds) || p.seedFingerprint !== evaluationFingerprint(frozenSeedCase.seeds)) issues.push(issue("REPLAY_SEED_PROVENANCE_MISMATCH", "evidence.provenance.seeds", "seed provenance differs from the frozen validation seed case"));
   if (p.canonicalInputFingerprint !== canonicalInputFingerprint(artifact.canonicalInput)) issues.push(issue("REPLAY_INPUT_FINGERPRINT_MISMATCH", "evidence.provenance.canonicalInputFingerprint", "canonical input fingerprint could not be recomputed"));
   try {
     const decision = validateCanonicalDecisionEnvelope(artifact.canonicalInput, artifact.operatorMetadata, artifact.canonicalDecision);
     if (stableEvaluationJson(artifact.canonicalActionJson) !== stableEvaluationJson(expectedActionJson(decision)) || stableEvaluationJson(artifact.actionFingerprints) !== stableEvaluationJson(expectedActionFingerprints(decision))) issues.push(issue("REPLAY_ACTION_RECORD_MISMATCH", "evidence.canonicalActionJson", "recorded canonical Action serialization or semantic fingerprints differ"));
     if (artifact.decisionFingerprint !== canonicalOperatorDecisionFingerprint(decision)) issues.push(issue("REPLAY_DECISION_FINGERPRINT_MISMATCH", "evidence.decisionFingerprint", "recorded decision fingerprint could not be recomputed"));
-  } catch (error) {
-    issues.push(issue("REPLAY_DECISION_INVALID", "evidence.canonicalDecision", error instanceof Error ? error.message : String(error)));
+  } catch {
+    issues.push(issue("REPLAY_DECISION_INVALID", "evidence.canonicalDecision", "recorded canonical decision is invalid"));
   }
   if (!isFingerprint(artifact.artifactFingerprint) || artifact.artifactFingerprint !== bodyFingerprint(artifact)) issues.push(issue("REPLAY_ARTIFACT_FINGERPRINT_MISMATCH", "evidence.artifactFingerprint", "artifact fingerprint could not be recomputed"));
   return { artifact, issues };
@@ -201,20 +215,21 @@ export function replayRecordedDecision(operator: CanonicalOperator | CanonicalOp
   const artifact = checked.artifact;
   const issues = [...checked.issues];
   let canonical: CanonicalOperatorV2 | undefined;
-  try { canonical = ensureCanonicalOperatorV2(operator); } catch (error) {
-    issues.push(issue("REPLAY_OPERATOR_INVALID", "operator", error instanceof Error ? error.message : String(error)));
+  try { canonical = ensureCanonicalOperatorV2(operator); } catch {
+    issues.push(issue("REPLAY_OPERATOR_INVALID", "operator", "operator cannot be canonicalized"));
   }
   if (canonical !== undefined && stableEvaluationJson(canonical.metadata) !== stableEvaluationJson(artifact.operatorMetadata)) {
     issues.push(issue("REPLAY_OPERATOR_IDENTITY_MISMATCH", "operator.metadata", "operator identity, version, configuration, implementation, or adapter differs from recording"));
   }
+  if (canonical !== undefined && canonical.metadata.capabilities.randomness.kind !== "deterministic" && !issues.some((entry) => entry.code === "REPLAY_SEEDED_OPERATOR_UNSUPPORTED")) issues.push(issue("REPLAY_SEEDED_OPERATOR_UNSUPPORTED", "operator.metadata.capabilities.randomness", "v1 replay supports deterministic operators only until canonical input carries an explicit seed binding"));
   if (canonical !== undefined && issues.every((entry) => !entry.code.startsWith("REPLAY_OPERATOR_") && !entry.code.startsWith("REPLAY_INPUT_"))) {
     try {
       const replayed = validateCanonicalDecisionEnvelope(artifact.canonicalInput, canonical.metadata, canonical.decide(cloneFreeze(artifact.canonicalInput)));
       if (stableEvaluationJson(expectedActionJson(replayed)) !== stableEvaluationJson(artifact.canonicalActionJson) || canonicalOperatorDecisionFingerprint(replayed) !== artifact.decisionFingerprint) {
         issues.push(issue("REPLAY_DECISION_MISMATCH", "evidence.canonicalDecision", "replayed Actions or decision fingerprint differ from the recording"));
       }
-    } catch (error) {
-      issues.push(issue("REPLAY_INVOCATION_FAILED", "operator.decide", error instanceof Error ? error.message : String(error)));
+    } catch {
+      issues.push(issue("OPERATOR_INVOCATION_FAILED", "operator.decide", "operator invocation or canonical decision validation failed"));
     }
   }
   const fingerprint = safeFingerprint(value);
