@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { evaluationFingerprint } from "../../src/evaluation/baseline-contract.js";
 import { ensureCanonicalOperatorV2 } from "../../src/operator/canonical-interface.js";
 import { declarativeProbeFingerprint, runBaselineValidationCase, runBaselineValidationSuite, stableBaselineConformanceReportJson } from "../../src/validation/index.js";
-import { ALL_BASELINE_VALIDATION_CASES, FROZEN_BASELINE_OPERATORS, FROZEN_BASELINE_OPERATOR_IDS, FROZEN_POLICY_ACTION_FINGERPRINTS, createCompleteBaselineValidationCase } from "./helpers.js";
+import { ALL_BASELINE_VALIDATION_CASES, FROZEN_BASELINE_OPERATORS, FROZEN_BASELINE_OPERATOR_IDS, FROZEN_POLICY_ACTION_FINGERPRINTS, createCompleteBaselineValidationCase, type EvidenceInvocationSection } from "./helpers.js";
 
 describe("all frozen baseline validation coverage", () => {
   it("registers every frozen baseline exactly once in frozen order", () => {
@@ -83,6 +83,13 @@ describe("all frozen baseline validation coverage", () => {
                   : "causalPolicyEffectMinor";
       expect(witnessKeys, id).toContain(requiredWitnessKey);
       expect(pair.leftWitnessFingerprint).not.toBe(pair.rightWitnessFingerprint);
+      for (const isolation of [entry.evidence.hiddenTruthIsolation[0]!, entry.evidence.futureInformationIsolation[0]!]) {
+        expect(isolation.baseline.visibleInputFingerprint).toBe(isolation.variant.visibleInputFingerprint);
+        for (const side of [isolation.baseline, isolation.variant]) {
+          expect(side.witnessFingerprint).toBe(evaluationFingerprint(side.witness));
+          expect(Object.keys(side.witness).some((key) => ["caseId", "kind", "witness"].includes(key))).toBe(false);
+        }
+      }
 
       const seedBindings = entry.evidence.provenanceIntegrity.filter((evidence) => evidence.label.startsWith("seed-binding:"));
       expect(seedBindings).toHaveLength(2);
@@ -102,6 +109,26 @@ describe("all frozen baseline validation coverage", () => {
       if (ensureCanonicalOperatorV2(entry.operator).metadata.capabilities.maximumActionsPerDecision > 0) {
         expect(entry.evidence.missingDataBehavior.invocations[0]!.canonicalInput.legalActionSpace.rules.length, id).toBeGreaterThan(0);
       }
+      const policyInput = entry.evidence.policySemantics.invocations[0]!.canonicalInput;
+      expect(entry.evidence.temporalBoundary.observationFingerprint).toBe(policyInput.provenance.observationFingerprint);
+      expect(entry.evidence.lookbackWindow.observationFingerprint).toBe(policyInput.provenance.observationFingerprint);
+      if (policyInput.observation.records.length > 0) {
+        expect(entry.evidence.temporalBoundary.observations.length, id).toBeGreaterThan(0);
+        expect(entry.evidence.lookbackWindow.observations.length, id).toBeGreaterThan(0);
+        const sourceMinima = policyInput.observation.records.map((record) => record.sourceMinOccurredAt);
+        const sourceMaxima = policyInput.observation.records.map((record) => record.sourceMaxOccurredAt);
+        const expectedStart = sourceMinima.reduce((earliest, timestamp) => Date.parse(timestamp) < Date.parse(earliest) ? timestamp : earliest);
+        expect(entry.evidence.lookbackWindow.startInclusive, id).toBe(expectedStart);
+        expect(entry.evidence.lookbackWindow.endInclusive, id).toBe(policyInput.decisionTime);
+        expect(entry.evidence.temporalBoundary.decisionTimestamp, id).toBe(policyInput.decisionTime);
+        expect(new Set(entry.evidence.temporalBoundary.observations.map((observation) => observation.occurredAt)), id).toEqual(new Set(sourceMaxima));
+        expect(new Set(entry.evidence.lookbackWindow.observations.map((observation) => observation.occurredAt)), id).toEqual(new Set([...sourceMinima, ...sourceMaxima]));
+        for (const temporal of [...entry.evidence.temporalBoundary.observations, ...entry.evidence.lookbackWindow.observations]) {
+          const payload = temporal.payload as { observationFingerprint: string; data: unknown; dataFingerprint: string };
+          expect(payload.observationFingerprint).toBe(policyInput.provenance.observationFingerprint);
+          expect(payload.dataFingerprint).toBe(evaluationFingerprint(payload.data));
+        }
+      }
     }
   });
 
@@ -115,5 +142,33 @@ describe("all frozen baseline validation coverage", () => {
     expect(expectation.expectedActionFingerprints[0]).toBe(FROZEN_POLICY_ACTION_FINGERPRINTS[original.metadata.operatorId]);
     expect(expectation.expectedActionFingerprints[0]).not.toEqual([]);
     expect(altered.decide(validationCase.evidence.policySemantics.invocations[0]!.canonicalInput).actions).toEqual([]);
+  });
+
+  it("builds determinism, seed, leakage, and randomness evidence from fresh real invocations", () => {
+    const original = FROZEN_BASELINE_OPERATORS[2]!;
+    let realCalls = 0;
+    const counting = { ...original, decide(input: Parameters<typeof original.decide>[0]) { realCalls += 1; return original.decide(input); } };
+    const sectionCounts = new Map<EvidenceInvocationSection, number>();
+    const validationCase = createCompleteBaselineValidationCase(counting, 2, (section) => sectionCounts.set(section, (sectionCounts.get(section) ?? 0) + 1));
+    expect(sectionCounts).toEqual(new Map<EvidenceInvocationSection, number>([["determinism", 2], ["seed_reproducibility", 4], ["hidden_truth_isolation", 2], ["future_information_isolation", 2], ["uncontrolled_randomness_detection", 3]]));
+    expect(realCalls).toBeGreaterThanOrEqual(14);
+    expect(validationCase.evidence.determinism[0]!.decisionEnvelope).not.toBe(validationCase.evidence.determinism[1]!.decisionEnvelope);
+    expect(validationCase.evidence.uncontrolledRandomness[0]!.decisionEnvelope).not.toBe(validationCase.evidence.uncontrolledRandomness[1]!.decisionEnvelope);
+  });
+
+  it("fails temporal checks when report evidence is rebound away from its canonical policy input", () => {
+    const original = ALL_BASELINE_VALIDATION_CASES[2]!;
+    const changed = { ...original, evidence: { ...original.evidence, temporalBoundary: { ...original.evidence.temporalBoundary, observationFingerprint: evaluationFingerprint({ forged: true }) } } };
+    const report = runBaselineValidationCase(changed);
+    expect(report.checks.find((check) => check.checkId === "temporal_boundary_conformance")?.issues.map((issue) => issue.code)).toContain("OBSERVATION_BINDING_MISMATCH");
+    const payload = { observationKey: "forged.observation", observationFingerprint: original.evidence.temporalBoundary.observationFingerprint, data: { forged: true }, dataFingerprint: evaluationFingerprint({ forged: true }) };
+    const changedPayload = { ...original, evidence: { ...original.evidence, temporalBoundary: { ...original.evidence.temporalBoundary, observations: [{ ...original.evidence.temporalBoundary.observations[0]!, payload }] } } };
+    const payloadReport = runBaselineValidationCase(changedPayload);
+    expect(payloadReport.checks.find((check) => check.checkId === "temporal_boundary_conformance")?.issues.map((issue) => issue.code)).toContain("OBSERVATION_BINDING_MISMATCH");
+    const later = "2026-12-31T00:00:00.000Z";
+    const shiftedDecision = { ...original, evidence: { ...original.evidence, temporalBoundary: { ...original.evidence.temporalBoundary, decisionTimestamp: later } } };
+    expect(runBaselineValidationCase(shiftedDecision).checks.find((check) => check.checkId === "temporal_boundary_conformance")?.issues.map((issue) => issue.code)).toContain("TEMPORAL_BINDING_MISMATCH");
+    const widenedLookback = { ...original, evidence: { ...original.evidence, lookbackWindow: { ...original.evidence.lookbackWindow, startInclusive: "2025-01-01T00:00:00.000Z" } } };
+    expect(runBaselineValidationCase(widenedLookback).checks.find((check) => check.checkId === "lookback_window_conformance")?.issues.map((issue) => issue.code)).toContain("TEMPORAL_BINDING_MISMATCH");
   });
 });

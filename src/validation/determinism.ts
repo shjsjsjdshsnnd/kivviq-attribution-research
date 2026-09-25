@@ -1,6 +1,7 @@
 import { evaluationFingerprint } from "../evaluation/baseline-contract.js";
 import type { BaselineValidationCheckId, BaselineValidationCheckResult, BaselineValidationIssue } from "./contract.js";
 import { canonicalActionFingerprints, hasExactKeys, isFingerprint, isNonEmptyString, isRecord, isStrictJson, issue, result, safeFingerprint } from "./shared.js";
+import { FROZEN_BASELINE_VALIDATION_SEED_SET, type BaselineValidationSeeds } from "./seed-sets.js";
 
 export interface DeterministicDecisionSample {
   readonly sampleId: string;
@@ -30,8 +31,10 @@ export interface CompleteRunSample {
 
 export interface SeedReproducibilitySample {
   readonly sampleId: string;
+  readonly seedSetVersion: string;
   readonly seedSetFingerprint: string;
   readonly seedCaseId: string;
+  readonly seeds: BaselineValidationSeeds;
   readonly seedBindingFingerprint: string;
   readonly canonicalInputFingerprint: string;
   readonly operatorFingerprint: string;
@@ -41,7 +44,7 @@ export interface SeedReproducibilitySample {
 
 const DECISION_KEYS = ["sampleId", "canonicalInputFingerprint", "operatorFingerprint", "configurationFingerprint", "seedBindingFingerprint", "actions", "decisionEnvelope"] as const;
 const RUN_KEYS = ["sampleId", "canonicalInputFingerprint", "operatorFingerprint", "configurationFingerprint", "seedSetFingerprint", "decisionOpportunities", "observations", "outputs", "dispositions", "executedActions", "simulatorOutcomeFingerprint", "metrics", "provenanceFingerprint"] as const;
-const SEED_KEYS = ["sampleId", "seedSetFingerprint", "seedCaseId", "seedBindingFingerprint", "canonicalInputFingerprint", "operatorFingerprint", "configurationFingerprint", "runFingerprint"] as const;
+const SEED_KEYS = ["sampleId", "seedSetVersion", "seedSetFingerprint", "seedCaseId", "seeds", "seedBindingFingerprint", "canonicalInputFingerprint", "operatorFingerprint", "configurationFingerprint", "runFingerprint"] as const;
 
 function validateCollection(value: unknown, minimum: number, keys: readonly string[], label: string): { entries: Record<string, unknown>[]; issues: BaselineValidationIssue[] } {
   const issues: BaselineValidationIssue[] = [];
@@ -124,7 +127,14 @@ export function validateSeedReproducibility(seedRuns: readonly SeedReproducibili
   commonBindings(checked.entries, ["seedSetFingerprint", "canonicalInputFingerprint", "operatorFingerprint", "configurationFingerprint"], checked.issues);
   const runFingerprints: string[] = [];
   checked.entries.forEach((entry, index) => {
-    if (!isNonEmptyString(entry["seedCaseId"]) || !isFingerprint(entry["seedBindingFingerprint"])) checked.issues.push(issue("INVALID_SEED_BINDING", `evidence[${index}]`, "seed case and binding fingerprints must be explicit"));
+    const frozenCase = FROZEN_BASELINE_VALIDATION_SEED_SET.cases.find((candidate) => candidate.caseId === entry["seedCaseId"]);
+    const exactFrozenBinding = entry["seedSetVersion"] === FROZEN_BASELINE_VALIDATION_SEED_SET.schemaVersion
+      && entry["seedSetFingerprint"] === FROZEN_BASELINE_VALIDATION_SEED_SET.seedSetFingerprint
+      && frozenCase !== undefined
+      && isRecord(entry["seeds"])
+      && JSON.stringify(entry["seeds"]) === JSON.stringify(frozenCase.seeds)
+      && entry["seedBindingFingerprint"] === evaluationFingerprint({ seedCaseId: frozenCase.caseId, seeds: frozenCase.seeds });
+    if (!exactFrozenBinding) checked.issues.push(issue("INVALID_SEED_BINDING", `evidence[${index}]`, "seed evidence must bind an exact case from the frozen seed set"));
     if (!isFingerprint(entry["runFingerprint"])) checked.issues.push(issue("INVALID_RUN_FINGERPRINT", `evidence[${index}].runFingerprint`, "run fingerprint must be canonical"));
     else runFingerprints.push(entry["runFingerprint"]);
   });

@@ -37,6 +37,7 @@ import {
   declarativeProbeFingerprint,
   type BaselineValidationCase,
   type ExecutableConformanceProbe,
+  type InformationIsolationPair,
   type ProhibitedInformationProbe,
 } from "../../src/validation/index.js";
 
@@ -220,10 +221,10 @@ function statusQuoContext(value: number) {
   ]);
 }
 
-function advertisingContext(channels: readonly AdvertisingChannelObservation[], sequence = 0) {
-  return canonicalContext(sequence, [{ observationKey: ADVERTISING_HEURISTIC_OBSERVATION_KEY, informationClass: "derived_observable_metric", sourceRef: "platform-report:advertising-channel-metrics", value: { schemaVersion: "1.0.0", attributionSemantics: "operator_observed_attributed_revenue", budgetPeriod: "week", lookbackDays: 7, channels } }], [{ actionType: "advertising.adjust_budget", eligibleTargets: channels.map(({ channelId }) => ({ kind: "advertising_channel", channelId })), parameterBounds: [], requiredPreconditionIds: [] }]);
+function advertisingContext(channels: readonly AdvertisingChannelObservation[], sequence = 0, eligibleChannelIds = channels.map(({ channelId }) => channelId)) {
+  return canonicalContext(sequence, [{ observationKey: ADVERTISING_HEURISTIC_OBSERVATION_KEY, informationClass: "derived_observable_metric", sourceRef: "platform-report:advertising-channel-metrics", value: { schemaVersion: "1.0.0", attributionSemantics: "operator_observed_attributed_revenue", budgetPeriod: "week", lookbackDays: 7, channels } }], [{ actionType: "advertising.adjust_budget", eligibleTargets: eligibleChannelIds.map((channelId) => ({ kind: "advertising_channel", channelId })), parameterBounds: [], requiredPreconditionIds: [] }]);
 }
-const adChannel = (channelId: string, currentBudgetMinor: number, roas: number | null): AdvertisingChannelObservation => ({ channelId, active: true, currency: "CAD", currentBudgetMinor, spendMinor: roas === null ? null : 100_000, attributedRevenueMinor: roas === null ? null : roas * 100_000, historyDays: 7 });
+const adChannel = (channelId: string, currentBudgetMinor: number, roas: number | null, overrides: Partial<AdvertisingChannelObservation> = {}): AdvertisingChannelObservation => ({ channelId, active: true, currency: "CAD", currentBudgetMinor, spendMinor: roas === null ? null : 100_000, attributedRevenueMinor: roas === null ? null : roas * 100_000, historyDays: 7, ...overrides });
 
 function inventoryContext(item: InventorySkuObservation, sequence = 0) {
   return canonicalContext(sequence, [{ observationKey: INVENTORY_HEURISTIC_OBSERVATION_KEY, informationClass: "current_state_information", sourceRef: "inventory-ledger:step3.5-inventory-state", value: { schemaVersion: "1.0.0", availabilityConcept: "AVAILABLE_TO_SELL", skus: [item] } }], [
@@ -246,19 +247,19 @@ function merchandisingContext(products: readonly MerchandisingProductObservation
   const windowStart = new Date(Date.parse(opportunity.at) - 30 * 86400000).toISOString();
   return canonicalContext(sequence, [{ observationKey: MERCHANDISING_HEURISTIC_OBSERVATION_KEY, informationClass: "historical_information", sourceMinOccurredAt: windowStart, sourceRef: "commerce-ledger:step3.7-product-performance", value: { schemaVersion: "1.0.0", targetCollectionId: "collection:X", currency: "CAD", lookbackDays: 30, windowStart, windowEnd: opportunity.at, products } }], [{ actionType: "merchandising.move_product", eligibleTargets: products.map(({ productId }) => ({ kind: "product", productId })), parameterBounds: [], requiredPreconditionIds: [] }]);
 }
-const merchProduct = (productId: string, currentPosition: number, score: number): MerchandisingProductObservation => ({ productId, collectionMember: true, active: true, available: true, merchandisingEligible: true, excluded: false, currentPosition, pinnedPosition: null, mandatoryPosition: null, newlyLaunched: false, revenueMinor: score, conversions: score, productViews: 100, unitsSold: score });
+const merchProduct = (productId: string, currentPosition: number, score: number, overrides: Partial<MerchandisingProductObservation> = {}): MerchandisingProductObservation => ({ productId, collectionMember: true, active: true, available: true, merchandisingEligible: true, excluded: false, currentPosition, pinnedPosition: null, mandatoryPosition: null, newlyLaunched: false, revenueMinor: score, conversions: score, productViews: 100, unitsSold: score, ...overrides });
 
-function greedyContext(channels: readonly GreedyChannelObservation[], sequence = 0) {
+function greedyContext(channels: readonly GreedyChannelObservation[], sequence = 0, lookbackDays = 7) {
   const opportunity = createFixedIntervalDecisionOpportunity(contract, START, sequence);
-  const windowStart = new Date(Date.parse(opportunity.at) - 7 * 86400000).toISOString();
-  return canonicalContext(sequence, [{ observationKey: GREEDY_OBSERVATION_KEY, informationClass: "historical_information", sourceMinOccurredAt: windowStart, sourceRef: "historical-observable:step3.8-greedy-evidence", value: { schemaVersion: "1.0.0", currency: "CAD", lookbackDays: 7, windowStart, windowEnd: opportunity.at, channels, products: [] } }], [{ actionType: "advertising.adjust_budget", eligibleTargets: channels.map(({ channelId }) => ({ kind: "advertising_channel", channelId })), parameterBounds: [], requiredPreconditionIds: [] }]);
+  const windowStart = new Date(Date.parse(opportunity.at) - lookbackDays * 86400000).toISOString();
+  return canonicalContext(sequence, [{ observationKey: GREEDY_OBSERVATION_KEY, informationClass: "historical_information", sourceMinOccurredAt: windowStart, sourceRef: "historical-observable:step3.8-greedy-evidence", value: { schemaVersion: "1.0.0", currency: "CAD", lookbackDays, windowStart, windowEnd: opportunity.at, channels, products: [] } }], [{ actionType: "advertising.adjust_budget", eligibleTargets: channels.map(({ channelId }) => ({ kind: "advertising_channel", channelId })), parameterBounds: [], requiredPreconditionIds: [] }]);
 }
 const greedyChannel = (channelId: string, revenue: number, grossProfit: number, contribution: number): GreedyChannelObservation => ({ channelId, active: true, currentBudgetMinor: 500_000, spendMinor: 100_000, attributedRevenueMinor: revenue, attributedGrossProfitMinor: grossProfit, attributedContributionMinor: contribution });
 
-function flawedContext(channels: readonly FlawedChannelObservation[], products: readonly FlawedProductObservation[], sequence = 0) {
+function flawedContext(channels: readonly FlawedChannelObservation[], products: readonly FlawedProductObservation[], sequence = 0, lookbackDays = 7) {
   const opportunity = createFixedIntervalDecisionOpportunity(contract, START, sequence);
-  const windowStart = new Date(Date.parse(opportunity.at) - 7 * 86400000).toISOString();
-  return canonicalContext(sequence, [{ observationKey: FLAWED_OPTIMIZER_OBSERVATION_KEY, informationClass: "historical_information", sourceMinOccurredAt: windowStart, sourceRef: "historical-observable:step3.9-flawed-kpi-evidence", value: { schemaVersion: "1.0.0", currency: "CAD", lookbackDays: 7, windowStart, windowEnd: opportunity.at, channels, products } }], [
+  const windowStart = new Date(Date.parse(opportunity.at) - lookbackDays * 86400000).toISOString();
+  return canonicalContext(sequence, [{ observationKey: FLAWED_OPTIMIZER_OBSERVATION_KEY, informationClass: "historical_information", sourceMinOccurredAt: windowStart, sourceRef: "historical-observable:step3.9-flawed-kpi-evidence", value: { schemaVersion: "1.0.0", currency: "CAD", lookbackDays, windowStart, windowEnd: opportunity.at, channels, products } }], [
     { actionType: "advertising.adjust_budget", eligibleTargets: channels.map(({ channelId }) => ({ kind: "advertising_channel", channelId })), parameterBounds: [], requiredPreconditionIds: [] },
     { actionType: "merchandising.move_product", eligibleTargets: products.map(({ productId }) => ({ kind: "product", productId })), parameterBounds: [], requiredPreconditionIds: [] },
     { actionType: "promotion.start", eligibleTargets: products.map(({ productId }) => ({ kind: "promotion", promotionId: `promo_flawed_${productId === "product:A" ? "product_a" : "product_b"}_10pct` })), parameterBounds: [], requiredPreconditionIds: [] },
@@ -292,21 +293,40 @@ function executableProbe(
   return { ...body, probeFingerprint: declarativeProbeFingerprint(body) };
 }
 
-function prohibitedProbe(operator: ReturnType<typeof ensureCanonicalOperatorV2>, caseId: string, input: ReturnType<typeof emptyCanonicalContext>["input"]): ProhibitedInformationProbe {
-  const operatorId = operator.metadata.operatorId;
-  const [leftWitness, rightWitness] = operatorId.startsWith("baseline.advertising.")
-    ? [{ hiddenIncrementalRoas: 0, futureAttributedRevenueMinor: 100_000, causalIncrementalityEffectBasisPoints: -500 }, { hiddenIncrementalRoas: 8, futureAttributedRevenueMinor: 10_000_000, causalIncrementalityEffectBasisPoints: 2_000 }]
+function familyWitnesses(operatorId: string) {
+  const hidden = operatorId.startsWith("baseline.advertising.")
+    ? [{ hiddenIncrementalRoas: 0, causalIncrementalityEffectBasisPoints: -500 }, { hiddenIncrementalRoas: 8, causalIncrementalityEffectBasisPoints: 2_000 }]
     : operatorId.startsWith("baseline.inventory.")
-      ? [{ futureDemandUnits: 10, hiddenSupplierLeadTimeDays: 30 }, { futureDemandUnits: 10_000, hiddenSupplierLeadTimeDays: 1 }]
+      ? [{ hiddenSupplierLeadTimeDays: 30, hiddenStockoutCostMinor: 50_000 }, { hiddenSupplierLeadTimeDays: 1, hiddenStockoutCostMinor: 100 }]
       : operatorId.startsWith("baseline.pricing.") || operatorId.startsWith("baseline.promotion.")
-        ? [{ marginMinor: 100, futureDemandUnits: 10, causalPromotionLiftBasisPoints: -500 }, { marginMinor: -200, futureDemandUnits: 10_000, causalPromotionLiftBasisPoints: 2_000 }]
+        ? [{ marginMinor: 100, causalPromotionLiftBasisPoints: -500 }, { marginMinor: -200, causalPromotionLiftBasisPoints: 2_000 }]
         : operatorId.startsWith("baseline.merchandising.")
-          ? [{ futureConversionBasisPoints: 100, marginMinor: 100, causalPlacementEffectBasisPoints: -100 }, { futureConversionBasisPoints: 2_000, marginMinor: -200, causalPlacementEffectBasisPoints: 900 }]
+          ? [{ marginMinor: 100, causalPlacementEffectBasisPoints: -100 }, { marginMinor: -200, causalPlacementEffectBasisPoints: 900 }]
           : operatorId.startsWith("baseline.greedy.")
-            ? [{ futureContributionMinor: 100, marginMinor: 100, causalChannelEffectMinor: -1_000 }, { futureContributionMinor: 50_000, marginMinor: -200, causalChannelEffectMinor: 20_000 }]
+            ? [{ marginMinor: 100, causalChannelEffectMinor: -1_000 }, { marginMinor: -200, causalChannelEffectMinor: 20_000 }]
             : operatorId.startsWith("baseline.flawed.")
-              ? [{ clvMinor: 500, marginMinor: 100, causalEffectBasisPoints: -500, futureConversionBasisPoints: 100 }, { clvMinor: 50_000, marginMinor: -200, causalEffectBasisPoints: 2_000, futureConversionBasisPoints: 2_000 }]
-              : [{ causalPolicyEffectMinor: -1_000, futurePolicyOutcomeMinor: 100 }, { causalPolicyEffectMinor: 20_000, futurePolicyOutcomeMinor: 50_000 }];
+              ? [{ clvMinor: 500, marginMinor: 100, causalEffectBasisPoints: -500 }, { clvMinor: 50_000, marginMinor: -200, causalEffectBasisPoints: 2_000 }]
+              : [{ causalPolicyEffectMinor: -1_000, hiddenCounterfactualProfitMinor: 100 }, { causalPolicyEffectMinor: 20_000, hiddenCounterfactualProfitMinor: 50_000 }];
+  const future = operatorId.startsWith("baseline.advertising.")
+    ? [{ futureAttributedRevenueMinor: 100_000 }, { futureAttributedRevenueMinor: 10_000_000 }]
+    : operatorId.startsWith("baseline.inventory.")
+      ? [{ futureDemandUnits: 10 }, { futureDemandUnits: 10_000 }]
+      : operatorId.startsWith("baseline.pricing.") || operatorId.startsWith("baseline.promotion.")
+        ? [{ futureDemandUnits: 10, futurePromotionRevenueMinor: 100 }, { futureDemandUnits: 10_000, futurePromotionRevenueMinor: 50_000 }]
+        : operatorId.startsWith("baseline.merchandising.")
+          ? [{ futureConversionBasisPoints: 100 }, { futureConversionBasisPoints: 2_000 }]
+          : operatorId.startsWith("baseline.greedy.")
+            ? [{ futureContributionMinor: 100, delayedOutcomeMinor: -1_000 }, { futureContributionMinor: 50_000, delayedOutcomeMinor: 20_000 }]
+            : operatorId.startsWith("baseline.flawed.")
+              ? [{ futureConversionBasisPoints: 100, futureClvMinor: 500 }, { futureConversionBasisPoints: 2_000, futureClvMinor: 50_000 }]
+              : [{ futurePolicyOutcomeMinor: 100 }, { futurePolicyOutcomeMinor: 50_000 }];
+  return { hidden: hidden as unknown as readonly [object, object], future: future as unknown as readonly [object, object] } as const;
+}
+
+function prohibitedProbe(operator: ReturnType<typeof ensureCanonicalOperatorV2>, caseId: string, input: ReturnType<typeof emptyCanonicalContext>["input"]): ProhibitedInformationProbe {
+  const witnesses = familyWitnesses(operator.metadata.operatorId);
+  const leftWitness = { ...witnesses.hidden[0], ...witnesses.future[0] };
+  const rightWitness = { ...witnesses.hidden[1], ...witnesses.future[1] };
   const body = {
     probeId: `${caseId}:prohibited`,
     checkId: "prohibited_information_invariance" as const,
@@ -333,15 +353,16 @@ interface FamilyEvidenceInputs {
   readonly policy: CanonicalContext;
   readonly sensitivity: readonly [CanonicalContext, CanonicalContext] | null;
   readonly tie: CanonicalContext;
+  readonly missing: CanonicalContext;
   readonly multi: CanonicalContext | null;
 }
 
 function familyEvidenceInputs(operatorId: string): FamilyEvidenceInputs {
   const empty = emptyCanonicalContext();
-  if (operatorId === "baseline.do_nothing") return { policy: empty, sensitivity: null, tie: empty, multi: null };
+  if (operatorId === "baseline.do_nothing") return { policy: empty, sensitivity: null, tie: empty, missing: empty, multi: null };
   if (operatorId === "baseline.status_quo") {
     const noDue = statusQuoContext(0); const due = statusQuoContext(1);
-    return { policy: due, sensitivity: [noDue, due], tie: noDue, multi: due };
+    return { policy: due, sensitivity: [noDue, due], tie: noDue, missing: noDue, multi: due };
   }
   if (operatorId.startsWith("baseline.advertising.")) {
     const balanced = [adChannel("google_ads", 700_000, 4), adChannel("meta_ads", 200_000, 1), adChannel("pinterest_ads", 100_000, 2)];
@@ -354,54 +375,77 @@ function familyEvidenceInputs(operatorId: string): FamilyEvidenceInputs {
       left = advertisingContext([adChannel("google_ads", 500_000, 1), adChannel("meta_ads", 500_000, 2)]);
       right = advertisingContext([adChannel("google_ads", 500_000, 2), adChannel("meta_ads", 500_000, 1)]);
     }
-    const tie = advertisingContext([adChannel("google_ads", 500_000, 2), adChannel("meta_ads", 500_000, 2)]);
+    const tie = operatorId.endsWith("roas_threshold_increase")
+      ? advertisingContext([adChannel("google_ads", 500_000, 3)])
+      : operatorId.endsWith("roas_threshold_decrease")
+        ? advertisingContext([adChannel("google_ads", 500_000, 1.5)])
+        : advertisingContext([adChannel("google_ads", 500_000, 2), adChannel("meta_ads", 500_000, 2)]);
     const multi = operatorId.endsWith("roas_threshold_increase")
       ? advertisingContext([adChannel("google_ads", 500_000, 4), adChannel("meta_ads", 500_000, 4)])
       : operatorId.endsWith("roas_threshold_decrease")
         ? advertisingContext([adChannel("google_ads", 500_000, 1), adChannel("meta_ads", 500_000, 1)])
         : left;
-    return { policy: left, sensitivity: [left, right], tie, multi };
+    const missing = operatorId.endsWith("equal_budget_allocation")
+      ? advertisingContext(balanced, 0, ["tiktok_ads"])
+      : operatorId.endsWith("roas_threshold_increase")
+        ? advertisingContext([adChannel("google_ads", 500_000, null)])
+        : operatorId.endsWith("roas_threshold_decrease")
+          ? advertisingContext([adChannel("google_ads", 500_000, 1, { spendMinor: 0, attributedRevenueMinor: 0 })])
+          : operatorId.endsWith("highest_observed_roas")
+            ? advertisingContext([adChannel("google_ads", 500_000, 4, { historyDays: 0 }), adChannel("meta_ads", 500_000, 1, { historyDays: 0 })])
+            : advertisingContext(balanced, 0, ["google_ads", "meta_ads"]);
+    return { policy: left, sensitivity: [left, right], tie, missing, multi };
   }
   if (operatorId.startsWith("baseline.inventory.")) {
-    if (operatorId.endsWith("no_inventory_aware_intervention")) return { policy: inventoryContext(inventorySku({ availableUnits: 9 })), sensitivity: null, tie: empty, multi: null };
+    if (operatorId.endsWith("no_inventory_aware_intervention")) { const policy = inventoryContext(inventorySku({ availableUnits: 9 })); return { policy, sensitivity: null, tie: empty, missing: inventoryContext(inventorySku({ active: false, availableUnits: null })), multi: null }; }
     if (operatorId.endsWith("fixed_reorder_quantity")) {
       const left = inventoryContext(inventorySku({ observableReorderTriggered: false })); const right = inventoryContext(inventorySku({ observableReorderTriggered: true }));
-      return { policy: right, sensitivity: [left, right], tie: left, multi: null };
+      return { policy: right, sensitivity: [left, right], tie: left, missing: inventoryContext(inventorySku({ active: false, observableReorderTriggered: true })), multi: null };
     }
     if (operatorId.endsWith("low_inventory_depromotion")) {
       const left = inventoryContext(inventorySku({ availableUnits: 6 })); const right = inventoryContext(inventorySku({ availableUnits: 4 }));
-      return { policy: right, sensitivity: [left, right], tie: left, multi: null };
+      return { policy: right, sensitivity: [left, right], tie: inventoryContext(inventorySku({ availableUnits: 5 })), missing: inventoryContext(inventorySku({ availableUnits: null })), multi: null };
     }
     const left = inventoryContext(inventorySku({ availableUnits: 11 })); const right = inventoryContext(inventorySku({ availableUnits: 9 }));
-    return { policy: right, sensitivity: [left, right], tie: inventoryContext(inventorySku({ availableUnits: 10 })), multi: null };
+    return { policy: right, sensitivity: [left, right], tie: inventoryContext(inventorySku({ availableUnits: 10 })), missing: inventoryContext(inventorySku({ availableUnits: null })), multi: null };
   }
   if (operatorId.startsWith("baseline.pricing.") || operatorId.startsWith("baseline.promotion.")) {
     if (operatorId.endsWith("never_discount")) {
       const left = pricingContext(pricingSku(), 0); const right = pricingContext(pricingSku({ currentPriceMinor: 80_910, currentDiscountBasisPoints: 1000, currentDiscountOwner: "heuristic" }), 0);
-      return { policy: right, sensitivity: [left, right], tie: left, multi: null };
+      return { policy: right, sensitivity: [left, right], tie: left, missing: pricingContext(pricingSku({ skuId: "sku:NEW", productId: "product:NEW", currentPriceMinor: null }), 0), multi: null };
     }
     if (operatorId.endsWith("fixed_discount")) {
       const left = pricingContext(pricingSku({ activeHeuristicRuleIds: ["heuristic.fixed_discount.sku_a.v1"], heuristicRuleStartedAt: { "heuristic.fixed_discount.sku_a.v1": "2026-10-03T00:00:00.000Z" }, currentPriceMinor: 80_910, currentDiscountBasisPoints: 1000, currentDiscountOwner: "heuristic" }), 2); const right = pricingContext(pricingSku(), 2);
-      return { policy: right, sensitivity: [left, right], tie: left, multi: null };
+      return { policy: right, sensitivity: [left, right], tie: left, missing: pricingContext(pricingSku({ active: false }), 2), multi: null };
     }
     if (operatorId.endsWith("excess_inventory_discount")) {
       const left = pricingContext(pricingSku({ observableInventoryUnits: 100 }), 0); const right = pricingContext(pricingSku({ observableInventoryUnits: 101 }), 0);
-      return { policy: right, sensitivity: [left, right], tie: left, multi: null };
+      return { policy: right, sensitivity: [left, right], tie: left, missing: pricingContext(pricingSku({ observableInventoryUnits: null }), 0), multi: null };
     }
     const left = pricingContext(pricingSku({ activePromotionIds: ["promo_heuristic_calendar_fall_a_v1"], promotionOwners: { promo_heuristic_calendar_fall_a_v1: "heuristic" } }), 4); const right = pricingContext(pricingSku(), 4);
-    return { policy: right, sensitivity: [left, right], tie: left, multi: null };
+    return { policy: right, sensitivity: [left, right], tie: left, missing: pricingContext(pricingSku({ promotionEligible: false }), 4), multi: null };
   }
   if (operatorId.startsWith("baseline.merchandising.")) {
     const left = merchandisingContext([merchProduct("product:A", 1, 10), merchProduct("product:B", 2, 30), merchProduct("product:C", 3, 20)]);
     const right = merchandisingContext([merchProduct("product:A", 1, 30), merchProduct("product:B", 2, 10), merchProduct("product:C", 3, 20)]);
     const tie = merchandisingContext([merchProduct("product:A", 2, 20), merchProduct("product:B", 1, 20)]);
-    return { policy: left, sensitivity: [left, right], tie, multi: left };
+    const missing = operatorId.endsWith("rank_by_revenue")
+      ? merchandisingContext([merchProduct("product:A", 1, 10, { revenueMinor: null }), merchProduct("product:B", 2, 20, { available: false })])
+      : operatorId.endsWith("rank_by_conversion_rate")
+        ? merchandisingContext([merchProduct("product:A", 1, 10, { productViews: 0, conversions: 0 }), merchProduct("product:B", 2, 20, { productViews: 10 })])
+        : merchandisingContext([merchProduct("product:A", 1, 10, { unitsSold: null, newlyLaunched: true }), merchProduct("product:B", 2, 20, { unitsSold: null })]);
+    return { policy: left, sensitivity: [left, right], tie, missing, multi: left };
   }
   if (operatorId.startsWith("baseline.greedy.")) {
     const left = greedyContext([greedyChannel("google_ads", 400_000, 300_000, 200_000), greedyChannel("meta_ads", 100_000, 50_000, 25_000)]);
     const right = greedyContext([greedyChannel("google_ads", 100_000, 50_000, 25_000), greedyChannel("meta_ads", 400_000, 300_000, 200_000)]);
     const tie = greedyContext([greedyChannel("google_ads", 200_000, 200_000, 200_000), greedyChannel("meta_ads", 200_000, 200_000, 200_000)]);
-    return { policy: left, sensitivity: [left, right], tie, multi: null };
+    const missingChannels = operatorId.endsWith("immediate_revenue")
+      ? [greedyChannel("google_ads", 0, 100, 100), greedyChannel("meta_ads", 0, 100, 100)].map((channel) => ({ ...channel, attributedRevenueMinor: null }))
+      : operatorId.endsWith("immediate_gross_profit")
+        ? [greedyChannel("google_ads", 100, 0, 100), greedyChannel("meta_ads", 100, 0, 100)].map((channel) => ({ ...channel, attributedGrossProfitMinor: null }))
+        : [greedyChannel("google_ads", 100, 100, 0), greedyChannel("meta_ads", 100, 100, 0)].map((channel) => ({ ...channel, attributedContributionMinor: null }));
+    return { policy: left, sensitivity: [left, right], tie, missing: greedyContext(missingChannels, 0, 0), multi: null };
   }
   const channelsA = [flawedChannel("google_ads", 400_000, 10, 20), flawedChannel("meta_ads", 100_000, 2, 4)];
   const channelsB = [flawedChannel("google_ads", 100_000, 2, 4), flawedChannel("meta_ads", 400_000, 10, 20)];
@@ -409,41 +453,61 @@ function familyEvidenceInputs(operatorId: string): FamilyEvidenceInputs {
   const productsB = [flawedProduct("product:A", 10), flawedProduct("product:B", 30)];
   const left = flawedContext(channelsA, productsA); const right = flawedContext(channelsB, productsB);
   const tie = flawedContext([flawedChannel("google_ads", 200_000, 5, 10), flawedChannel("meta_ads", 200_000, 5, 10)], [flawedProduct("product:A", 20), flawedProduct("product:B", 20)]);
-  return { policy: left, sensitivity: [left, right], tie, multi: null };
+  const missing = operatorId.endsWith("max_roas")
+    ? flawedContext(channelsA.map((channel) => ({ ...channel, spendMinor: 0 })), productsA, 0, 0)
+    : operatorId.endsWith("min_cac")
+      ? flawedContext(channelsA.map((channel) => ({ ...channel, representedNewCustomers: 0 })), productsA, 0, 0)
+      : operatorId.endsWith("lowest_cpa")
+        ? flawedContext(channelsA.map((channel) => ({ ...channel, representedPurchaseConversions: 0 })), productsA, 0, 0)
+        : operatorId.endsWith("highest_conversion_rate")
+          ? flawedContext(channelsA, productsA.map((product) => ({ ...product, productViews: 0 })), 0, 0)
+          : operatorId.endsWith("best_seller_push")
+            ? flawedContext(channelsA, productsA.map((product) => ({ ...product, unitsSold: null })), 0, 0)
+            : flawedContext(channelsA.map((channel) => ({ ...channel, attributedRevenueMinor: null })), productsA.map((product) => ({ ...product, recentUnits: null, revenueMinor: null })), 0, 0);
+  return { policy: left, sensitivity: [left, right], tie, missing, multi: null };
 }
 
-export function createCompleteBaselineValidationCase(legacyOperator: CanonicalOperator, index: number): BaselineValidationCase {
+export type EvidenceInvocationSection = "determinism" | "seed_reproducibility" | "hidden_truth_isolation" | "future_information_isolation" | "uncontrolled_randomness_detection";
+
+export function createCompleteBaselineValidationCase(legacyOperator: CanonicalOperator, index: number, onEvidenceInvocation?: (section: EvidenceInvocationSection) => void): BaselineValidationCase {
   const operator = ensureCanonicalOperatorV2(legacyOperator);
   const caseId = `frozen-baseline-${String(index + 1).padStart(2, "0")}`;
   const inputs = familyEvidenceInputs(operator.metadata.operatorId);
   const { opportunity, observation, availability, input } = inputs.policy;
   const decision = operator.decide(input);
-  const decisionFingerprint = canonicalOperatorDecisionFingerprint(decision);
   const seedCase = FROZEN_BASELINE_VALIDATION_SEED_SET.cases[index % FROZEN_BASELINE_VALIDATION_SEED_SET.cases.length]!;
   const secondSeedCase = FROZEN_BASELINE_VALIDATION_SEED_SET.cases[(index + 1) % FROZEN_BASELINE_VALIDATION_SEED_SET.cases.length]!;
   const seedBindingFingerprint = evaluationFingerprint({ seedCaseId: seedCase.caseId, seeds: seedCase.seeds });
-  const secondSeedBindingFingerprint = evaluationFingerprint({ seedCaseId: secondSeedCase.caseId, seeds: secondSeedCase.seeds });
   const provenanceSeedBinding = (candidate: typeof seedCase) => ({
     seedCaseId: candidate.caseId,
     worldProfile: candidate.worldProfile,
     seeds: candidate.seeds,
     seedBindingFingerprint: evaluationFingerprint({ seedCaseId: candidate.caseId, seeds: candidate.seeds }),
   });
-  const sample = (sampleId: string) => ({
-    sampleId,
-    canonicalInputFingerprint: canonicalInputFingerprint(input),
-    operatorFingerprint: operator.metadata.implementationFingerprint,
-    configurationFingerprint: operator.metadata.configurationFingerprint,
-    seedBindingFingerprint,
-    actions: decision.actions,
-    decisionEnvelope: decision,
-  });
-  const isolationSide = (kind: string) => ({
-    visibleInputFingerprint: canonicalInputFingerprint(input),
-    witnessFingerprint: evaluationFingerprint({ caseId, kind }),
-    decisionFingerprint: canonicalPolicyDecisionFingerprint(decision.actions),
-    actions: decision.actions,
-  });
+  const invokeForEvidence = (section: EvidenceInvocationSection) => { onEvidenceInvocation?.(section); return operator.decide(input); };
+  const sample = (sampleId: string, section: "determinism" | "uncontrolled_randomness_detection") => {
+    const observedDecision = invokeForEvidence(section);
+    return { sampleId, canonicalInputFingerprint: canonicalInputFingerprint(input), operatorFingerprint: operator.metadata.implementationFingerprint, configurationFingerprint: operator.metadata.configurationFingerprint, seedBindingFingerprint, actions: observedDecision.actions, decisionEnvelope: observedDecision };
+  };
+  const seedSample = (sampleId: string, candidate: typeof seedCase) => {
+    const observedDecision = invokeForEvidence("seed_reproducibility");
+    return { sampleId, seedSetVersion: FROZEN_BASELINE_VALIDATION_SEED_SET.schemaVersion, seedSetFingerprint: FROZEN_BASELINE_VALIDATION_SEED_SET.seedSetFingerprint, seedCaseId: candidate.caseId, seeds: candidate.seeds, seedBindingFingerprint: evaluationFingerprint({ seedCaseId: candidate.caseId, seeds: candidate.seeds }), canonicalInputFingerprint: canonicalInputFingerprint(input), operatorFingerprint: operator.metadata.implementationFingerprint, configurationFingerprint: operator.metadata.configurationFingerprint, runFingerprint: canonicalOperatorDecisionFingerprint(observedDecision) };
+  };
+  const isolationPair = (section: "hidden_truth_isolation" | "future_information_isolation", witnesses: readonly [object, object]): InformationIsolationPair => {
+    const side = (witness: object) => { const observedDecision = invokeForEvidence(section); return { visibleInputFingerprint: canonicalInputFingerprint(input), witness, witnessFingerprint: evaluationFingerprint(witness), decisionFingerprint: canonicalPolicyDecisionFingerprint(observedDecision.actions), actions: observedDecision.actions }; };
+    return { pairId: `${caseId}:${section}`, baseline: side(witnesses[0]), variant: side(witnesses[1]) };
+  };
+  const witnesses = familyWitnesses(operator.metadata.operatorId);
+  const temporalKind = operator.metadata.operatorId.startsWith("baseline.advertising.") || operator.metadata.operatorId.startsWith("baseline.greedy.") || operator.metadata.operatorId.startsWith("baseline.flawed.") ? "advertising_outcome" as const
+    : operator.metadata.operatorId.startsWith("baseline.inventory.") ? "inventory_event" as const
+      : operator.metadata.operatorId.startsWith("baseline.pricing.") || operator.metadata.operatorId.startsWith("baseline.promotion.") ? "promotion_outcome" as const
+        : "customer_event" as const;
+  const temporalPayload = (record: typeof input.observation.records[number]) => ({ observationKey: record.observationKey, observationFingerprint: input.provenance.observationFingerprint, data: record.value, dataFingerprint: evaluationFingerprint(record.value) });
+  const temporalObservations = input.observation.records.map((record, recordIndex) => ({ eventId: `${caseId}:observation:${recordIndex}`, kind: temporalKind, occurredAt: record.sourceMaxOccurredAt, payload: temporalPayload(record) }));
+  const lookbackObservations = input.observation.records.flatMap((record, recordIndex) => record.sourceMinOccurredAt === record.sourceMaxOccurredAt
+    ? [{ eventId: `${caseId}:lookback:${recordIndex}`, kind: temporalKind, occurredAt: record.sourceMinOccurredAt, payload: temporalPayload(record) }]
+    : [{ eventId: `${caseId}:lookback:${recordIndex}:start`, kind: temporalKind, occurredAt: record.sourceMinOccurredAt, payload: temporalPayload(record) }, { eventId: `${caseId}:lookback:${recordIndex}:end`, kind: temporalKind, occurredAt: record.sourceMaxOccurredAt, payload: temporalPayload(record) }]);
+  const lookbackStart = input.observation.records.reduce((earliest, record) => Date.parse(record.sourceMinOccurredAt) < Date.parse(earliest) ? record.sourceMinOccurredAt : earliest, opportunity.at);
   const evaluated = invokeOperatorAtDecision(contract, legacyOperator, opportunity, observation, availability, () => ({ issues: [] }));
   const disposition = { contract, opportunity, availability, attempts: decision.actions.map((rawProposal, actionIndex) => ({ rawProposal, constraintIssues: [], explicitModifiedAction: null, attemptRecord: evaluated.decisionRecord.actionAttempts[actionIndex]! })) };
   const replay = createRecordedDecisionArtifact(operator, input, decision, {
@@ -459,7 +523,6 @@ export function createCompleteBaselineValidationCase(legacyOperator: CanonicalOp
   const exact = { kind: "exact" as const, expectedDecisionFingerprints: [canonicalProbeDecisionFingerprint(policyActionFingerprints)], expectedActionFingerprints: [policyActionFingerprints] };
   const tieActionFingerprints = FROZEN_TIE_ACTION_FINGERPRINTS[operator.metadata.operatorId]!;
   const tieExact = { kind: "exact" as const, expectedDecisionFingerprints: [canonicalProbeDecisionFingerprint(tieActionFingerprints)], expectedActionFingerprints: [tieActionFingerprints] };
-  const missingInput = missingObservationContext(inputs.policy).input;
   const missingExact = { kind: "exact" as const, expectedDecisionFingerprints: [canonicalProbeDecisionFingerprint([])], expectedActionFingerprints: [[]] };
   const notApplicable = (checkId: "permitted_information_sensitivity" | "multi_action_behavior") => ({
     kind: "not_applicable" as const,
@@ -474,17 +537,14 @@ export function createCompleteBaselineValidationCase(legacyOperator: CanonicalOp
     caseId,
     operator: legacyOperator,
     evidence: {
-      determinism: [sample("canonical-a"), sample("canonical-b")],
+      determinism: [sample("canonical-a", "determinism"), sample("canonical-b", "determinism")],
       seedReproducibility: [
-        { sampleId: "seed-a-1", seedSetFingerprint: FROZEN_BASELINE_VALIDATION_SEED_SET.seedSetFingerprint, seedCaseId: seedCase.caseId, seedBindingFingerprint, canonicalInputFingerprint: canonicalInputFingerprint(input), operatorFingerprint: operator.metadata.implementationFingerprint, configurationFingerprint: operator.metadata.configurationFingerprint, runFingerprint: decisionFingerprint },
-        { sampleId: "seed-a-2", seedSetFingerprint: FROZEN_BASELINE_VALIDATION_SEED_SET.seedSetFingerprint, seedCaseId: seedCase.caseId, seedBindingFingerprint, canonicalInputFingerprint: canonicalInputFingerprint(input), operatorFingerprint: operator.metadata.implementationFingerprint, configurationFingerprint: operator.metadata.configurationFingerprint, runFingerprint: decisionFingerprint },
-        { sampleId: "seed-b-1", seedSetFingerprint: FROZEN_BASELINE_VALIDATION_SEED_SET.seedSetFingerprint, seedCaseId: secondSeedCase.caseId, seedBindingFingerprint: secondSeedBindingFingerprint, canonicalInputFingerprint: canonicalInputFingerprint(input), operatorFingerprint: operator.metadata.implementationFingerprint, configurationFingerprint: operator.metadata.configurationFingerprint, runFingerprint: decisionFingerprint },
-        { sampleId: "seed-b-2", seedSetFingerprint: FROZEN_BASELINE_VALIDATION_SEED_SET.seedSetFingerprint, seedCaseId: secondSeedCase.caseId, seedBindingFingerprint: secondSeedBindingFingerprint, canonicalInputFingerprint: canonicalInputFingerprint(input), operatorFingerprint: operator.metadata.implementationFingerprint, configurationFingerprint: operator.metadata.configurationFingerprint, runFingerprint: decisionFingerprint },
+        seedSample("seed-a-1", seedCase), seedSample("seed-a-2", seedCase), seedSample("seed-b-1", secondSeedCase), seedSample("seed-b-2", secondSeedCase),
       ],
-      hiddenTruthIsolation: [{ pairId: `${caseId}:hidden`, baseline: isolationSide("hidden-a"), variant: isolationSide("hidden-b") }],
-      futureInformationIsolation: [{ pairId: `${caseId}:future`, baseline: isolationSide("future-a"), variant: isolationSide("future-b") }],
-      temporalBoundary: { decisionTimestamp: opportunity.at, observations: [] },
-      lookbackWindow: { startInclusive: "2026-09-01T00:00:00.000Z", endInclusive: opportunity.at, decisionTimestamp: opportunity.at, observations: [] },
+      hiddenTruthIsolation: [isolationPair("hidden_truth_isolation", witnesses.hidden)],
+      futureInformationIsolation: [isolationPair("future_information_isolation", witnesses.future)],
+      temporalBoundary: { decisionTimestamp: opportunity.at, observationFingerprint: input.provenance.observationFingerprint, observations: temporalObservations },
+      lookbackWindow: { startInclusive: lookbackStart, endInclusive: opportunity.at, decisionTimestamp: opportunity.at, observationFingerprint: input.provenance.observationFingerprint, observations: lookbackObservations },
       actionConformance: { contract, opportunity, availability, canonicalInput: input, operatorMetadata: operator.metadata, decisionEnvelope: decision },
       constraintConformance: disposition,
       policySemantics: executableProbe(operator, caseId, "policy_semantics", "missing_data", [input], exact),
@@ -493,8 +553,8 @@ export function createCompleteBaselineValidationCase(legacyOperator: CanonicalOp
         : executableProbe(operator, caseId, "permitted_information_sensitivity", "single_action", inputs.sensitivity.map((entry) => entry.input), { kind: "sensitive", observationKeys: inputs.sensitivity[0].input.observation.records.map((record) => record.observationKey) }),
       prohibitedInformationInvariance: prohibitedProbe(operator, caseId, input),
       tieBreaking: executableProbe(operator, caseId, "tie_breaking", "exact_tie", [inputs.tie.input], tieExact),
-      missingDataBehavior: executableProbe(operator, caseId, "missing_data_behavior", "missing_data", [missingInput], missingExact),
-      zeroActionBehavior: executableProbe(operator, caseId, "zero_action_behavior", "empty", [missingInput], { kind: "zero_actions" }),
+      missingDataBehavior: executableProbe(operator, caseId, "missing_data_behavior", "missing_data", [inputs.missing.input], missingExact),
+      zeroActionBehavior: executableProbe(operator, caseId, "zero_action_behavior", "empty", [missingObservationContext(inputs.policy).input], { kind: "zero_actions" }),
       multiActionBehavior: inputs.multi === null
         ? executableProbe(operator, caseId, "multi_action_behavior", "multi_action", [input], notApplicable("multi_action_behavior"))
         : executableProbe(operator, caseId, "multi_action_behavior", "multi_action", [inputs.multi.input], { kind: "multi_action" }),
@@ -504,12 +564,12 @@ export function createCompleteBaselineValidationCase(legacyOperator: CanonicalOp
         { label: `seed-binding:${secondSeedCase.caseId}`, value: provenanceSeedBinding(secondSeedCase), recordedFingerprint: evaluationFingerprint(provenanceSeedBinding(secondSeedCase)) },
         { label: "canonical-input", value: input, recordedFingerprint: evaluationFingerprint(input) },
       ],
-      uncontrolledRandomness: [sample("random-a"), sample("random-b"), sample("random-c")],
+      uncontrolledRandomness: [sample("random-a", "uncontrolled_randomness_detection"), sample("random-b", "uncontrolled_randomness_detection"), sample("random-c", "uncontrolled_randomness_detection")],
       operatorIsolation: { canonicalInputBefore: input, canonicalInputAfter: input, operatorMetadata: operator.metadata, decisionEnvelope: decision, evaluatedDecision: evaluated, dispositionEvidence: disposition },
     },
   };
 }
 
 export const ALL_BASELINE_VALIDATION_CASES = Object.freeze(
-  FROZEN_BASELINE_OPERATORS.map(createCompleteBaselineValidationCase),
+  FROZEN_BASELINE_OPERATORS.map((operator, index) => createCompleteBaselineValidationCase(operator, index)),
 );

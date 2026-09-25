@@ -2,11 +2,11 @@ import { evaluationFingerprint } from "../evaluation/baseline-contract.js";
 import type { BaselineValidationCheckId, BaselineValidationCheckResult, BaselineValidationIssue } from "./contract.js";
 import { canonicalActionFingerprints, hasExactKeys, isFingerprint, isNonEmptyString, isRecord, isStrictJson, issue, result } from "./shared.js";
 
-export interface InformationIsolationSide { readonly visibleInputFingerprint: string; readonly witnessFingerprint: string; readonly decisionFingerprint: string; readonly actions: readonly unknown[]; }
+export interface InformationIsolationSide { readonly visibleInputFingerprint: string; readonly witness: object; readonly witnessFingerprint: string; readonly decisionFingerprint: string; readonly actions: readonly unknown[]; }
 export interface InformationIsolationPair { readonly pairId: string; readonly baseline: InformationIsolationSide; readonly variant: InformationIsolationSide; }
 
 const PAIR_KEYS = ["pairId", "baseline", "variant"] as const;
-const SIDE_KEYS = ["visibleInputFingerprint", "witnessFingerprint", "decisionFingerprint", "actions"] as const;
+const SIDE_KEYS = ["visibleInputFingerprint", "witness", "witnessFingerprint", "decisionFingerprint", "actions"] as const;
 
 export function canonicalPolicyDecisionFingerprint(actions: readonly unknown[]): string {
   const fingerprints = canonicalActionFingerprints(actions);
@@ -26,9 +26,12 @@ function validateIsolation(value: unknown, checkId: BaselineValidationCheckId, l
     if (!isRecord(raw["baseline"]) || !hasExactKeys(raw["baseline"], SIDE_KEYS) || !isRecord(raw["variant"]) || !hasExactKeys(raw["variant"], SIDE_KEYS)) { issues.push(issue("INVALID_PAIRED_EVIDENCE", path, "both pair sides must have the exact evidence shape")); return; }
     const baseline = raw["baseline"]; const variant = raw["variant"];
     const baselineActions = canonicalActionFingerprints(baseline["actions"]); const variantActions = canonicalActionFingerprints(variant["actions"]);
+    const validWitnesses = isRecord(baseline["witness"]) && isStrictJson(baseline["witness"]) && isRecord(variant["witness"]) && isStrictJson(variant["witness"])
+      && baseline["witnessFingerprint"] === evaluationFingerprint(baseline["witness"])
+      && variant["witnessFingerprint"] === evaluationFingerprint(variant["witness"]);
     const validFingerprints = [baseline["visibleInputFingerprint"], baseline["witnessFingerprint"], baseline["decisionFingerprint"], variant["visibleInputFingerprint"], variant["witnessFingerprint"], variant["decisionFingerprint"]].every(isFingerprint);
     const recordedMatch = baselineActions !== undefined && variantActions !== undefined && baseline["decisionFingerprint"] === canonicalPolicyDecisionFingerprint(baseline["actions"] as readonly unknown[]) && variant["decisionFingerprint"] === canonicalPolicyDecisionFingerprint(variant["actions"] as readonly unknown[]);
-    if (!validFingerprints || !recordedMatch || baseline["visibleInputFingerprint"] !== variant["visibleInputFingerprint"] || baseline["witnessFingerprint"] === variant["witnessFingerprint"]) { issues.push(issue("INVALID_PAIRED_EVIDENCE", path, "visible inputs must match, witnesses must differ, and decision fingerprints must match canonical actions")); return; }
+    if (!validWitnesses || !validFingerprints || !recordedMatch || baseline["visibleInputFingerprint"] !== variant["visibleInputFingerprint"] || baseline["witnessFingerprint"] === variant["witnessFingerprint"]) { issues.push(issue("INVALID_PAIRED_EVIDENCE", path, "visible inputs must match, witnesses must be strict bound objects and differ, and decision fingerprints must match canonical actions")); return; }
     fingerprints.push(evaluationFingerprint({ pairId: raw["pairId"], visibleInputFingerprint: baseline["visibleInputFingerprint"], baselineWitnessFingerprint: baseline["witnessFingerprint"], variantWitnessFingerprint: variant["witnessFingerprint"], baselineDecisionFingerprint: baseline["decisionFingerprint"], variantDecisionFingerprint: variant["decisionFingerprint"] }));
     if (JSON.stringify(baselineActions) !== JSON.stringify(variantActions) || baseline["decisionFingerprint"] !== variant["decisionFingerprint"]) issues.push(issue(leakageCode, path, "policy decision changed when only evaluator-owned information changed"));
   });

@@ -119,7 +119,8 @@ function passingCase(caseId = "case-a"): BaselineValidationCase {
   });
   const isolationSide = (witness: number) => ({
     visibleInputFingerprint: canonicalInputFingerprint(input),
-    witnessFingerprint: evaluationFingerprint({ witness }),
+    witness: { hiddenIncrementalRoas: witness },
+    witnessFingerprint: evaluationFingerprint({ hiddenIncrementalRoas: witness }),
     decisionFingerprint: canonicalPolicyDecisionFingerprint([]),
     actions: [],
   });
@@ -140,11 +141,11 @@ function passingCase(caseId = "case-a"): BaselineValidationCase {
     operator,
     evidence: {
       determinism: [sample("a"), sample("b")],
-      seedReproducibility: [0, 1].flatMap((binding) => [0, 1].map((run) => ({ sampleId: `${binding}-${run}`, seedSetFingerprint: FROZEN_BASELINE_VALIDATION_SEED_SET.seedSetFingerprint, seedCaseId: FROZEN_BASELINE_VALIDATION_SEED_SET.cases[binding]!.caseId, seedBindingFingerprint: evaluationFingerprint({ seedCaseId: FROZEN_BASELINE_VALIDATION_SEED_SET.cases[binding]!.caseId, seeds: FROZEN_BASELINE_VALIDATION_SEED_SET.cases[binding]!.seeds }), canonicalInputFingerprint: canonicalInputFingerprint(input), operatorFingerprint: operator.metadata.implementationFingerprint, configurationFingerprint: operator.metadata.configurationFingerprint, runFingerprint: decisionFp }))),
+      seedReproducibility: [0, 1].flatMap((binding) => [0, 1].map((run) => ({ sampleId: `${binding}-${run}`, seedSetVersion: FROZEN_BASELINE_VALIDATION_SEED_SET.schemaVersion, seedSetFingerprint: FROZEN_BASELINE_VALIDATION_SEED_SET.seedSetFingerprint, seedCaseId: FROZEN_BASELINE_VALIDATION_SEED_SET.cases[binding]!.caseId, seeds: FROZEN_BASELINE_VALIDATION_SEED_SET.cases[binding]!.seeds, seedBindingFingerprint: evaluationFingerprint({ seedCaseId: FROZEN_BASELINE_VALIDATION_SEED_SET.cases[binding]!.caseId, seeds: FROZEN_BASELINE_VALIDATION_SEED_SET.cases[binding]!.seeds }), canonicalInputFingerprint: canonicalInputFingerprint(input), operatorFingerprint: operator.metadata.implementationFingerprint, configurationFingerprint: operator.metadata.configurationFingerprint, runFingerprint: decisionFp }))),
       hiddenTruthIsolation: [{ pairId: "hidden", baseline: isolationSide(1), variant: isolationSide(2) }],
       futureInformationIsolation: [{ pairId: "future", baseline: isolationSide(3), variant: isolationSide(4) }],
-      temporalBoundary: { decisionTimestamp: opportunity.at, observations: [] },
-      lookbackWindow: { startInclusive: "2026-09-01T00:00:00.000Z", endInclusive: opportunity.at, decisionTimestamp: opportunity.at, observations: [] },
+      temporalBoundary: { decisionTimestamp: opportunity.at, observationFingerprint: input.provenance.observationFingerprint, observations: [] },
+      lookbackWindow: { startInclusive: opportunity.at, endInclusive: opportunity.at, decisionTimestamp: opportunity.at, observationFingerprint: input.provenance.observationFingerprint, observations: [] },
       actionConformance: { contract, opportunity, availability, canonicalInput: input, operatorMetadata: operator.metadata, decisionEnvelope: decision },
       constraintConformance: disposition,
       policySemantics: probe("policy_semantics", caseId, [0], { kind: "exact", expectedDecisionFingerprints: [canonicalProbeDecisionFingerprint([])], expectedActionFingerprints: [[]] }),

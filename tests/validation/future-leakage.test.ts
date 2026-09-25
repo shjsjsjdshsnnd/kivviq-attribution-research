@@ -4,7 +4,7 @@ import { evaluationFingerprint } from "../../src/evaluation/baseline-contract.js
 import { canonicalPolicyDecisionFingerprint, validateFutureInformationIsolation, validateLookbackWindow, validateTemporalObservationBoundary } from "../../src/validation/index.js";
 
 const fp = (value: unknown) => evaluationFingerprint(value);
-const side = (witness: number, actions = [increaseGoogleShoppingBudget20]) => ({ visibleInputFingerprint: fp({ visible: 1 }), witnessFingerprint: fp({ witness }), decisionFingerprint: canonicalPolicyDecisionFingerprint(actions), actions });
+const side = (witnessValue: number, actions = [increaseGoogleShoppingBudget20]) => { const witness = { futureDemandUnits: witnessValue }; return { visibleInputFingerprint: fp({ visible: 1 }), witness, witnessFingerprint: fp(witness), decisionFingerprint: canonicalPolicyDecisionFingerprint(actions), actions }; };
 
 describe("future information and temporal boundaries", () => {
   it("detects future-information leakage", () => {
@@ -15,14 +15,15 @@ describe("future information and temporal boundaries", () => {
 
   it("accepts all known event kinds at or before the decision and rejects future observations", () => {
     const kinds = ["order", "conversion", "revenue", "customer_event", "inventory_event", "advertising_outcome", "return", "promotion_outcome"] as const;
+    const observationFingerprint = fp({ observations: 1 });
     const observations = kinds.map((kind, index) => ({ eventId: `e-${index}`, kind, occurredAt: index === 0 ? "2026-01-01T00:00:00.000Z" : "2026-01-31T23:59:59.999Z", payload: { index } }));
-    expect(validateTemporalObservationBoundary({ decisionTimestamp: "2026-02-01T00:00:00.000Z", observations })).toMatchObject({ checkId: "temporal_boundary_conformance", status: "PASS" });
-    expect(validateTemporalObservationBoundary({ decisionTimestamp: "2026-02-01T00:00:00Z", observations: [{ eventId: "seconds", kind: "order", occurredAt: "2026-02-01T00:00:00Z", payload: {} }] }).status).toBe("PASS");
+    expect(validateTemporalObservationBoundary({ decisionTimestamp: "2026-02-01T00:00:00.000Z", observationFingerprint, observations }, observationFingerprint)).toMatchObject({ checkId: "temporal_boundary_conformance", status: "PASS" });
+    expect(validateTemporalObservationBoundary({ decisionTimestamp: "2026-02-01T00:00:00Z", observationFingerprint, observations: [{ eventId: "seconds", kind: "order", occurredAt: "2026-02-01T00:00:00Z", payload: {} }] }, observationFingerprint).status).toBe("PASS");
     for (const [index, kind] of kinds.entries()) {
       expect(
         validateTemporalObservationBoundary({
           decisionTimestamp: "2026-02-01T00:00:00.000Z",
-          observations: [{ eventId: `future-${index}`, kind, occurredAt: "2026-02-01T00:00:00.001Z", payload: {} }],
+          observationFingerprint, observations: [{ eventId: `future-${index}`, kind, occurredAt: "2026-02-01T00:00:00.001Z", payload: {} }],
         }),
         kind,
       ).toMatchObject({ status: "FAIL", issues: [{ code: "FUTURE_OBSERVATION" }] });
@@ -32,7 +33,7 @@ describe("future information and temporal boundaries", () => {
   it("preserves source indexes in temporal diagnostics", () => {
     const result = validateTemporalObservationBoundary({
       decisionTimestamp: "2026-02-01T00:00:00Z",
-      observations: [
+      observationFingerprint: fp({ observations: 1 }), observations: [
         { eventId: "bad", kind: "order", occurredAt: "not-time", payload: {} },
         { eventId: "future", kind: "conversion", occurredAt: "2026-02-01T00:00:00.001Z", payload: {} },
       ],
@@ -46,7 +47,7 @@ describe("future information and temporal boundaries", () => {
   it("orders equal instants by event ID across canonical timestamp formats", () => {
     expect(validateTemporalObservationBoundary({
       decisionTimestamp: "2026-02-01T00:00:00Z",
-      observations: [
+      observationFingerprint: fp({ observations: 1 }), observations: [
         { eventId: "a", kind: "order", occurredAt: "2026-02-01T00:00:00Z", payload: {} },
         { eventId: "b", kind: "conversion", occurredAt: "2026-02-01T00:00:00.000Z", payload: {} },
       ],
@@ -72,7 +73,7 @@ describe("future information and temporal boundaries", () => {
 
   it("defines inclusive lookback boundaries and excludes one millisecond outside them", () => {
     const observation = (eventId: string, occurredAt: string) => ({ eventId, kind: "order" as const, occurredAt, payload: {} });
-    const base = { startInclusive: "2026-01-02T00:00:00.000Z", endInclusive: "2026-02-01T00:00:00.000Z", decisionTimestamp: "2026-02-01T00:00:00.000Z" };
+    const base = { startInclusive: "2026-01-02T00:00:00.000Z", endInclusive: "2026-02-01T00:00:00.000Z", decisionTimestamp: "2026-02-01T00:00:00.000Z", observationFingerprint: fp({ observations: 1 }) };
     expect(validateLookbackWindow({ ...base, observations: [observation("a", base.startInclusive), observation("b", base.endInclusive)] })).toMatchObject({ checkId: "lookback_window_conformance", status: "PASS" });
     expect(validateLookbackWindow({ ...base, observations: [observation("a", "2026-01-01T23:59:59.999Z")] }).status).toBe("FAIL");
     expect(validateLookbackWindow({ ...base, observations: [observation("a", "2026-02-01T00:00:00.001Z")] }).status).toBe("FAIL");

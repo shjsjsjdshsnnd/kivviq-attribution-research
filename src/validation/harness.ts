@@ -109,6 +109,15 @@ export function runBaselineValidationCase(value: BaselineValidationCase): Baseli
       : failedValidationCheck(EVIDENCE_TO_CHECK[key], "MISSING_REQUIRED_EVIDENCE", `required evidence section ${key} is absent`);
   const operatorRequired = (key: keyof BaselineValidationCaseEvidence, fn: (operator: CanonicalOperatorV2) => BaselineValidationCheckResult) =>
     canonical === undefined ? failedValidationCheck(EVIDENCE_TO_CHECK[key], "INVALID_OPERATOR", "operator could not be canonicalized") : missing(key, () => fn(canonical!));
+  const canonicalObservationFingerprint = isRecord(evidence["actionConformance"]) && isRecord(evidence["actionConformance"]["canonicalInput"]) && isRecord(evidence["actionConformance"]["canonicalInput"]["provenance"])
+    ? evidence["actionConformance"]["canonicalInput"]["provenance"]["observationFingerprint"]
+    : undefined;
+  const canonicalObservationRecords = isRecord(evidence["actionConformance"]) && isRecord(evidence["actionConformance"]["canonicalInput"]) && isRecord(evidence["actionConformance"]["canonicalInput"]["observation"]) && Array.isArray(evidence["actionConformance"]["canonicalInput"]["observation"]["records"])
+    ? evidence["actionConformance"]["canonicalInput"]["observation"]["records"] as readonly { observationKey: string; value: unknown; sourceMinOccurredAt: string; sourceMaxOccurredAt: string }[]
+    : undefined;
+  const canonicalDecisionTime = isRecord(evidence["actionConformance"]) && isRecord(evidence["actionConformance"]["canonicalInput"])
+    ? evidence["actionConformance"]["canonicalInput"]["decisionTime"]
+    : undefined;
 
   const checks: BaselineValidationCheckResult[] = [
     !caseShapeValid || evidenceHasUnknownKeys
@@ -117,8 +126,8 @@ export function runBaselineValidationCase(value: BaselineValidationCase): Baseli
     missing("seedReproducibility", () => validateSeedReproducibility(evidence["seedReproducibility"] as never)),
     missing("hiddenTruthIsolation", () => validateHiddenTruthIsolation(evidence["hiddenTruthIsolation"] as never)),
     missing("futureInformationIsolation", () => validateFutureInformationIsolation(evidence["futureInformationIsolation"] as never)),
-    missing("temporalBoundary", () => validateTemporalObservationBoundary(evidence["temporalBoundary"] as never)),
-    missing("lookbackWindow", () => validateLookbackWindow(evidence["lookbackWindow"] as never)),
+    missing("temporalBoundary", () => validateTemporalObservationBoundary(evidence["temporalBoundary"] as never, typeof canonicalObservationFingerprint === "string" ? canonicalObservationFingerprint : undefined, canonicalObservationRecords, typeof canonicalDecisionTime === "string" ? canonicalDecisionTime : undefined)),
+    missing("lookbackWindow", () => validateLookbackWindow(evidence["lookbackWindow"] as never, typeof canonicalObservationFingerprint === "string" ? canonicalObservationFingerprint : undefined, canonicalObservationRecords, typeof canonicalDecisionTime === "string" ? canonicalDecisionTime : undefined)),
     missing("actionConformance", () => validateDecisionActionConformance(evidence["actionConformance"])),
     missing("constraintConformance", () => validateConstraintDispositionEvidence(evidence["constraintConformance"])),
     operatorRequired("policySemantics", (operator) => runExecutableConformanceProbe(operator, evidence["policySemantics"], "policy_semantics", caseId)),

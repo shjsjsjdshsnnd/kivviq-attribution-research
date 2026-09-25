@@ -4,10 +4,10 @@ import { evaluationFingerprint } from "../../src/evaluation/baseline-contract.js
 import { canonicalPolicyDecisionFingerprint, validateHiddenTruthIsolation, validateProhibitedInformationInvariance } from "../../src/validation/index.js";
 
 const fp = (value: unknown) => evaluationFingerprint(value);
-const side = (witness: number, actions = [increaseGoogleShoppingBudget20]) => ({
-  visibleInputFingerprint: fp({ visible: 1 }), witnessFingerprint: fp({ witness }),
+const side = (witnessValue: number, actions = [increaseGoogleShoppingBudget20]) => { const witness = { hiddenIncrementalRoas: witnessValue }; return ({
+  visibleInputFingerprint: fp({ visible: 1 }), witness, witnessFingerprint: fp(witness),
   decisionFingerprint: canonicalPolicyDecisionFingerprint(actions), actions,
-});
+}); };
 const pair = (rightActions = [increaseGoogleShoppingBudget20]) => ({ pairId: "pair-1", baseline: side(1), variant: side(2, rightActions) });
 
 describe("paired information isolation", () => {

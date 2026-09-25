@@ -6,6 +6,7 @@ import {
   validateCompleteRunReproducibility,
   validateDeterministicDecisions,
   validateSeedReproducibility,
+  FROZEN_BASELINE_VALIDATION_SEED_SET,
 } from "../../src/validation/index.js";
 
 const fp = (value: unknown) => evaluationFingerprint(value);
@@ -118,14 +119,18 @@ describe("determinism validation", () => {
   });
 
   it("requires exact seed-set binding and matching run fingerprints", () => {
-    const seedRun = (sampleId: string, seed = 1, run = 1) => ({
-      sampleId, seedSetFingerprint: fp({ seedSet: 1 }), seedCaseId: `seed-case-${seed}`, seedBindingFingerprint: fp({ seed }), canonicalInputFingerprint: fp({ input: 1 }),
+    const seedRun = (sampleId: string, caseIndex = 0, run = 1) => {
+      const seedCase = FROZEN_BASELINE_VALIDATION_SEED_SET.cases[caseIndex]!;
+      return {
+      sampleId, seedSetVersion: FROZEN_BASELINE_VALIDATION_SEED_SET.schemaVersion, seedSetFingerprint: FROZEN_BASELINE_VALIDATION_SEED_SET.seedSetFingerprint, seedCaseId: seedCase.caseId, seeds: seedCase.seeds, seedBindingFingerprint: fp({ seedCaseId: seedCase.caseId, seeds: seedCase.seeds }), canonicalInputFingerprint: fp({ input: 1 }),
       operatorFingerprint: fp({ operator: 1 }), configurationFingerprint: fp({ config: 1 }),
       runFingerprint: fp({ run }),
-    });
+    }};
     expect(validateSeedReproducibility([seedRun("a1"), seedRun("a2"), seedRun("b1", 2), seedRun("b2", 2)]).status).toBe("PASS");
     expect(validateSeedReproducibility([seedRun("a1"), seedRun("a2"), seedRun("b1"), seedRun("b2")]).status).toBe("FAIL");
-    expect(validateSeedReproducibility([seedRun("a1"), seedRun("a2", 1, 2), seedRun("b1", 2), seedRun("b2", 2)]).status).toBe("FAIL");
+    expect(validateSeedReproducibility([seedRun("a1"), seedRun("a2", 0, 2), seedRun("b1", 2), seedRun("b2", 2)]).status).toBe("FAIL");
+    const forged = { ...seedRun("forged", 0), seedCaseId: "arbitrary", seedBindingFingerprint: fp({ arbitrary: true }) };
+    expect(validateSeedReproducibility([forged, { ...forged, sampleId: "forged-2" }, seedRun("b1", 2), seedRun("b2", 2)]).issues.map((x) => x.code)).toContain("INVALID_SEED_BINDING");
   });
 
   it("detects policy divergence across at least three probes but ignores provenance-only IDs", () => {

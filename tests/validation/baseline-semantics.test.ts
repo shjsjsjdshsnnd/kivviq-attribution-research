@@ -107,6 +107,93 @@ describe("frozen baseline semantics", () => {
     }
   });
 
+  it("covers advertising missing metrics, zero spend, insufficient/new history, and legally unavailable channels", () => {
+    const probes = ALL_BASELINE_VALIDATION_CASES.slice(2, 7).map((entry) => entry.evidence.missingDataBehavior.invocations[0]!.canonicalInput);
+    const channels = probes.map((input) => (input.observation.records[0]!.value as any).channels);
+    expect(probes[0]!.legalActionSpace.rules[0]!.eligibleTargets).toEqual([{ kind: "advertising_channel", channelId: "tiktok_ads" }]);
+    expect(channels[1][0]).toMatchObject({ spendMinor: null, attributedRevenueMinor: null });
+    expect(channels[2][0]).toMatchObject({ spendMinor: 0, attributedRevenueMinor: 0 });
+    expect(channels[3].every((channel: any) => channel.historyDays === 0)).toBe(true);
+    expect(probes[4]!.legalActionSpace.rules[0]!.eligibleTargets).toHaveLength(2);
+  });
+
+  it("covers inventory 9/10/11 boundaries, missing inventory, and unavailable SKUs", () => {
+    const threshold = ALL_BASELINE_VALIDATION_CASES[7]!;
+    const units = [...threshold.evidence.permittedInformationSensitivity.invocations, ...threshold.evidence.tieBreaking.invocations].map((invocation) => ((invocation.canonicalInput.observation.records[0]!.value as any).skus[0].availableUnits));
+    expect(new Set(units)).toEqual(new Set([9, 10, 11]));
+    const missingSkus = ALL_BASELINE_VALIDATION_CASES.slice(7, 11).map((entry) => (entry.evidence.missingDataBehavior.invocations[0]!.canonicalInput.observation.records[0]!.value as any).skus[0]);
+    expect(missingSkus.some((sku) => sku.availableUnits === null)).toBe(true);
+    expect(missingSkus.some((sku) => sku.active === false)).toBe(true);
+    const lowInventory = ALL_BASELINE_VALIDATION_CASES[9]!;
+    expect((lowInventory.evidence.tieBreaking.invocations[0]!.canonicalInput.observation.records[0]!.value as any).skus[0].availableUnits).toBe(5);
+  });
+
+  it("covers exact equality at both strict advertising ROAS thresholds", () => {
+    const increase = (ALL_BASELINE_VALIDATION_CASES[3]!.evidence.tieBreaking.invocations[0]!.canonicalInput.observation.records[0]!.value as any).channels[0];
+    const decrease = (ALL_BASELINE_VALIDATION_CASES[4]!.evidence.tieBreaking.invocations[0]!.canonicalInput.observation.records[0]!.value as any).channels[0];
+    expect(increase.attributedRevenueMinor / increase.spendMinor).toBe(3);
+    expect(decrease.attributedRevenueMinor / decrease.spendMinor).toBe(1.5);
+  });
+
+  it("covers pricing and promotion missing/new SKUs, unavailable/ineligible targets, and schedule-boundary evidence", () => {
+    const skus = ALL_BASELINE_VALIDATION_CASES.slice(11, 15).map((entry) => (entry.evidence.missingDataBehavior.invocations[0]!.canonicalInput.observation.records[0]!.value as any).skus[0]);
+    expect(skus[0].currentPriceMinor).toBeNull();
+    expect(skus[0].skuId).toBe("sku:NEW");
+    expect(skus[1].active).toBe(false);
+    expect(skus[2].observableInventoryUnits).toBeNull();
+    expect(skus[3].promotionEligible).toBe(false);
+    expect(FIXED_PROMOTIONAL_CALENDAR_CONFIG.calendar.map((entry) => entry.startAt)).toEqual(["2026-10-05T00:00:00.000Z", "2026-10-07T00:00:00.000Z"]);
+  });
+
+  it("covers merchandising missing metrics, zero denominators, insufficient views, new products, and unavailable targets", () => {
+    const products = ALL_BASELINE_VALIDATION_CASES.slice(15, 18).map((entry) => (entry.evidence.missingDataBehavior.invocations[0]!.canonicalInput.observation.records[0]!.value as any).products);
+    expect(products[0].some((product: any) => product.revenueMinor === null)).toBe(true);
+    expect(products[0].some((product: any) => product.available === false)).toBe(true);
+    expect(products[1].some((product: any) => product.productViews === 0)).toBe(true);
+    expect(products[1].some((product: any) => product.productViews > 0 && product.productViews < 20)).toBe(true);
+    expect(products[2].some((product: any) => product.newlyLaunched && product.unitsSold === null)).toBe(true);
+  });
+
+  it("covers greedy and flawed missing objectives, zero ROAS/CAC/CPA denominators, and insufficient evidence", () => {
+    const greedy = ALL_BASELINE_VALIDATION_CASES.slice(18, 21).map((entry) => (entry.evidence.missingDataBehavior.invocations[0]!.canonicalInput.observation.records[0]!.value as any).channels);
+    const greedyPayloads = ALL_BASELINE_VALIDATION_CASES.slice(18, 21).map((entry) => entry.evidence.missingDataBehavior.invocations[0]!.canonicalInput.observation.records[0]!.value as any);
+    expect(greedyPayloads.every((payload) => payload.lookbackDays === 0)).toBe(true);
+    expect(greedy[0].every((channel: any) => channel.attributedRevenueMinor === null)).toBe(true);
+    expect(greedy[1].every((channel: any) => channel.attributedGrossProfitMinor === null)).toBe(true);
+    expect(greedy[2].every((channel: any) => channel.attributedContributionMinor === null)).toBe(true);
+    const flawed = ALL_BASELINE_VALIDATION_CASES.slice(21, 27).map((entry) => (entry.evidence.missingDataBehavior.invocations[0]!.canonicalInput.observation.records[0]!.value as any));
+    expect(flawed.every((payload) => payload.lookbackDays === 0)).toBe(true);
+    expect(flawed[0].channels.every((channel: any) => channel.spendMinor === 0)).toBe(true);
+    expect(flawed[1].channels.every((channel: any) => channel.representedNewCustomers === 0)).toBe(true);
+    expect(flawed[4].channels.every((channel: any) => channel.representedPurchaseConversions === 0)).toBe(true);
+    expect(flawed[5].products.every((product: any) => product.productViews === 0)).toBe(true);
+  });
+
+  it("uses actual equal-score observations for responsive family tie probes", () => {
+    for (const entry of [...ALL_BASELINE_VALIDATION_CASES.slice(5, 6), ...ALL_BASELINE_VALIDATION_CASES.slice(15, 27)]) {
+      const input = entry.evidence.tieBreaking.invocations[0]!.canonicalInput;
+      const value = input.observation.records[0]!.value as any;
+      const candidates = value.channels ?? value.products;
+      expect(candidates).toHaveLength(2);
+      const id = entry.operator.metadata.operatorId;
+      if (id.endsWith("highest_observed_roas") || id.endsWith("max_roas")) expect(value.channels.map((channel: any) => channel.attributedRevenueMinor / channel.spendMinor)).toEqual([2, 2]);
+      else if (id.endsWith("min_cac")) expect(value.channels.map((channel: any) => channel.spendMinor / channel.representedNewCustomers)).toEqual([20_000, 20_000]);
+      else if (id.endsWith("lowest_cpa")) expect(value.channels.map((channel: any) => channel.spendMinor / channel.representedPurchaseConversions)).toEqual([10_000, 10_000]);
+      else if (id.includes("merchandising.rank_by_revenue")) expect(value.products.map((product: any) => product.revenueMinor)).toEqual([20, 20]);
+      else if (id.includes("rank_by_conversion_rate") || id.endsWith("highest_conversion_rate")) expect(value.products.map((product: any) => product.conversions / product.productViews)).toEqual([0.2, 0.2]);
+      else if (id.includes("rank_by_units_sold") || id.endsWith("best_seller_push")) expect(value.products.map((product: any) => product.unitsSold)).toEqual([20, 20]);
+      else if (id.endsWith("immediate_revenue")) expect(value.channels.map((channel: any) => channel.attributedRevenueMinor)).toEqual([200_000, 200_000]);
+      else if (id.endsWith("immediate_gross_profit")) expect(value.channels.map((channel: any) => channel.attributedGrossProfitMinor)).toEqual([200_000, 200_000]);
+      else if (id.endsWith("immediate_contribution")) expect(value.channels.map((channel: any) => channel.attributedContributionMinor)).toEqual([200_000, 200_000]);
+      else if (id.endsWith("max_revenue")) expect(value.channels.map((channel: any) => channel.attributedRevenueMinor)).toEqual([200_000, 200_000]);
+      const operator = ensureCanonicalOperatorV2(entry.operator);
+      const actions = operator.decide(input).actions.map(actionFingerprint);
+      const expectation = entry.evidence.tieBreaking.expectation;
+      expect(expectation.kind).toBe("exact");
+      if (expectation.kind === "exact") expect(actions).toEqual(expectation.expectedActionFingerprints[0]);
+    }
+  });
+
   it("proves every information-responsive frozen operator changes semantic output under its exact permitted metric", () => {
     for (const entry of ALL_BASELINE_VALIDATION_CASES) {
       const expectation = entry.evidence.permittedInformationSensitivity.expectation;
