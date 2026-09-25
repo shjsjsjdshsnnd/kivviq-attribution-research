@@ -158,9 +158,9 @@ describe("all frozen baseline validation coverage", () => {
     let realCalls = 0;
     const counting = { ...original, decide(input: Parameters<typeof original.decide>[0]) { realCalls += 1; return original.decide(input); } };
     const validationCase = createCompleteBaselineValidationCase(counting, 2);
-    expect(Object.keys(validationCase.evidence.determinism)).toEqual(["operatorBinding", "canonicalInput", "canonicalInputFingerprint", "repetitions"]);
-    expect(Object.keys(validationCase.evidence.uncontrolledRandomness)).toEqual(["operatorBinding", "canonicalInput", "canonicalInputFingerprint", "repetitions"]);
-    expect(Object.keys(validationCase.evidence.seedReproducibility)).toEqual(["operatorBinding", "baseCanonicalInput", "baseCanonicalInputFingerprint", "seedCases", "repetitionsPerSeed"]);
+    expect(Object.keys(validationCase.evidence.determinism)).toEqual(["operatorBinding", "canonicalInput", "canonicalInputFingerprint"]);
+    expect(Object.keys(validationCase.evidence.uncontrolledRandomness)).toEqual(["operatorBinding", "canonicalInput", "canonicalInputFingerprint"]);
+    expect(Object.keys(validationCase.evidence.seedReproducibility)).toEqual(["operatorBinding", "baseCanonicalInput", "baseCanonicalInputFingerprint", "seedCases"]);
     const beforeHarness = realCalls;
     expect(runBaselineValidationCase(validationCase).overall).toBe("PASS");
     expect(realCalls - beforeHarness).toBeGreaterThanOrEqual(9);

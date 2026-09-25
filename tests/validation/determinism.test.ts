@@ -7,6 +7,7 @@ import {
   validateDeterministicDecisions,
   validateSeedReproducibility,
   FROZEN_BASELINE_VALIDATION_SEED_SET,
+  materializeFrozenSeedEnvironment,
 } from "../../src/validation/index.js";
 
 const fp = (value: unknown) => evaluationFingerprint(value);
@@ -122,9 +123,9 @@ describe("determinism validation", () => {
     const seedRun = (sampleId: string, caseIndex = 0, run = 1) => {
       const seedCase = FROZEN_BASELINE_VALIDATION_SEED_SET.cases[caseIndex]!;
       return {
-      sampleId, seedSetVersion: FROZEN_BASELINE_VALIDATION_SEED_SET.schemaVersion, seedSetFingerprint: FROZEN_BASELINE_VALIDATION_SEED_SET.seedSetFingerprint, seedCaseId: seedCase.caseId, seeds: seedCase.seeds, seedBindingFingerprint: fp({ seedCaseId: seedCase.caseId, seeds: seedCase.seeds }), canonicalInputFingerprint: fp({ input: caseIndex }),
+      sampleId, seedSetVersion: FROZEN_BASELINE_VALIDATION_SEED_SET.schemaVersion, seedSetFingerprint: FROZEN_BASELINE_VALIDATION_SEED_SET.seedSetFingerprint, seedCaseId: seedCase.caseId, seeds: seedCase.seeds, seedBindingFingerprint: fp({ seedCaseId: seedCase.caseId, seeds: seedCase.seeds }), environmentFingerprint: materializeFrozenSeedEnvironment(seedCase).environmentFingerprint, canonicalInputFingerprint: fp({ input: 1 }),
       operatorFingerprint: fp({ operator: 1 }), configurationFingerprint: fp({ config: 1 }),
-      runFingerprint: fp({ caseIndex, run }),
+      runFingerprint: fp({ environmentFingerprint: materializeFrozenSeedEnvironment(seedCase).environmentFingerprint, run }),
     }};
     expect(validateSeedReproducibility([seedRun("a1"), seedRun("a2"), seedRun("b1", 2), seedRun("b2", 2)]).status).toBe("PASS");
     expect(validateSeedReproducibility([seedRun("a1"), seedRun("a2"), seedRun("b1"), seedRun("b2")]).status).toBe("FAIL");

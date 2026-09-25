@@ -1,4 +1,4 @@
-import { evaluationFingerprint, stableEvaluationJson } from "../evaluation/baseline-contract.js";
+import { deepFreezeEvaluation, evaluationFingerprint, stableEvaluationJson } from "../evaluation/baseline-contract.js";
 import { assertCanonicalOperatorInputV2, canonicalInputFingerprint, canonicalOperatorDecisionFingerprint, validateCanonicalDecisionEnvelope, type CanonicalOperatorInputV2, type CanonicalOperatorV2 } from "../operator/canonical-interface.js";
 import { BaselineValidationError, type BaselineValidationCheckResult } from "./contract.js";
 import { detectUncontrolledRandomness, validateDeterministicDecisions, validateSeedReproducibility, type DeterministicDecisionSample, type SeedReproducibilitySample } from "./determinism.js";
@@ -6,7 +6,9 @@ import { canonicalPolicyDecisionFingerprint, validateFutureInformationIsolation,
 import { FROZEN_BASELINE_VALIDATION_SEED_SET, type BaselineValidationSeedCase, type BaselineValidationSeeds, type BaselineValidationWorldProfile } from "./seed-sets.js";
 import { hasExactKeys, isFingerprint, isRecord, isStrictJson, issue, result } from "./shared.js";
 
-export const BASELINE_VALIDATION_SEED_OBSERVATION_KEY = "validation.seed_binding.v1" as const;
+export const DETERMINISM_REPETITIONS = 2 as const;
+export const RANDOMNESS_PROBES = 3 as const;
+export const SEED_REPETITIONS = 2 as const;
 
 export interface ValidationOperatorExecutionBinding {
   readonly operatorId: string;
@@ -19,7 +21,6 @@ export interface DeclarativeRepeatedExecutionEvidence {
   readonly operatorBinding: ValidationOperatorExecutionBinding;
   readonly canonicalInput: CanonicalOperatorInputV2;
   readonly canonicalInputFingerprint: string;
-  readonly repetitions: number;
 }
 export interface DeclarativeFrozenSeedCaseBinding {
   readonly seedSetVersion: string;
@@ -34,8 +35,9 @@ export interface DeclarativeSeedExecutionEvidence {
   readonly baseCanonicalInput: CanonicalOperatorInputV2;
   readonly baseCanonicalInputFingerprint: string;
   readonly seedCases: readonly DeclarativeFrozenSeedCaseBinding[];
-  readonly repetitionsPerSeed: number;
 }
+export interface FrozenSeedEnvironmentDraws { readonly merchantWorldDraw: number; readonly customerPopulationDraw: number; readonly warmUpDraw: number; readonly environmentShockDraw: number; readonly operatorRandomnessDraw: number; }
+export interface FrozenSeedEnvironmentArtifact { readonly kind: "baseline_validation_seed_environment"; readonly schemaVersion: "1.0.0"; readonly seedSetVersion: string; readonly seedSetFingerprint: string; readonly seedCaseId: string; readonly worldProfile: BaselineValidationWorldProfile; readonly seedBindingFingerprint: string; readonly draws: FrozenSeedEnvironmentDraws; readonly environmentFingerprint: string; }
 export interface DeclarativeIsolationPair {
   readonly pairId: string;
   readonly canonicalInput: CanonicalOperatorInputV2;
@@ -52,8 +54,8 @@ export interface DeclarativeIsolationEvidence {
 }
 
 const OPERATOR_BINDING_KEYS = ["operatorId", "operatorVersion", "implementationFingerprint", "configurationFingerprint", "adapterFingerprint"] as const;
-const REPEATED_KEYS = ["operatorBinding", "canonicalInput", "canonicalInputFingerprint", "repetitions"] as const;
-const SEED_EXECUTION_KEYS = ["operatorBinding", "baseCanonicalInput", "baseCanonicalInputFingerprint", "seedCases", "repetitionsPerSeed"] as const;
+const REPEATED_KEYS = ["operatorBinding", "canonicalInput", "canonicalInputFingerprint"] as const;
+const SEED_EXECUTION_KEYS = ["operatorBinding", "baseCanonicalInput", "baseCanonicalInputFingerprint", "seedCases"] as const;
 const SEED_CASE_KEYS = ["seedSetVersion", "seedSetFingerprint", "seedCaseId", "worldProfile", "seeds", "seedBindingFingerprint"] as const;
 const ISOLATION_KEYS = ["operatorBinding", "primaryInputFingerprint", "pairs"] as const;
 const ISOLATION_PAIR_KEYS = ["pairId", "canonicalInput", "canonicalInputFingerprint", "baselineWitness", "baselineWitnessFingerprint", "variantWitness", "variantWitnessFingerprint"] as const;
@@ -76,11 +78,12 @@ function validatedInput(operator: CanonicalOperatorV2, value: unknown, fingerpri
 }
 
 export function runDeclarativeRepeatedExecution(operator: CanonicalOperatorV2, value: unknown, checkId: "determinism" | "uncontrolled_randomness_detection"): BaselineValidationCheckResult {
-  if (!isRecord(value) || !hasExactKeys(value, REPEATED_KEYS) || !isStrictJson(value) || !exactOperatorBinding(operator, value["operatorBinding"]) || !Number.isSafeInteger(value["repetitions"]) || (value["repetitions"] as number) < (checkId === "determinism" ? 2 : 3)) return result(checkId, [issue("INVALID_DECLARATIVE_EXECUTION_EVIDENCE", "evidence", "execution evidence must contain only an exact operator binding, canonical input, and sufficient repetition count")], []);
+  if (!isRecord(value) || !hasExactKeys(value, REPEATED_KEYS) || !isStrictJson(value) || !exactOperatorBinding(operator, value["operatorBinding"])) return result(checkId, [issue("INVALID_DECLARATIVE_EXECUTION_EVIDENCE", "evidence", "execution evidence must contain only an exact operator binding and canonical input")], []);
   try {
     const input = validatedInput(operator, value["canonicalInput"], value["canonicalInputFingerprint"]);
     const samples: DeterministicDecisionSample[] = [];
-    for (let index = 0; index < (value["repetitions"] as number); index += 1) {
+    const repetitions = checkId === "determinism" ? DETERMINISM_REPETITIONS : RANDOMNESS_PROBES;
+    for (let index = 0; index < repetitions; index += 1) {
       const decisionEnvelope = validateCanonicalDecisionEnvelope(input, operator.metadata, operator.decide(input));
       samples.push({ sampleId: `harness-${checkId}-${index + 1}`, canonicalInputFingerprint: canonicalInputFingerprint(input), operatorFingerprint: operator.metadata.implementationFingerprint, configurationFingerprint: operator.metadata.configurationFingerprint, seedBindingFingerprint: evaluationFingerprint({ kind: "unseeded-primary-input" }), actions: decisionEnvelope.actions, decisionEnvelope });
     }
@@ -89,19 +92,23 @@ export function runDeclarativeRepeatedExecution(operator: CanonicalOperatorV2, v
 }
 
 export function runDeclarativeSeedExecution(operator: CanonicalOperatorV2, value: unknown): BaselineValidationCheckResult {
-  if (!isRecord(value) || !hasExactKeys(value, SEED_EXECUTION_KEYS) || !isStrictJson(value) || !exactOperatorBinding(operator, value["operatorBinding"]) || !Array.isArray(value["seedCases"]) || value["seedCases"].length < 2 || !Number.isSafeInteger(value["repetitionsPerSeed"]) || (value["repetitionsPerSeed"] as number) < 2) return result("seed_reproducibility", [issue("INVALID_DECLARATIVE_SEED_EVIDENCE", "evidence", "seed execution evidence must declare exact frozen cases and repetitions")], []);
+  if (!isRecord(value) || !hasExactKeys(value, SEED_EXECUTION_KEYS) || !exactOperatorBinding(operator, value["operatorBinding"]) || !Array.isArray(value["seedCases"]) || value["seedCases"].length !== 2 || !isStrictJson(value)) return result("seed_reproducibility", [issue("INVALID_DECLARATIVE_SEED_EVIDENCE", "evidence", "seed execution evidence must declare exactly two distinct frozen cases")], []);
   try {
     const base = validatedInput(operator, value["baseCanonicalInput"], value["baseCanonicalInputFingerprint"]);
     const samples: SeedReproducibilitySample[] = [];
-    for (const [caseIndex, raw] of value["seedCases"].entries()) {
+    const frozenCases = value["seedCases"].map((raw) => {
       if (!isRecord(raw) || !hasExactKeys(raw, SEED_CASE_KEYS)) throw new TypeError("seed case declaration has unexpected keys");
       const frozen = FROZEN_BASELINE_VALIDATION_SEED_SET.cases.find((candidate) => candidate.caseId === raw["seedCaseId"]);
       if (frozen === undefined || raw["seedSetVersion"] !== FROZEN_BASELINE_VALIDATION_SEED_SET.schemaVersion || raw["seedSetFingerprint"] !== FROZEN_BASELINE_VALIDATION_SEED_SET.seedSetFingerprint || stableEvaluationJson(raw["worldProfile"]) !== stableEvaluationJson(frozen.worldProfile) || stableEvaluationJson(raw["seeds"]) !== stableEvaluationJson(frozen.seeds) || raw["seedBindingFingerprint"] !== evaluationFingerprint({ seedCaseId: frozen.caseId, seeds: frozen.seeds })) throw new TypeError("seed case is not an exact frozen binding");
-      const seededInput = materializeSeedBoundCanonicalInput(base, frozen);
-      const inputFingerprint = canonicalInputFingerprint(seededInput);
-      for (let runIndex = 0; runIndex < (value["repetitionsPerSeed"] as number); runIndex += 1) {
-        const decision = validateCanonicalDecisionEnvelope(seededInput, operator.metadata, operator.decide(seededInput));
-        samples.push({ sampleId: `harness-seed-${caseIndex + 1}-${runIndex + 1}`, seedSetVersion: FROZEN_BASELINE_VALIDATION_SEED_SET.schemaVersion, seedSetFingerprint: FROZEN_BASELINE_VALIDATION_SEED_SET.seedSetFingerprint, seedCaseId: frozen.caseId, seeds: frozen.seeds, seedBindingFingerprint: evaluationFingerprint({ seedCaseId: frozen.caseId, seeds: frozen.seeds }), canonicalInputFingerprint: inputFingerprint, operatorFingerprint: operator.metadata.implementationFingerprint, configurationFingerprint: operator.metadata.configurationFingerprint, runFingerprint: evaluationFingerprint({ canonicalInputFingerprint: inputFingerprint, decisionFingerprint: canonicalOperatorDecisionFingerprint(decision) }) });
+      return frozen;
+    });
+    if (new Set(frozenCases.map((seedCase) => seedCase.caseId)).size !== frozenCases.length) throw new TypeError("seed cases must be distinct");
+    for (const [caseIndex, frozen] of frozenCases.entries()) {
+      const environment = materializeFrozenSeedEnvironment(frozen);
+      const inputFingerprint = canonicalInputFingerprint(base);
+      for (let runIndex = 0; runIndex < SEED_REPETITIONS; runIndex += 1) {
+        const decision = validateCanonicalDecisionEnvelope(base, operator.metadata, operator.decide(base));
+        samples.push({ sampleId: `harness-seed-${caseIndex + 1}-${runIndex + 1}`, seedSetVersion: FROZEN_BASELINE_VALIDATION_SEED_SET.schemaVersion, seedSetFingerprint: FROZEN_BASELINE_VALIDATION_SEED_SET.seedSetFingerprint, seedCaseId: frozen.caseId, seeds: frozen.seeds, seedBindingFingerprint: evaluationFingerprint({ seedCaseId: frozen.caseId, seeds: frozen.seeds }), environmentFingerprint: environment.environmentFingerprint, canonicalInputFingerprint: inputFingerprint, operatorFingerprint: operator.metadata.implementationFingerprint, configurationFingerprint: operator.metadata.configurationFingerprint, runFingerprint: evaluationFingerprint({ environmentFingerprint: environment.environmentFingerprint, canonicalInputFingerprint: inputFingerprint, decisionFingerprint: canonicalOperatorDecisionFingerprint(decision) }) });
       }
     }
     return validateSeedReproducibility(samples);
@@ -123,28 +130,22 @@ export function runDeclarativeIsolationExecution(operator: CanonicalOperatorV2, 
   } catch { return result(checkId, [issue("INVALID_DECLARATIVE_ISOLATION_EVIDENCE", "evidence", "isolation input, witness, or harness-owned invocation failed validation")], []); }
 }
 
-export function materializeSeedBoundCanonicalInput(baseInput: CanonicalOperatorInputV2, seedCase: BaselineValidationSeedCase): CanonicalOperatorInputV2 {
-  const base = assertCanonicalOperatorInputV2(baseInput, bindings(baseInput));
+/** One fixed 32-bit avalanche step. Each namespace is salted independently; no ambient PRNG state participates. */
+function deterministicDraw(seed: number, salt: number): number {
+  let value = (seed ^ salt) >>> 0;
+  value = Math.imul(value ^ (value >>> 16), 0x21f0aaad) >>> 0;
+  value = Math.imul(value ^ (value >>> 15), 0x735a2d97) >>> 0;
+  return (value ^ (value >>> 15)) >>> 0;
+}
+
+export function deriveSeedEnvironmentDraws(seeds: BaselineValidationSeeds): FrozenSeedEnvironmentDraws {
+  return deepFreezeEvaluation({ merchantWorldDraw: deterministicDraw(seeds.merchant_generation, 0x9e3779b9), customerPopulationDraw: deterministicDraw(seeds.customer_population, 0x243f6a88), warmUpDraw: deterministicDraw(seeds.baseline_warm_up, 0xb7e15162), environmentShockDraw: deterministicDraw(seeds.shared_evaluation_environment, 0x8aed2a6b), operatorRandomnessDraw: deterministicDraw(seeds.operator_randomness, 0xc6ef3720) });
+}
+
+export function materializeFrozenSeedEnvironment(seedCase: BaselineValidationSeedCase): FrozenSeedEnvironmentArtifact {
   const frozen = FROZEN_BASELINE_VALIDATION_SEED_SET.cases.find((candidate) => candidate.caseId === seedCase.caseId);
   if (frozen === undefined || stableEvaluationJson(seedCase) !== stableEvaluationJson(frozen)) throw new BaselineValidationError("seed execution must bind an exact frozen seed case");
   const seedBindingFingerprint = evaluationFingerprint({ seedCaseId: frozen.caseId, seeds: frozen.seeds });
-  const records = [...base.observation.records, {
-    observationKey: BASELINE_VALIDATION_SEED_OBSERVATION_KEY,
-    informationClass: "observable_merchant_data" as const,
-    sourceMinOccurredAt: base.decisionTime,
-    sourceMaxOccurredAt: base.decisionTime,
-    availableAt: base.decisionTime,
-    sourceRef: "merchant-observations:baseline-validation-seed-binding",
-    value: {
-      schemaVersion: FROZEN_BASELINE_VALIDATION_SEED_SET.schemaVersion,
-      seedSetFingerprint: FROZEN_BASELINE_VALIDATION_SEED_SET.seedSetFingerprint,
-      seedCaseId: frozen.caseId,
-      worldProfile: frozen.worldProfile,
-      seeds: frozen.seeds,
-      seedBindingFingerprint,
-    },
-  }];
-  const observationFingerprint = evaluationFingerprint({ opportunityId: base.opportunityId, decisionTime: base.decisionTime, records });
-  const materialized = { ...base, observation: { records }, provenance: { ...base.provenance, observationFingerprint } };
-  return assertCanonicalOperatorInputV2(materialized, { ...bindings(materialized), observationRecords: records, observationFingerprint });
+  const body = { kind: "baseline_validation_seed_environment" as const, schemaVersion: "1.0.0" as const, seedSetVersion: FROZEN_BASELINE_VALIDATION_SEED_SET.schemaVersion, seedSetFingerprint: FROZEN_BASELINE_VALIDATION_SEED_SET.seedSetFingerprint, seedCaseId: frozen.caseId, worldProfile: frozen.worldProfile, seedBindingFingerprint, draws: deriveSeedEnvironmentDraws(frozen.seeds) };
+  return deepFreezeEvaluation({ ...body, environmentFingerprint: evaluationFingerprint(body) });
 }

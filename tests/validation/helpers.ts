@@ -476,7 +476,7 @@ export function createCompleteBaselineValidationCase(legacyOperator: CanonicalOp
   const seedCase = FROZEN_BASELINE_VALIDATION_SEED_SET.cases[index % FROZEN_BASELINE_VALIDATION_SEED_SET.cases.length]!;
   const secondSeedCase = FROZEN_BASELINE_VALIDATION_SEED_SET.cases[(index + 1) % FROZEN_BASELINE_VALIDATION_SEED_SET.cases.length]!;
   const operatorBinding = { operatorId: operator.metadata.operatorId, operatorVersion: operator.metadata.operatorVersion, implementationFingerprint: operator.metadata.implementationFingerprint, configurationFingerprint: operator.metadata.configurationFingerprint, adapterFingerprint: operator.metadata.adapterFingerprint };
-  const repeatedExecution = (repetitions: number) => ({ operatorBinding, canonicalInput: input, canonicalInputFingerprint: canonicalInputFingerprint(input), repetitions });
+  const repeatedExecution = () => ({ operatorBinding, canonicalInput: input, canonicalInputFingerprint: canonicalInputFingerprint(input) });
   const frozenSeedBinding = (candidate: typeof seedCase) => ({ seedSetVersion: FROZEN_BASELINE_VALIDATION_SEED_SET.schemaVersion, seedSetFingerprint: FROZEN_BASELINE_VALIDATION_SEED_SET.seedSetFingerprint, seedCaseId: candidate.caseId, worldProfile: candidate.worldProfile, seeds: candidate.seeds, seedBindingFingerprint: evaluationFingerprint({ seedCaseId: candidate.caseId, seeds: candidate.seeds }) });
   const provenanceSeedBinding = (candidate: typeof seedCase) => ({
     seedCaseId: candidate.caseId,
@@ -525,8 +525,8 @@ export function createCompleteBaselineValidationCase(legacyOperator: CanonicalOp
     caseId,
     operator: legacyOperator,
     evidence: {
-      determinism: repeatedExecution(2),
-      seedReproducibility: { operatorBinding, baseCanonicalInput: input, baseCanonicalInputFingerprint: canonicalInputFingerprint(input), seedCases: [frozenSeedBinding(seedCase), frozenSeedBinding(secondSeedCase)], repetitionsPerSeed: 2 },
+      determinism: repeatedExecution(),
+      seedReproducibility: { operatorBinding, baseCanonicalInput: input, baseCanonicalInputFingerprint: canonicalInputFingerprint(input), seedCases: [frozenSeedBinding(seedCase), frozenSeedBinding(secondSeedCase)] },
       hiddenTruthIsolation: isolationEvidence("hidden_truth_isolation", witnesses.hidden),
       futureInformationIsolation: isolationEvidence("future_information_isolation", witnesses.future),
       temporalBoundary: { decisionTimestamp: opportunity.at, observationFingerprint: input.provenance.observationFingerprint, observations: temporalObservations },
@@ -550,7 +550,7 @@ export function createCompleteBaselineValidationCase(legacyOperator: CanonicalOp
         { label: `seed-binding:${secondSeedCase.caseId}`, value: provenanceSeedBinding(secondSeedCase), recordedFingerprint: evaluationFingerprint(provenanceSeedBinding(secondSeedCase)) },
         { label: "canonical-input", value: input, recordedFingerprint: evaluationFingerprint(input) },
       ],
-      uncontrolledRandomness: repeatedExecution(3),
+      uncontrolledRandomness: repeatedExecution(),
       operatorIsolation: { canonicalInputBefore: input, canonicalInputAfter: input, operatorMetadata: operator.metadata, decisionEnvelope: decision, evaluatedDecision: evaluated, dispositionEvidence: disposition },
     },
   };

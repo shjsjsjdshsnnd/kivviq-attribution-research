@@ -111,7 +111,7 @@ function passingCase(caseId = "case-a"): BaselineValidationCase {
   const operator = probeOperator;
   const decision = operator.decide(input);
   const operatorBinding = { operatorId: operator.metadata.operatorId, operatorVersion: operator.metadata.operatorVersion, implementationFingerprint: operator.metadata.implementationFingerprint, configurationFingerprint: operator.metadata.configurationFingerprint, adapterFingerprint: operator.metadata.adapterFingerprint };
-  const repeatedExecution = (repetitions: number) => ({ operatorBinding, canonicalInput: input, canonicalInputFingerprint: canonicalInputFingerprint(input), repetitions });
+  const repeatedExecution = () => ({ operatorBinding, canonicalInput: input, canonicalInputFingerprint: canonicalInputFingerprint(input) });
   const frozenSeedBinding = (binding: number) => {
     const seedCase = FROZEN_BASELINE_VALIDATION_SEED_SET.cases[binding]!;
     return { seedSetVersion: FROZEN_BASELINE_VALIDATION_SEED_SET.schemaVersion, seedSetFingerprint: FROZEN_BASELINE_VALIDATION_SEED_SET.seedSetFingerprint, seedCaseId: seedCase.caseId, worldProfile: seedCase.worldProfile, seeds: seedCase.seeds, seedBindingFingerprint: evaluationFingerprint({ seedCaseId: seedCase.caseId, seeds: seedCase.seeds }) };
@@ -133,8 +133,8 @@ function passingCase(caseId = "case-a"): BaselineValidationCase {
     caseId,
     operator,
     evidence: {
-      determinism: repeatedExecution(2),
-      seedReproducibility: { operatorBinding, baseCanonicalInput: input, baseCanonicalInputFingerprint: canonicalInputFingerprint(input), seedCases: [frozenSeedBinding(0), frozenSeedBinding(1)], repetitionsPerSeed: 2 },
+      determinism: repeatedExecution(),
+      seedReproducibility: { operatorBinding, baseCanonicalInput: input, baseCanonicalInputFingerprint: canonicalInputFingerprint(input), seedCases: [frozenSeedBinding(0), frozenSeedBinding(1)] },
       hiddenTruthIsolation: isolation("hidden", 1, 2),
       futureInformationIsolation: isolation("future", 3, 4),
       temporalBoundary: { decisionTimestamp: opportunity.at, observationFingerprint: input.provenance.observationFingerprint, observations: [] },
@@ -150,7 +150,7 @@ function passingCase(caseId = "case-a"): BaselineValidationCase {
       multiActionBehavior: probe("multi_action_behavior", caseId, [0, 2], { kind: "multi_action" }),
       artifactReplay: replay,
       provenanceIntegrity: [{ label: "input", value: input, recordedFingerprint: evaluationFingerprint(input) }],
-      uncontrolledRandomness: repeatedExecution(3),
+      uncontrolledRandomness: repeatedExecution(),
       operatorIsolation: { canonicalInputBefore: input, canonicalInputAfter: input, operatorMetadata: operator.metadata, decisionEnvelope: decision, evaluatedDecision: evaluated, dispositionEvidence: disposition },
     },
   };

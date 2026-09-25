@@ -36,6 +36,7 @@ export interface SeedReproducibilitySample {
   readonly seedCaseId: string;
   readonly seeds: BaselineValidationSeeds;
   readonly seedBindingFingerprint: string;
+  readonly environmentFingerprint: string;
   readonly canonicalInputFingerprint: string;
   readonly operatorFingerprint: string;
   readonly configurationFingerprint: string;
@@ -44,7 +45,7 @@ export interface SeedReproducibilitySample {
 
 const DECISION_KEYS = ["sampleId", "canonicalInputFingerprint", "operatorFingerprint", "configurationFingerprint", "seedBindingFingerprint", "actions", "decisionEnvelope"] as const;
 const RUN_KEYS = ["sampleId", "canonicalInputFingerprint", "operatorFingerprint", "configurationFingerprint", "seedSetFingerprint", "decisionOpportunities", "observations", "outputs", "dispositions", "executedActions", "simulatorOutcomeFingerprint", "metrics", "provenanceFingerprint"] as const;
-const SEED_KEYS = ["sampleId", "seedSetVersion", "seedSetFingerprint", "seedCaseId", "seeds", "seedBindingFingerprint", "canonicalInputFingerprint", "operatorFingerprint", "configurationFingerprint", "runFingerprint"] as const;
+const SEED_KEYS = ["sampleId", "seedSetVersion", "seedSetFingerprint", "seedCaseId", "seeds", "seedBindingFingerprint", "environmentFingerprint", "canonicalInputFingerprint", "operatorFingerprint", "configurationFingerprint", "runFingerprint"] as const;
 
 function validateCollection(value: unknown, minimum: number, keys: readonly string[], label: string): { entries: Record<string, unknown>[]; issues: BaselineValidationIssue[] } {
   const issues: BaselineValidationIssue[] = [];
@@ -124,7 +125,7 @@ export function validateCompleteRunReproducibility(runs: readonly CompleteRunSam
 export function validateSeedReproducibility(seedRuns: readonly SeedReproducibilitySample[]): BaselineValidationCheckResult {
   if (!isStrictJson(seedRuns)) return result("seed_reproducibility", [issue("INVALID_JSON_EVIDENCE", "evidence", "seed reproducibility evidence must be strict deterministic JSON")], []);
   const checked = validateCollection(seedRuns, 4, SEED_KEYS, "seed reproducibility evidence");
-  commonBindings(checked.entries, ["seedSetFingerprint", "operatorFingerprint", "configurationFingerprint"], checked.issues);
+  commonBindings(checked.entries, ["seedSetFingerprint", "canonicalInputFingerprint", "operatorFingerprint", "configurationFingerprint"], checked.issues);
   const runFingerprints: string[] = [];
   checked.entries.forEach((entry, index) => {
     const frozenCase = FROZEN_BASELINE_VALIDATION_SEED_SET.cases.find((candidate) => candidate.caseId === entry["seedCaseId"]);
@@ -135,6 +136,7 @@ export function validateSeedReproducibility(seedRuns: readonly SeedReproducibili
       && JSON.stringify(entry["seeds"]) === JSON.stringify(frozenCase.seeds)
       && entry["seedBindingFingerprint"] === evaluationFingerprint({ seedCaseId: frozenCase.caseId, seeds: frozenCase.seeds });
     if (!exactFrozenBinding) checked.issues.push(issue("INVALID_SEED_BINDING", `evidence[${index}]`, "seed evidence must bind an exact case from the frozen seed set"));
+    if (!isFingerprint(entry["environmentFingerprint"])) checked.issues.push(issue("INVALID_SEED_BINDING", `evidence[${index}].environmentFingerprint`, "seed evidence must bind a canonical evaluator environment fingerprint"));
     if (!isFingerprint(entry["runFingerprint"])) checked.issues.push(issue("INVALID_RUN_FINGERPRINT", `evidence[${index}].runFingerprint`, "run fingerprint must be canonical"));
     else runFingerprints.push(entry["runFingerprint"]);
   });
@@ -142,8 +144,8 @@ export function validateSeedReproducibility(seedRuns: readonly SeedReproducibili
     const groups = new Map<string, Record<string, unknown>[]>();
     for (const entry of checked.entries) { const key = `${entry["seedCaseId"]}:${entry["seedBindingFingerprint"]}`; groups.set(key, [...(groups.get(key) ?? []), entry]); }
     if (groups.size < 2 || [...groups.values()].some((entries) => entries.length < 2)) checked.issues.push(issue("INSUFFICIENT_SEED_BINDINGS", "evidence", "two distinct seed bindings with two runs each are required"));
-    else if ([...groups.values()].some((entries) => new Set(entries.map((entry) => entry["canonicalInputFingerprint"])).size !== 1 || new Set(entries.map((entry) => entry["runFingerprint"])).size !== 1)) checked.issues.push(issue("SEED_REPRODUCIBILITY_FAILURE", "evidence", "the exact seed binding produced different inputs or runs"));
-    else if (new Set([...groups.values()].map((entries) => entries[0]!["canonicalInputFingerprint"])).size !== groups.size || new Set([...groups.values()].map((entries) => entries[0]!["runFingerprint"])).size !== groups.size) checked.issues.push(issue("SEED_BINDING_NOT_MATERIALIZED", "evidence", "distinct frozen seeds must produce distinct bound input and run fingerprints"));
+    else if ([...groups.values()].some((entries) => new Set(entries.map((entry) => entry["environmentFingerprint"])).size !== 1 || new Set(entries.map((entry) => entry["runFingerprint"])).size !== 1)) checked.issues.push(issue("SEED_REPRODUCIBILITY_FAILURE", "evidence", "the exact seed binding produced different evaluator environments or runs"));
+    else if (new Set([...groups.values()].map((entries) => entries[0]!["environmentFingerprint"])).size !== groups.size || new Set([...groups.values()].map((entries) => entries[0]!["runFingerprint"])).size !== groups.size) checked.issues.push(issue("SEED_BINDING_NOT_MATERIALIZED", "evidence", "distinct frozen seeds must produce distinct evaluator environment and run fingerprints"));
   }
   return result("seed_reproducibility", checked.issues, runFingerprints);
 }
