@@ -15,7 +15,14 @@ export interface ExecutableConformanceProbe { readonly probeId: string; readonly
 
 const PROBE_KEYS = ["probeId", "checkId", "operatorId", "configurationFingerprint", "caseFingerprint", "invocations", "expectation", "probeFingerprint"] as const;
 const INVOCATION_KEYS = ["fixtureId", "canonicalInput", "inputFingerprint"] as const;
-const EXPECTED_KIND: Record<ExecutableProbeCheckId, DeclarativeProbeExpectation["kind"]> = { policy_semantics: "exact", permitted_information_sensitivity: "sensitive", tie_breaking: "exact", missing_data_behavior: "exact", zero_action_behavior: "zero_actions", multi_action_behavior: "multi_action" };
+const EXPECTED_KINDS: Record<ExecutableProbeCheckId, readonly DeclarativeProbeExpectation["kind"][]> = {
+  policy_semantics: ["exact"],
+  permitted_information_sensitivity: ["sensitive", "invariant"],
+  tie_breaking: ["exact"],
+  missing_data_behavior: ["exact"],
+  zero_action_behavior: ["zero_actions"],
+  multi_action_behavior: ["multi_action", "exact"],
+};
 
 export interface ProhibitedInformationProbePair { readonly pairId: string; readonly leftFixtureId: string; readonly rightFixtureId: string; readonly leftInput: CanonicalOperatorInputV2; readonly rightInput: CanonicalOperatorInputV2; readonly leftWitnessFingerprint: string; readonly rightWitnessFingerprint: string; }
 export interface ProhibitedInformationProbe { readonly probeId: string; readonly checkId: "prohibited_information_invariance"; readonly operatorId: string; readonly configurationFingerprint: string; readonly caseFingerprint: string; readonly pairs: readonly ProhibitedInformationProbePair[]; readonly probeFingerprint: string; }
@@ -54,8 +61,9 @@ export function runExecutableConformanceProbe(operatorValue: CanonicalOperator |
   if (!isStrictJson(value)) return fail("INVALID_PROBE_EVIDENCE", "probe must contain strict JSON evidence");
   if (!isNonEmptyString(value["probeId"]) || value["checkId"] !== expectedCheckId || value["operatorId"] !== operator.metadata.operatorId || value["configurationFingerprint"] !== operator.metadata.configurationFingerprint || value["caseFingerprint"] !== baselineValidationCaseFingerprint(caseId, operator.metadata.operatorId)) return fail("PROBE_BINDING_MISMATCH", "probe is not bound to the operator, configuration, case, and check");
   const expectation = value["expectation"];
-  const expectedKind = EXPECTED_KIND[expectedCheckId];
-  if (!isRecord(expectation) || expectation["kind"] !== expectedKind || (expectedKind === "exact" ? !hasExactKeys(expectation, ["kind", "expectedDecisionFingerprints", "expectedActionFingerprints"]) || !Array.isArray(expectation["expectedDecisionFingerprints"]) || !expectation["expectedDecisionFingerprints"].every(isFingerprint) || !Array.isArray(expectation["expectedActionFingerprints"]) || !expectation["expectedActionFingerprints"].every((entry) => Array.isArray(entry) && entry.every(isFingerprint)) : !hasExactKeys(expectation, ["kind"]))) return fail("INVALID_PROBE_EXPECTATION", "probe expectation is malformed or unsuitable for this check");
+  const expectedKind = isRecord(expectation) ? expectation["kind"] : undefined;
+  const permittedKinds = EXPECTED_KINDS[expectedCheckId];
+  if (!isRecord(expectation) || typeof expectedKind !== "string" || !permittedKinds.includes(expectedKind as DeclarativeProbeExpectation["kind"]) || (expectedKind === "exact" ? !hasExactKeys(expectation, ["kind", "expectedDecisionFingerprints", "expectedActionFingerprints"]) || !Array.isArray(expectation["expectedDecisionFingerprints"]) || !expectation["expectedDecisionFingerprints"].every(isFingerprint) || !Array.isArray(expectation["expectedActionFingerprints"]) || !expectation["expectedActionFingerprints"].every((entry) => Array.isArray(entry) && entry.every(isFingerprint)) : !hasExactKeys(expectation, ["kind"]))) return fail("INVALID_PROBE_EXPECTATION", "probe expectation is malformed or unsuitable for this check");
   if (!Array.isArray(value["invocations"]) || value["invocations"].length === 0) return fail("INVALID_PROBE_EVIDENCE", "probe requires canonical input invocations");
   for (const raw of value["invocations"]) {
     if (!isRecord(raw) || !hasExactKeys(raw, INVOCATION_KEYS) || !isRecord(raw["canonicalInput"]) || !compatibleFixture(raw["fixtureId"], FIXTURE_CATEGORY[expectedCheckId]) || !isFingerprint(raw["inputFingerprint"])) return fail("INVALID_PROBE_INVOCATION", "probe invocation has invalid keys or a fixture incompatible with this check");
@@ -79,8 +87,9 @@ export function runExecutableConformanceProbe(operatorValue: CanonicalOperator |
     } catch { return fail("OPERATOR_INVOCATION_FAILED", "operator invocation or canonical decision validation failed"); }
   }
   const fingerprints = observed.map((entry) => entry.decisionFingerprint);
-  if (expectedKind === "sensitive" && new Set(observed.map((entry) => entry.inputFingerprint)).size < 2) return fail("SENSITIVE_PROBE_REQUIRES_DISTINCT_INPUTS", "sensitivity evidence requires at least two distinct canonical inputs");
-  if (expectedKind === "sensitive") {
+  const isPermittedInformationProbe = expectedCheckId === "permitted_information_sensitivity";
+  if (isPermittedInformationProbe && new Set(observed.map((entry) => entry.inputFingerprint)).size < 2) return fail("SENSITIVE_PROBE_REQUIRES_DISTINCT_INPUTS", "sensitivity evidence requires at least two distinct canonical inputs");
+  if (isPermittedInformationProbe) {
     const controls = validatedInputs.map((entry) => stableEvaluationJson(sensitivityControlProjection(entry)));
     if (new Set(controls).size !== 1) return fail("SENSITIVE_PROBE_CONTROL_MISMATCH", "sensitivity evidence may vary only permitted observation data");
     if (new Set(validatedInputs.map((entry) => entry.provenance.observationFingerprint)).size < 2) return fail("SENSITIVE_PROBE_REQUIRES_OBSERVATION_VARIATION", "sensitivity evidence requires distinct permitted observations");
