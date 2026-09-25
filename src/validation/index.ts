@@ -1,4 +1,5 @@
 export * from "./version.js";
+export * from "./canonical-json.js";
 export * from "./contract.js";
 export * from "./report.js";
 export * from "./seed-sets.js";

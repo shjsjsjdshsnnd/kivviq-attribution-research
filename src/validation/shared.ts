@@ -81,7 +81,8 @@ export function canonicalActionFingerprints(value: unknown): readonly string[] |
 
 export function result(checkId: BaselineValidationCheckId, issues: readonly BaselineValidationIssue[], fingerprints: readonly string[]): BaselineValidationCheckResult {
   const sortedIssues = [...issues].sort((left, right) => compareCodeUnits(left.code, right.code) || compareCodeUnits(left.path, right.path) || compareCodeUnits(left.message, right.message));
-  return deepFreezeEvaluation({ checkId, status: sortedIssues.length === 0 ? "PASS" : "FAIL", evidenceFingerprints: [...fingerprints].sort(compareCodeUnits), issues: sortedIssues });
+  const uniqueFingerprints = [...new Set(fingerprints)].sort(compareCodeUnits);
+  return deepFreezeEvaluation({ checkId, status: sortedIssues.length === 0 ? "PASS" : "FAIL", evidenceFingerprints: uniqueFingerprints, issues: sortedIssues });
 }
 
 export function issue(code: string, path: string, message: string): BaselineValidationIssue {

@@ -1,8 +1,7 @@
 import {
   deepFreezeEvaluation,
-  evaluationFingerprint,
-  stableEvaluationJson,
 } from "../evaluation/baseline-contract.js";
+import { stableValidationJson, validationFingerprint } from "./canonical-json.js";
 import {
   BASELINE_VALIDATION_CONTRACT,
   BASELINE_VALIDATION_REQUIRED_CHECKS,
@@ -85,7 +84,7 @@ function assertExactKeys(
 }
 
 function cloneJson<T>(value: T): T {
-  return JSON.parse(stableEvaluationJson(value)) as T;
+  return JSON.parse(stableValidationJson(value)) as T;
 }
 
 function requiredIndex(checkId: BaselineValidationCheckId): number {
@@ -153,13 +152,27 @@ function normalizeCheck(value: unknown): BaselineValidationCheckResult {
     assertBaselineValidationFingerprint(fingerprint, `${checkId} evidence fingerprint`);
   }
   requireCondition(
+    new Set(evidenceFingerprints).size === evidenceFingerprints.length,
+    `duplicate evidence fingerprint for ${checkId}`,
+  );
+  requireCondition(
     Array.isArray(value["issues"]),
     `issues for ${checkId} must be an array`,
   );
   const issues = value["issues"].map(normalizeIssue).sort(compareIssues);
+  const evaluatorStatus: BaselineValidationStatus =
+    issues.length === 0 ? "PASS" : "FAIL";
+  requireCondition(
+    value["status"] === evaluatorStatus,
+    `status does not match evaluator outcome for ${checkId}`,
+  );
+  requireCondition(
+    evaluatorStatus === "FAIL" || evidenceFingerprints.length > 0,
+    `PASS check must contain evidence for ${checkId}`,
+  );
   return {
     checkId: checkId as BaselineValidationCheckId,
-    status: value["status"] as BaselineValidationStatus,
+    status: evaluatorStatus,
     evidenceFingerprints: evidenceFingerprints.sort(),
     issues,
   };
@@ -278,7 +291,7 @@ function frozenArtifactIdentity(): Pick<
 export function baselineConformanceEvidenceFingerprint(
   report: ReportEvidenceIdentity,
 ): string {
-  return evaluationFingerprint(evidenceBody(report));
+  return validationFingerprint(evidenceBody(report));
 }
 
 export function baselineConformanceReportFingerprint(
@@ -286,13 +299,13 @@ export function baselineConformanceReportFingerprint(
 ): string {
   const { reportFingerprint: _omitted, ...body } = report as
     BaselineConformanceReport & Record<string, unknown>;
-  return evaluationFingerprint(body);
+  return validationFingerprint(body);
 }
 
 export function stableBaselineConformanceReportJson(
   report: BaselineConformanceReport,
 ): string {
-  return stableEvaluationJson(report);
+  return stableValidationJson(report);
 }
 
 export function createBaselineConformanceReport(
@@ -317,13 +330,13 @@ export function createBaselineConformanceReport(
     operator,
     checks,
     overall,
-    evidenceFingerprint: evaluationFingerprint(
+    evidenceFingerprint: validationFingerprint(
       evidenceBody({ ...artifactIdentity, operator, checks }),
     ),
   };
   return deepFreezeEvaluation({
     ...body,
-    reportFingerprint: evaluationFingerprint(body),
+    reportFingerprint: validationFingerprint(body),
   });
 }
 
@@ -415,7 +428,7 @@ export function validateBaselineConformanceReport(
     "checks must be in contract order",
   );
   requireCondition(
-    stableEvaluationJson(rawChecks) === stableEvaluationJson(normalizedChecks),
+    stableValidationJson(rawChecks) === stableValidationJson(normalizedChecks),
     "checks are not canonically normalized",
   );
   const expectedOverall = normalizedChecks.every(
@@ -431,7 +444,7 @@ export function validateBaselineConformanceReport(
     value["evidenceFingerprint"],
     "evidence fingerprint",
   );
-  const expectedEvidenceFingerprint = evaluationFingerprint(
+  const expectedEvidenceFingerprint = validationFingerprint(
     evidenceBody({ ...artifactIdentity, operator, checks: normalizedChecks }),
   );
   requireCondition(

@@ -1,8 +1,7 @@
 import {
   deepFreezeEvaluation,
-  evaluationFingerprint,
-  stableEvaluationJson,
 } from "../evaluation/baseline-contract.js";
+import { stableValidationJson, validationFingerprint } from "./canonical-json.js";
 import {
   BASELINE_VALIDATION_REQUIRED_CHECKS,
   BaselineValidationError,
@@ -78,7 +77,7 @@ function assertExactKeys(
 }
 
 function cloneJson<T>(value: T): T {
-  return JSON.parse(stableEvaluationJson(value)) as T;
+  return JSON.parse(stableValidationJson(value)) as T;
 }
 
 function fixtureDescriptor(
@@ -86,7 +85,7 @@ function fixtureDescriptor(
 ): BaselineValidationFixtureDescriptor {
   return {
     ...body,
-    fixtureFingerprint: evaluationFingerprint(body),
+    fixtureFingerprint: validationFingerprint(body),
   };
 }
 
@@ -97,7 +96,7 @@ export function recomputeFixtureDescriptorFingerprint(
 ): string {
   const { fixtureFingerprint: _omitted, ...body } = descriptor as
     BaselineValidationFixtureDescriptor & Record<string, unknown>;
-  return evaluationFingerprint(body);
+  return validationFingerprint(body);
 }
 
 export function recomputeFixtureManifestFingerprint(
@@ -107,7 +106,7 @@ export function recomputeFixtureManifestFingerprint(
 ): string {
   const { fixtureManifestFingerprint: _omitted, ...body } = manifest as
     BaselineValidationFixtureManifest & Record<string, unknown>;
-  return evaluationFingerprint(body);
+  return validationFingerprint(body);
 }
 
 const FIXTURE_MANIFEST_BODY = {
@@ -191,7 +190,7 @@ const FIXTURE_MANIFEST_BODY = {
 export const FROZEN_BASELINE_VALIDATION_FIXTURES: BaselineValidationFixtureManifest =
   deepFreezeEvaluation({
     ...FIXTURE_MANIFEST_BODY,
-    fixtureManifestFingerprint: evaluationFingerprint(FIXTURE_MANIFEST_BODY),
+    fixtureManifestFingerprint: validationFingerprint(FIXTURE_MANIFEST_BODY),
   });
 
 export function validateBaselineValidationFixtureManifest(
@@ -301,8 +300,8 @@ export function validateBaselineValidationFixtureManifest(
   requireCondition(
     value["fixtureManifestFingerprint"] ===
       FROZEN_BASELINE_VALIDATION_FIXTURES.fixtureManifestFingerprint &&
-      stableEvaluationJson(value) ===
-        stableEvaluationJson(FROZEN_BASELINE_VALIDATION_FIXTURES),
+      stableValidationJson(value) ===
+        stableValidationJson(FROZEN_BASELINE_VALIDATION_FIXTURES),
     "frozen fixture manifest identity mismatch",
   );
   requireCondition(

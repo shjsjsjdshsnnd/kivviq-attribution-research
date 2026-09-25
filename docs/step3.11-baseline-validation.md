@@ -10,6 +10,7 @@ Conformance establishes whether an operator satisfies the frozen interface, evid
 
 - Step 3.11 frozen parent commit: `3fbc5c9396f2471c7c6fdd5fb73b50cb107dcaf3`
 - validation suite version: `1.0.0`
+- validation canonical-JSON version: `1.0.0`
 - validation contract schema version: `1.0.0`
 - conformance report schema version: `1.0.0`
 - fixture-manifest schema version: `1.0.0`
@@ -48,6 +49,8 @@ The validation layer may inspect evaluator-only evidence. It never adds GroundTr
 ## Frozen artifacts and fingerprints
 
 Each stored fingerprint is checked by recomputing it from the canonical body with the fingerprint field omitted. Validation rejects malformed, mismatched, duplicate, unknown, or non-canonical evidence.
+
+Step 3.1 retains its frozen `localeCompare` key ordering. Step 3.11 owns a separate, explicitly versioned canonical-JSON serializer that uses Unicode code-unit key ordering for validation contracts, fixtures, seed sets, evidence summaries, and reports. This prevents validation portability requirements from changing the previously frozen evaluation serializer.
 
 | Artifact | Frozen identity | Fingerprint |
 | --- | --- | --- |
@@ -136,7 +139,7 @@ The evaluator returns `FAIL` or rejects the report when it encounters any of the
 - replay identity, configuration, input, output, provenance, schema, seed binding, or artifact identity differs;
 - an operator claims execution, simulator mutation, or constraint-bypass authority.
 
-One failed check makes `overall` equal `FAIL`. The report builder inserts deterministic `MISSING_REQUIRED_EVIDENCE` results and never infers PASS from omitted evidence. Check ordering follows the contract, issue ordering uses code-unit order, and canonical serialization makes reports reproducible from the recorded evidence.
+One failed check makes `overall` equal `FAIL`. PASS/FAIL is evaluator-owned: a PASS result must have zero issues and at least one well-formed, unique evidence fingerprint; a FAIL result must have one or more issues. The builder rejects caller-supplied statuses that contradict those facts, and serialized report validation applies the same rules after independently recomputing aggregate fingerprints. The report builder inserts deterministic `MISSING_REQUIRED_EVIDENCE` results and never infers PASS from omitted evidence. Check ordering follows the contract, issue ordering uses code-unit order, and canonical serialization makes reports reproducible from the recorded evidence.
 
 ## Machine-readable report example
 
@@ -191,8 +194,9 @@ Verification ran serially on 2026-09-25 from branch `baseline/step3.11-baseline-
 
 | Command | Result |
 | --- | --- |
+| `npm run test:baseline-evaluation` | PASS, 21 tests in 1 file |
 | `npm run test:canonical-operator-interface` | PASS, 190 tests in 1 file |
-| `npm run test:baseline-validation` | PASS, 187 tests in 14 files; all 27 reports PASS |
+| `npm run test:baseline-validation` | PASS, 190 tests in 14 files; all 27 reports PASS |
 | `npm run test:do-nothing` | PASS, 430 tests in 9 operator files |
 | `npm run test:status-quo` | PASS, 26 tests in 1 file |
 | `npm run test:advertising-heuristics` | PASS, 37 tests in 1 file |
@@ -201,9 +205,9 @@ Verification ran serially on 2026-09-25 from branch `baseline/step3.11-baseline-
 | `npm run test:merchandising-heuristics` | PASS, 32 tests in 1 file |
 | `npm run test:greedy-operators` | PASS, 24 tests in 1 file |
 | `npm run test:flawed-optimizers` | PASS, 27 tests in 1 file |
-| `npm run architecture` | PASS, 156 modules and 672 dependencies, zero violations |
+| `npm run architecture` | PASS, 157 modules and 677 dependencies, zero violations |
 | `npm run typecheck` | PASS |
-| `npm test -- --maxWorkers=1` | PASS, 1,045 tests in 97 files |
+| `npm test -- --maxWorkers=1` | PASS, 1,048 tests in 97 files |
 | `npm run build` | PASS |
 
 Step 3.11 freezes the validation methodology and evidence contract. A later semantic change requires a new version and fingerprint; it must not rewrite reports produced under `1.0.0`.

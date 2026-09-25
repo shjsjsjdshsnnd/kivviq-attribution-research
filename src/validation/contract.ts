@@ -1,8 +1,7 @@
 import {
   deepFreezeEvaluation,
-  evaluationFingerprint,
-  stableEvaluationJson,
 } from "../evaluation/baseline-contract.js";
+import { stableValidationJson, validationFingerprint } from "./canonical-json.js";
 import {
   BASELINE_VALIDATION_CONTRACT_SCHEMA_VERSION,
   BASELINE_VALIDATION_FROZEN_PARENT_COMMIT,
@@ -112,13 +111,13 @@ export function baselineValidationContractFingerprint(
 ): string {
   const { contractFingerprint: _omitted, ...body } = contract as
     BaselineValidationContract & Record<string, unknown>;
-  return evaluationFingerprint(body);
+  return validationFingerprint(body);
 }
 
 export const BASELINE_VALIDATION_CONTRACT: BaselineValidationContract =
   deepFreezeEvaluation({
     ...CONTRACT_BODY,
-    contractFingerprint: evaluationFingerprint(CONTRACT_BODY),
+    contractFingerprint: validationFingerprint(CONTRACT_BODY),
   });
 
 export function validateBaselineValidationContract(
@@ -177,7 +176,7 @@ export function validateBaselineValidationContract(
     "validation contract fingerprint mismatch",
   );
   return deepFreezeEvaluation(
-    JSON.parse(stableEvaluationJson(value)) as BaselineValidationContract,
+    JSON.parse(stableValidationJson(value)) as BaselineValidationContract,
   );
 }
 

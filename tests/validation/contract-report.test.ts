@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   BASELINE_CONFORMANCE_REPORT_SCHEMA_VERSION,
   BASELINE_VALIDATION_CONTRACT,
+  BASELINE_VALIDATION_CANONICAL_JSON_VERSION,
   BASELINE_VALIDATION_CONTRACT_SCHEMA_VERSION,
   BASELINE_VALIDATION_FIXTURE_MANIFEST_SCHEMA_VERSION,
   BASELINE_VALIDATION_FROZEN_PARENT_COMMIT,
@@ -16,6 +17,8 @@ import {
   createBaselineConformanceReport,
   baselineConformanceReportFingerprint,
   stableBaselineConformanceReportJson,
+  stableValidationJson,
+  validationFingerprint,
   validateBaselineConformanceReport,
   validateBaselineValidationContract,
 } from "../../src/validation/index.js";
@@ -71,6 +74,14 @@ function mutableReport(report: BaselineConformanceReport): Record<string, unknow
 }
 
 describe("Step 3.11 validation contract", () => {
+  it("owns a versioned code-unit canonical serializer without changing Step 3.1", () => {
+    expect(BASELINE_VALIDATION_CANONICAL_JSON_VERSION).toBe("1.0.0");
+    expect(stableValidationJson({ a: 1, A: 2 })).toBe('{"A":2,"a":1}');
+    expect(validationFingerprint({ a: 1, A: 2 })).toBe(
+      "fnv1a64:cfcf9127b2237ca2",
+    );
+  });
+
   it("freezes versions, lineage, and required checks in exact order", () => {
     expect(BASELINE_VALIDATION_SUITE_VERSION).toBe("1.0.0");
     expect(BASELINE_VALIDATION_CONTRACT_SCHEMA_VERSION).toBe("1.0.0");
@@ -214,6 +225,81 @@ describe("Step 3.11 conformance reports", () => {
       );
       expect(() => validateBaselineConformanceReport(changed)).toThrow(message);
     }
+  });
+
+  it("rejects contradictory or unbound check outcomes even after report fingerprints are recomputed", () => {
+    const base = createBaselineConformanceReport(passingEvidence());
+    const cases = [
+      {
+        check: {
+          ...base.checks[0]!,
+          status: "PASS",
+          issues: [{ code: "CONTRADICTION", path: "checks.determinism", message: "failed evidence" }],
+        },
+        message: /status does not match evaluator outcome/,
+      },
+      {
+        check: { ...base.checks[0]!, status: "PASS", evidenceFingerprints: [] },
+        message: /PASS check must contain evidence/,
+      },
+      {
+        check: { ...base.checks[0]!, status: "FAIL", issues: [] },
+        message: /status does not match evaluator outcome/,
+      },
+      {
+        check: {
+          ...base.checks[0]!,
+          evidenceFingerprints: [
+            base.checks[0]!.evidenceFingerprints[0]!,
+            base.checks[0]!.evidenceFingerprints[0]!,
+          ],
+        },
+        message: /duplicate evidence fingerprint/,
+      },
+      {
+        check: { ...base.checks[0]!, evidenceFingerprints: ["not-a-fingerprint"] },
+        message: /fingerprint must match/,
+      },
+    ] as const;
+
+    for (const entry of cases) {
+      const changed = mutableReport(base);
+      (changed["checks"] as unknown[])[0] = entry.check;
+      changed["evidenceFingerprint"] = baselineConformanceEvidenceFingerprint(
+        changed as unknown as BaselineConformanceReport,
+      );
+      changed["reportFingerprint"] = baselineConformanceReportFingerprint(
+        changed as unknown as BaselineConformanceReport,
+      );
+      expect(() => validateBaselineConformanceReport(changed)).toThrow(
+        entry.message,
+      );
+    }
+  });
+
+  it("rejects contradictory raw results before creating a report", () => {
+    const evidence = passingEvidence();
+    const contradictory = {
+      ...evidence,
+      checks: [
+        {
+          ...evidence.checks[0]!,
+          status: "PASS" as const,
+          issues: [
+            {
+              code: "CONTRADICTION",
+              path: "checks.determinism",
+              message: "failed evidence",
+            },
+          ],
+        },
+        ...evidence.checks.slice(1),
+      ],
+    };
+
+    expect(() => createBaselineConformanceReport(contradictory)).toThrow(
+      /status does not match evaluator outcome/,
+    );
   });
 
   it("sorts checks, issues, and evidence fingerprints deterministically", () => {

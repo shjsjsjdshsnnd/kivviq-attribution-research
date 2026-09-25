@@ -68,7 +68,7 @@ export function validateTemporalObservationBoundary(input: TemporalObservationBo
   const checked = observations(input["observations"], issues);
   validateBindings(checked, expectedObservationFingerprint, expectedRecords, "latest", issues);
   checked.forEach(({ index, time }) => { if (decision !== undefined && time > decision) issues.push(issue("FUTURE_OBSERVATION", `observations[${index}].occurredAt`, "observation occurs after the decision timestamp")); });
-  return result("temporal_boundary_conformance", issues, checked.map(({ value }) => evaluationFingerprint(value)));
+  return result("temporal_boundary_conformance", issues, [evaluationFingerprint(input)]);
 }
 
 export function validateLookbackWindow(input: LookbackWindowInput, expectedObservationFingerprint?: string, expectedRecords?: readonly BoundObservationRecord[], expectedDecisionTimestamp?: string): BaselineValidationCheckResult {
@@ -84,5 +84,5 @@ export function validateLookbackWindow(input: LookbackWindowInput, expectedObser
   const checked = observations(input["observations"], issues);
   validateBindings(checked, expectedObservationFingerprint, expectedRecords, "window", issues);
   checked.forEach(({ index, time }) => { if (start !== undefined && end !== undefined && (time < start || time > end)) issues.push(issue("LOOKBACK_WINDOW_VIOLATION", `observations[${index}].occurredAt`, "observation lies outside the inclusive lookback window")); });
-  return result("lookback_window_conformance", issues, checked.map(({ value }) => evaluationFingerprint(value)));
+  return result("lookback_window_conformance", issues, [evaluationFingerprint(input)]);
 }

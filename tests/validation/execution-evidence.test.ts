@@ -42,7 +42,7 @@ describe("evaluator-owned execution evidence", () => {
     }
   });
 
-  it("records identical runs within a seed and distinct bound runs across seeds", () => {
+  it("summarizes identical runs as unique bound fingerprints across seeds", () => {
     const baseOperator = ensureCanonicalOperatorV2(DO_NOTHING_OPERATOR);
     const input = baseInput();
     const seenInputs: string[] = [];
@@ -54,7 +54,7 @@ describe("evaluator-owned execution evidence", () => {
     };
     const result = runDeclarativeSeedExecution(operator, { operatorBinding: binding, baseCanonicalInput: input, baseCanonicalInputFingerprint: canonicalInputFingerprint(input), seedCases: [seedBinding(0), seedBinding(1)] });
     expect(result.status).toBe("PASS");
-    expect(result.evidenceFingerprints).toHaveLength(4);
+    expect(result.evidenceFingerprints).toHaveLength(2);
     expect(new Set(result.evidenceFingerprints).size).toBe(2);
     expect(new Set(seenInputs.map((value) => canonicalInputFingerprint(JSON.parse(value))))).toEqual(new Set([canonicalInputFingerprint(input)]));
     const serialized = seenInputs.join("\n");

@@ -1,8 +1,7 @@
 import {
   deepFreezeEvaluation,
-  evaluationFingerprint,
-  stableEvaluationJson,
 } from "../evaluation/baseline-contract.js";
+import { stableValidationJson, validationFingerprint } from "./canonical-json.js";
 import {
   BaselineValidationError,
   assertBaselineValidationFingerprint,
@@ -82,7 +81,7 @@ function assertExactKeys(
 }
 
 function cloneJson<T>(value: T): T {
-  return JSON.parse(stableEvaluationJson(value)) as T;
+  return JSON.parse(stableValidationJson(value)) as T;
 }
 
 export function recomputeSeedSetFingerprint(
@@ -90,7 +89,7 @@ export function recomputeSeedSetFingerprint(
 ): string {
   const { seedSetFingerprint: _omitted, ...body } = seedSet as
     BaselineValidationSeedSet & Record<string, unknown>;
-  return evaluationFingerprint(body);
+  return validationFingerprint(body);
 }
 
 const SEED_SET_BODY = {
@@ -171,7 +170,7 @@ const SEED_SET_BODY = {
 export const FROZEN_BASELINE_VALIDATION_SEED_SET: BaselineValidationSeedSet =
   deepFreezeEvaluation({
     ...SEED_SET_BODY,
-    seedSetFingerprint: evaluationFingerprint(SEED_SET_BODY),
+    seedSetFingerprint: validationFingerprint(SEED_SET_BODY),
   });
 
 export function validateBaselineValidationSeedSet(
@@ -243,8 +242,8 @@ export function validateBaselineValidationSeedSet(
   requireCondition(
     value["seedSetFingerprint"] ===
       FROZEN_BASELINE_VALIDATION_SEED_SET.seedSetFingerprint &&
-      stableEvaluationJson(value) ===
-        stableEvaluationJson(FROZEN_BASELINE_VALIDATION_SEED_SET),
+      stableValidationJson(value) ===
+        stableValidationJson(FROZEN_BASELINE_VALIDATION_SEED_SET),
     "frozen seed-set identity mismatch",
   );
   return deepFreezeEvaluation(

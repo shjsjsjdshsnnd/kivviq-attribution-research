@@ -49,21 +49,16 @@ describe("evaluation canonical serialization", () => {
     expect(Object.isFrozen(CONSTRAINT_ISSUE_KINDS)).toBe(true);
   });
 
-  it("orders Unicode object keys by UTF-16 code units independent of insertion order", () => {
-    const entries = [
-      ["é", "composed"],
-      ["e\u0301", "decomposed"],
-      ["\u{1f600}", "astral"],
-      ["\ue000", "private-use"],
-    ] as const;
-    const forward = Object.fromEntries(entries);
-    const reverse = Object.fromEntries([...entries].reverse());
+  it("preserves the frozen Step 3.1 locale ordering and mixed-case fingerprint", () => {
+    const forward = { a: 1, A: 2 };
+    const reverse = { A: 2, a: 1 };
 
-    expect(stableEvaluationJson(forward)).toBe(stableEvaluationJson(reverse));
-    expect(evaluationFingerprint(forward)).toBe(evaluationFingerprint(reverse));
-    expect(stableEvaluationJson(forward)).toBe(
-      '{"é":"decomposed","é":"composed","😀":"astral","":"private-use"}',
+    expect(stableEvaluationJson(forward)).toBe('{"a":1,"A":2}');
+    expect(stableEvaluationJson(reverse)).toBe(stableEvaluationJson(forward));
+    expect(evaluationFingerprint(forward)).toBe(
+      "fnv1a64:1c94267720f43cf6",
     );
+    expect(evaluationFingerprint(reverse)).toBe(evaluationFingerprint(forward));
   });
 });
 
