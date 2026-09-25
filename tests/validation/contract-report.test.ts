@@ -3,10 +3,15 @@ import {
   BASELINE_CONFORMANCE_REPORT_SCHEMA_VERSION,
   BASELINE_VALIDATION_CONTRACT,
   BASELINE_VALIDATION_CONTRACT_SCHEMA_VERSION,
+  BASELINE_VALIDATION_FIXTURE_MANIFEST_SCHEMA_VERSION,
   BASELINE_VALIDATION_FROZEN_PARENT_COMMIT,
   BASELINE_VALIDATION_REQUIRED_CHECKS,
+  BASELINE_VALIDATION_SEED_SET_SCHEMA_VERSION,
   BASELINE_VALIDATION_SUITE_VERSION,
+  FROZEN_BASELINE_VALIDATION_FIXTURES,
+  FROZEN_BASELINE_VALIDATION_SEED_SET,
   BaselineValidationError,
+  baselineConformanceEvidenceFingerprint,
   baselineValidationContractFingerprint,
   createBaselineConformanceReport,
   baselineConformanceReportFingerprint,
@@ -126,6 +131,18 @@ describe("Step 3.11 conformance reports", () => {
 
     expect(left).toEqual(right);
     expect(left.overall).toBe("PASS");
+    expect(left.fixtureManifestSchemaVersion).toBe(
+      BASELINE_VALIDATION_FIXTURE_MANIFEST_SCHEMA_VERSION,
+    );
+    expect(left.fixtureManifestFingerprint).toBe(
+      FROZEN_BASELINE_VALIDATION_FIXTURES.fixtureManifestFingerprint,
+    );
+    expect(left.seedSetSchemaVersion).toBe(
+      BASELINE_VALIDATION_SEED_SET_SCHEMA_VERSION,
+    );
+    expect(left.seedSetFingerprint).toBe(
+      FROZEN_BASELINE_VALIDATION_SEED_SET.seedSetFingerprint,
+    );
     expect(left.checks.map((check) => check.checkId)).toEqual(REQUIRED_CHECKS);
     expect(Object.isFrozen(left)).toBe(true);
     expect(stableBaselineConformanceReportJson(left)).toBe(
@@ -138,6 +155,65 @@ describe("Step 3.11 conformance reports", () => {
     expect(stableBaselineConformanceReportJson(left)).not.toMatch(
       /createdAt|timestamp/i,
     );
+  });
+
+  it("binds evidence and report fingerprints to the exact frozen fixture and seed identities", () => {
+    const report = createBaselineConformanceReport(passingEvidence());
+    const changedFixture = {
+      ...report,
+      fixtureManifestFingerprint: "fnv1a64:0000000000000000",
+    };
+    const changedSeed = {
+      ...report,
+      seedSetFingerprint: "fnv1a64:0000000000000000",
+    };
+
+    expect(baselineConformanceEvidenceFingerprint(changedFixture)).not.toBe(
+      report.evidenceFingerprint,
+    );
+    expect(baselineConformanceEvidenceFingerprint(changedSeed)).not.toBe(
+      report.evidenceFingerprint,
+    );
+    expect(baselineConformanceReportFingerprint(changedFixture)).not.toBe(
+      report.reportFingerprint,
+    );
+    expect(baselineConformanceReportFingerprint(changedSeed)).not.toBe(
+      report.reportFingerprint,
+    );
+  });
+
+  it("rejects stale or tampered frozen artifact identities after aggregate fingerprints are recomputed", () => {
+    const report = createBaselineConformanceReport(passingEvidence());
+    const cases = [
+      [
+        "fixtureManifestSchemaVersion",
+        "9.0.0",
+        /fixture manifest schema version mismatch/,
+      ],
+      [
+        "fixtureManifestFingerprint",
+        "fnv1a64:0000000000000000",
+        /fixture manifest fingerprint mismatch/,
+      ],
+      ["seedSetSchemaVersion", "9.0.0", /seed-set schema version mismatch/],
+      [
+        "seedSetFingerprint",
+        "fnv1a64:0000000000000000",
+        /seed-set fingerprint mismatch/,
+      ],
+    ] as const;
+
+    for (const [field, value, message] of cases) {
+      const changed = mutableReport(report);
+      changed[field] = value;
+      changed["evidenceFingerprint"] = baselineConformanceEvidenceFingerprint(
+        changed as unknown as BaselineConformanceReport,
+      );
+      changed["reportFingerprint"] = baselineConformanceReportFingerprint(
+        changed as unknown as BaselineConformanceReport,
+      );
+      expect(() => validateBaselineConformanceReport(changed)).toThrow(message);
+    }
   });
 
   it("sorts checks, issues, and evidence fingerprints deterministically", () => {

@@ -14,7 +14,17 @@ import {
   type BaselineValidationStatus,
 } from "./contract.js";
 import {
+  FROZEN_BASELINE_VALIDATION_FIXTURES,
+  validateBaselineValidationFixtureManifest,
+} from "./fixtures.js";
+import {
+  FROZEN_BASELINE_VALIDATION_SEED_SET,
+  validateBaselineValidationSeedSet,
+} from "./seed-sets.js";
+import {
   BASELINE_CONFORMANCE_REPORT_SCHEMA_VERSION,
+  BASELINE_VALIDATION_FIXTURE_MANIFEST_SCHEMA_VERSION,
+  BASELINE_VALIDATION_SEED_SET_SCHEMA_VERSION,
   BASELINE_VALIDATION_SUITE_VERSION,
 } from "./version.js";
 
@@ -35,6 +45,10 @@ export interface BaselineConformanceReportBody {
   readonly schemaVersion: typeof BASELINE_CONFORMANCE_REPORT_SCHEMA_VERSION;
   readonly validationSuiteVersion: typeof BASELINE_VALIDATION_SUITE_VERSION;
   readonly validationContractFingerprint: string;
+  readonly fixtureManifestSchemaVersion: typeof BASELINE_VALIDATION_FIXTURE_MANIFEST_SCHEMA_VERSION;
+  readonly fixtureManifestFingerprint: string;
+  readonly seedSetSchemaVersion: typeof BASELINE_VALIDATION_SEED_SET_SCHEMA_VERSION;
+  readonly seedSetFingerprint: string;
   readonly operator: BaselineValidationOperatorIdentity;
   readonly checks: readonly BaselineValidationCheckResult[];
   readonly overall: BaselineValidationStatus;
@@ -219,18 +233,50 @@ function normalizeCompleteChecks(
   );
 }
 
-function evidenceBody(report: {
-  readonly operator: BaselineValidationOperatorIdentity;
-  readonly checks: readonly BaselineValidationCheckResult[];
-}): object {
+type ReportEvidenceIdentity = Pick<
+  BaselineConformanceReportBody,
+  | "fixtureManifestSchemaVersion"
+  | "fixtureManifestFingerprint"
+  | "seedSetSchemaVersion"
+  | "seedSetFingerprint"
+  | "operator"
+  | "checks"
+>;
+
+function evidenceBody(report: ReportEvidenceIdentity): object {
   return {
+    fixtureManifestSchemaVersion: report.fixtureManifestSchemaVersion,
+    fixtureManifestFingerprint: report.fixtureManifestFingerprint,
+    seedSetSchemaVersion: report.seedSetSchemaVersion,
+    seedSetFingerprint: report.seedSetFingerprint,
     operator: report.operator,
     checks: report.checks,
   };
 }
 
+function frozenArtifactIdentity(): Pick<
+  BaselineConformanceReportBody,
+  | "fixtureManifestSchemaVersion"
+  | "fixtureManifestFingerprint"
+  | "seedSetSchemaVersion"
+  | "seedSetFingerprint"
+> {
+  const fixtures = validateBaselineValidationFixtureManifest(
+    FROZEN_BASELINE_VALIDATION_FIXTURES,
+  );
+  const seedSet = validateBaselineValidationSeedSet(
+    FROZEN_BASELINE_VALIDATION_SEED_SET,
+  );
+  return {
+    fixtureManifestSchemaVersion: fixtures.schemaVersion,
+    fixtureManifestFingerprint: fixtures.fixtureManifestFingerprint,
+    seedSetSchemaVersion: seedSet.schemaVersion,
+    seedSetFingerprint: seedSet.seedSetFingerprint,
+  };
+}
+
 export function baselineConformanceEvidenceFingerprint(
-  report: Pick<BaselineConformanceReport, "operator" | "checks">,
+  report: ReportEvidenceIdentity,
 ): string {
   return evaluationFingerprint(evidenceBody(report));
 }
@@ -257,6 +303,7 @@ export function createBaselineConformanceReport(
   requireCondition(Array.isArray(evidence.checks), "checks must be an array");
   const operator = normalizeOperator(evidence.operator);
   const checks = normalizeCompleteChecks(evidence.checks);
+  const artifactIdentity = frozenArtifactIdentity();
   const overall = checks.every((check) => check.status === "PASS")
     ? "PASS"
     : "FAIL";
@@ -266,10 +313,13 @@ export function createBaselineConformanceReport(
     validationSuiteVersion: BASELINE_VALIDATION_SUITE_VERSION,
     validationContractFingerprint:
       BASELINE_VALIDATION_CONTRACT.contractFingerprint,
+    ...artifactIdentity,
     operator,
     checks,
     overall,
-    evidenceFingerprint: evaluationFingerprint(evidenceBody({ operator, checks })),
+    evidenceFingerprint: evaluationFingerprint(
+      evidenceBody({ ...artifactIdentity, operator, checks }),
+    ),
   };
   return deepFreezeEvaluation({
     ...body,
@@ -288,6 +338,10 @@ export function validateBaselineConformanceReport(
       "schemaVersion",
       "validationSuiteVersion",
       "validationContractFingerprint",
+      "fixtureManifestSchemaVersion",
+      "fixtureManifestFingerprint",
+      "seedSetSchemaVersion",
+      "seedSetFingerprint",
       "operator",
       "checks",
       "overall",
@@ -312,6 +366,33 @@ export function validateBaselineConformanceReport(
     value["validationContractFingerprint"] ===
       BASELINE_VALIDATION_CONTRACT.contractFingerprint,
     "validation contract fingerprint mismatch",
+  );
+  const artifactIdentity = frozenArtifactIdentity();
+  requireCondition(
+    value["fixtureManifestSchemaVersion"] ===
+      artifactIdentity.fixtureManifestSchemaVersion,
+    "fixture manifest schema version mismatch",
+  );
+  assertBaselineValidationFingerprint(
+    value["fixtureManifestFingerprint"],
+    "fixture manifest fingerprint",
+  );
+  requireCondition(
+    value["fixtureManifestFingerprint"] ===
+      artifactIdentity.fixtureManifestFingerprint,
+    "fixture manifest fingerprint mismatch",
+  );
+  requireCondition(
+    value["seedSetSchemaVersion"] === artifactIdentity.seedSetSchemaVersion,
+    "seed-set schema version mismatch",
+  );
+  assertBaselineValidationFingerprint(
+    value["seedSetFingerprint"],
+    "seed-set fingerprint",
+  );
+  requireCondition(
+    value["seedSetFingerprint"] === artifactIdentity.seedSetFingerprint,
+    "seed-set fingerprint mismatch",
   );
   const operator = normalizeOperator(value["operator"]);
   requireCondition(Array.isArray(value["checks"]), "checks must be an array");
@@ -351,7 +432,7 @@ export function validateBaselineConformanceReport(
     "evidence fingerprint",
   );
   const expectedEvidenceFingerprint = evaluationFingerprint(
-    evidenceBody({ operator, checks: normalizedChecks }),
+    evidenceBody({ ...artifactIdentity, operator, checks: normalizedChecks }),
   );
   requireCondition(
     value["evidenceFingerprint"] === expectedEvidenceFingerprint,

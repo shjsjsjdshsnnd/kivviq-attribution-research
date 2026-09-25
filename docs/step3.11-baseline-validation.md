@@ -55,6 +55,8 @@ Each stored fingerprint is checked by recomputing it from the canonical body wit
 | Fixture manifest | `baseline-validation-fixtures-v1` | `fnv1a64:4267f99df6098b65` |
 | Seed set | `baseline-validation-seeds-v1` | `fnv1a64:382edc741c307867` |
 
+Every conformance report records the fixture-manifest and seed-set schema versions and fingerprints. The report builder derives those fields from validated canonical artifacts. Both the evidence fingerprint and the report fingerprint cover them, so a stale or substituted validation artifact invalidates the report even when the operator checks remain unchanged.
+
 The fixture manifest contains ten versioned fixtures: `empty`, `single_action`, `multi_action`, `constraint_rejected`, `constraint_modified`, `hidden_truth_pair`, `future_pair`, `missing_data`, `exact_tie`, and `lookback_boundary`. Every fixture has version `1.0.0` and its own recomputed fingerprint.
 
 The seed set contains six fixed cases over four world profiles. Every case defines all five Step 3.1 seed namespaces: merchant generation, customer population, baseline warm-up, shared evaluation environment, and operator randomness. The evaluator derives and fingerprints the seed environment outside the operator boundary. Two invocations for the same frozen seed use the same canonical input, while namespace-sensitivity checks prove that changing any namespace changes the evaluator-only environment fingerprint.
@@ -146,6 +148,10 @@ The following report was produced by the public report builder for the frozen DO
   "schemaVersion": "1.0.0",
   "validationSuiteVersion": "1.0.0",
   "validationContractFingerprint": "fnv1a64:6967645220ae672b",
+  "fixtureManifestSchemaVersion": "1.0.0",
+  "fixtureManifestFingerprint": "fnv1a64:4267f99df6098b65",
+  "seedSetSchemaVersion": "1.0.0",
+  "seedSetFingerprint": "fnv1a64:382edc741c307867",
   "operator": {
     "operatorId": "baseline.do_nothing",
     "operatorVersion": "1.0.0",
@@ -174,8 +180,8 @@ The following report was produced by the public report builder for the frozen DO
     { "checkId": "operator_isolation", "status": "PASS", "evidenceFingerprints": ["fnv1a64:325d2d14a5dcd0ae"], "issues": [] }
   ],
   "overall": "PASS",
-  "evidenceFingerprint": "fnv1a64:f5c1b7c4d2fb701e",
-  "reportFingerprint": "fnv1a64:b256434f2d16a60c"
+  "evidenceFingerprint": "fnv1a64:b2b0b848684d099a",
+  "reportFingerprint": "fnv1a64:82ff8ae597b2424b"
 }
 ```
 
@@ -186,7 +192,7 @@ Verification ran serially on 2026-09-25 from branch `baseline/step3.11-baseline-
 | Command | Result |
 | --- | --- |
 | `npm run test:canonical-operator-interface` | PASS, 190 tests in 1 file |
-| `npm run test:baseline-validation` | PASS, 185 tests in 14 files; all 27 reports PASS |
+| `npm run test:baseline-validation` | PASS, 187 tests in 14 files; all 27 reports PASS |
 | `npm run test:do-nothing` | PASS, 430 tests in 9 operator files |
 | `npm run test:status-quo` | PASS, 26 tests in 1 file |
 | `npm run test:advertising-heuristics` | PASS, 37 tests in 1 file |
@@ -195,9 +201,9 @@ Verification ran serially on 2026-09-25 from branch `baseline/step3.11-baseline-
 | `npm run test:merchandising-heuristics` | PASS, 32 tests in 1 file |
 | `npm run test:greedy-operators` | PASS, 24 tests in 1 file |
 | `npm run test:flawed-optimizers` | PASS, 27 tests in 1 file |
-| `npm run architecture` | PASS, 156 modules and 670 dependencies, zero violations |
+| `npm run architecture` | PASS, 156 modules and 672 dependencies, zero violations |
 | `npm run typecheck` | PASS |
-| `npm test -- --maxWorkers=1` | PASS, 1,043 tests in 97 files |
+| `npm test -- --maxWorkers=1` | PASS, 1,045 tests in 97 files |
 | `npm run build` | PASS |
 
 Step 3.11 freezes the validation methodology and evidence contract. A later semantic change requires a new version and fingerprint; it must not rewrite reports produced under `1.0.0`.
