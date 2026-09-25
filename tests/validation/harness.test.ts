@@ -7,6 +7,7 @@ import {
   buildOperatorObservationSnapshot,
   createFixedIntervalDecisionOpportunity,
   evaluationFingerprint,
+  stableEvaluationJson,
 } from "../../src/evaluation/baseline-contract.js";
 import { buildCanonicalOperatorInput, invokeOperatorAtDecision, toOperatorDecisionInput } from "../../src/evaluation/operator-evaluation.js";
 import { CANONICAL_OPERATOR_DECISION_SCHEMA_VERSION, CANONICAL_OPERATOR_INTERFACE_VERSION, canonicalInputFingerprint, canonicalOperatorDecisionFingerprint, ensureCanonicalOperatorV2, type CanonicalOperatorV2 } from "../../src/operator/canonical-interface.js";
@@ -38,6 +39,14 @@ function context(sequence: number) {
   const input = buildCanonicalOperatorInput(contract, opportunity, observation, availability, toOperatorDecisionInput(opportunity, observation, availability));
   return { opportunity, observation, availability, input };
 }
+function observedContext(value: number, start = "2026-10-01T00:00:00.000Z", withActionRule = false) {
+  const opportunity = createFixedIntervalDecisionOpportunity(contract, start, 0);
+  const record = { observationKey: "metric:permitted", informationClass: "observable_merchant_data" as const, sourceMinOccurredAt: "2026-09-30T00:00:00.000Z", sourceMaxOccurredAt: "2026-09-30T00:00:00.000Z", availableAt: "2026-09-30T00:00:00.000Z", sourceRef: "merchant-observations:permitted", value: { value } };
+  const observation = buildOperatorObservationSnapshot(contract, opportunity, [record]);
+  const availability = buildActionAvailabilitySnapshot(contract, opportunity, withActionRule ? [{ actionType: String(googleBudgetUp2000.actionType), eligibleTargets: [googleBudgetUp2000.target], parameterBounds: [], requiredPreconditionIds: [] }] : []);
+  const input = buildCanonicalOperatorInput(contract, opportunity, observation, availability, toOperatorDecisionInput(opportunity, observation, availability));
+  return { opportunity, observation, availability, input };
+}
 const baseContext = context(0);
 const input = baseContext.input;
 const opportunity = baseContext.opportunity;
@@ -48,7 +57,8 @@ const probeOperator: CanonicalOperatorV2 = (() => {
   const base = ensureCanonicalOperatorV2(DO_NOTHING_OPERATOR);
   const metadata = { ...base.metadata, operatorId: "test.harness-probe", operatorFamily: "advanced_decision_system" as const, implementationFingerprint: operatorFingerprint({ implementation: "harness-probe" }), configurationFingerprint: operatorFingerprint({ configuration: "harness-probe" }), adapterFingerprint: operatorFingerprint({ adapter: "harness-probe" }), legacyInterfaceVersion: null, capabilities: { ...base.metadata.capabilities, actionDomains: ["advertising" as const, "pricing" as const], maximumActionsPerDecision: 2 } };
   return { metadata, decide(value) {
-    const actions = value.decisionContext.sequence === 2 ? [googleBudgetUp2000, reduceSkuPrice899To849] : value.decisionContext.sequence === 1 ? [googleBudgetUp2000] : [];
+    const permittedSignal = value.observation.records.some((record) => stableEvaluationJson(record.value) === stableEvaluationJson({ value: 1 }));
+    const actions = value.decisionContext.sequence === 2 ? [googleBudgetUp2000, reduceSkuPrice899To849] : permittedSignal ? [googleBudgetUp2000] : [];
     return { schemaVersion: CANONICAL_OPERATOR_DECISION_SCHEMA_VERSION, actions, operatorMetadata: metadata, decisionMetadata: { interfaceVersion: CANONICAL_OPERATOR_INTERFACE_VERSION, decisionTimestamp: value.decisionTime, deterministicReplayExpected: true, randomness: { kind: "deterministic" }, canonicalActionOrdering: "ACTION_TYPE_TARGET_PARAMETERS_ACTION_ID_ASC" } };
   } };
 })();
@@ -64,6 +74,11 @@ function probe(checkId: ExecutableConformanceProbe["checkId"], caseId: string, s
     invocations: sequences.map((sequence) => ({ fixtureId: fixtureByCheck[checkId], canonicalInput: context(sequence).input, inputFingerprint: canonicalInputFingerprint(context(sequence).input) })),
     expectation,
   };
+  return { ...body, probeFingerprint: declarativeProbeFingerprint(body) };
+}
+
+function sensitivityProbe(caseId: string, inputs = [observedContext(0).input, observedContext(1).input]): ExecutableConformanceProbe {
+  const body = { probeId: "probe:permitted_information_sensitivity", checkId: "permitted_information_sensitivity" as const, operatorId: probeOperator.metadata.operatorId, configurationFingerprint: probeOperator.metadata.configurationFingerprint, caseFingerprint: baselineValidationCaseFingerprint(caseId, probeOperator.metadata.operatorId), invocations: inputs.map((canonicalInput) => ({ fixtureId: "single_action", canonicalInput, inputFingerprint: canonicalInputFingerprint(canonicalInput) })), expectation: { kind: "sensitive" as const } };
   return { ...body, probeFingerprint: declarativeProbeFingerprint(body) };
 }
 
@@ -134,7 +149,7 @@ function passingCase(caseId = "case-a"): BaselineValidationCase {
       actionConformance: { contract, opportunity, availability, canonicalInput: input, operatorMetadata: operator.metadata, decisionEnvelope: decision },
       constraintConformance: disposition,
       policySemantics: probe("policy_semantics", caseId, [0], { kind: "exact", expectedDecisionFingerprints: [canonicalProbeDecisionFingerprint([])], expectedActionFingerprints: [[]] }),
-      permittedInformationSensitivity: probe("permitted_information_sensitivity", caseId, [0, 1], { kind: "sensitive" }),
+      permittedInformationSensitivity: sensitivityProbe(caseId),
       prohibitedInformationInvariance: prohibitedProbe(caseId),
       tieBreaking: probe("tie_breaking", caseId, [0], { kind: "exact", expectedDecisionFingerprints: [canonicalProbeDecisionFingerprint([])], expectedActionFingerprints: [[]] }),
       missingDataBehavior: probe("missing_data_behavior", caseId, [0], { kind: "exact", expectedDecisionFingerprints: [canonicalProbeDecisionFingerprint([])], expectedActionFingerprints: [[]] }),
@@ -195,6 +210,48 @@ describe("baseline validation harness", () => {
     const mutated: any = probe("missing_data_behavior", caseId, [0], { kind: "exact", expectedDecisionFingerprints: [canonicalProbeDecisionFingerprint([])], expectedActionFingerprints: [[]] });
     mutated.expectation.expectedDecisionFingerprints[0] = evaluationFingerprint({ forged: true });
     expect(runExecutableConformanceProbe(probeOperator, mutated, "missing_data_behavior", caseId).status).toBe("FAIL");
+  });
+
+  it("requires observation-only controlled variation for sensitivity", () => {
+    const caseId = "controlled-sensitivity";
+    expect(runExecutableConformanceProbe(probeOperator, sensitivityProbe(caseId), "permitted_information_sensitivity", caseId).status).toBe("PASS");
+    expect(runExecutableConformanceProbe(probeOperator, probe("permitted_information_sensitivity", caseId, [0, 1], { kind: "sensitive" }), "permitted_information_sensitivity", caseId).status).toBe("FAIL");
+    const validControlChanges: any[] = [
+      observedContext(1, "2026-10-02T00:00:00.000Z").input,
+      observedContext(1, "2026-10-01T00:00:00.000Z", true).input,
+    ];
+    const changedConstraints: any = structuredClone(observedContext(1).input);
+    changedConstraints.constraints.dimensions.push("changed");
+    validControlChanges.push(changedConstraints);
+    for (const changed of validControlChanges) {
+      const evidence: any = sensitivityProbe(caseId, [observedContext(0).input, changed]);
+      expect(runExecutableConformanceProbe(probeOperator, evidence, "permitted_information_sensitivity", caseId).status).toBe("FAIL");
+    }
+  });
+
+  it("returns stable failures for malformed nested declarative probes", () => {
+    const caseId = "malformed-probes";
+    const executable: any = probe("policy_semantics", caseId, [0], { kind: "exact", expectedDecisionFingerprints: [canonicalProbeDecisionFingerprint([])], expectedActionFingerprints: [[]] });
+    const prohibited: any = prohibitedProbe(caseId);
+    const cases: Array<[any, (value: any) => any, string]> = [
+      [{ ...executable, probeFingerprint: 1n }, (value) => runExecutableConformanceProbe(probeOperator, value, "policy_semantics", caseId), "INVALID_PROBE_EVIDENCE"],
+      [{ ...executable, invocations: null }, (value) => runExecutableConformanceProbe(probeOperator, value, "policy_semantics", caseId), "INVALID_PROBE_EVIDENCE"],
+      [{ ...executable, invocations: {} }, (value) => runExecutableConformanceProbe(probeOperator, value, "policy_semantics", caseId), "INVALID_PROBE_EVIDENCE"],
+      [{ ...executable, invocations: [{ ...executable.invocations[0], extra: true }] }, (value) => runExecutableConformanceProbe(probeOperator, value, "policy_semantics", caseId), "INVALID_PROBE_INVOCATION"],
+      [{ ...executable, expectation: { kind: "exact", expectedDecisionFingerprints: () => [], expectedActionFingerprints: [] } }, (value) => runExecutableConformanceProbe(probeOperator, value, "policy_semantics", caseId), "INVALID_PROBE_EVIDENCE"],
+      [{ ...prohibited, probeFingerprint: 1n }, (value) => runProhibitedInformationProbe(probeOperator, value, caseId), "INVALID_PAIRED_EVIDENCE"],
+      [{ ...prohibited, pairs: null }, (value) => runProhibitedInformationProbe(probeOperator, value, caseId), "INVALID_PAIRED_EVIDENCE"],
+      [{ ...prohibited, pairs: {} }, (value) => runProhibitedInformationProbe(probeOperator, value, caseId), "INVALID_PAIRED_EVIDENCE"],
+      [{ ...prohibited, pairs: [{ ...prohibited.pairs[0], extra: true }] }, (value) => runProhibitedInformationProbe(probeOperator, value, caseId), "INVALID_PAIRED_EVIDENCE"],
+      [{ ...prohibited, pairs: [{ ...prohibited.pairs[0], leftInput: null }] }, (value) => runProhibitedInformationProbe(probeOperator, value, caseId), "INVALID_PAIRED_EVIDENCE"],
+      [{ ...prohibited, pairs: [{ ...prohibited.pairs[0], leftWitnessFingerprint: () => "forged" }] }, (value) => runProhibitedInformationProbe(probeOperator, value, caseId), "INVALID_PAIRED_EVIDENCE"],
+    ];
+    for (const [value, run, code] of cases) {
+      const first = run(value); const second = run(value);
+      expect(first.status).toBe("FAIL");
+      expect(first.issues.map((entry: any) => entry.code)).toEqual([code]);
+      expect(first).toEqual(second);
+    }
   });
 
   it("preserves paired-witness semantics for prohibited-information invariance", () => {

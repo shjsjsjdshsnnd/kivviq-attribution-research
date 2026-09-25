@@ -5,7 +5,7 @@ import type { CanonicalOperator } from "../operator/types.js";
 import { FROZEN_BASELINE_VALIDATION_FIXTURES } from "./fixtures.js";
 import { canonicalPolicyDecisionFingerprint, validateProhibitedInformationInvariance, type InformationIsolationPair } from "./leakage.js";
 import type { BaselineValidationCheckId, BaselineValidationCheckResult } from "./contract.js";
-import { hasExactKeys, isFingerprint, isNonEmptyString, isRecord, issue, result } from "./shared.js";
+import { hasExactKeys, isFingerprint, isNonEmptyString, isRecord, isStrictJson, issue, result } from "./shared.js";
 
 export type ExecutableProbeCheckId = "policy_semantics" | "permitted_information_sensitivity" | "tie_breaking" | "missing_data_behavior" | "zero_action_behavior" | "multi_action_behavior";
 export type DeclarativeProbeExpectation = { readonly kind: "exact"; readonly expectedDecisionFingerprints: readonly string[]; readonly expectedActionFingerprints: readonly (readonly string[])[] } | { readonly kind: "invariant" } | { readonly kind: "sensitive" } | { readonly kind: "zero_actions" } | { readonly kind: "multi_action" };
@@ -33,20 +33,39 @@ function bindings(input: CanonicalOperatorInputV2) {
   return { opportunityId: input.opportunityId, decisionTime: input.decisionTime, decisionContext: input.decisionContext, observationRecords: input.observation.records, legalActionSpace: input.legalActionSpace, constraints: input.constraints, evaluationContractFingerprint: input.provenance.evaluationContractFingerprint, evaluationContractVersion: input.provenance.evaluationContractVersion, observationFingerprint: input.provenance.observationFingerprint, legalActionSpaceFingerprint: input.provenance.legalActionSpaceFingerprint, actionOntologyVersion: input.provenance.actionOntologyVersion };
 }
 
+function sensitivityControlProjection(input: CanonicalOperatorInputV2): object {
+  const { observationFingerprint: _observationFingerprint, ...controlProvenance } = input.provenance;
+  return {
+    schemaVersion: input.schemaVersion,
+    opportunityId: input.opportunityId,
+    decisionTime: input.decisionTime,
+    decisionContext: input.decisionContext,
+    legalActionSpace: input.legalActionSpace,
+    constraints: input.constraints,
+    provenance: controlProvenance,
+  };
+}
+
 export function runExecutableConformanceProbe(operatorValue: CanonicalOperator | CanonicalOperatorV2, value: unknown, expectedCheckId: ExecutableProbeCheckId, caseId: string): BaselineValidationCheckResult {
   const fail = (code: string, message: string) => result(expectedCheckId, [issue(code, `evidence.${expectedCheckId}`, message)], []);
   let operator: CanonicalOperatorV2;
   try { operator = ensureCanonicalOperatorV2(operatorValue); } catch { return fail("INVALID_OPERATOR", "operator cannot be canonicalized"); }
   if (!isRecord(value) || !hasExactKeys(value, PROBE_KEYS)) return fail("INVALID_PROBE_EVIDENCE", "probe must have the exact declarative evidence shape");
-  if (!isFingerprint(value["probeFingerprint"]) || value["probeFingerprint"] !== declarativeProbeFingerprint(value)) return fail("PROBE_FINGERPRINT_MISMATCH", "probe evidence fingerprint could not be recomputed");
+  if (!isStrictJson(value)) return fail("INVALID_PROBE_EVIDENCE", "probe must contain strict JSON evidence");
   if (!isNonEmptyString(value["probeId"]) || value["checkId"] !== expectedCheckId || value["operatorId"] !== operator.metadata.operatorId || value["configurationFingerprint"] !== operator.metadata.configurationFingerprint || value["caseFingerprint"] !== baselineValidationCaseFingerprint(caseId, operator.metadata.operatorId)) return fail("PROBE_BINDING_MISMATCH", "probe is not bound to the operator, configuration, case, and check");
   const expectation = value["expectation"];
   const expectedKind = EXPECTED_KIND[expectedCheckId];
   if (!isRecord(expectation) || expectation["kind"] !== expectedKind || (expectedKind === "exact" ? !hasExactKeys(expectation, ["kind", "expectedDecisionFingerprints", "expectedActionFingerprints"]) || !Array.isArray(expectation["expectedDecisionFingerprints"]) || !expectation["expectedDecisionFingerprints"].every(isFingerprint) || !Array.isArray(expectation["expectedActionFingerprints"]) || !expectation["expectedActionFingerprints"].every((entry) => Array.isArray(entry) && entry.every(isFingerprint)) : !hasExactKeys(expectation, ["kind"]))) return fail("INVALID_PROBE_EXPECTATION", "probe expectation is malformed or unsuitable for this check");
   if (!Array.isArray(value["invocations"]) || value["invocations"].length === 0) return fail("INVALID_PROBE_EVIDENCE", "probe requires canonical input invocations");
-  const observed: Array<{ actionFingerprints: readonly string[]; decisionFingerprint: string; inputFingerprint: string; fixtureId: string }> = [];
   for (const raw of value["invocations"]) {
-    if (!isRecord(raw) || !hasExactKeys(raw, INVOCATION_KEYS) || !compatibleFixture(raw["fixtureId"], FIXTURE_CATEGORY[expectedCheckId]) || !isFingerprint(raw["inputFingerprint"])) return fail("INVALID_PROBE_INVOCATION", "probe invocation has invalid keys or a fixture incompatible with this check");
+    if (!isRecord(raw) || !hasExactKeys(raw, INVOCATION_KEYS) || !isRecord(raw["canonicalInput"]) || !compatibleFixture(raw["fixtureId"], FIXTURE_CATEGORY[expectedCheckId]) || !isFingerprint(raw["inputFingerprint"])) return fail("INVALID_PROBE_INVOCATION", "probe invocation has invalid keys or a fixture incompatible with this check");
+  }
+  try {
+    if (!isFingerprint(value["probeFingerprint"]) || value["probeFingerprint"] !== declarativeProbeFingerprint(value)) return fail("PROBE_FINGERPRINT_MISMATCH", "probe evidence fingerprint could not be recomputed");
+  } catch { return fail("PROBE_FINGERPRINT_MISMATCH", "probe evidence fingerprint could not be recomputed"); }
+  const observed: Array<{ actionFingerprints: readonly string[]; decisionFingerprint: string; inputFingerprint: string; fixtureId: string }> = [];
+  const validatedInputs: CanonicalOperatorInputV2[] = [];
+  for (const raw of value["invocations"]) {
     try {
       const input = assertCanonicalOperatorInputV2(raw["canonicalInput"], bindings(raw["canonicalInput"] as CanonicalOperatorInputV2));
       if (canonicalInputFingerprint(input) !== raw["inputFingerprint"]) return fail("PROBE_INPUT_FINGERPRINT_MISMATCH", "probe input fingerprint could not be recomputed");
@@ -56,10 +75,16 @@ export function runExecutableConformanceProbe(operatorValue: CanonicalOperator |
       const actionFingerprints = first.actions.map(actionFingerprint);
       if (canonicalProbeDecisionFingerprint(actionFingerprints) !== canonicalProbeDecisionFingerprint(second.actions.map(actionFingerprint))) return fail("NONDETERMINISTIC_PROBE_DECISION", "operator decision changed across repeated identical probe input");
       observed.push({ actionFingerprints, decisionFingerprint: canonicalProbeDecisionFingerprint(actionFingerprints), inputFingerprint: raw["inputFingerprint"], fixtureId: raw["fixtureId"] as string });
+      validatedInputs.push(input);
     } catch { return fail("OPERATOR_INVOCATION_FAILED", "operator invocation or canonical decision validation failed"); }
   }
   const fingerprints = observed.map((entry) => entry.decisionFingerprint);
   if (expectedKind === "sensitive" && new Set(observed.map((entry) => entry.inputFingerprint)).size < 2) return fail("SENSITIVE_PROBE_REQUIRES_DISTINCT_INPUTS", "sensitivity evidence requires at least two distinct canonical inputs");
+  if (expectedKind === "sensitive") {
+    const controls = validatedInputs.map((entry) => stableEvaluationJson(sensitivityControlProjection(entry)));
+    if (new Set(controls).size !== 1) return fail("SENSITIVE_PROBE_CONTROL_MISMATCH", "sensitivity evidence may vary only permitted observation data");
+    if (new Set(validatedInputs.map((entry) => entry.provenance.observationFingerprint)).size < 2) return fail("SENSITIVE_PROBE_REQUIRES_OBSERVATION_VARIATION", "sensitivity evidence requires distinct permitted observations");
+  }
   let matches = false;
   if (expectedKind === "exact") matches = stableEvaluationJson(fingerprints) === stableEvaluationJson(expectation["expectedDecisionFingerprints"]) && stableEvaluationJson(observed.map((entry) => entry.actionFingerprints)) === stableEvaluationJson(expectation["expectedActionFingerprints"]);
   else if (expectedKind === "invariant") matches = new Set(fingerprints).size === 1 && observed.length >= 2;
@@ -74,13 +99,17 @@ export function runProhibitedInformationProbe(operatorValue: CanonicalOperator |
   const fail = (code: string, message: string) => result("prohibited_information_invariance", [issue(code, "evidence.prohibited_information_invariance", message)], []);
   let operator: CanonicalOperatorV2;
   try { operator = ensureCanonicalOperatorV2(operatorValue); } catch { return fail("INVALID_OPERATOR", "operator cannot be canonicalized"); }
-  if (!isRecord(value) || !hasExactKeys(value, PROHIBITED_KEYS) || value["checkId"] !== "prohibited_information_invariance" || !isNonEmptyString(value["probeId"]) || value["operatorId"] !== operator.metadata.operatorId || value["configurationFingerprint"] !== operator.metadata.configurationFingerprint || value["caseFingerprint"] !== baselineValidationCaseFingerprint(caseId, operator.metadata.operatorId) || !Array.isArray(value["pairs"]) || value["pairs"].length === 0) return fail("INVALID_PAIRED_EVIDENCE", "paired probe shape or operator binding is invalid");
-  if (!isFingerprint(value["probeFingerprint"]) || value["probeFingerprint"] !== declarativeProbeFingerprint(value)) return fail("PROBE_FINGERPRINT_MISMATCH", "paired probe evidence fingerprint could not be recomputed");
-  const generated: InformationIsolationPair[] = [];
+  if (!isRecord(value) || !hasExactKeys(value, PROHIBITED_KEYS) || !isStrictJson(value) || value["checkId"] !== "prohibited_information_invariance" || !isNonEmptyString(value["probeId"]) || value["operatorId"] !== operator.metadata.operatorId || value["configurationFingerprint"] !== operator.metadata.configurationFingerprint || value["caseFingerprint"] !== baselineValidationCaseFingerprint(caseId, operator.metadata.operatorId) || !Array.isArray(value["pairs"]) || value["pairs"].length === 0) return fail("INVALID_PAIRED_EVIDENCE", "paired probe shape or operator binding is invalid");
   const pairIds = new Set<string>();
   for (const raw of value["pairs"]) {
-    if (!isRecord(raw) || !hasExactKeys(raw, PROHIBITED_PAIR_KEYS) || !isNonEmptyString(raw["pairId"]) || pairIds.has(raw["pairId"] as string) || !compatibleFixture(raw["leftFixtureId"], "prohibited_information_invariance") || !compatibleFixture(raw["rightFixtureId"], "prohibited_information_invariance") || !isFingerprint(raw["leftWitnessFingerprint"]) || !isFingerprint(raw["rightWitnessFingerprint"]) || raw["leftWitnessFingerprint"] === raw["rightWitnessFingerprint"]) return fail("INVALID_PAIRED_EVIDENCE", "pair keys, fixture bindings, identifiers, or witness fingerprints are invalid");
+    if (!isRecord(raw) || !hasExactKeys(raw, PROHIBITED_PAIR_KEYS) || !isRecord(raw["leftInput"]) || !isRecord(raw["rightInput"]) || !isNonEmptyString(raw["pairId"]) || pairIds.has(raw["pairId"] as string) || !compatibleFixture(raw["leftFixtureId"], "prohibited_information_invariance") || !compatibleFixture(raw["rightFixtureId"], "prohibited_information_invariance") || !isFingerprint(raw["leftWitnessFingerprint"]) || !isFingerprint(raw["rightWitnessFingerprint"]) || raw["leftWitnessFingerprint"] === raw["rightWitnessFingerprint"]) return fail("INVALID_PAIRED_EVIDENCE", "pair keys, fixture bindings, identifiers, or witness fingerprints are invalid");
     pairIds.add(raw["pairId"]);
+  }
+  try {
+    if (!isFingerprint(value["probeFingerprint"]) || value["probeFingerprint"] !== declarativeProbeFingerprint(value)) return fail("PROBE_FINGERPRINT_MISMATCH", "paired probe evidence fingerprint could not be recomputed");
+  } catch { return fail("PROBE_FINGERPRINT_MISMATCH", "paired probe evidence fingerprint could not be recomputed"); }
+  const generated: InformationIsolationPair[] = [];
+  for (const raw of value["pairs"]) {
     try {
       const leftInput = assertCanonicalOperatorInputV2(raw["leftInput"], bindings(raw["leftInput"] as CanonicalOperatorInputV2));
       const rightInput = assertCanonicalOperatorInputV2(raw["rightInput"], bindings(raw["rightInput"] as CanonicalOperatorInputV2));
