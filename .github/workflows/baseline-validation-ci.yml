@@ -1,0 +1,65 @@
+name: Step 3.11 Baseline Validation CI
+
+on:
+  push:
+    branches:
+      - baseline/step3.11-baseline-validation
+    paths:
+      - "src/validation/**"
+      - "src/operator/**"
+      - "src/evaluation/**"
+      - "src/action_ontology/**"
+      - "tests/validation/**"
+      - "tests/operator/canonical-interface.test.ts"
+      - ".dependency-cruiser.cjs"
+      - "package.json"
+      - "docs/step3.11-baseline-validation.md"
+      - ".github/workflows/baseline-validation-ci.yml"
+  pull_request:
+    branches:
+      - baseline/step3.10-canonical-operator-interface
+    paths:
+      - "src/validation/**"
+      - "src/operator/**"
+      - "src/evaluation/**"
+      - "src/action_ontology/**"
+      - "tests/validation/**"
+      - "tests/operator/canonical-interface.test.ts"
+      - ".dependency-cruiser.cjs"
+      - "package.json"
+      - "docs/step3.11-baseline-validation.md"
+      - ".github/workflows/baseline-validation-ci.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - name: Install
+        run: npm install --no-audit --no-fund
+
+      - name: Architecture boundary
+        run: npm run architecture
+
+      - name: Strict typecheck
+        run: npm run typecheck
+
+      - name: Step 3.11 baseline validation
+        run: npm run test:baseline-validation
+
+      - name: Inherited canonical operator interface
+        run: npm run test:canonical-operator-interface
+
+      - name: Build
+        run: npm run build

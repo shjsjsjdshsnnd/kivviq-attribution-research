@@ -34,7 +34,8 @@
     "test:merchandising-heuristics": "vitest run tests/operator/merchandising-heuristics.test.ts --reporter=verbose",
     "test:greedy-operators": "vitest run tests/operator/greedy-operators.test.ts --reporter=verbose",
     "test:flawed-optimizers": "vitest run tests/operator/flawed-optimizers.test.ts --reporter=verbose",
-    "test:canonical-operator-interface": "vitest run tests/operator/canonical-interface.test.ts --reporter=verbose"
+    "test:canonical-operator-interface": "vitest run tests/operator/canonical-interface.test.ts --reporter=verbose",
+    "test:baseline-validation": "vitest run tests/validation --reporter=verbose --maxWorkers=1"
   },
   "exports": {
     ".": "./dist/index.js",
@@ -56,7 +57,8 @@
     "./shipping": "./dist/shipping/index.js",
     "./merchandising": "./dist/merchandising/index.js",
     "./inventory": "./dist/inventory/index.js",
-    "./operator": "./dist/operator/index.js"
+    "./operator": "./dist/operator/index.js",
+    "./validation": "./dist/validation/index.js"
   },
   "devDependencies": {
     "typescript": "^5.9.2",
