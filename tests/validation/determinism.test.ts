@@ -119,13 +119,13 @@ describe("determinism validation", () => {
 
   it("requires exact seed-set binding and matching run fingerprints", () => {
     const seedRun = (sampleId: string, seed = 1, run = 1) => ({
-      sampleId, seedSetFingerprint: fp({ seed }), canonicalInputFingerprint: fp({ input: 1 }),
+      sampleId, seedSetFingerprint: fp({ seedSet: 1 }), seedCaseId: `seed-case-${seed}`, seedBindingFingerprint: fp({ seed }), canonicalInputFingerprint: fp({ input: 1 }),
       operatorFingerprint: fp({ operator: 1 }), configurationFingerprint: fp({ config: 1 }),
       runFingerprint: fp({ run }),
     });
-    expect(validateSeedReproducibility([seedRun("a"), seedRun("b")]).status).toBe("PASS");
-    expect(validateSeedReproducibility([seedRun("a"), seedRun("b", 2)]).status).toBe("FAIL");
-    expect(validateSeedReproducibility([seedRun("a"), seedRun("b", 1, 2)]).status).toBe("FAIL");
+    expect(validateSeedReproducibility([seedRun("a1"), seedRun("a2"), seedRun("b1", 2), seedRun("b2", 2)]).status).toBe("PASS");
+    expect(validateSeedReproducibility([seedRun("a1"), seedRun("a2"), seedRun("b1"), seedRun("b2")]).status).toBe("FAIL");
+    expect(validateSeedReproducibility([seedRun("a1"), seedRun("a2", 1, 2), seedRun("b1", 2), seedRun("b2", 2)]).status).toBe("FAIL");
   });
 
   it("detects policy divergence across at least three probes but ignores provenance-only IDs", () => {

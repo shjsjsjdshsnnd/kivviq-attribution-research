@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { actionFingerprint } from "../../src/action_ontology/semantics.js";
 import { canonicalOperatorDecisionFingerprint, ensureCanonicalOperatorV2 } from "../../src/operator/canonical-interface.js";
 import {
   ADVERTISING_HEURISTIC_BASELINE_OPERATORS,
@@ -29,10 +30,15 @@ describe("frozen baseline semantics", () => {
     }
   });
 
-  it("STATUS_QUO is bound only to the captured empty frozen policy", () => {
+  it("STATUS_QUO emits its two captured policy actions only when due", () => {
     const operator = ensureCanonicalOperatorV2(FROZEN_BASELINE_OPERATORS[1]);
+    const probe = ALL_BASELINE_VALIDATION_CASES[1]!.evidence.permittedInformationSensitivity;
     expect(operator.metadata.operatorId).toBe("baseline.status_quo");
-    expect(operator.decide(emptyCanonicalContext().input).actions).toEqual([]);
+    expect(operator.decide(probe.invocations[0]!.canonicalInput).actions).toEqual([]);
+    expect(operator.decide(probe.invocations[1]!.canonicalInput).actions.map(actionFingerprint)).toEqual([
+      "fnv1a64:2ff00cec50d59ed4",
+      "fnv1a64:8551f80f8b1a7265",
+    ]);
     expect(operator.metadata.configurationFingerprint).toBe(
       ensureCanonicalOperatorV2(ALL_BASELINE_VALIDATION_CASES[1]!.operator).metadata.configurationFingerprint,
     );
@@ -98,6 +104,33 @@ describe("frozen baseline semantics", () => {
       const second = operator.decide(input);
       expect(canonicalOperatorDecisionFingerprint(first)).toBe(canonicalOperatorDecisionFingerprint(second));
       expect(first.actions).toEqual([]);
+    }
+  });
+
+  it("proves every information-responsive frozen operator changes semantic output under its exact permitted metric", () => {
+    for (const entry of ALL_BASELINE_VALIDATION_CASES) {
+      const expectation = entry.evidence.permittedInformationSensitivity.expectation;
+      if (expectation.kind === "not_applicable") continue;
+      expect(expectation.kind).toBe("sensitive");
+      const operator = ensureCanonicalOperatorV2(entry.operator);
+      const decisions = entry.evidence.permittedInformationSensitivity.invocations.map((invocation) =>
+        canonicalOperatorDecisionFingerprint(operator.decide(invocation.canonicalInput)),
+      );
+      expect(new Set(decisions).size, entry.operator.metadata.operatorId).toBeGreaterThan(1);
+    }
+  });
+
+  it("uses real multi-Action decisions or explicit evaluator-owned capability N/A", () => {
+    for (const entry of ALL_BASELINE_VALIDATION_CASES) {
+      const probe = entry.evidence.multiActionBehavior;
+      if (probe.expectation.kind === "not_applicable") {
+        expect(probe.expectation.disposition).toBe("NOT_APPLICABLE_BY_FROZEN_CAPABILITY");
+        expect(probe.expectation.reasonCode).toMatch(/^(MAXIMUM_ACTIONS_PER_DECISION_LE_ONE|FROZEN_SINGLE_EMISSION_SEMANTICS)$/);
+        continue;
+      }
+      expect(probe.expectation.kind).toBe("multi_action");
+      const operator = ensureCanonicalOperatorV2(entry.operator);
+      expect(operator.decide(probe.invocations[0]!.canonicalInput).actions.length).toBeGreaterThan(1);
     }
   });
 });

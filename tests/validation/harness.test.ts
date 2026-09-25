@@ -78,7 +78,7 @@ function probe(checkId: ExecutableConformanceProbe["checkId"], caseId: string, s
 }
 
 function sensitivityProbe(caseId: string, inputs = [observedContext(0).input, observedContext(1).input]): ExecutableConformanceProbe {
-  const body = { probeId: "probe:permitted_information_sensitivity", checkId: "permitted_information_sensitivity" as const, operatorId: probeOperator.metadata.operatorId, configurationFingerprint: probeOperator.metadata.configurationFingerprint, caseFingerprint: baselineValidationCaseFingerprint(caseId, probeOperator.metadata.operatorId), invocations: inputs.map((canonicalInput) => ({ fixtureId: "single_action", canonicalInput, inputFingerprint: canonicalInputFingerprint(canonicalInput) })), expectation: { kind: "sensitive" as const } };
+  const body = { probeId: "probe:permitted_information_sensitivity", checkId: "permitted_information_sensitivity" as const, operatorId: probeOperator.metadata.operatorId, configurationFingerprint: probeOperator.metadata.configurationFingerprint, caseFingerprint: baselineValidationCaseFingerprint(caseId, probeOperator.metadata.operatorId), invocations: inputs.map((canonicalInput) => ({ fixtureId: "single_action", canonicalInput, inputFingerprint: canonicalInputFingerprint(canonicalInput) })), expectation: { kind: "sensitive" as const, observationKeys: ["metric:permitted"] } };
   return { ...body, probeFingerprint: declarativeProbeFingerprint(body) };
 }
 
@@ -95,8 +95,10 @@ function prohibitedProbe(caseId: string): ProhibitedInformationProbe {
       rightFixtureId: "future_pair",
       leftInput: input,
       rightInput: input,
-      leftWitnessFingerprint: evaluationFingerprint({ witness: "left" }),
-      rightWitnessFingerprint: evaluationFingerprint({ witness: "right" }),
+      leftWitness: { hiddenIncrementalRoas: 0 },
+      rightWitness: { hiddenIncrementalRoas: 5 },
+      leftWitnessFingerprint: evaluationFingerprint({ hiddenIncrementalRoas: 0 }),
+      rightWitnessFingerprint: evaluationFingerprint({ hiddenIncrementalRoas: 5 }),
       }],
     } satisfies Omit<ProhibitedInformationProbe, "probeFingerprint">;
     return { ...body, probeFingerprint: declarativeProbeFingerprint(body) };
@@ -138,10 +140,7 @@ function passingCase(caseId = "case-a"): BaselineValidationCase {
     operator,
     evidence: {
       determinism: [sample("a"), sample("b")],
-      seedReproducibility: [
-        { sampleId: "a", seedSetFingerprint: evaluationFingerprint({ seed: 1 }), canonicalInputFingerprint: canonicalInputFingerprint(input), operatorFingerprint: operator.metadata.implementationFingerprint, configurationFingerprint: operator.metadata.configurationFingerprint, runFingerprint: decisionFp },
-        { sampleId: "b", seedSetFingerprint: evaluationFingerprint({ seed: 1 }), canonicalInputFingerprint: canonicalInputFingerprint(input), operatorFingerprint: operator.metadata.implementationFingerprint, configurationFingerprint: operator.metadata.configurationFingerprint, runFingerprint: decisionFp },
-      ],
+      seedReproducibility: [0, 1].flatMap((binding) => [0, 1].map((run) => ({ sampleId: `${binding}-${run}`, seedSetFingerprint: FROZEN_BASELINE_VALIDATION_SEED_SET.seedSetFingerprint, seedCaseId: FROZEN_BASELINE_VALIDATION_SEED_SET.cases[binding]!.caseId, seedBindingFingerprint: evaluationFingerprint({ seedCaseId: FROZEN_BASELINE_VALIDATION_SEED_SET.cases[binding]!.caseId, seeds: FROZEN_BASELINE_VALIDATION_SEED_SET.cases[binding]!.seeds }), canonicalInputFingerprint: canonicalInputFingerprint(input), operatorFingerprint: operator.metadata.implementationFingerprint, configurationFingerprint: operator.metadata.configurationFingerprint, runFingerprint: decisionFp }))),
       hiddenTruthIsolation: [{ pairId: "hidden", baseline: isolationSide(1), variant: isolationSide(2) }],
       futureInformationIsolation: [{ pairId: "future", baseline: isolationSide(3), variant: isolationSide(4) }],
       temporalBoundary: { decisionTimestamp: opportunity.at, observations: [] },
@@ -199,7 +198,7 @@ describe("baseline validation harness", () => {
     mismatch.probeFingerprint = declarativeProbeFingerprint(mismatch);
     expect(runExecutableConformanceProbe(probeOperator, mismatch, "tie_breaking", caseId).status).toBe("FAIL");
 
-    const identical = probe("permitted_information_sensitivity", caseId, [0, 0], { kind: "sensitive" });
+    const identical = probe("permitted_information_sensitivity", caseId, [0, 0], { kind: "sensitive", observationKeys: ["metric:permitted"] });
     expect(runExecutableConformanceProbe(probeOperator, identical, "permitted_information_sensitivity", caseId).status).toBe("FAIL");
 
     let calls = 0;
@@ -215,7 +214,7 @@ describe("baseline validation harness", () => {
   it("requires observation-only controlled variation for sensitivity", () => {
     const caseId = "controlled-sensitivity";
     expect(runExecutableConformanceProbe(probeOperator, sensitivityProbe(caseId), "permitted_information_sensitivity", caseId).status).toBe("PASS");
-    expect(runExecutableConformanceProbe(probeOperator, probe("permitted_information_sensitivity", caseId, [0, 1], { kind: "sensitive" }), "permitted_information_sensitivity", caseId).status).toBe("FAIL");
+    expect(runExecutableConformanceProbe(probeOperator, probe("permitted_information_sensitivity", caseId, [0, 1], { kind: "sensitive", observationKeys: ["metric:permitted"] }), "permitted_information_sensitivity", caseId).status).toBe("FAIL");
     const validControlChanges: any[] = [
       observedContext(1, "2026-10-02T00:00:00.000Z").input,
       observedContext(1, "2026-10-01T00:00:00.000Z", true).input,
@@ -227,6 +226,27 @@ describe("baseline validation harness", () => {
       const evidence: any = sensitivityProbe(caseId, [observedContext(0).input, changed]);
       expect(runExecutableConformanceProbe(probeOperator, evidence, "permitted_information_sensitivity", caseId).status).toBe("FAIL");
     }
+  });
+
+  it("allows N/A only when frozen capability makes the check impossible", () => {
+    const caseId = "capability-na";
+    const make = (operator: CanonicalOperatorV2, checkId: "permitted_information_sensitivity" | "multi_action_behavior", fixtureId: "single_action" | "multi_action", reasonCode: "ZERO_ACTION_CAPABILITY" | "MAXIMUM_ACTIONS_PER_DECISION_LE_ONE" | "FROZEN_SINGLE_EMISSION_SEMANTICS") => {
+      const body: any = {
+        probeId: `probe:${checkId}:na`, checkId,
+        operatorId: operator.metadata.operatorId,
+        configurationFingerprint: operator.metadata.configurationFingerprint,
+        caseFingerprint: baselineValidationCaseFingerprint(caseId, operator.metadata.operatorId),
+        invocations: [{ fixtureId, canonicalInput: input, inputFingerprint: canonicalInputFingerprint(input) }],
+        expectation: { kind: "not_applicable", disposition: "NOT_APPLICABLE_BY_FROZEN_CAPABILITY", reasonCode },
+      };
+      return { ...body, probeFingerprint: declarativeProbeFingerprint(body) };
+    };
+    const doNothing = ensureCanonicalOperatorV2(DO_NOTHING_OPERATOR);
+    expect(runExecutableConformanceProbe(doNothing, make(doNothing, "permitted_information_sensitivity", "single_action", "ZERO_ACTION_CAPABILITY"), "permitted_information_sensitivity", caseId).status).toBe("PASS");
+    expect(runExecutableConformanceProbe(doNothing, make(doNothing, "multi_action_behavior", "multi_action", "MAXIMUM_ACTIONS_PER_DECISION_LE_ONE"), "multi_action_behavior", caseId).status).toBe("PASS");
+    expect(runExecutableConformanceProbe(doNothing, make(doNothing, "multi_action_behavior", "multi_action", "FROZEN_SINGLE_EMISSION_SEMANTICS"), "multi_action_behavior", caseId).status).toBe("FAIL");
+    expect(runExecutableConformanceProbe(probeOperator, make(probeOperator, "permitted_information_sensitivity", "single_action", "ZERO_ACTION_CAPABILITY"), "permitted_information_sensitivity", caseId).status).toBe("FAIL");
+    expect(runExecutableConformanceProbe(probeOperator, make(probeOperator, "multi_action_behavior", "multi_action", "FROZEN_SINGLE_EMISSION_SEMANTICS"), "multi_action_behavior", caseId).status).toBe("FAIL");
   });
 
   it("returns stable failures for malformed nested declarative probes", () => {
