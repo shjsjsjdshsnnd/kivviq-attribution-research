@@ -1,12 +1,11 @@
 import { evaluationFingerprint } from "../evaluation/baseline-contract.js";
-import { ensureCanonicalOperatorV2, type CanonicalOperatorV2 } from "../operator/canonical-interface.js";
+import { canonicalInputFingerprint, ensureCanonicalOperatorV2, type CanonicalOperatorInputV2, type CanonicalOperatorV2 } from "../operator/canonical-interface.js";
 import type { CanonicalOperator } from "../operator/types.js";
 import { validateDecisionActionConformance, type DecisionActionConformanceEvidence } from "./action-conformance.js";
 import { runExecutableConformanceProbe, runProhibitedInformationProbe, failedValidationCheck, type ExecutableConformanceProbe, type ProhibitedInformationProbe } from "./conformance.js";
 import { validateConstraintDispositionEvidence, validateOperatorAuthorityBoundary, type ConstraintDispositionEvidence, type OperatorAuthorityBoundaryEvidence } from "./constraint-conformance.js";
 import { BASELINE_VALIDATION_REQUIRED_CHECKS, BaselineValidationError, type BaselineValidationCheckId, type BaselineValidationCheckResult } from "./contract.js";
-import { detectUncontrolledRandomness, validateDeterministicDecisions, validateSeedReproducibility, type DeterministicDecisionSample, type SeedReproducibilitySample } from "./determinism.js";
-import { validateFutureInformationIsolation, validateHiddenTruthIsolation, type InformationIsolationPair } from "./leakage.js";
+import { runDeclarativeIsolationExecution, runDeclarativeRepeatedExecution, runDeclarativeSeedExecution, type DeclarativeIsolationEvidence, type DeclarativeRepeatedExecutionEvidence, type DeclarativeSeedExecutionEvidence } from "./execution-evidence.js";
 import { validateProvenanceEvidence, type RecordedFingerprintEvidence } from "./provenance.js";
 import { replayRecordedDecision, type RecordedDecisionArtifact } from "./replay.js";
 import { createBaselineConformanceReport, type BaselineConformanceReport, type BaselineValidationOperatorIdentity } from "./report.js";
@@ -14,10 +13,10 @@ import { compareCodeUnits, hasExactKeys, isFingerprint, isNonEmptyString, isReco
 import { validateLookbackWindow, validateTemporalObservationBoundary, type LookbackWindowInput, type TemporalObservationBoundaryInput } from "./temporal-boundaries.js";
 
 export interface BaselineValidationCaseEvidence {
-  readonly determinism: readonly DeterministicDecisionSample[];
-  readonly seedReproducibility: readonly SeedReproducibilitySample[];
-  readonly hiddenTruthIsolation: readonly InformationIsolationPair[];
-  readonly futureInformationIsolation: readonly InformationIsolationPair[];
+  readonly determinism: DeclarativeRepeatedExecutionEvidence;
+  readonly seedReproducibility: DeclarativeSeedExecutionEvidence;
+  readonly hiddenTruthIsolation: DeclarativeIsolationEvidence;
+  readonly futureInformationIsolation: DeclarativeIsolationEvidence;
   readonly temporalBoundary: TemporalObservationBoundaryInput;
   readonly lookbackWindow: LookbackWindowInput;
   readonly actionConformance: DecisionActionConformanceEvidence;
@@ -31,7 +30,7 @@ export interface BaselineValidationCaseEvidence {
   readonly multiActionBehavior: ExecutableConformanceProbe;
   readonly artifactReplay: RecordedDecisionArtifact;
   readonly provenanceIntegrity: readonly RecordedFingerprintEvidence[];
-  readonly uncontrolledRandomness: readonly DeterministicDecisionSample[];
+  readonly uncontrolledRandomness: DeclarativeRepeatedExecutionEvidence;
   readonly operatorIsolation: OperatorAuthorityBoundaryEvidence;
 }
 
@@ -118,14 +117,45 @@ export function runBaselineValidationCase(value: BaselineValidationCase): Baseli
   const canonicalDecisionTime = isRecord(evidence["actionConformance"]) && isRecord(evidence["actionConformance"]["canonicalInput"])
     ? evidence["actionConformance"]["canonicalInput"]["decisionTime"]
     : undefined;
+  let primaryInputBindingsValid = false;
+  try {
+    const policy = evidence["policySemantics"];
+    const action = evidence["actionConformance"];
+    const authority = evidence["operatorIsolation"];
+    const replay = evidence["artifactReplay"];
+    const determinism = evidence["determinism"];
+    const randomness = evidence["uncontrolledRandomness"];
+    const seedReproducibility = evidence["seedReproducibility"];
+    const anchoredSections = ["permittedInformationSensitivity", "tieBreaking", "missingDataBehavior", "zeroActionBehavior", "multiActionBehavior", "prohibitedInformationInvariance", "hiddenTruthIsolation", "futureInformationIsolation"].map((key) => evidence[key]).filter(isRecord);
+    if (isRecord(policy) && isFingerprint(policy["primaryInputFingerprint"]) && Array.isArray(policy["invocations"]) && isRecord(policy["invocations"][0]) && isRecord(action) && isRecord(action["canonicalInput"]) && isRecord(authority) && isRecord(authority["canonicalInputBefore"]) && isRecord(authority["canonicalInputAfter"]) && isRecord(replay) && isRecord(replay["canonicalInput"]) && isRecord(replay["provenance"]) && isRecord(determinism) && isRecord(randomness) && isRecord(seedReproducibility) && anchoredSections.length === 8) {
+      const primary = policy["primaryInputFingerprint"];
+      const primaryInput = action["canonicalInput"] as unknown as CanonicalOperatorInputV2;
+      const primaryObservationFingerprint = primaryInput.provenance.observationFingerprint;
+      primaryInputBindingsValid = [
+        policy["invocations"][0]["inputFingerprint"],
+        canonicalInputFingerprint(primaryInput),
+        canonicalInputFingerprint(authority["canonicalInputBefore"] as unknown as CanonicalOperatorInputV2),
+        canonicalInputFingerprint(authority["canonicalInputAfter"] as unknown as CanonicalOperatorInputV2),
+        canonicalInputFingerprint(replay["canonicalInput"] as unknown as CanonicalOperatorInputV2),
+        replay["provenance"]["canonicalInputFingerprint"],
+        determinism["canonicalInputFingerprint"],
+        randomness["canonicalInputFingerprint"],
+        seedReproducibility["baseCanonicalInputFingerprint"],
+      ].every((fingerprint) => fingerprint === primary) && anchoredSections.every((section) => section["primaryInputFingerprint"] === primary) && isRecord(evidence["temporalBoundary"]) && evidence["temporalBoundary"]["observationFingerprint"] === primaryObservationFingerprint && isRecord(evidence["lookbackWindow"]) && evidence["lookbackWindow"]["observationFingerprint"] === primaryObservationFingerprint;
+    }
+  } catch { primaryInputBindingsValid = false; }
 
   const checks: BaselineValidationCheckResult[] = [
     !caseShapeValid || evidenceHasUnknownKeys
       ? failedValidationCheck("determinism", "INVALID_CASE_EVIDENCE_SHAPE", "validation case and evidence must have their exact declared keys")
-      : missing("determinism", () => validateDeterministicDecisions(evidence["determinism"] as never)),
-    missing("seedReproducibility", () => validateSeedReproducibility(evidence["seedReproducibility"] as never)),
-    missing("hiddenTruthIsolation", () => validateHiddenTruthIsolation(evidence["hiddenTruthIsolation"] as never)),
-    missing("futureInformationIsolation", () => validateFutureInformationIsolation(evidence["futureInformationIsolation"] as never)),
+      : !Object.prototype.hasOwnProperty.call(evidence, "determinism")
+        ? failedValidationCheck("determinism", "MISSING_REQUIRED_EVIDENCE", "required evidence section determinism is absent")
+      : !primaryInputBindingsValid
+        ? failedValidationCheck("determinism", "CASE_PRIMARY_INPUT_MISMATCH", "case evidence sections must bind the policy semantics primary canonical input")
+      : operatorRequired("determinism", (operator) => runDeclarativeRepeatedExecution(operator, evidence["determinism"], "determinism")),
+    operatorRequired("seedReproducibility", (operator) => runDeclarativeSeedExecution(operator, evidence["seedReproducibility"])),
+    operatorRequired("hiddenTruthIsolation", (operator) => runDeclarativeIsolationExecution(operator, evidence["hiddenTruthIsolation"], "hidden_truth_isolation")),
+    operatorRequired("futureInformationIsolation", (operator) => runDeclarativeIsolationExecution(operator, evidence["futureInformationIsolation"], "future_information_isolation")),
     missing("temporalBoundary", () => validateTemporalObservationBoundary(evidence["temporalBoundary"] as never, typeof canonicalObservationFingerprint === "string" ? canonicalObservationFingerprint : undefined, canonicalObservationRecords, typeof canonicalDecisionTime === "string" ? canonicalDecisionTime : undefined)),
     missing("lookbackWindow", () => validateLookbackWindow(evidence["lookbackWindow"] as never, typeof canonicalObservationFingerprint === "string" ? canonicalObservationFingerprint : undefined, canonicalObservationRecords, typeof canonicalDecisionTime === "string" ? canonicalDecisionTime : undefined)),
     missing("actionConformance", () => validateDecisionActionConformance(evidence["actionConformance"])),
@@ -136,10 +166,10 @@ export function runBaselineValidationCase(value: BaselineValidationCase): Baseli
     operatorRequired("tieBreaking", (operator) => runExecutableConformanceProbe(operator, evidence["tieBreaking"], "tie_breaking", caseId)),
     operatorRequired("missingDataBehavior", (operator) => runExecutableConformanceProbe(operator, evidence["missingDataBehavior"], "missing_data_behavior", caseId)),
     operatorRequired("zeroActionBehavior", (operator) => runExecutableConformanceProbe(operator, evidence["zeroActionBehavior"], "zero_action_behavior", caseId)),
-    operatorRequired("multiActionBehavior", (operator) => runExecutableConformanceProbe(operator, evidence["multiActionBehavior"], "multi_action_behavior", caseId)),
+    operatorRequired("multiActionBehavior", (operator) => runExecutableConformanceProbe(operator, evidence["multiActionBehavior"], "multi_action_behavior", caseId, evidence["policySemantics"])),
     operatorRequired("artifactReplay", (operator) => replayRecordedDecision(operator, evidence["artifactReplay"])),
     missing("provenanceIntegrity", () => validateProvenanceEvidence(evidence["provenanceIntegrity"] as never)),
-    missing("uncontrolledRandomness", () => detectUncontrolledRandomness(evidence["uncontrolledRandomness"] as never)),
+    operatorRequired("uncontrolledRandomness", (operator) => runDeclarativeRepeatedExecution(operator, evidence["uncontrolledRandomness"], "uncontrolled_randomness_detection")),
     missing("operatorIsolation", () => validateOperatorAuthorityBoundary(evidence["operatorIsolation"])),
   ];
   return createBaselineConformanceReport({ operator: identity, checks });

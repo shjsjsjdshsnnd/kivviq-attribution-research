@@ -1,8 +1,8 @@
 import { describe, expect, it } from "vitest";
 import { evaluationFingerprint } from "../../src/evaluation/baseline-contract.js";
-import { ensureCanonicalOperatorV2 } from "../../src/operator/canonical-interface.js";
+import { canonicalInputFingerprint, ensureCanonicalOperatorV2 } from "../../src/operator/canonical-interface.js";
 import { declarativeProbeFingerprint, runBaselineValidationCase, runBaselineValidationSuite, stableBaselineConformanceReportJson } from "../../src/validation/index.js";
-import { ALL_BASELINE_VALIDATION_CASES, FROZEN_BASELINE_OPERATORS, FROZEN_BASELINE_OPERATOR_IDS, FROZEN_POLICY_ACTION_FINGERPRINTS, createCompleteBaselineValidationCase, type EvidenceInvocationSection } from "./helpers.js";
+import { ALL_BASELINE_VALIDATION_CASES, FROZEN_BASELINE_OPERATORS, FROZEN_BASELINE_OPERATOR_IDS, FROZEN_POLICY_ACTION_FINGERPRINTS, createCompleteBaselineValidationCase } from "./helpers.js";
 
 describe("all frozen baseline validation coverage", () => {
   it("registers every frozen baseline exactly once in frozen order", () => {
@@ -32,7 +32,7 @@ describe("all frozen baseline validation coverage", () => {
     expect(first.map(stableBaselineConformanceReportJson)).toEqual(
       second.map(stableBaselineConformanceReportJson),
     );
-  });
+  }, 15_000);
 
   it("rejects invariant permitted-information evidence without controlled observation variation", () => {
     const complete = ALL_BASELINE_VALIDATION_CASES[2]!;
@@ -83,12 +83,12 @@ describe("all frozen baseline validation coverage", () => {
                   : "causalPolicyEffectMinor";
       expect(witnessKeys, id).toContain(requiredWitnessKey);
       expect(pair.leftWitnessFingerprint).not.toBe(pair.rightWitnessFingerprint);
-      for (const isolation of [entry.evidence.hiddenTruthIsolation[0]!, entry.evidence.futureInformationIsolation[0]!]) {
-        expect(isolation.baseline.visibleInputFingerprint).toBe(isolation.variant.visibleInputFingerprint);
-        for (const side of [isolation.baseline, isolation.variant]) {
-          expect(side.witnessFingerprint).toBe(evaluationFingerprint(side.witness));
-          expect(Object.keys(side.witness).some((key) => ["caseId", "kind", "witness"].includes(key))).toBe(false);
-        }
+      for (const isolation of [entry.evidence.hiddenTruthIsolation, entry.evidence.futureInformationIsolation]) {
+        const declared = isolation.pairs[0]!;
+        expect(declared.canonicalInputFingerprint).toBe(isolation.primaryInputFingerprint);
+        expect(declared.baselineWitnessFingerprint).toBe(evaluationFingerprint(declared.baselineWitness));
+        expect(declared.variantWitnessFingerprint).toBe(evaluationFingerprint(declared.variantWitness));
+        for (const witness of [declared.baselineWitness, declared.variantWitness]) expect(Object.keys(witness).some((key) => ["caseId", "kind", "witness"].includes(key))).toBe(false);
       }
 
       const seedBindings = entry.evidence.provenanceIntegrity.filter((evidence) => evidence.label.startsWith("seed-binding:"));
@@ -100,9 +100,9 @@ describe("all frozen baseline validation coverage", () => {
         return value.seedBindingFingerprint;
       });
       expect(new Set(bindingFingerprints).size).toBe(2);
-      expect(new Set(entry.evidence.seedReproducibility.map((sample) => sample.seedCaseId))).toEqual(new Set(seedBindings.map((evidence) => (evidence.value as { seedCaseId: string }).seedCaseId)));
-      expect(new Set(entry.evidence.seedReproducibility.map((sample) => sample.seedBindingFingerprint))).toEqual(new Set(bindingFingerprints));
-      expect(new Set(entry.evidence.seedReproducibility.map((sample) => `${sample.seedCaseId}:${sample.seedBindingFingerprint}`))).toEqual(new Set(seedBindings.map((evidence) => {
+      expect(new Set(entry.evidence.seedReproducibility.seedCases.map((sample) => sample.seedCaseId))).toEqual(new Set(seedBindings.map((evidence) => (evidence.value as { seedCaseId: string }).seedCaseId)));
+      expect(new Set(entry.evidence.seedReproducibility.seedCases.map((sample) => sample.seedBindingFingerprint))).toEqual(new Set(bindingFingerprints));
+      expect(new Set(entry.evidence.seedReproducibility.seedCases.map((sample) => `${sample.seedCaseId}:${sample.seedBindingFingerprint}`))).toEqual(new Set(seedBindings.map((evidence) => {
         const value = evidence.value as { seedCaseId: string; seedBindingFingerprint: string };
         return `${value.seedCaseId}:${value.seedBindingFingerprint}`;
       })));
@@ -110,6 +110,15 @@ describe("all frozen baseline validation coverage", () => {
         expect(entry.evidence.missingDataBehavior.invocations[0]!.canonicalInput.legalActionSpace.rules.length, id).toBeGreaterThan(0);
       }
       const policyInput = entry.evidence.policySemantics.invocations[0]!.canonicalInput;
+      const primaryInputFingerprint = entry.evidence.policySemantics.primaryInputFingerprint;
+      expect(primaryInputFingerprint, id).toBe(entry.evidence.policySemantics.invocations[0]!.inputFingerprint);
+      expect(primaryInputFingerprint, id).toBe(canonicalInputFingerprint(entry.evidence.actionConformance.canonicalInput));
+      expect(primaryInputFingerprint, id).toBe(entry.evidence.determinism.canonicalInputFingerprint);
+      expect(primaryInputFingerprint, id).toBe(entry.evidence.uncontrolledRandomness.canonicalInputFingerprint);
+      expect(primaryInputFingerprint, id).toBe(entry.evidence.seedReproducibility.baseCanonicalInputFingerprint);
+      expect(primaryInputFingerprint, id).toBe(entry.evidence.artifactReplay.provenance.canonicalInputFingerprint);
+      expect(primaryInputFingerprint, id).toBe(canonicalInputFingerprint(entry.evidence.operatorIsolation.canonicalInputBefore));
+      expect(primaryInputFingerprint, id).toBe(canonicalInputFingerprint(entry.evidence.operatorIsolation.canonicalInputAfter));
       expect(entry.evidence.temporalBoundary.observationFingerprint).toBe(policyInput.provenance.observationFingerprint);
       expect(entry.evidence.lookbackWindow.observationFingerprint).toBe(policyInput.provenance.observationFingerprint);
       if (policyInput.observation.records.length > 0) {
@@ -148,12 +157,13 @@ describe("all frozen baseline validation coverage", () => {
     const original = FROZEN_BASELINE_OPERATORS[2]!;
     let realCalls = 0;
     const counting = { ...original, decide(input: Parameters<typeof original.decide>[0]) { realCalls += 1; return original.decide(input); } };
-    const sectionCounts = new Map<EvidenceInvocationSection, number>();
-    const validationCase = createCompleteBaselineValidationCase(counting, 2, (section) => sectionCounts.set(section, (sectionCounts.get(section) ?? 0) + 1));
-    expect(sectionCounts).toEqual(new Map<EvidenceInvocationSection, number>([["determinism", 2], ["seed_reproducibility", 4], ["hidden_truth_isolation", 2], ["future_information_isolation", 2], ["uncontrolled_randomness_detection", 3]]));
-    expect(realCalls).toBeGreaterThanOrEqual(14);
-    expect(validationCase.evidence.determinism[0]!.decisionEnvelope).not.toBe(validationCase.evidence.determinism[1]!.decisionEnvelope);
-    expect(validationCase.evidence.uncontrolledRandomness[0]!.decisionEnvelope).not.toBe(validationCase.evidence.uncontrolledRandomness[1]!.decisionEnvelope);
+    const validationCase = createCompleteBaselineValidationCase(counting, 2);
+    expect(Object.keys(validationCase.evidence.determinism)).toEqual(["operatorBinding", "canonicalInput", "canonicalInputFingerprint", "repetitions"]);
+    expect(Object.keys(validationCase.evidence.uncontrolledRandomness)).toEqual(["operatorBinding", "canonicalInput", "canonicalInputFingerprint", "repetitions"]);
+    expect(Object.keys(validationCase.evidence.seedReproducibility)).toEqual(["operatorBinding", "baseCanonicalInput", "baseCanonicalInputFingerprint", "seedCases", "repetitionsPerSeed"]);
+    const beforeHarness = realCalls;
+    expect(runBaselineValidationCase(validationCase).overall).toBe("PASS");
+    expect(realCalls - beforeHarness).toBeGreaterThanOrEqual(9);
   });
 
   it("fails temporal checks when report evidence is rebound away from its canonical policy input", () => {

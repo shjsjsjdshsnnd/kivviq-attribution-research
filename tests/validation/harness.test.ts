@@ -10,8 +10,9 @@ import {
   stableEvaluationJson,
 } from "../../src/evaluation/baseline-contract.js";
 import { buildCanonicalOperatorInput, invokeOperatorAtDecision, toOperatorDecisionInput } from "../../src/evaluation/operator-evaluation.js";
-import { CANONICAL_OPERATOR_DECISION_SCHEMA_VERSION, CANONICAL_OPERATOR_INTERFACE_VERSION, canonicalInputFingerprint, canonicalOperatorDecisionFingerprint, ensureCanonicalOperatorV2, type CanonicalOperatorV2 } from "../../src/operator/canonical-interface.js";
+import { CANONICAL_OPERATOR_DECISION_SCHEMA_VERSION, CANONICAL_OPERATOR_INTERFACE_VERSION, canonicalInputFingerprint, ensureCanonicalOperatorV2, type CanonicalOperatorV2 } from "../../src/operator/canonical-interface.js";
 import { DO_NOTHING_OPERATOR } from "../../src/operator/do-nothing.js";
+import { FIXED_PROMOTIONAL_CALENDAR_OPERATOR } from "../../src/operator/pricing-promotion-heuristics.js";
 import { operatorFingerprint } from "../../src/operator/identity.js";
 import {
   baselineValidationCaseFingerprint,
@@ -71,6 +72,7 @@ function probe(checkId: ExecutableConformanceProbe["checkId"], caseId: string, s
     operatorId: probeOperator.metadata.operatorId,
     configurationFingerprint: probeOperator.metadata.configurationFingerprint,
     caseFingerprint: baselineValidationCaseFingerprint(caseId, probeOperator.metadata.operatorId),
+    primaryInputFingerprint: canonicalInputFingerprint(input),
     invocations: sequences.map((sequence) => ({ fixtureId: fixtureByCheck[checkId], canonicalInput: context(sequence).input, inputFingerprint: canonicalInputFingerprint(context(sequence).input) })),
     expectation,
   };
@@ -78,7 +80,7 @@ function probe(checkId: ExecutableConformanceProbe["checkId"], caseId: string, s
 }
 
 function sensitivityProbe(caseId: string, inputs = [observedContext(0).input, observedContext(1).input]): ExecutableConformanceProbe {
-  const body = { probeId: "probe:permitted_information_sensitivity", checkId: "permitted_information_sensitivity" as const, operatorId: probeOperator.metadata.operatorId, configurationFingerprint: probeOperator.metadata.configurationFingerprint, caseFingerprint: baselineValidationCaseFingerprint(caseId, probeOperator.metadata.operatorId), invocations: inputs.map((canonicalInput) => ({ fixtureId: "single_action", canonicalInput, inputFingerprint: canonicalInputFingerprint(canonicalInput) })), expectation: { kind: "sensitive" as const, observationKeys: ["metric:permitted"] } };
+  const body = { probeId: "probe:permitted_information_sensitivity", checkId: "permitted_information_sensitivity" as const, operatorId: probeOperator.metadata.operatorId, configurationFingerprint: probeOperator.metadata.configurationFingerprint, caseFingerprint: baselineValidationCaseFingerprint(caseId, probeOperator.metadata.operatorId), primaryInputFingerprint: canonicalInputFingerprint(input), invocations: inputs.map((canonicalInput) => ({ fixtureId: "single_action", canonicalInput, inputFingerprint: canonicalInputFingerprint(canonicalInput) })), expectation: { kind: "sensitive" as const, observationKeys: ["metric:permitted"] } };
   return { ...body, probeFingerprint: declarativeProbeFingerprint(body) };
 }
 
@@ -89,6 +91,7 @@ function prohibitedProbe(caseId: string): ProhibitedInformationProbe {
     operatorId: probeOperator.metadata.operatorId,
     configurationFingerprint: probeOperator.metadata.configurationFingerprint,
     caseFingerprint: baselineValidationCaseFingerprint(caseId, probeOperator.metadata.operatorId),
+    primaryInputFingerprint: canonicalInputFingerprint(input),
     pairs: [{
       pairId: "prohibited-pair",
       leftFixtureId: "hidden_truth_pair",
@@ -107,23 +110,13 @@ function prohibitedProbe(caseId: string): ProhibitedInformationProbe {
 function passingCase(caseId = "case-a"): BaselineValidationCase {
   const operator = probeOperator;
   const decision = operator.decide(input);
-  const decisionFp = canonicalOperatorDecisionFingerprint(decision);
-  const sample = (sampleId: string) => ({
-    sampleId,
-    canonicalInputFingerprint: canonicalInputFingerprint(input),
-    operatorFingerprint: operator.metadata.implementationFingerprint,
-    configurationFingerprint: operator.metadata.configurationFingerprint,
-    seedBindingFingerprint: evaluationFingerprint({ seed: 1 }),
-    actions: decision.actions,
-    decisionEnvelope: decision,
-  });
-  const isolationSide = (witness: number) => ({
-    visibleInputFingerprint: canonicalInputFingerprint(input),
-    witness: { hiddenIncrementalRoas: witness },
-    witnessFingerprint: evaluationFingerprint({ hiddenIncrementalRoas: witness }),
-    decisionFingerprint: canonicalPolicyDecisionFingerprint([]),
-    actions: [],
-  });
+  const operatorBinding = { operatorId: operator.metadata.operatorId, operatorVersion: operator.metadata.operatorVersion, implementationFingerprint: operator.metadata.implementationFingerprint, configurationFingerprint: operator.metadata.configurationFingerprint, adapterFingerprint: operator.metadata.adapterFingerprint };
+  const repeatedExecution = (repetitions: number) => ({ operatorBinding, canonicalInput: input, canonicalInputFingerprint: canonicalInputFingerprint(input), repetitions });
+  const frozenSeedBinding = (binding: number) => {
+    const seedCase = FROZEN_BASELINE_VALIDATION_SEED_SET.cases[binding]!;
+    return { seedSetVersion: FROZEN_BASELINE_VALIDATION_SEED_SET.schemaVersion, seedSetFingerprint: FROZEN_BASELINE_VALIDATION_SEED_SET.seedSetFingerprint, seedCaseId: seedCase.caseId, worldProfile: seedCase.worldProfile, seeds: seedCase.seeds, seedBindingFingerprint: evaluationFingerprint({ seedCaseId: seedCase.caseId, seeds: seedCase.seeds }) };
+  };
+  const isolation = (kind: "hidden" | "future", baseline: number, variant: number) => ({ operatorBinding, primaryInputFingerprint: canonicalInputFingerprint(input), pairs: [{ pairId: kind, canonicalInput: input, canonicalInputFingerprint: canonicalInputFingerprint(input), baselineWitness: { hiddenIncrementalRoas: baseline }, baselineWitnessFingerprint: evaluationFingerprint({ hiddenIncrementalRoas: baseline }), variantWitness: { hiddenIncrementalRoas: variant }, variantWitnessFingerprint: evaluationFingerprint({ hiddenIncrementalRoas: variant }) }] });
   const evaluated = invokeOperatorAtDecision(contract, operator, opportunity, observation, availability);
   const disposition = { contract, opportunity, availability, attempts: [] };
   const frozenSeedCase = FROZEN_BASELINE_VALIDATION_SEED_SET.cases[0]!;
@@ -140,10 +133,10 @@ function passingCase(caseId = "case-a"): BaselineValidationCase {
     caseId,
     operator,
     evidence: {
-      determinism: [sample("a"), sample("b")],
-      seedReproducibility: [0, 1].flatMap((binding) => [0, 1].map((run) => ({ sampleId: `${binding}-${run}`, seedSetVersion: FROZEN_BASELINE_VALIDATION_SEED_SET.schemaVersion, seedSetFingerprint: FROZEN_BASELINE_VALIDATION_SEED_SET.seedSetFingerprint, seedCaseId: FROZEN_BASELINE_VALIDATION_SEED_SET.cases[binding]!.caseId, seeds: FROZEN_BASELINE_VALIDATION_SEED_SET.cases[binding]!.seeds, seedBindingFingerprint: evaluationFingerprint({ seedCaseId: FROZEN_BASELINE_VALIDATION_SEED_SET.cases[binding]!.caseId, seeds: FROZEN_BASELINE_VALIDATION_SEED_SET.cases[binding]!.seeds }), canonicalInputFingerprint: canonicalInputFingerprint(input), operatorFingerprint: operator.metadata.implementationFingerprint, configurationFingerprint: operator.metadata.configurationFingerprint, runFingerprint: decisionFp }))),
-      hiddenTruthIsolation: [{ pairId: "hidden", baseline: isolationSide(1), variant: isolationSide(2) }],
-      futureInformationIsolation: [{ pairId: "future", baseline: isolationSide(3), variant: isolationSide(4) }],
+      determinism: repeatedExecution(2),
+      seedReproducibility: { operatorBinding, baseCanonicalInput: input, baseCanonicalInputFingerprint: canonicalInputFingerprint(input), seedCases: [frozenSeedBinding(0), frozenSeedBinding(1)], repetitionsPerSeed: 2 },
+      hiddenTruthIsolation: isolation("hidden", 1, 2),
+      futureInformationIsolation: isolation("future", 3, 4),
       temporalBoundary: { decisionTimestamp: opportunity.at, observationFingerprint: input.provenance.observationFingerprint, observations: [] },
       lookbackWindow: { startInclusive: opportunity.at, endInclusive: opportunity.at, decisionTimestamp: opportunity.at, observationFingerprint: input.provenance.observationFingerprint, observations: [] },
       actionConformance: { contract, opportunity, availability, canonicalInput: input, operatorMetadata: operator.metadata, decisionEnvelope: decision },
@@ -157,7 +150,7 @@ function passingCase(caseId = "case-a"): BaselineValidationCase {
       multiActionBehavior: probe("multi_action_behavior", caseId, [0, 2], { kind: "multi_action" }),
       artifactReplay: replay,
       provenanceIntegrity: [{ label: "input", value: input, recordedFingerprint: evaluationFingerprint(input) }],
-      uncontrolledRandomness: [sample("a"), sample("b"), sample("c")],
+      uncontrolledRandomness: repeatedExecution(3),
       operatorIsolation: { canonicalInputBefore: input, canonicalInputAfter: input, operatorMetadata: operator.metadata, decisionEnvelope: decision, evaluatedDecision: evaluated, dispositionEvidence: disposition },
     },
   };
@@ -182,6 +175,7 @@ describe("baseline validation harness", () => {
       operatorId: operator.metadata.operatorId,
       configurationFingerprint: operator.metadata.configurationFingerprint,
       caseFingerprint: baselineValidationCaseFingerprint(caseId, operator.metadata.operatorId),
+      primaryInputFingerprint: canonicalInputFingerprint(input),
       invocations: [{ fixtureId: "missing_data", canonicalInput: input, inputFingerprint: canonicalInputFingerprint(input) }],
       expectation: { kind: "exact", expectedDecisionFingerprints: [canonicalProbeDecisionFingerprint([])], expectedActionFingerprints: [[]] },
       probeFingerprint: "",
@@ -190,6 +184,45 @@ describe("baseline validation harness", () => {
     expect(runExecutableConformanceProbe(operator, finalized, "policy_semantics", caseId).status).toBe("PASS");
     expect(runExecutableConformanceProbe(operator, { ...finalized, returnedActions: [] }, "policy_semantics", caseId).issues.map((x) => x.code)).toContain("INVALID_PROBE_EVIDENCE");
     expect(runExecutableConformanceProbe(operator, { ...finalized, execute: () => ({ beforeActions: [] }) }, "policy_semantics", caseId).status).toBe("FAIL");
+  });
+
+  it("rejects caller-supplied output evidence and detects state through harness-owned invocations", () => {
+    const fabricated: any = passingCase();
+    fabricated.evidence.determinism.decisionEnvelope = probeOperator.decide(input);
+    expect(runBaselineValidationCase(fabricated).checks.find((check) => check.checkId === "determinism")?.status).toBe("FAIL");
+    const fabricatedRandomness: any = passingCase();
+    fabricatedRandomness.evidence.uncontrolledRandomness.actions = [];
+    expect(runBaselineValidationCase(fabricatedRandomness).checks.find((check) => check.checkId === "uncontrolled_randomness_detection")?.status).toBe("FAIL");
+    const fabricatedSeedRun: any = passingCase();
+    fabricatedSeedRun.evidence.seedReproducibility.runFingerprint = evaluationFingerprint({ fabricated: true });
+    expect(runBaselineValidationCase(fabricatedSeedRun).checks.find((check) => check.checkId === "seed_reproducibility")?.status).toBe("FAIL");
+    const arbitrarySeed: any = passingCase();
+    arbitrarySeed.evidence.seedReproducibility.seedCases[0].seedCaseId = "arbitrary";
+    expect(runBaselineValidationCase(arbitrarySeed).checks.find((check) => check.checkId === "seed_reproducibility")?.status).toBe("FAIL");
+    const fabricatedIsolation: any = passingCase();
+    fabricatedIsolation.evidence.hiddenTruthIsolation.pairs[0].actions = [];
+    expect(runBaselineValidationCase(fabricatedIsolation).checks.find((check) => check.checkId === "hidden_truth_isolation")?.status).toBe("FAIL");
+
+    let calls = 0;
+    const unstable: CanonicalOperatorV2 = { ...probeOperator, decide(value) { calls += 1; const stable = probeOperator.decide(value); return calls % 2 === 1 ? stable : { ...stable, actions: [googleBudgetUp2000] }; } };
+    const stateful: any = passingCase();
+    stateful.operator = unstable;
+    expect(runBaselineValidationCase(stateful).checks.find((check) => check.checkId === "determinism")?.issues.map((entry) => entry.code)).toContain("NONDETERMINISTIC_DECISION");
+  });
+
+  it("rejects independently valid sections bound to different primary inputs", () => {
+    const mixed: any = passingCase();
+    const other = observedContext(1).input;
+    const expected = [canonicalProbeDecisionFingerprint([actionFingerprint(googleBudgetUp2000)])];
+    mixed.evidence.policySemantics.invocations = [{ fixtureId: "missing_data", canonicalInput: other, inputFingerprint: canonicalInputFingerprint(other) }];
+    mixed.evidence.policySemantics.primaryInputFingerprint = canonicalInputFingerprint(other);
+    mixed.evidence.policySemantics.expectation = { kind: "exact", expectedDecisionFingerprints: expected, expectedActionFingerprints: [[actionFingerprint(googleBudgetUp2000)]] };
+    mixed.evidence.policySemantics.probeFingerprint = declarativeProbeFingerprint(mixed.evidence.policySemantics);
+    expect(runBaselineValidationCase(mixed).checks.find((check) => check.checkId === "determinism")?.issues.map((entry) => entry.code)).toContain("CASE_PRIMARY_INPUT_MISMATCH");
+    const secondary: any = passingCase();
+    secondary.evidence.tieBreaking.primaryInputFingerprint = canonicalInputFingerprint(other);
+    secondary.evidence.tieBreaking.probeFingerprint = declarativeProbeFingerprint(secondary.evidence.tieBreaking);
+    expect(runBaselineValidationCase(secondary).checks.find((check) => check.checkId === "determinism")?.issues.map((entry) => entry.code)).toContain("CASE_PRIMARY_INPUT_MISMATCH");
   });
 
   it("rejects fixture mismatch, identical sensitive inputs, stateful decisions, and mutated fingerprints", () => {
@@ -237,6 +270,7 @@ describe("baseline validation harness", () => {
         operatorId: operator.metadata.operatorId,
         configurationFingerprint: operator.metadata.configurationFingerprint,
         caseFingerprint: baselineValidationCaseFingerprint(caseId, operator.metadata.operatorId),
+        primaryInputFingerprint: canonicalInputFingerprint(input),
         invocations: [{ fixtureId, canonicalInput: input, inputFingerprint: canonicalInputFingerprint(input) }],
         expectation: { kind: "not_applicable", disposition: "NOT_APPLICABLE_BY_FROZEN_CAPABILITY", reasonCode },
       };
@@ -248,6 +282,19 @@ describe("baseline validation harness", () => {
     expect(runExecutableConformanceProbe(doNothing, make(doNothing, "multi_action_behavior", "multi_action", "FROZEN_SINGLE_EMISSION_SEMANTICS"), "multi_action_behavior", caseId).status).toBe("FAIL");
     expect(runExecutableConformanceProbe(probeOperator, make(probeOperator, "permitted_information_sensitivity", "single_action", "ZERO_ACTION_CAPABILITY"), "permitted_information_sensitivity", caseId).status).toBe("FAIL");
     expect(runExecutableConformanceProbe(probeOperator, make(probeOperator, "multi_action_behavior", "multi_action", "FROZEN_SINGLE_EMISSION_SEMANTICS"), "multi_action_behavior", caseId).status).toBe("FAIL");
+  });
+
+  it("rejects frozen single-emission N/A when implementation identity changes under the same ID", () => {
+    const frozen = ensureCanonicalOperatorV2(FIXED_PROMOTIONAL_CALENDAR_OPERATOR);
+    const caseId = "frozen-single-emission-identity";
+    const makeProbe = (operator: CanonicalOperatorV2, checkId: "policy_semantics" | "multi_action_behavior") => {
+      const body: any = { probeId: `${caseId}:${checkId}`, checkId, operatorId: operator.metadata.operatorId, configurationFingerprint: operator.metadata.configurationFingerprint, caseFingerprint: baselineValidationCaseFingerprint(caseId, operator.metadata.operatorId), primaryInputFingerprint: canonicalInputFingerprint(input), invocations: [{ fixtureId: checkId === "policy_semantics" ? "missing_data" : "multi_action", canonicalInput: input, inputFingerprint: canonicalInputFingerprint(input) }], expectation: checkId === "policy_semantics" ? { kind: "exact", expectedDecisionFingerprints: [canonicalProbeDecisionFingerprint([])], expectedActionFingerprints: [[]] } : { kind: "not_applicable", disposition: "NOT_APPLICABLE_BY_FROZEN_CAPABILITY", reasonCode: "FROZEN_SINGLE_EMISSION_SEMANTICS" } };
+      return { ...body, probeFingerprint: declarativeProbeFingerprint(body) };
+    };
+    const altered: CanonicalOperatorV2 = { ...frozen, metadata: { ...frozen.metadata, implementationFingerprint: evaluationFingerprint({ altered: "implementation" }), configurationFingerprint: evaluationFingerprint({ altered: "configuration" }) } };
+    const multi = makeProbe(altered, "multi_action_behavior");
+    const policy = makeProbe(altered, "policy_semantics");
+    expect(runExecutableConformanceProbe(altered, multi, "multi_action_behavior", caseId, policy).issues.map((entry) => entry.code)).toContain("NOT_APPLICABLE_NOT_AUTHORIZED");
   });
 
   it("returns stable failures for malformed nested declarative probes", () => {

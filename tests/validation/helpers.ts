@@ -14,7 +14,6 @@ import {
 } from "../../src/evaluation/operator-evaluation.js";
 import {
   canonicalInputFingerprint,
-  canonicalOperatorDecisionFingerprint,
   ensureCanonicalOperatorV2,
 } from "../../src/operator/canonical-interface.js";
 import { DO_NOTHING_OPERATOR } from "../../src/operator/do-nothing.js";
@@ -30,14 +29,12 @@ import type { CanonicalOperator } from "../../src/operator/types.js";
 import {
   FROZEN_BASELINE_VALIDATION_SEED_SET,
   baselineValidationCaseFingerprint,
-  canonicalPolicyDecisionFingerprint,
   canonicalProbeDecisionFingerprint,
   canonicalReplaySchemaFingerprint,
   createRecordedDecisionArtifact,
   declarativeProbeFingerprint,
   type BaselineValidationCase,
   type ExecutableConformanceProbe,
-  type InformationIsolationPair,
   type ProhibitedInformationProbe,
 } from "../../src/validation/index.js";
 
@@ -276,6 +273,7 @@ function executableProbe(
   fixtureId: string,
   inputs: readonly ReturnType<typeof emptyCanonicalContext>["input"][],
   expectation: ExecutableConformanceProbe["expectation"],
+  primaryInputFingerprint: string,
 ): ExecutableConformanceProbe {
   const body = {
     probeId: `${caseId}:${checkId}`,
@@ -283,6 +281,7 @@ function executableProbe(
     operatorId: operator.metadata.operatorId,
     configurationFingerprint: operator.metadata.configurationFingerprint,
     caseFingerprint: baselineValidationCaseFingerprint(caseId, operator.metadata.operatorId),
+    primaryInputFingerprint,
     invocations: inputs.map((canonicalInput) => ({
       fixtureId,
       canonicalInput,
@@ -333,6 +332,7 @@ function prohibitedProbe(operator: ReturnType<typeof ensureCanonicalOperatorV2>,
     operatorId: operator.metadata.operatorId,
     configurationFingerprint: operator.metadata.configurationFingerprint,
     caseFingerprint: baselineValidationCaseFingerprint(caseId, operator.metadata.operatorId),
+    primaryInputFingerprint: canonicalInputFingerprint(input),
     pairs: [{
       pairId: `${caseId}:hidden-future`,
       leftFixtureId: "hidden_truth_pair",
@@ -467,9 +467,7 @@ function familyEvidenceInputs(operatorId: string): FamilyEvidenceInputs {
   return { policy: left, sensitivity: [left, right], tie, missing, multi: null };
 }
 
-export type EvidenceInvocationSection = "determinism" | "seed_reproducibility" | "hidden_truth_isolation" | "future_information_isolation" | "uncontrolled_randomness_detection";
-
-export function createCompleteBaselineValidationCase(legacyOperator: CanonicalOperator, index: number, onEvidenceInvocation?: (section: EvidenceInvocationSection) => void): BaselineValidationCase {
+export function createCompleteBaselineValidationCase(legacyOperator: CanonicalOperator, index: number): BaselineValidationCase {
   const operator = ensureCanonicalOperatorV2(legacyOperator);
   const caseId = `frozen-baseline-${String(index + 1).padStart(2, "0")}`;
   const inputs = familyEvidenceInputs(operator.metadata.operatorId);
@@ -477,26 +475,16 @@ export function createCompleteBaselineValidationCase(legacyOperator: CanonicalOp
   const decision = operator.decide(input);
   const seedCase = FROZEN_BASELINE_VALIDATION_SEED_SET.cases[index % FROZEN_BASELINE_VALIDATION_SEED_SET.cases.length]!;
   const secondSeedCase = FROZEN_BASELINE_VALIDATION_SEED_SET.cases[(index + 1) % FROZEN_BASELINE_VALIDATION_SEED_SET.cases.length]!;
-  const seedBindingFingerprint = evaluationFingerprint({ seedCaseId: seedCase.caseId, seeds: seedCase.seeds });
+  const operatorBinding = { operatorId: operator.metadata.operatorId, operatorVersion: operator.metadata.operatorVersion, implementationFingerprint: operator.metadata.implementationFingerprint, configurationFingerprint: operator.metadata.configurationFingerprint, adapterFingerprint: operator.metadata.adapterFingerprint };
+  const repeatedExecution = (repetitions: number) => ({ operatorBinding, canonicalInput: input, canonicalInputFingerprint: canonicalInputFingerprint(input), repetitions });
+  const frozenSeedBinding = (candidate: typeof seedCase) => ({ seedSetVersion: FROZEN_BASELINE_VALIDATION_SEED_SET.schemaVersion, seedSetFingerprint: FROZEN_BASELINE_VALIDATION_SEED_SET.seedSetFingerprint, seedCaseId: candidate.caseId, worldProfile: candidate.worldProfile, seeds: candidate.seeds, seedBindingFingerprint: evaluationFingerprint({ seedCaseId: candidate.caseId, seeds: candidate.seeds }) });
   const provenanceSeedBinding = (candidate: typeof seedCase) => ({
     seedCaseId: candidate.caseId,
     worldProfile: candidate.worldProfile,
     seeds: candidate.seeds,
     seedBindingFingerprint: evaluationFingerprint({ seedCaseId: candidate.caseId, seeds: candidate.seeds }),
   });
-  const invokeForEvidence = (section: EvidenceInvocationSection) => { onEvidenceInvocation?.(section); return operator.decide(input); };
-  const sample = (sampleId: string, section: "determinism" | "uncontrolled_randomness_detection") => {
-    const observedDecision = invokeForEvidence(section);
-    return { sampleId, canonicalInputFingerprint: canonicalInputFingerprint(input), operatorFingerprint: operator.metadata.implementationFingerprint, configurationFingerprint: operator.metadata.configurationFingerprint, seedBindingFingerprint, actions: observedDecision.actions, decisionEnvelope: observedDecision };
-  };
-  const seedSample = (sampleId: string, candidate: typeof seedCase) => {
-    const observedDecision = invokeForEvidence("seed_reproducibility");
-    return { sampleId, seedSetVersion: FROZEN_BASELINE_VALIDATION_SEED_SET.schemaVersion, seedSetFingerprint: FROZEN_BASELINE_VALIDATION_SEED_SET.seedSetFingerprint, seedCaseId: candidate.caseId, seeds: candidate.seeds, seedBindingFingerprint: evaluationFingerprint({ seedCaseId: candidate.caseId, seeds: candidate.seeds }), canonicalInputFingerprint: canonicalInputFingerprint(input), operatorFingerprint: operator.metadata.implementationFingerprint, configurationFingerprint: operator.metadata.configurationFingerprint, runFingerprint: canonicalOperatorDecisionFingerprint(observedDecision) };
-  };
-  const isolationPair = (section: "hidden_truth_isolation" | "future_information_isolation", witnesses: readonly [object, object]): InformationIsolationPair => {
-    const side = (witness: object) => { const observedDecision = invokeForEvidence(section); return { visibleInputFingerprint: canonicalInputFingerprint(input), witness, witnessFingerprint: evaluationFingerprint(witness), decisionFingerprint: canonicalPolicyDecisionFingerprint(observedDecision.actions), actions: observedDecision.actions }; };
-    return { pairId: `${caseId}:${section}`, baseline: side(witnesses[0]), variant: side(witnesses[1]) };
-  };
+  const isolationEvidence = (section: "hidden_truth_isolation" | "future_information_isolation", witnesses: readonly [object, object]) => ({ operatorBinding, primaryInputFingerprint: canonicalInputFingerprint(input), pairs: [{ pairId: `${caseId}:${section}`, canonicalInput: input, canonicalInputFingerprint: canonicalInputFingerprint(input), baselineWitness: witnesses[0], baselineWitnessFingerprint: evaluationFingerprint(witnesses[0]), variantWitness: witnesses[1], variantWitnessFingerprint: evaluationFingerprint(witnesses[1]) }] });
   const witnesses = familyWitnesses(operator.metadata.operatorId);
   const temporalKind = operator.metadata.operatorId.startsWith("baseline.advertising.") || operator.metadata.operatorId.startsWith("baseline.greedy.") || operator.metadata.operatorId.startsWith("baseline.flawed.") ? "advertising_outcome" as const
     : operator.metadata.operatorId.startsWith("baseline.inventory.") ? "inventory_event" as const
@@ -537,34 +525,32 @@ export function createCompleteBaselineValidationCase(legacyOperator: CanonicalOp
     caseId,
     operator: legacyOperator,
     evidence: {
-      determinism: [sample("canonical-a", "determinism"), sample("canonical-b", "determinism")],
-      seedReproducibility: [
-        seedSample("seed-a-1", seedCase), seedSample("seed-a-2", seedCase), seedSample("seed-b-1", secondSeedCase), seedSample("seed-b-2", secondSeedCase),
-      ],
-      hiddenTruthIsolation: [isolationPair("hidden_truth_isolation", witnesses.hidden)],
-      futureInformationIsolation: [isolationPair("future_information_isolation", witnesses.future)],
+      determinism: repeatedExecution(2),
+      seedReproducibility: { operatorBinding, baseCanonicalInput: input, baseCanonicalInputFingerprint: canonicalInputFingerprint(input), seedCases: [frozenSeedBinding(seedCase), frozenSeedBinding(secondSeedCase)], repetitionsPerSeed: 2 },
+      hiddenTruthIsolation: isolationEvidence("hidden_truth_isolation", witnesses.hidden),
+      futureInformationIsolation: isolationEvidence("future_information_isolation", witnesses.future),
       temporalBoundary: { decisionTimestamp: opportunity.at, observationFingerprint: input.provenance.observationFingerprint, observations: temporalObservations },
       lookbackWindow: { startInclusive: lookbackStart, endInclusive: opportunity.at, decisionTimestamp: opportunity.at, observationFingerprint: input.provenance.observationFingerprint, observations: lookbackObservations },
       actionConformance: { contract, opportunity, availability, canonicalInput: input, operatorMetadata: operator.metadata, decisionEnvelope: decision },
       constraintConformance: disposition,
-      policySemantics: executableProbe(operator, caseId, "policy_semantics", "missing_data", [input], exact),
+      policySemantics: executableProbe(operator, caseId, "policy_semantics", "missing_data", [input], exact, canonicalInputFingerprint(input)),
       permittedInformationSensitivity: inputs.sensitivity === null
-        ? executableProbe(operator, caseId, "permitted_information_sensitivity", "single_action", [input], notApplicable("permitted_information_sensitivity"))
-        : executableProbe(operator, caseId, "permitted_information_sensitivity", "single_action", inputs.sensitivity.map((entry) => entry.input), { kind: "sensitive", observationKeys: inputs.sensitivity[0].input.observation.records.map((record) => record.observationKey) }),
+        ? executableProbe(operator, caseId, "permitted_information_sensitivity", "single_action", [input], notApplicable("permitted_information_sensitivity"), canonicalInputFingerprint(input))
+        : executableProbe(operator, caseId, "permitted_information_sensitivity", "single_action", inputs.sensitivity.map((entry) => entry.input), { kind: "sensitive", observationKeys: inputs.sensitivity[0].input.observation.records.map((record) => record.observationKey) }, canonicalInputFingerprint(input)),
       prohibitedInformationInvariance: prohibitedProbe(operator, caseId, input),
-      tieBreaking: executableProbe(operator, caseId, "tie_breaking", "exact_tie", [inputs.tie.input], tieExact),
-      missingDataBehavior: executableProbe(operator, caseId, "missing_data_behavior", "missing_data", [inputs.missing.input], missingExact),
-      zeroActionBehavior: executableProbe(operator, caseId, "zero_action_behavior", "empty", [missingObservationContext(inputs.policy).input], { kind: "zero_actions" }),
+      tieBreaking: executableProbe(operator, caseId, "tie_breaking", "exact_tie", [inputs.tie.input], tieExact, canonicalInputFingerprint(input)),
+      missingDataBehavior: executableProbe(operator, caseId, "missing_data_behavior", "missing_data", [inputs.missing.input], missingExact, canonicalInputFingerprint(input)),
+      zeroActionBehavior: executableProbe(operator, caseId, "zero_action_behavior", "empty", [missingObservationContext(inputs.policy).input], { kind: "zero_actions" }, canonicalInputFingerprint(input)),
       multiActionBehavior: inputs.multi === null
-        ? executableProbe(operator, caseId, "multi_action_behavior", "multi_action", [input], notApplicable("multi_action_behavior"))
-        : executableProbe(operator, caseId, "multi_action_behavior", "multi_action", [inputs.multi.input], { kind: "multi_action" }),
+        ? executableProbe(operator, caseId, "multi_action_behavior", "multi_action", [input], notApplicable("multi_action_behavior"), canonicalInputFingerprint(input))
+        : executableProbe(operator, caseId, "multi_action_behavior", "multi_action", [inputs.multi.input], { kind: "multi_action" }, canonicalInputFingerprint(input)),
       artifactReplay: replay,
       provenanceIntegrity: [
         { label: `seed-binding:${seedCase.caseId}`, value: provenanceSeedBinding(seedCase), recordedFingerprint: evaluationFingerprint(provenanceSeedBinding(seedCase)) },
         { label: `seed-binding:${secondSeedCase.caseId}`, value: provenanceSeedBinding(secondSeedCase), recordedFingerprint: evaluationFingerprint(provenanceSeedBinding(secondSeedCase)) },
         { label: "canonical-input", value: input, recordedFingerprint: evaluationFingerprint(input) },
       ],
-      uncontrolledRandomness: [sample("random-a", "uncontrolled_randomness_detection"), sample("random-b", "uncontrolled_randomness_detection"), sample("random-c", "uncontrolled_randomness_detection")],
+      uncontrolledRandomness: repeatedExecution(3),
       operatorIsolation: { canonicalInputBefore: input, canonicalInputAfter: input, operatorMetadata: operator.metadata, decisionEnvelope: decision, evaluatedDecision: evaluated, dispositionEvidence: disposition },
     },
   };
