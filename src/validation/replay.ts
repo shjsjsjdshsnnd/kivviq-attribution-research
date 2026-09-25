@@ -18,7 +18,7 @@ import {
   type CanonicalOperatorV2,
 } from "../operator/canonical-interface.js";
 import type { CanonicalOperator } from "../operator/types.js";
-import type { BaselineValidationCheckResult, BaselineValidationIssue } from "./contract.js";
+import { BaselineValidationError, type BaselineValidationCheckResult, type BaselineValidationIssue } from "./contract.js";
 import { hasExactKeys, isFingerprint, isRecord, isStrictJson, issue, result, safeFingerprint } from "./shared.js";
 import { FROZEN_BASELINE_VALIDATION_SEED_SET, type BaselineValidationSeeds } from "./seed-sets.js";
 
@@ -115,7 +115,7 @@ export function canonicalReplaySchemaFingerprint(): string {
   });
 }
 
-export function createRecordedDecisionArtifact(
+function createRecordedDecisionArtifactUnsafe(
   operator: CanonicalOperator | CanonicalOperatorV2,
   input: CanonicalOperatorInputV2,
   decision: CanonicalOperatorDecisionV2,
@@ -124,6 +124,7 @@ export function createRecordedDecisionArtifact(
   const canonical = ensureCanonicalOperatorV2(operator);
   assertCanonicalOperatorMetadataV2(canonical.metadata);
   const validatedInput = assertCanonicalOperatorInputV2(input, inputBindings(input));
+  if (validatedInput.provenance.observationFingerprint !== expectedObservationFingerprint(validatedInput) || validatedInput.provenance.legalActionSpaceFingerprint !== expectedActionSpaceFingerprint(validatedInput) || validatedInput.provenance.evaluationContractFingerprint !== canonical.metadata.supportedEvaluationContract.contractFingerprint || validatedInput.provenance.evaluationContractVersion !== canonical.metadata.supportedEvaluationContract.contractVersion || validatedInput.provenance.actionOntologyVersion !== canonical.metadata.supportedActionOntologyVersion) throw new TypeError("canonical input provenance does not match independently recomputed operator bindings");
   const validatedDecision = validateCanonicalDecisionEnvelope(validatedInput, canonical.metadata, decision);
   if (!isFingerprint(provenance.constraintFingerprint) || provenance.constraintFingerprint !== evaluationFingerprint(validatedInput.constraints)) throw new TypeError("replay constraint fingerprint does not match canonical input");
   if (!isFingerprint(provenance.schemaFingerprint) || provenance.schemaFingerprint !== canonicalReplaySchemaFingerprint()) throw new TypeError("replay schema fingerprint does not match canonical schemas");
@@ -151,12 +152,22 @@ export function createRecordedDecisionArtifact(
   return cloneFreeze({ ...body, artifactFingerprint: bodyFingerprint(body) });
 }
 
+export function createRecordedDecisionArtifact(operator: CanonicalOperator | CanonicalOperatorV2, input: CanonicalOperatorInputV2, decision: CanonicalOperatorDecisionV2, provenance: ReplayProvenanceInput): RecordedDecisionArtifact {
+  try {
+    const artifact = createRecordedDecisionArtifactUnsafe(operator, input, decision, provenance);
+    if (validateRecordedDecisionArtifact(artifact).status !== "PASS") throw new TypeError("created artifact failed validation");
+    return artifact;
+  } catch {
+    throw new BaselineValidationError("recorded decision artifact inputs are malformed or inconsistent");
+  }
+}
+
 function validateShape(value: unknown): value is RecordedDecisionArtifact {
   return isRecord(value) && hasExactKeys(value, ARTIFACT_KEYS) &&
     isRecord(value["provenance"]) && hasExactKeys(value["provenance"], PROVENANCE_KEYS) && isStrictJson(value);
 }
 
-function checkArtifact(value: unknown): { artifact?: RecordedDecisionArtifact; issues: BaselineValidationIssue[] } {
+function checkArtifactUnsafe(value: unknown): { artifact?: RecordedDecisionArtifact; issues: BaselineValidationIssue[] } {
   const issues: BaselineValidationIssue[] = [];
   if (!validateShape(value)) {
     return { issues: [issue("INVALID_REPLAY_ARTIFACT", "evidence", "recorded decision artifact must be exact-key strict deterministic JSON")] };
@@ -204,6 +215,12 @@ function checkArtifact(value: unknown): { artifact?: RecordedDecisionArtifact; i
   return { artifact, issues };
 }
 
+function checkArtifact(value: unknown): { artifact?: RecordedDecisionArtifact; issues: BaselineValidationIssue[] } {
+  try { return checkArtifactUnsafe(value); } catch {
+    return { issues: [issue("INVALID_REPLAY_ARTIFACT", "evidence", "recorded decision artifact contains malformed nested values")] };
+  }
+}
+
 export function validateRecordedDecisionArtifact(value: unknown): BaselineValidationCheckResult {
   const checked = checkArtifact(value);
   return result("artifact_replay", checked.issues, checked.artifact === undefined ? [] : [checked.artifact.artifactFingerprint].filter(isFingerprint));
@@ -222,6 +239,7 @@ export function replayRecordedDecision(operator: CanonicalOperator | CanonicalOp
     issues.push(issue("REPLAY_OPERATOR_IDENTITY_MISMATCH", "operator.metadata", "operator identity, version, configuration, implementation, or adapter differs from recording"));
   }
   if (canonical !== undefined && canonical.metadata.capabilities.randomness.kind !== "deterministic" && !issues.some((entry) => entry.code === "REPLAY_SEEDED_OPERATOR_UNSUPPORTED")) issues.push(issue("REPLAY_SEEDED_OPERATOR_UNSUPPORTED", "operator.metadata.capabilities.randomness", "v1 replay supports deterministic operators only until canonical input carries an explicit seed binding"));
+  if (issues.length > 0) return result("artifact_replay", issues, safeFingerprint(value) === undefined ? [] : [safeFingerprint(value)!]);
   if (canonical !== undefined && issues.every((entry) => !entry.code.startsWith("REPLAY_OPERATOR_") && !entry.code.startsWith("REPLAY_INPUT_"))) {
     try {
       const replayed = validateCanonicalDecisionEnvelope(artifact.canonicalInput, canonical.metadata, canonical.decide(cloneFreeze(artifact.canonicalInput)));

@@ -23,6 +23,7 @@ import {
   runProhibitedInformationProbe,
   stableBaselineConformanceReportJson,
   canonicalProbeDecisionFingerprint,
+  declarativeProbeFingerprint,
   FROZEN_BASELINE_VALIDATION_SEED_SET,
   type BaselineValidationCase,
   type ExecutableConformanceProbe,
@@ -53,19 +54,21 @@ const probeOperator: CanonicalOperatorV2 = (() => {
 })();
 
 function probe(checkId: ExecutableConformanceProbe["checkId"], caseId: string, sequences: readonly number[], expectation: ExecutableConformanceProbe["expectation"]): ExecutableConformanceProbe {
-  return {
+  const fixtureByCheck = { policy_semantics: "missing_data", permitted_information_sensitivity: "single_action", tie_breaking: "exact_tie", missing_data_behavior: "missing_data", zero_action_behavior: "empty", multi_action_behavior: "multi_action" } as const;
+  const body = {
     probeId: `probe:${checkId}`,
     checkId,
     operatorId: probeOperator.metadata.operatorId,
     configurationFingerprint: probeOperator.metadata.configurationFingerprint,
     caseFingerprint: baselineValidationCaseFingerprint(caseId, probeOperator.metadata.operatorId),
-    invocations: sequences.map((sequence, index) => ({ fixtureId: index === 0 ? "empty" : sequence === 2 ? "multi_action" : "single_action", canonicalInput: context(sequence).input, inputFingerprint: canonicalInputFingerprint(context(sequence).input) })),
+    invocations: sequences.map((sequence) => ({ fixtureId: fixtureByCheck[checkId], canonicalInput: context(sequence).input, inputFingerprint: canonicalInputFingerprint(context(sequence).input) })),
     expectation,
   };
+  return { ...body, probeFingerprint: declarativeProbeFingerprint(body) };
 }
 
 function prohibitedProbe(caseId: string): ProhibitedInformationProbe {
-  return {
+    const body = {
     probeId: "probe:prohibited_information_invariance",
     checkId: "prohibited_information_invariance",
     operatorId: probeOperator.metadata.operatorId,
@@ -79,8 +82,9 @@ function prohibitedProbe(caseId: string): ProhibitedInformationProbe {
       rightInput: input,
       leftWitnessFingerprint: evaluationFingerprint({ witness: "left" }),
       rightWitnessFingerprint: evaluationFingerprint({ witness: "right" }),
-    }],
-  };
+      }],
+    } satisfies Omit<ProhibitedInformationProbe, "probeFingerprint">;
+    return { ...body, probeFingerprint: declarativeProbeFingerprint(body) };
 }
 
 function passingCase(caseId = "case-a"): BaselineValidationCase {
@@ -163,12 +167,34 @@ describe("baseline validation harness", () => {
       operatorId: operator.metadata.operatorId,
       configurationFingerprint: operator.metadata.configurationFingerprint,
       caseFingerprint: baselineValidationCaseFingerprint(caseId, operator.metadata.operatorId),
-      invocations: [{ fixtureId: "empty", canonicalInput: input, inputFingerprint: canonicalInputFingerprint(input) }],
+      invocations: [{ fixtureId: "missing_data", canonicalInput: input, inputFingerprint: canonicalInputFingerprint(input) }],
       expectation: { kind: "exact", expectedDecisionFingerprints: [canonicalProbeDecisionFingerprint([])], expectedActionFingerprints: [[]] },
+      probeFingerprint: "",
     };
-    expect(runExecutableConformanceProbe(operator, realProbe, "policy_semantics", caseId).status).toBe("PASS");
-    expect(runExecutableConformanceProbe(operator, { ...realProbe, returnedActions: [] }, "policy_semantics", caseId).issues.map((x) => x.code)).toContain("INVALID_PROBE_EVIDENCE");
-    expect(runExecutableConformanceProbe(operator, { ...realProbe, execute: () => ({ beforeActions: [] }) }, "policy_semantics", caseId).status).toBe("FAIL");
+    const finalized = { ...realProbe, probeFingerprint: declarativeProbeFingerprint(realProbe) };
+    expect(runExecutableConformanceProbe(operator, finalized, "policy_semantics", caseId).status).toBe("PASS");
+    expect(runExecutableConformanceProbe(operator, { ...finalized, returnedActions: [] }, "policy_semantics", caseId).issues.map((x) => x.code)).toContain("INVALID_PROBE_EVIDENCE");
+    expect(runExecutableConformanceProbe(operator, { ...finalized, execute: () => ({ beforeActions: [] }) }, "policy_semantics", caseId).status).toBe("FAIL");
+  });
+
+  it("rejects fixture mismatch, identical sensitive inputs, stateful decisions, and mutated fingerprints", () => {
+    const caseId = "probe-hardening";
+    const mismatch: any = probe("tie_breaking", caseId, [0], { kind: "exact", expectedDecisionFingerprints: [canonicalProbeDecisionFingerprint([])], expectedActionFingerprints: [[]] });
+    mismatch.invocations[0].fixtureId = "empty";
+    mismatch.probeFingerprint = declarativeProbeFingerprint(mismatch);
+    expect(runExecutableConformanceProbe(probeOperator, mismatch, "tie_breaking", caseId).status).toBe("FAIL");
+
+    const identical = probe("permitted_information_sensitivity", caseId, [0, 0], { kind: "sensitive" });
+    expect(runExecutableConformanceProbe(probeOperator, identical, "permitted_information_sensitivity", caseId).status).toBe("FAIL");
+
+    let calls = 0;
+    const stateful: CanonicalOperatorV2 = { ...probeOperator, decide(value) { calls += 1; return calls % 2 === 1 ? probeOperator.decide(value) : { ...probeOperator.decide(value), actions: [googleBudgetUp2000] }; } };
+    const exact = probe("policy_semantics", caseId, [0], { kind: "exact", expectedDecisionFingerprints: [canonicalProbeDecisionFingerprint([])], expectedActionFingerprints: [[]] });
+    expect(runExecutableConformanceProbe(stateful, exact, "policy_semantics", caseId).status).toBe("FAIL");
+
+    const mutated: any = probe("missing_data_behavior", caseId, [0], { kind: "exact", expectedDecisionFingerprints: [canonicalProbeDecisionFingerprint([])], expectedActionFingerprints: [[]] });
+    mutated.expectation.expectedDecisionFingerprints[0] = evaluationFingerprint({ forged: true });
+    expect(runExecutableConformanceProbe(probeOperator, mutated, "missing_data_behavior", caseId).status).toBe("FAIL");
   });
 
   it("preserves paired-witness semantics for prohibited-information invariance", () => {
@@ -178,10 +204,12 @@ describe("baseline validation harness", () => {
 
     const sameWitness: any = structuredClone(base);
     sameWitness.pairs[0].rightWitnessFingerprint = sameWitness.pairs[0].leftWitnessFingerprint;
+    sameWitness.probeFingerprint = declarativeProbeFingerprint(sameWitness);
     expect(runProhibitedInformationProbe(probeOperator, sameWitness, caseId).issues.map((x) => x.code)).toContain("INVALID_PAIRED_EVIDENCE");
 
     const differentVisible: any = structuredClone(base);
     differentVisible.pairs[0].rightInput = context(1).input;
+    differentVisible.probeFingerprint = declarativeProbeFingerprint(differentVisible);
     expect(runProhibitedInformationProbe(probeOperator, differentVisible, caseId).issues.map((x) => x.code)).toContain("INVALID_PAIRED_EVIDENCE");
 
     let calls = 0;
@@ -215,6 +243,8 @@ describe("baseline validation harness", () => {
     expect(reports.map((entry) => entry.operator.operatorId)).toEqual(["Z", "a", "e\u0301", "é"]);
     const a = passingCase("a");
     expect(() => runBaselineValidationSuite({ cases: [a, passingCase("duplicate")] })).toThrow(/duplicate operator ID/);
+    const duplicateCase: any = withId("other.operator", "a");
+    expect(() => runBaselineValidationSuite({ cases: [a, duplicateCase] })).toThrow(/duplicate case ID/);
   });
 
   it("converts operator throws, mutation attempts, and malformed probe evidence to deterministic FAIL", () => {

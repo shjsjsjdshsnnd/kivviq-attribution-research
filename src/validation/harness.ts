@@ -141,6 +141,8 @@ export function runBaselineValidationSuite(value: BaselineValidationSuiteInput):
   const cases = value["cases"] as readonly BaselineValidationCase[];
   const ids = cases.map((entry) => fallbackIdentity(isRecord(entry) ? entry["operator"] : undefined).operatorId);
   if (new Set(ids).size !== ids.length) throw new BaselineValidationError("duplicate operator ID in validation suite");
+  const caseIds = cases.map((entry) => isRecord(entry) && isNonEmptyString(entry["caseId"]) ? entry["caseId"] : "invalid-case");
+  if (new Set(caseIds).size !== caseIds.length) throw new BaselineValidationError("duplicate case ID in validation suite");
   return Object.freeze(cases.map(runBaselineValidationCase).sort((left, right) => compareCodeUnits(left.operator.operatorId, right.operator.operatorId)));
 }
 

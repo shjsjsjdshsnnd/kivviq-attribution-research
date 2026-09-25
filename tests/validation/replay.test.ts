@@ -22,6 +22,7 @@ import {
   validateRecordedDecisionArtifact,
   FROZEN_BASELINE_VALIDATION_SEED_SET,
   recordedDecisionArtifactFingerprint,
+  BaselineValidationError,
 } from "../../src/validation/index.js";
 
 const contract = CANONICAL_BASELINE_EVALUATION_CONTRACT_V1;
@@ -178,6 +179,56 @@ describe("recorded canonical decision replay", () => {
       return { ...decision, operatorMetadata: metadata, decisionMetadata: { ...decision.decisionMetadata, deterministicReplayExpected: false, randomness: metadata.capabilities.randomness } };
     } };
     expect(replayRecordedDecision(seeded, artifact(deterministic)).issues.map((x) => x.code)).toContain("REPLAY_SEEDED_OPERATOR_UNSUPPORTED");
+  });
+
+  it.each([
+    ["metadata", (x: any) => { x.operatorMetadata = null; }],
+    ["input", (x: any) => { x.canonicalInput = null; }],
+    ["decision", (x: any) => { x.canonicalDecision = null; }],
+    ["seed values", (x: any) => { x.provenance.seeds = null; }],
+    ["nested metadata", (x: any) => { x.operatorMetadata.capabilities = null; }],
+    ["nested input", (x: any) => { x.canonicalInput.provenance = null; }],
+  ])("returns stable FAIL without throwing for malformed %s", (_label, mutate) => {
+    const changed: any = structuredClone(artifact());
+    mutate(changed);
+    const first = validateRecordedDecisionArtifact(changed);
+    const second = validateRecordedDecisionArtifact(changed);
+    expect(first.status).toBe("FAIL");
+    expect(first).toEqual(second);
+  });
+
+  it("creator rejects inputs that would produce invalid artifacts", () => {
+    const operator = actionOperator();
+    const goodInput = input();
+    const goodDecision = operator.decide(goodInput);
+    for (const mutate of [
+      (x: any) => { x.observation.records.push({}); },
+      (x: any) => { x.legalActionSpace.rules.push({}); },
+      (x: any) => { x.provenance.evaluationContractFingerprint = operatorFingerprint({ bogus: "contract" }); },
+    ]) {
+      const changed: any = structuredClone(goodInput); mutate(changed);
+      expect(() => createRecordedDecisionArtifact(operator, changed, goodDecision, { ...replayProvenance, constraintFingerprint: operatorFingerprint(changed.constraints) })).toThrow(BaselineValidationError);
+    }
+    expect(() => createRecordedDecisionArtifact(operator, goodInput, goodDecision, { ...replayProvenance, seedCaseId: "bogus" })).toThrow(BaselineValidationError);
+    const changedOperator: any = { ...operator, metadata: { ...operator.metadata, configurationFingerprint: operatorFingerprint({ bogus: "config" }) } };
+    expect(() => createRecordedDecisionArtifact(changedOperator, goodInput, goodDecision, { ...replayProvenance, constraintFingerprint: operatorFingerprint(goodInput.constraints) })).toThrow(BaselineValidationError);
+  });
+
+  it("never invokes the operator when any artifact integrity family fails", () => {
+    const base = actionOperator();
+    for (const mutate of [
+      (x: any) => { x.provenance.schemaFingerprint = operatorFingerprint({ bad: "schema" }); },
+      (x: any) => { x.provenance.seedFingerprint = operatorFingerprint({ bad: "seed" }); },
+      (x: any) => { x.canonicalActionJson = []; },
+      (x: any) => { x.decisionFingerprint = operatorFingerprint({ bad: "decision" }); },
+      (x: any) => { x.artifactFingerprint = operatorFingerprint({ bad: "artifact" }); },
+    ]) {
+      const changed: any = structuredClone(artifact(base)); mutate(changed);
+      let calls = 0;
+      const spy: CanonicalOperatorV2 = { ...base, decide(value) { calls += 1; return base.decide(value); } };
+      expect(replayRecordedDecision(spy, changed).status).toBe("FAIL");
+      expect(calls).toBe(0);
+    }
   });
 
   it("rejects wrong operators, nondeterministic replay, and unknown fields", () => {
