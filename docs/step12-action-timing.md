@@ -1,5 +1,9 @@
 # Step 12 — Universal Action Timing
 
+This document records the original first slice. The integrated implementation,
+calendar resolver, population contracts and compatibility boundary are described
+in [Steps 10–12 canonical boundary](steps10-12-canonical-boundary.md).
+
 This branch introduces the first implementation slice of the universal Action Timing contract.
 
 ## Frozen boundary

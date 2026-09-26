@@ -4,15 +4,17 @@ export const ACTION_TIMING_SCHEMA_VERSION = "1.0.0" as const;
 export type ActionTimingSchemaVersion = typeof ACTION_TIMING_SCHEMA_VERSION;
 
 export type TimingValue<T> =
-  | { readonly state: "SPECIFIED"; readonly value: T; readonly sourceRef?: string }
+  | {
+      readonly state: "SPECIFIED";
+      readonly value: T;
+      readonly sourceRef?: string;
+    }
   | { readonly state: "UNKNOWN"; readonly reason: string }
   | { readonly state: "ABSENT"; readonly reason?: string }
   | { readonly state: "NOT_APPLICABLE"; readonly reason: string };
 
 export type DurationAnchor =
-  | "DECISION_TIME"
-  | "REQUESTED_START"
-  | "EFFECTIVE_START";
+  "DECISION_TIME" | "REQUESTED_START" | "EFFECTIVE_START";
 
 export type ElapsedUnit = "SECOND" | "MINUTE" | "HOUR";
 export type CalendarUnit = "DAY" | "WEEK" | "MONTH";
@@ -35,7 +37,11 @@ export interface ZonedBusinessTime {
 }
 
 export type AbsoluteTime =
-  | { readonly kind: "UTC"; readonly at: UtcTimestamp; readonly timeZone: string }
+  | {
+      readonly kind: "UTC";
+      readonly at: UtcTimestamp;
+      readonly timeZone: string;
+    }
   | { readonly kind: "LOCAL"; readonly at: ZonedBusinessTime };
 
 export type RequestedStart =
@@ -73,8 +79,7 @@ export type EffectiveStart =
   | {
       readonly kind: "ACTION_RELATIVE";
       readonly relation:
-        | "START_AFTER_ACTION_EFFECTIVE"
-        | "START_AFTER_ACTION_COMPLETED";
+        "START_AFTER_ACTION_EFFECTIVE" | "START_AFTER_ACTION_COMPLETED";
       readonly actionId: string;
       readonly offset?: TemporalOffset;
     };
@@ -165,6 +170,12 @@ export interface TimingConstraints {
 
 export type TimingDependency =
   | {
+      readonly kind:
+        "START_AFTER" | "EFFECTIVE_AFTER" | "COMPLETE_AFTER" | "END_WITH";
+      readonly actionId: string;
+      readonly offset?: TemporalOffset;
+    }
+  | {
       readonly kind: "START_AFTER_ACTION_EFFECTIVE";
       readonly actionId: string;
       readonly offset?: TemporalOffset;
@@ -198,6 +209,7 @@ export type TimingValidationStatus = "VALID" | "INVALID" | "UNRESOLVED";
 
 export interface ResolvedOccurrence {
   readonly occurrenceIndex: number;
+  readonly actionId?: string;
   readonly effectiveStart: UtcTimestamp;
   readonly end?: UtcTimestamp;
 }
@@ -217,6 +229,25 @@ export interface TimingResolution {
 
 export interface ActionTimingResolutionContext {
   readonly approvedClock: UtcTimestamp;
+  readonly actionId?: string;
+  readonly dependencyGraph?: readonly {
+    readonly actionId: string;
+    readonly dependencies: readonly TimingDependency[];
+    readonly timing?: ActionTiming;
+  }[];
+  readonly maxOccurrences?: number;
+  readonly horizonEnd?: UtcTimestamp;
+  readonly disambiguation?: "reject" | "earlier" | "later";
+  readonly metricObservations?: Readonly<
+    Record<
+      string,
+      {
+        readonly value: number;
+        readonly observedAt: UtcTimestamp;
+        readonly unit?: string;
+      }
+    >
+  >;
   readonly eventTimes?: Readonly<Record<string, UtcTimestamp>>;
   readonly triggerTimes?: Readonly<Record<string, UtcTimestamp>>;
   readonly actionTimes?: Readonly<
@@ -225,6 +256,8 @@ export interface ActionTimingResolutionContext {
       {
         readonly effectiveStart?: UtcTimestamp;
         readonly completedAt?: UtcTimestamp;
+        readonly requestedStart?: UtcTimestamp;
+        readonly end?: UtcTimestamp;
       }
     >
   >;
