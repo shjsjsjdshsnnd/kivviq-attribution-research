@@ -6,3 +6,4 @@ export * from "./eligibility.js";
 export * from "./serialization.js";
 export * from "./semantics.js";
 export * from "./fixtures.js";
+export * from "./investigation.js";

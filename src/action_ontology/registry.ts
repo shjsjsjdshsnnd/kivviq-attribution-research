@@ -422,7 +422,7 @@ export const CORE_ACTION_TYPE_CONTRACTS: readonly ActionTypeContract[] = [
   {
     actionType: "investigation.inspect",
     category: "investigation",
-    allowedTargetKinds: ["merchant", "funnel_stage", "page", "advertising_channel"],
+    allowedTargetKinds: ["merchant", "funnel_stage", "page", "advertising_channel", "campaign", "product", "sku", "inventory_location", "customer_segment"],
     parameterKind: "investigate",
   },
   {
@@ -434,7 +434,7 @@ export const CORE_ACTION_TYPE_CONTRACTS: readonly ActionTypeContract[] = [
   {
     actionType: "no_op.do_nothing",
     category: "no_op",
-    allowedTargetKinds: ["merchant"],
+    allowedTargetKinds: ["merchant", "advertising_channel", "campaign", "product", "sku", "customer_segment"],
     parameterKind: "no_op",
   },
   {

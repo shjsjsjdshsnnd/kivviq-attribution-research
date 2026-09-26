@@ -1843,9 +1843,25 @@ export type ActionParameters =
         | "checkout_decline"
         | "missing_margin_data"
         | "channel_shift"
+        | "TRACKING_AUDIT"
+        | "DATA_QUALITY_CHECK"
+        | "MISSING_DATA_REQUEST"
+        | "ANOMALY_DIAGNOSIS"
+        | "METRIC_RECONCILIATION"
+        | "BUSINESS_PROCESS_CHECK"
+        | "MEASUREMENT_VALIDATION"
         | "custom";
       readonly question: string;
       readonly requestedEvidenceRefs: readonly string[];
+      readonly targetRef?: string;
+      readonly sourceRef?: string;
+      readonly metricRef?: string;
+      readonly suspectedIssueClass?: string;
+      readonly observationWindow?: { readonly start: UtcTimestamp; readonly end: UtcTimestamp };
+      readonly comparisonWindow?: { readonly start: UtcTimestamp; readonly end: UtcTimestamp };
+      readonly anomalyDirection?: "increase" | "decrease" | "discrepancy";
+      readonly successCriteria?: readonly string[];
+      readonly maximumInvestigationHorizonSeconds?: number;
     }
   | {
       readonly kind: "no_op";
