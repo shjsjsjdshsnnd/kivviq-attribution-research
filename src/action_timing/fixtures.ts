@@ -5,9 +5,18 @@ import {
   type TimingValue,
 } from "./types.js";
 
-const specified = <T>(value: T): TimingValue<T> => ({ state: "SPECIFIED", value });
-const absent = (reason: string): TimingValue<never> => ({ state: "ABSENT", reason });
-const na = (reason: string): TimingValue<never> => ({ state: "NOT_APPLICABLE", reason });
+const specified = <T>(value: T): TimingValue<T> => ({
+  state: "SPECIFIED",
+  value,
+});
+const absent = (reason: string): TimingValue<never> => ({
+  state: "ABSENT",
+  reason,
+});
+const na = (reason: string): TimingValue<never> => ({
+  state: "NOT_APPLICABLE",
+  reason,
+});
 
 const DECISION = utcTimestamp("2026-09-22T14:00:00.000Z");
 
@@ -79,7 +88,9 @@ export const postPurchaseFourteenDaysTiming: ActionTiming = {
     eventId: "ORDER_DELIVERED",
     offset: { kind: "CALENDAR", amount: 14, unit: "DAY" },
   }),
-  implementationDelay: absent("message eligibility timing has no separate implementation delay"),
+  implementationDelay: absent(
+    "message eligibility timing has no separate implementation delay",
+  ),
   effectiveStart: specified({ kind: "DERIVE_FROM_REQUESTED_START" }),
   duration: specified({ kind: "INSTANTANEOUS" }),
   end: specified({ kind: "DERIVE_FROM_DURATION" }),
@@ -147,4 +158,47 @@ export const inventoryFirstOfTerminationTiming: ActionTiming = {
     ],
   }),
   recurrence: na("stateful intervention is not recurring"),
+};
+
+/** Local business clock remains 10:00 when Toronto leaves daylight saving time. */
+export const recurringAcrossDstTiming: ActionTiming = {
+  ...weeklyEightWeekLifecycleTiming,
+  requestedStart: specified({
+    kind: "ABSOLUTE",
+    time: {
+      kind: "LOCAL",
+      at: { localDateTime: "2026-10-27T10:00", timeZone: "America/Toronto" },
+    },
+  }),
+};
+
+export const fridayTenAmTiming: ActionTiming = {
+  ...postPurchaseFourteenDaysTiming,
+  requestedStart: specified({
+    kind: "ABSOLUTE",
+    time: {
+      kind: "LOCAL",
+      at: { localDateTime: "2026-10-02T10:00", timeZone: "America/Toronto" },
+    },
+  }),
+};
+
+export const postPurchaseCareTiming: ActionTiming = {
+  ...postPurchaseFourteenDaysTiming,
+  requestedStart: specified({
+    kind: "EVENT_RELATIVE",
+    relation: "AFTER_EVENT",
+    eventId: "ORDER_FULFILLED",
+    offset: { kind: "CALENDAR", amount: 2, unit: "DAY" },
+  }),
+};
+
+export const productReplenishmentTiming: ActionTiming = {
+  ...postPurchaseFourteenDaysTiming,
+  requestedStart: specified({
+    kind: "EVENT_RELATIVE",
+    relation: "AFTER_EVENT",
+    eventId: "PRODUCT_A_PURCHASED",
+    offset: { kind: "CALENDAR", amount: 60, unit: "DAY" },
+  }),
 };

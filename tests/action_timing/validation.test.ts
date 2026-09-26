@@ -34,7 +34,11 @@ describe("Step 12 ActionTiming validation", () => {
     const result = validateActionTiming(unsafe);
     expect(result.ok).toBe(false);
     if (!result.ok) {
-      expect(result.issues.some((issue) => issue.code === "FORBIDDEN_TIMING_INFORMATION")).toBe(true);
+      expect(
+        result.issues.some(
+          (issue) => issue.code === "FORBIDDEN_TIMING_INFORMATION",
+        ),
+      ).toBe(true);
     }
   });
 
@@ -56,7 +60,11 @@ describe("Step 12 ActionTiming validation", () => {
     const result = validateActionTiming(invalid);
     expect(result.ok).toBe(false);
     if (!result.ok) {
-      expect(result.issues.some((issue) => issue.code === "PERSISTENT_ACTION_HAS_END")).toBe(true);
+      expect(
+        result.issues.some(
+          (issue) => issue.code === "PERSISTENT_ACTION_HAS_END",
+        ),
+      ).toBe(true);
     }
   });
 
@@ -79,7 +87,9 @@ describe("Step 12 ActionTiming validation", () => {
     const result = validateActionTiming(invalid);
     expect(result.ok).toBe(false);
     if (!result.ok) {
-      expect(result.issues.some((issue) => issue.code === "UNBOUNDED_RECURRENCE")).toBe(true);
+      expect(
+        result.issues.some((issue) => issue.code === "UNBOUNDED_RECURRENCE"),
+      ).toBe(true);
     }
   });
 
@@ -87,16 +97,24 @@ describe("Step 12 ActionTiming validation", () => {
     const result = validateTimingDependencyGraph([
       {
         actionId: "action_a",
-        dependencies: [{ kind: "START_AFTER_ACTION_COMPLETED", actionId: "action_b" }],
+        dependencies: [
+          { kind: "START_AFTER_ACTION_COMPLETED", actionId: "action_b" },
+        ],
       },
       {
         actionId: "action_b",
-        dependencies: [{ kind: "START_AFTER_ACTION_COMPLETED", actionId: "action_a" }],
+        dependencies: [
+          { kind: "START_AFTER_ACTION_COMPLETED", actionId: "action_a" },
+        ],
       },
     ]);
     expect(result.ok).toBe(false);
     if (!result.ok) {
-      expect(result.issues.some((issue) => issue.code === "TEMPORAL_DEPENDENCY_CYCLE")).toBe(true);
+      expect(
+        result.issues.some(
+          (issue) => issue.code === "TEMPORAL_DEPENDENCY_CYCLE",
+        ),
+      ).toBe(true);
     }
   });
 });

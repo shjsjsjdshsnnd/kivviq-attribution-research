@@ -3,6 +3,7 @@ import {
   type Action,
   type CompoundAction,
 } from "../action_ontology/types.js";
+import { translateCanonicalAction } from './canonical.js';
 import { validateAction } from "../action_ontology/validation.js";
 import {
   ACTION_TRANSLATION_VERSION,
@@ -301,6 +302,9 @@ export function translateBusinessAction(
   contextInput: unknown,
   registry: TranslationRegistry = CORE_TRANSLATION_REGISTRY,
 ): TranslationResult {
+  if (record(input) && input.schemaVersion === '2.0.0') {
+    return translateCanonicalAction(input, contextInput);
+  }
   const contextValidation = validateTranslationContext(contextInput);
   if (!contextValidation.ok) return contextValidation.failure;
   const context = contextValidation.context;

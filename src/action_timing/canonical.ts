@@ -1,3 +1,4 @@
+import { assertValidActionTiming } from "./validation.js";
 import type { ActionTiming, TerminationCondition } from "./types.js";
 
 function stableJson(value: unknown): string {
@@ -54,10 +55,12 @@ function canonicalize(value: unknown): unknown {
 }
 
 export function canonicalizeTiming(timing: ActionTiming): unknown {
+  assertValidActionTiming(timing);
   return canonicalize(timing);
 }
 
 export function serializeActionTiming(timing: ActionTiming): string {
+  assertValidActionTiming(timing);
   return stableJson(timing);
 }
 

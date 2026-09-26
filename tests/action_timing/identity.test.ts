@@ -26,7 +26,10 @@ describe("Step 12 timing semantic identity", () => {
   it("canonicalizes weekly day ordering", () => {
     const reordered = clone(weeklyEightWeekLifecycleTiming) as ActionTiming;
     const recurrence = reordered.recurrence;
-    if (recurrence.state !== "SPECIFIED" || recurrence.value.frequency.kind !== "WEEKLY") {
+    if (
+      recurrence.state !== "SPECIFIED" ||
+      recurrence.value.frequency.kind !== "WEEKLY"
+    ) {
       throw new Error("fixture must remain weekly");
     }
     const equivalent = {
@@ -47,7 +50,9 @@ describe("Step 12 timing semantic identity", () => {
       recurrence: {
         ...equivalent.recurrence,
         value: {
-          ...(equivalent.recurrence.state === "SPECIFIED" ? equivalent.recurrence.value : recurrence.value),
+          ...(equivalent.recurrence.state === "SPECIFIED"
+            ? equivalent.recurrence.value
+            : recurrence.value),
           frequency: {
             kind: "WEEKLY",
             interval: 1,
@@ -57,13 +62,18 @@ describe("Step 12 timing semantic identity", () => {
         },
       },
     } as ActionTiming;
-    expect(serializeActionTiming(equivalent)).toBe(serializeActionTiming(equivalentReordered));
+    expect(serializeActionTiming(equivalent)).toBe(
+      serializeActionTiming(equivalentReordered),
+    );
   });
 
   it("canonicalizes commutative termination composition", () => {
     const left = inventoryFirstOfTerminationTiming;
     const right = clone(left) as ActionTiming;
-    if (right.terminationCondition.state !== "SPECIFIED" || right.terminationCondition.value.kind !== "COMPOSITE") {
+    if (
+      right.terminationCondition.state !== "SPECIFIED" ||
+      right.terminationCondition.value.kind !== "COMPOSITE"
+    ) {
       throw new Error("fixture must remain composite");
     }
     const reversed = {
@@ -72,16 +82,24 @@ describe("Step 12 timing semantic identity", () => {
         ...right.terminationCondition,
         value: {
           ...right.terminationCondition.value,
-          conditions: [...right.terminationCondition.value.conditions].reverse(),
+          conditions: [
+            ...right.terminationCondition.value.conditions,
+          ].reverse(),
         },
       },
     } as ActionTiming;
     expect(timingsSemanticallyEqual(left, reversed)).toBe(true);
-    expect(actionTimingFingerprint(left)).toBe(actionTimingFingerprint(reversed));
+    expect(actionTimingFingerprint(left)).toBe(
+      actionTimingFingerprint(reversed),
+    );
   });
 
   it("keeps IMMEDIATE as intent rather than replacing it with a generated now timestamp", () => {
-    expect(serializeActionTiming(immediatePersistentBudgetTiming)).toContain('"kind":"IMMEDIATE"');
-    expect(serializeActionTiming(immediatePersistentBudgetTiming)).not.toContain('"resolvedRequestedStart"');
+    expect(serializeActionTiming(immediatePersistentBudgetTiming)).toContain(
+      '"kind":"IMMEDIATE"',
+    );
+    expect(
+      serializeActionTiming(immediatePersistentBudgetTiming),
+    ).not.toContain('"resolvedRequestedStart"');
   });
 });

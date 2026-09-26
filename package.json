@@ -6,7 +6,7 @@
   "description": "Synthetic-only research contracts for the future Kivviq Growth Operator.",
   "scripts": {
     "typecheck": "tsc --noEmit",
-    "test": "vitest run",
+    "test": "vitest run --maxWorkers=1",
     "build": "tsc -p tsconfig.build.json",
     "check": "npm run architecture && npm run typecheck && npm test && npm run build",
     "architecture": "depcruise --config .dependency-cruiser.cjs src",
@@ -27,7 +27,8 @@
     "test:inventory": "vitest run tests/inventory --reporter=verbose",
     "test:cro": "vitest run tests/cro --reporter=verbose",
     "test:lifecycle": "vitest run tests/lifecycle --reporter=verbose",
-    "test:action-timing": "vitest run tests/action_timing --reporter=verbose"
+    "test:action-timing": "vitest run tests/action_timing --reporter=verbose",
+    "test:canonical": "vitest run tests/canonical_action tests/population tests/action_timing tests/lifecycle --maxWorkers=1"
   },
   "exports": {
     ".": "./dist/index.js",
@@ -51,14 +52,17 @@
     "./inventory": "./dist/inventory/index.js",
     "./cro": "./dist/cro/index.js",
     "./lifecycle": "./dist/lifecycle/index.js",
-    "./action-timing": "./dist/action_timing/index.js"
+    "./action-timing": "./dist/action_timing/index.js",
+    "./canonical-action": "./dist/canonical_action/index.js",
+    "./population": "./dist/population/index.js"
   },
   "devDependencies": {
+    "dependency-cruiser": "^16.10.4",
     "typescript": "^5.9.2",
-    "vitest": "^3.2.4",
-    "dependency-cruiser": "^16.10.4"
+    "vitest": "^3.2.4"
   },
   "dependencies": {
+    "@js-temporal/polyfill": "^0.5.1",
     "zod": "^3.25.76"
   }
 }

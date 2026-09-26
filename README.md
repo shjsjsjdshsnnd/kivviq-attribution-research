@@ -4,6 +4,13 @@
 
 This public repository is a synthetic-only causal ecommerce research environment.
 
+### Canonical lifecycle, population and timing
+
+Action schema 2.0.0 separates WHAT, WHO and WHEN, with strict population membership,
+provider-neutral lifecycle flows and timezone-aware recurrence. See the
+[contract and migration guide](docs/steps10-12-canonical-boundary.md).
+Run `npm run test:canonical` for the focused suite or `npm run check` for all checks.
+
 ### Frozen research references
 
 **Step 1 — GroundTruth**
