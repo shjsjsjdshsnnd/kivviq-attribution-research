@@ -105,6 +105,12 @@ const FORBIDDEN_ACTION_KEYS = new Set([
   "oracleBestAction",
   "expectedRevenue",
   "expectedProfit",
+  "expectedLift",
+  "expectedSynergy",
+  "expectedValueOfInformation",
+  "predictedBestAction",
+  "predictedInvestigationValue",
+  "bestCandidate",
   "expectedContribution",
   "expectedDemand",
   "expectedDemandLift",
@@ -4945,6 +4951,13 @@ function validateParameters(
           "checkout_decline",
           "missing_margin_data",
           "channel_shift",
+          "TRACKING_AUDIT",
+          "DATA_QUALITY_CHECK",
+          "MISSING_DATA_REQUEST",
+          "ANOMALY_DIAGNOSIS",
+          "METRIC_RECONCILIATION",
+          "BUSINESS_PROCESS_CHECK",
+          "MEASUREMENT_VALIDATION",
           "custom",
         ].includes(String(input.investigationType))
       ) {
@@ -4959,11 +4972,35 @@ function validateParameters(
         errors,
         true,
       );
+      for (const key of Object.keys(input)) {
+        if (!["kind", "investigationType", "question", "requestedEvidenceRefs", "targetRef", "sourceRef", "metricRef", "suspectedIssueClass", "observationWindow", "comparisonWindow", "anomalyDirection", "successCriteria", "maximumInvestigationHorizonSeconds"].includes(key)) {
+          add(errors, "UNKNOWN_INVESTIGATION_FIELD", path + "." + key, "unknown investigation field");
+        }
+      }
+      for (const key of ["targetRef", "sourceRef", "metricRef", "suspectedIssueClass"] as const) {
+        if (input[key] !== undefined && !nonEmpty(input[key])) add(errors, "INVALID_INVESTIGATION_REFERENCE", path + "." + key, "must be nonempty");
+      }
+      for (const key of ["observationWindow", "comparisonWindow"] as const) {
+        const window = input[key];
+        if (window === undefined) continue;
+        if (!record(window)) { add(errors, "INVALID_INVESTIGATION_WINDOW", path + "." + key, "window is required"); continue; }
+        validateTimestamp(window.start, path + "." + key + ".start", errors);
+        validateTimestamp(window.end, path + "." + key + ".end", errors);
+        if (typeof window.start === "string" && typeof window.end === "string" && Date.parse(window.start) >= Date.parse(window.end)) add(errors, "INVALID_INVESTIGATION_WINDOW", path + "." + key, "start must precede end");
+        for (const field of Object.keys(window)) if (!["start", "end"].includes(field)) add(errors, "UNKNOWN_INVESTIGATION_FIELD", path + "." + key + "." + field, "unknown window field");
+      }
+      if (input.anomalyDirection !== undefined && !["increase", "decrease", "discrepancy"].includes(input.anomalyDirection)) add(errors, "INVALID_ANOMALY_DIRECTION", path + ".anomalyDirection", "unsupported");
+      if (input.successCriteria !== undefined) validateStringArray(input.successCriteria, path + ".successCriteria", errors, true);
+      if (input.maximumInvestigationHorizonSeconds !== undefined) validatePositiveInteger(input.maximumInvestigationHorizonSeconds, path + ".maximumInvestigationHorizonSeconds", errors);
+      if (input.investigationType === "MISSING_DATA_REQUEST" && (!nonEmpty(input.targetRef) || !nonEmpty(input.metricRef))) add(errors, "MISSING_DATA_REQUIRES_FACT", path, "targetRef and metricRef are required");
+      if (input.investigationType === "ANOMALY_DIAGNOSIS" && (!nonEmpty(input.metricRef) || input.observationWindow === undefined || input.comparisonWindow === undefined)) add(errors, "ANOMALY_REQUIRES_BASELINE", path, "metricRef and observation/comparison windows are required");
+      if (input.investigationType === "TRACKING_AUDIT" && (!nonEmpty(input.sourceRef) || !nonEmpty(input.metricRef))) add(errors, "TRACKING_AUDIT_REQUIRES_SOURCE", path, "sourceRef and metricRef are required");
       return;
     case "no_op":
       if (!nonEmpty(input.reasonCode)) {
         add(errors, "INVALID_NO_OP_REASON", path + ".reasonCode", "required");
       }
+      for (const key of Object.keys(input)) if (!["kind", "reasonCode"].includes(key)) add(errors, "UNKNOWN_NO_OP_FIELD", path + "." + key, "NO_OP has no operational effect");
       return;
     case "wait_observe":
       if (!record(input.observationUntil) || !nonEmpty(input.observationUntil.kind)) {

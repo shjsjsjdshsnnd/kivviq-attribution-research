@@ -1100,7 +1100,7 @@ export const CORE_ACTION_TRANSLATORS: readonly ActionTranslator[] = Object.freez
   noCausalInterventionTranslator(
     "no_op.do_nothing",
     "translator.no_op.v1",
-    ["merchant"],
+    ["merchant", "advertising_channel", "campaign", "product", "sku", "customer_segment"],
   ),
   noCausalInterventionTranslator(
     "no_op.wait_observe",
@@ -1110,7 +1110,7 @@ export const CORE_ACTION_TRANSLATORS: readonly ActionTranslator[] = Object.freez
   noCausalInterventionTranslator(
     "investigation.inspect",
     "translator.investigate.v1",
-    ["merchant", "funnel_stage", "page", "advertising_channel"],
+    ["merchant", "funnel_stage", "page", "advertising_channel", "campaign", "product", "sku", "inventory_location", "customer_segment"],
   ),
   experimentTranslator,
 ] as const);
