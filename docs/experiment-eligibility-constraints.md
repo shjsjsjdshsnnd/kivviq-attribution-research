@@ -29,7 +29,7 @@ An Action fingerprint covers its semantic definition, including canonical constr
 
 ## Hard constraints and eligibility
 
-`assessHardConstraints` compares typed receipts with immutable definitions. It returns one assessment per constraint. Missing, stale, future, incorrectly bound, or unit-incompatible evidence produces `UNKNOWN`; literal violations remain violations.
+`assessHardConstraints` compares typed receipts with immutable definitions. It returns one assessment per constraint. Missing, stale, future, or incorrectly bound evidence produces `UNKNOWN`. Evidence with an incompatible currency, unit, value basis, or value shape produces `VIOLATED` with reason code `INCOMPATIBLE_VALUE`; literal violations also remain violations.
 
 `evaluateActionEligibility` combines three check classes:
 
