@@ -7,13 +7,16 @@ import { constraintId } from "../../src/action_ontology/identity.js";
 import { currencyCode } from "../../src/core/units.js";
 import {
   actionEligibilitySchema,
+  canonicalEligibilityTargetRef,
   evaluateActionEligibility,
+  legacyEntityTargetRef,
 } from "../../src/action_eligibility/index.js";
 
 const evaluatedAt = "2026-09-21T13:10:00Z";
-type MutableLegacy = Omit<Action, "constraints" | "preconditions"> & {
+type MutableLegacy = Omit<Action, "constraints" | "preconditions" | "target"> & {
   constraints: ActionConstraint[];
   preconditions: ActionPrecondition[];
+  target: Action["target"];
 };
 
 function action(overrides: Partial<Action> = {}) {
@@ -26,6 +29,7 @@ function bound(actionValue: ReturnType<typeof action>) {
   return {
     actionId: actionValue.actionId,
     actionFingerprint: fingerprintCanonicalAction(actionValue),
+    targetRef: canonicalEligibilityTargetRef(actionValue),
     evaluationBoundary: "DECISION_TIME" as const,
     observedAt: "2026-09-21T13:05:00Z",
     sourceRef: "merchant_state",
@@ -46,7 +50,7 @@ describe("evaluateActionEligibility", () => {
             ...bound(candidate),
             kind: "ENTITY",
             evidenceRef: "entity:campaign",
-            target: (candidate.what as { target: Action["target"] }).target,
+            entityRef: legacyEntityTargetRef((candidate.what as { target: Action["target"] }).target),
             exists: false,
           },
           {
@@ -215,12 +219,73 @@ describe("evaluateActionEligibility", () => {
     const unrelated = {
       ...bound(candidate), kind: "ENTITY" as const, evidenceRef: "wrong",
       actionFingerprint: "fnv1a64:0000000000000000",
-      target: { kind: "campaign" as const, channelId: "google_ads", campaignId: "other" }, exists: true,
+      targetRef: "eligibility-target:fnv1a64:0000000000000000",
+      entityRef: legacyEntityTargetRef({ kind: "campaign", channelId: "google_ads", campaignId: "other" }), exists: true,
     };
     const result = evaluateActionEligibility({ action: candidate }, { evaluatedAt, observations: [unrelated] });
     expect(result.ok).toBe(true);
     if (!result.ok) return;
     expect(result.result.checks[0]).toMatchObject({ status: "UNKNOWN", reasonCodes: ["MISSING_BOUND_EVIDENCE"] });
+  });
+
+  it("does not use a property observation bound to another action target", () => {
+    const candidate = action();
+    const observation = {
+      ...bound(candidate),
+      targetRef: "eligibility-target:fnv1a64:1111111111111111",
+      kind: "PROPERTY" as const,
+      evidenceRef: "property:other-campaign",
+      propertyId: "budget.available_minor",
+      value: { kind: "money" as const, amountMinor: 100, currency: "CAD" },
+    };
+    const result = evaluateActionEligibility(
+      { action: candidate },
+      { evaluatedAt, observations: [observation] },
+    );
+    expect(result.ok && result.result.checks[1]).toMatchObject({
+      status: "UNKNOWN",
+      reasonCodes: ["MISSING_BOUND_EVIDENCE"],
+    });
+  });
+
+  it("requires target binding for entity, capability and evidence observations", () => {
+    const legacy = structuredClone(increaseGoogleShoppingBudget20) as MutableLegacy;
+    legacy.constraints = [];
+    legacy.preconditions = [
+      { preconditionId: "entity", expression: { kind: "entity_exists", target: legacy.target }, whenUnknown: "unknown_eligibility" },
+      { preconditionId: "capability", expression: { kind: "capability_available", capabilityId: "ads.google" }, whenUnknown: "unknown_eligibility" },
+      { preconditionId: "evidence", expression: { kind: "evidence_available", evidenceRef: "approval" }, whenUnknown: "unknown_eligibility" },
+    ];
+    const candidate = action(legacy);
+    const otherTarget = "eligibility-target:fnv1a64:2222222222222222";
+    const common = { ...bound(candidate), targetRef: otherTarget };
+    const result = evaluateActionEligibility(
+      { action: candidate },
+      {
+        evaluatedAt,
+        observations: [
+          { ...common, kind: "ENTITY", evidenceRef: "entity", entityRef: legacyEntityTargetRef(legacy.target), exists: true },
+          { ...common, kind: "CAPABILITY", evidenceRef: "capability", capabilityId: "ads.google", available: true },
+          { ...common, kind: "EVIDENCE", evidenceRef: "evidence", reference: "approval", available: true },
+        ],
+      },
+    );
+    expect(result.ok && result.result.checks.map((check) => [check.status, check.reasonCodes[0]])).toEqual([
+      ["UNKNOWN", "MISSING_BOUND_EVIDENCE"],
+      ["UNKNOWN", "MISSING_BOUND_EVIDENCE"],
+      ["UNKNOWN", "MISSING_BOUND_EVIDENCE"],
+    ]);
+  });
+
+  it("derives stable, target-sensitive eligibility references", () => {
+    const first = action();
+    const same = action();
+    const changedLegacy = structuredClone(increaseGoogleShoppingBudget20) as MutableLegacy;
+    changedLegacy.target = { kind: "campaign", channelId: "google_ads", campaignId: "another" };
+    const changed = action(changedLegacy);
+    expect(canonicalEligibilityTargetRef(first)).toBe(canonicalEligibilityTargetRef(same));
+    expect(canonicalEligibilityTargetRef(first)).toMatch(/^eligibility-target:fnv1a64:[0-9a-f]{16}$/);
+    expect(canonicalEligibilityTargetRef(first)).not.toBe(canonicalEligibilityTargetRef(changed));
   });
 
   it("maps fingerprint-bound native hard constraint assessments", () => {

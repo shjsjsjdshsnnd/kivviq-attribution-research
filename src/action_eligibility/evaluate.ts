@@ -4,6 +4,9 @@ import { constraintThresholdSchema, hardConstraintsSchema, type ConstraintThresh
 import { ACTION_CATEGORIES, type ActionTarget, type ConstraintExpression, type ScalarValue } from "../action_ontology/types.js";
 import { canonicalActionSchema, type CanonicalAction } from "../canonical_action/schema.js";
 import { fingerprintCanonicalAction } from "../canonical_action/serialization.js";
+import { decisionWhatSchema } from "../decision_forms/index.js";
+import { experimentWhatSchema } from "../experiment/index.js";
+import { lifecycleWhatSchema } from "../lifecycle/canonical.js";
 import { actionEligibilitySchema, type ActionEligibility, type EligibilityCheck, type EligibilityFailure } from "./schema.js";
 
 const utcZSchema = z.string().datetime().regex(/Z$/);
@@ -17,15 +20,13 @@ const scalarValueSchema = z.discriminatedUnion("kind", [
   z.object({ kind: z.literal("string"), value: z.string() }).strict(),
 ]);
 
-const actionTargetSchema = z.custom<ActionTarget>((value) => {
-  if (value === null || typeof value !== "object" || Array.isArray(value)) return false;
-  const entries = Object.entries(value);
-  return entries.length >= 2 && entries.every(([key, item]) => key === "kind" ? typeof item === "string" : typeof item === "string");
-}, "Invalid action target");
+const targetRefSchema = z.string().regex(/^eligibility-target:fnv1a64:[0-9a-f]{16}$/);
+const entityRefSchema = z.string().regex(/^eligibility-entity:fnv1a64:[0-9a-f]{16}$/);
 const commonEvidence = {
   evidenceRef: z.string().min(1),
   actionId: z.string().min(1),
   actionFingerprint: z.string().min(1),
+  targetRef: targetRefSchema,
   evaluationBoundary: z.literal("DECISION_TIME"),
   observedAt: utcZSchema,
   sourceRef: z.string().min(1),
@@ -33,7 +34,7 @@ const commonEvidence = {
 };
 export const eligibilityEvidenceObservationSchema = z.discriminatedUnion("kind", [
   z.object({ ...commonEvidence, kind: z.literal("PROPERTY"), propertyId: z.string().min(1), value: scalarValueSchema }).strict(),
-  z.object({ ...commonEvidence, kind: z.literal("ENTITY"), target: actionTargetSchema, exists: z.boolean() }).strict(),
+  z.object({ ...commonEvidence, kind: z.literal("ENTITY"), entityRef: entityRefSchema, exists: z.boolean() }).strict(),
   z.object({ ...commonEvidence, kind: z.literal("CAPABILITY"), capabilityId: z.string().min(1), available: z.boolean() }).strict(),
   z.object({ ...commonEvidence, kind: z.literal("EVIDENCE"), reference: z.string().min(1), available: z.boolean() }).strict(),
 ]);
@@ -68,6 +69,49 @@ function stable(value: unknown): string {
   if (value !== null && typeof value === "object")
     return `{${Object.entries(value).sort(([a], [b]) => a.localeCompare(b)).map(([key, nested]) => `${JSON.stringify(key)}:${stable(nested)}`).join(",")}}`;
   return JSON.stringify(value);
+}
+
+function fnv1a64(value: string): string {
+  let hash = 0xcbf29ce484222325n;
+  for (let index = 0; index < value.length; index += 1)
+    hash = ((hash ^ BigInt(value.charCodeAt(index))) * 0x100000001b3n) & 0xffffffffffffffffn;
+  return hash.toString(16).padStart(16, "0");
+}
+
+export function legacyEntityTargetRef(target: ActionTarget): string {
+  return `eligibility-entity:fnv1a64:${fnv1a64(stable(target))}`;
+}
+
+function canonicalTargetProjection(action: CanonicalAction): unknown {
+  const what = action.what;
+  if ("kind" in what && what.kind === "legacy_business")
+    return { kind: "LEGACY_BUSINESS_TARGET", target: what.target };
+  const experiment = experimentWhatSchema.safeParse(what);
+  if (experiment.success)
+    return { kind: "EXPERIMENT_POPULATION", population: action.population };
+  const decision = decisionWhatSchema.safeParse(what);
+  if (decision.success) {
+    if (decision.data.actionType === "investigation.inspect")
+      return { kind: "INVESTIGATION_TARGETS", targets: decision.data.targets, population: action.population };
+    return { kind: "DECISION_SCOPE", actionType: decision.data.actionType, scope: decision.data.scope, population: action.population };
+  }
+  const lifecycle = lifecycleWhatSchema.parse(what);
+  if (lifecycle.actionType === "lifecycle.send")
+    return { kind: "LIFECYCLE_SEND", channel: lifecycle.channel, purpose: lifecycle.purpose, population: action.population };
+  if (lifecycle.actionType === "lifecycle.start_flow")
+    return { kind: "LIFECYCLE_FLOW", flowId: lifecycle.flow.flowId, population: action.population };
+  if (lifecycle.actionType === "lifecycle.stop_flow" || lifecycle.actionType === "lifecycle.modify_flow")
+    return { kind: "LIFECYCLE_FLOW", flowId: lifecycle.flowId };
+  if (lifecycle.actionType === "lifecycle.adjust_frequency")
+    return { kind: "LIFECYCLE_FREQUENCY", channel: lifecycle.channel, population: action.population };
+  if (lifecycle.actionType === "lifecycle.adjust_contact_policy")
+    return { kind: "LIFECYCLE_CONTACT_POLICY", policyId: lifecycle.policyId };
+  return { kind: "LIFECYCLE_ROLLBACK", targetId: lifecycle.targetId };
+}
+
+export function canonicalEligibilityTargetRef(input: CanonicalAction): string {
+  const action = canonicalActionSchema.parse(input);
+  return `eligibility-target:fnv1a64:${fnv1a64(stable(canonicalTargetProjection(action)))}`;
 }
 
 function sameScalarKind(left: ScalarValue, right: ScalarValue): boolean {
@@ -112,7 +156,7 @@ function observationKey(expression: ConstraintExpression): string {
 
 function matches(expression: ConstraintExpression, observation: EligibilityEvidenceObservation): boolean {
   if (expression.kind === "property_comparison") return observation.kind === "PROPERTY" && observation.propertyId === expression.propertyId;
-  if (expression.kind === "entity_exists") return observation.kind === "ENTITY" && stable(observation.target) === stable(expression.target);
+  if (expression.kind === "entity_exists") return observation.kind === "ENTITY" && observation.entityRef === legacyEntityTargetRef(expression.target);
   if (expression.kind === "capability_available") return observation.kind === "CAPABILITY" && observation.capabilityId === expression.capabilityId;
   return observation.kind === "EVIDENCE" && observation.reference === expression.evidenceRef;
 }
@@ -153,7 +197,8 @@ function checkExpression(
 function legacyChecks(action: CanonicalAction, observations: readonly EligibilityEvidenceObservation[], evaluatedAt: string, maximumAgeSeconds?: number): EligibilityCheck[] {
   if (!("kind" in action.what) || action.what.kind !== "legacy_business") return [];
   const fingerprint = fingerprintCanonicalAction(action);
-  const bound = observations.filter((entry) => entry.actionId === action.actionId && entry.actionFingerprint === fingerprint && entry.evaluationBoundary === "DECISION_TIME");
+  const targetRef = canonicalEligibilityTargetRef(action);
+  const bound = observations.filter((entry) => entry.actionId === action.actionId && entry.actionFingerprint === fingerprint && entry.targetRef === targetRef && entry.evaluationBoundary === "DECISION_TIME");
   const checks: EligibilityCheck[] = [];
   for (const precondition of action.what.preconditions) {
     let outcome = checkExpression(precondition.expression, bound.filter((entry) => matches(precondition.expression, entry)), evaluatedAt, maximumAgeSeconds);
