@@ -6,6 +6,7 @@ import { deserializeAction } from "../action_ontology/serialization.js";
 import { canonicalizeTiming } from "../action_timing/canonical.js";
 import { canonicalActionSchema, type CanonicalAction } from "./schema.js";
 import type { Action } from "../action_ontology/types.js";
+import { experimentWhatSchema } from "../experiment/index.js";
 
 export function serializeCanonicalAction(input: CanonicalAction): string {
   return JSON.stringify(
@@ -28,10 +29,18 @@ export function readCanonicalAction(
 export function fingerprintCanonicalAction(input: CanonicalAction): string {
   const { schemaVersion, what, population, timing } =
     canonicalActionSchema.parse(input);
+  const experiment = experimentWhatSchema.safeParse(what);
   const semanticWhat =
     "kind" in what && what.kind === "legacy_business"
       ? legacyProjection(what)
-      : what;
+      : experiment.success
+        ? {
+            ...experiment.data,
+            arms: [...experiment.data.arms].sort((left, right) =>
+              left.armId.localeCompare(right.armId),
+            ),
+          }
+        : what;
   const serialized = JSON.stringify(
     canonicalizeForSerialization({
       schemaVersion,
