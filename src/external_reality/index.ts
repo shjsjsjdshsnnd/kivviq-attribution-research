@@ -138,6 +138,28 @@ export interface ExternalSignalObservation {
   readonly signal: string;
 }
 
+export type ExternalEvidenceSource =
+  | "competitor_monitoring"
+  | "macroeconomic_indicator"
+  | "social_listening"
+  | "weather_service"
+  | "calendar"
+  | "supplier_notice"
+  | "carrier_status"
+  | "advertising_market_monitor"
+  | "ad_platform_notice"
+  | "market_research";
+
+export interface ExternalEvidenceRecord {
+  readonly evidenceId: string;
+  readonly eventId: string;
+  readonly eventKind: ExternalEventKind;
+  readonly source: ExternalEvidenceSource;
+  readonly observedAt: string;
+  readonly observationKind: ExternalObservationKind;
+  readonly summary: string;
+}
+
 export interface ExternalEffectApplication {
   readonly applicationId: string;
   readonly occurredAt: string;
@@ -588,6 +610,56 @@ export function projectExternalObservations(
       ? time
       : a.eventId.localeCompare(b.eventId);
   });
+}
+
+function evidenceSourceFor(
+  kind: ExternalEventKind,
+): ExternalEvidenceSource {
+  switch (kind) {
+    case "competitor_launch":
+    case "competitor_sale":
+      return "competitor_monitoring";
+    case "economic_slowdown":
+      return "macroeconomic_indicator";
+    case "viral_tiktok":
+      return "social_listening";
+    case "weather_event":
+      return "weather_service";
+    case "holiday_timing":
+      return "calendar";
+    case "supplier_problem":
+      return "supplier_notice";
+    case "shipping_disruption":
+      return "carrier_status";
+    case "cac_inflation":
+      return "advertising_market_monitor";
+    case "platform_algorithm_change":
+      return "ad_platform_notice";
+    case "consumer_trend":
+      return "market_research";
+  }
+}
+
+export function externalEvidenceAt(
+  environment: ExternalEnvironment,
+  timestampMs: number,
+): readonly ExternalEvidenceRecord[] {
+  return projectExternalObservations(
+    environment,
+    timestampMs,
+  ).map((observation, index) => ({
+    evidenceId:
+      `external-evidence:${String(index + 1).padStart(6, "0")}:${observation.eventId}`,
+    eventId: observation.eventId,
+    eventKind: observation.eventKind,
+    source: evidenceSourceFor(
+      observation.eventKind,
+    ),
+    observedAt: observation.availableAt,
+    observationKind:
+      observation.observationKind,
+    summary: observation.signal,
+  }));
 }
 
 export function externalRealityGodModeTruth(
