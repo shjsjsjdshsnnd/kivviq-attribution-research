@@ -97,6 +97,11 @@ import {
 import {
   websiteScenarioFingerprint,
 } from "../website_cro/fingerprint.js";
+import {
+  EXTERNAL_REALITY_MODEL_VERSION,
+  ExternalRealityRuntime,
+  projectExternalObservations,
+} from "../external_reality/index.js";
 import type {
   ExposureCausalTruth,
   PerfectObservableJourneyEvent,
@@ -293,9 +298,16 @@ function needStrength(
   timestampMs: number,
   randomness: SharedRandomness,
   cycle: number,
+  externalReality?: ExternalRealityRuntime,
 ): number {
   const seasonal = seasonalityMultiplier(request, timestampMs);
   const shock = shockDemandMultiplier(request, timestampMs);
+  const externalDemand =
+    externalReality?.applyAt(
+      `need:${customer.customerId}:${cycle}:demand`,
+      "demand",
+      timestampMs,
+    ) ?? 1;
   const majorEvent = majorEventDemandMultiplier(
     request.commercePolicy?.pricingPromotionScenario,
     timestampMs,
@@ -321,6 +333,7 @@ function needStrength(
       )) *
       seasonal *
       shock *
+      externalDemand *
       majorEvent *
       lifecycleMultiplier,
     0.02,
@@ -489,6 +502,7 @@ function buildPlatformMetrics(
   request: SimulateWorldRequest,
   observableEvents: readonly PerfectObservableJourneyEvent[],
   purchases: readonly RealizedPurchase[],
+  externalReality?: ExternalRealityRuntime,
 ): readonly PlatformStyleChannelMetric[] {
   const weightByCustomer = new Map(
     request.latentPopulation.customers.map(
@@ -526,11 +540,21 @@ function buildPlatformMetrics(
     if (!lastTouch?.source) continue;
     sources.add(lastTouch.source);
     const weight = weightByCustomer.get(purchase.customerId) ?? 1;
+    const reportingMultiplier =
+      externalReality?.applyAt(
+        `platform-report:${purchase.orderId}:${lastTouch.source}`,
+        "reported_attribution",
+        purchaseMs,
+        { channel: lastTouch.source },
+      ) ?? 1;
     const current =
       purchaseAttributed.get(lastTouch.source) ??
       { purchases: 0, revenue: 0 };
-    current.purchases += weight;
-    current.revenue += purchase.netRevenueMinor * weight;
+    current.purchases += weight * reportingMultiplier;
+    current.revenue +=
+      purchase.netRevenueMinor *
+      weight *
+      reportingMultiplier;
     purchaseAttributed.set(lastTouch.source, current);
   }
 
@@ -674,6 +698,7 @@ function realizedSupplierLeadMs(
   expectedLeadMs: number,
   placedAtMs: number,
   randomness: SharedRandomness,
+  externalReality?: ExternalRealityRuntime,
 ): number {
   const inventory = request.merchantWorld.manifest.inventoryMechanisms.find(
     (candidate) => candidate.productId === productId,
@@ -715,10 +740,61 @@ function realizedSupplierLeadMs(
     }
   }
 
+  factor *=
+    externalReality?.applyAt(
+      `supplier-lead:${productId}:${placedAtMs}`,
+      "supplier_lead_time",
+      placedAtMs,
+      { product: productId },
+    ) ?? 1;
+
   const declared =
     Number(inventory?.supplierLeadTimeSeconds ?? 0) * 1_000;
   const baseline = Math.max(expectedLeadMs, declared);
   return Math.max(hours(1), baseline * factor);
+}
+
+function externalPaidDeliveryMultiplier(
+  externalReality: ExternalRealityRuntime | undefined,
+  timestampMs: number,
+  channel: MarketingChannel,
+  applicationPrefix: string,
+): number {
+  if (externalReality === undefined) return 1;
+  const context = { channel };
+  const cpm = externalReality.applyAt(
+    `${applicationPrefix}:cpm`,
+    "cpm",
+    timestampMs,
+    context,
+  );
+  const cpc = externalReality.applyAt(
+    `${applicationPrefix}:cpc`,
+    "cpc",
+    timestampMs,
+    context,
+  );
+  const ctr = externalReality.applyAt(
+    `${applicationPrefix}:ctr`,
+    "ctr",
+    timestampMs,
+    context,
+  );
+  const quality = externalReality.applyAt(
+    `${applicationPrefix}:traffic-quality`,
+    "traffic_quality",
+    timestampMs,
+    context,
+  );
+
+  // Fixed merchant spend buys less reach when auction costs rise, while
+  // CTR/traffic-quality improvements increase useful delivery.
+  return clamp(
+    (ctr * quality) /
+      Math.sqrt(Math.max(0.01, cpm * cpc)),
+    0.05,
+    20,
+  );
 }
 
 export function simulateWorld(
@@ -737,6 +813,15 @@ export function simulateWorld(
     request.simulationSeed,
     `${WORLD_SIMULATOR_VERSION}:${request.merchantWorld.manifest.worldId}`,
   );
+  const externalReality =
+    request.commercePolicy?.externalRealityEnvironment ===
+    undefined
+      ? undefined
+      : new ExternalRealityRuntime(
+          request.commercePolicy
+            .externalRealityEnvironment,
+          clock,
+        );
   const queue = new SimulationEventQueue();
   if (
     request.commercePolicy?.retentionScenario !==
@@ -1246,6 +1331,7 @@ export function simulateWorld(
               expectedLeadMs,
               event.timestampMs,
               randomness,
+              externalReality,
             );
             const expectedArrivalAtMs =
               event.timestampMs + expectedLeadMs;
@@ -1516,6 +1602,7 @@ export function simulateWorld(
         event.timestampMs,
         randomness,
         payload.cycle,
+        externalReality,
       );
 
       if (event.timestampMs >= customer.nextNeedEligibleMs) {
@@ -1641,25 +1728,48 @@ export function simulateWorld(
         customer,
         crossModifiers,
       ).map((opportunity) => {
-        if (
-          request.commercePolicy?.retentionScenario ===
-            undefined ||
+        const lifecycleMultiplier =
+          request.commercePolicy
+            ?.retentionScenario === undefined ||
           opportunity.channel === undefined
-        ) {
-          return opportunity;
-        }
-        const multiplier =
-          lifecycleMarketingMultipliers(
-            request.commercePolicy
-              .retentionScenario,
-            retentionCustomerContext(customer),
+            ? 1
+            : lifecycleMarketingMultipliers(
+                request.commercePolicy
+                  .retentionScenario,
+                retentionCustomerContext(customer),
+                event.timestampMs,
+                opportunity.channel,
+              ).opportunity;
+        const channelContext = {
+          channel:
+            opportunity.channel ??
+            opportunity.source,
+        };
+        const externalApplicationPrefix =
+          `opportunity:${customer.customerId}:${payload.cycle}:${payload.ordinal}:${opportunity.source}`;
+        const storeTrafficMultiplier =
+          externalReality?.applyAt(
+            `${externalApplicationPrefix}:store-traffic`,
+            "store_traffic",
             event.timestampMs,
-            opportunity.channel,
-          ).opportunity;
+            channelContext,
+          ) ?? 1;
+        const organicTrafficMultiplier =
+          opportunity.source === "organic_search"
+            ? externalReality?.applyAt(
+                `${externalApplicationPrefix}:organic-traffic`,
+                "organic_traffic",
+                event.timestampMs,
+                channelContext,
+              ) ?? 1
+            : 1;
         return {
           ...opportunity,
           probability: clamp(
-            opportunity.probability * multiplier,
+            opportunity.probability *
+              lifecycleMultiplier *
+              storeTrafficMultiplier *
+              organicTrafficMultiplier,
             0,
             0.99,
           ),
@@ -1731,34 +1841,41 @@ export function simulateWorld(
       }
 
       for (const channel of request.merchantWorld.summary.activeChannels) {
+        const retentionOpportunityMultiplier =
+          request.commercePolicy?.retentionScenario ===
+          undefined
+            ? 1
+            : lifecycleMarketingMultipliers(
+                request.commercePolicy.retentionScenario,
+                retentionCustomerContext(customer),
+                event.timestampMs,
+                channel,
+              ).opportunity;
+        const paidOpportunityMultiplier =
+          (paidExposureOpportunityMultiplier(
+            interactionNetwork,
+            customer,
+            channel,
+            interactionContext,
+          ) *
+            retentionOpportunityMultiplier *
+            externalPaidDeliveryMultiplier(
+              externalReality,
+              event.timestampMs,
+              channel,
+              `paid-delivery:${customer.customerId}:${payload.cycle}:${payload.ordinal}:${channel}`,
+            )) /
+          marketingCompetitionMultiplier(
+            request.commercePolicy?.pricingPromotionScenario,
+            event.timestampMs,
+          );
         const exposureProbability =
           paidExposureProbability(
             request.merchantWorld,
             customer,
             channel,
             interventionState,
-            (paidExposureOpportunityMultiplier(
-              interactionNetwork,
-              customer,
-              channel,
-              interactionContext,
-            ) *
-              (request.commercePolicy
-                ?.retentionScenario === undefined
-                ? 1
-                : lifecycleMarketingMultipliers(
-                    request.commercePolicy
-                      .retentionScenario,
-                    retentionCustomerContext(
-                      customer,
-                    ),
-                    event.timestampMs,
-                    channel,
-                  ).opportunity)) /
-              marketingCompetitionMultiplier(
-                request.commercePolicy?.pricingPromotionScenario,
-                event.timestampMs,
-              ),
+            paidOpportunityMultiplier,
           );
 
         const exposureKey = `${customer.customerId}:exposure:${payload.cycle}:${payload.ordinal}:${channel}`;
@@ -2047,6 +2164,7 @@ export function simulateWorld(
         randomness,
         maxSessionSteps,
         request.commercePolicy,
+        externalReality,
       );
       observableEvents.push(...step.observableEvents);
       websiteTruth.push(...(step.websiteCausalEvents ?? []));
@@ -2116,11 +2234,47 @@ export function simulateWorld(
             request.commercePolicy
               ?.freeShippingThresholdMinor,
           );
+        const checkoutShippingCostMultiplier =
+          externalReality?.applyAt(
+            `${session.sessionId}:checkout:${session.step}:shipping-cost`,
+            "shipping_cost",
+            event.timestampMs,
+            {
+              channel: session.source,
+              device: session.device,
+            },
+          ) ?? 1;
         const actualShippingChargeMinor =
           shippingTerms.freeShipping
             ? 0
-            : request.commercePolicy
-                ?.customerShippingChargeMinor ?? 0;
+            : Math.max(
+                0,
+                Math.round(
+                  (request.commercePolicy
+                    ?.customerShippingChargeMinor ?? 0) *
+                    checkoutShippingCostMultiplier,
+                ),
+              );
+        const checkoutDeliveryTimeMultiplier =
+          externalReality?.applyAt(
+            `${session.sessionId}:checkout:${session.step}:delivery-time`,
+            "delivery_time",
+            event.timestampMs,
+            {
+              channel: session.source,
+              device: session.device,
+            },
+          ) ?? 1;
+        const checkoutPriceSensitivityMultiplier =
+          externalReality?.applyAt(
+            `${session.sessionId}:checkout:${session.step}:price-sensitivity`,
+            "price_sensitivity",
+            event.timestampMs,
+            {
+              channel: session.source,
+              device: session.device,
+            },
+          ) ?? 1;
         const checkoutExperience =
           resolveCheckoutExperience({
             scenario:
@@ -2403,11 +2557,33 @@ export function simulateWorld(
             ),
             request.commercePolicy,
             session.source,
+            actualShippingChargeMinor,
+            checkoutPriceSensitivityMultiplier,
           );
         const purchaseProbability = clamp(
           baselinePurchaseProbability *
             (checkoutExperience
-              ?.completionMultiplier ?? 1),
+              ?.completionMultiplier ?? 1) *
+            (externalReality?.applyAt(
+              `${session.sessionId}:checkout:${session.step}:purchase-propensity`,
+              "purchase_propensity",
+              event.timestampMs,
+              {
+                channel: session.source,
+                device: session.device,
+              },
+            ) ?? 1) *
+            clamp(
+              1 /
+                Math.sqrt(
+                  Math.max(
+                    0.05,
+                    checkoutDeliveryTimeMultiplier,
+                  ),
+                ),
+              0.5,
+              1.35,
+            ),
           0.001,
           0.98,
         );
@@ -2433,6 +2609,7 @@ export function simulateWorld(
             interventionState,
             randomness,
             request.commercePolicy,
+            externalReality,
           );
           if (purchase) {
             purchaseCount.set(
@@ -2763,7 +2940,17 @@ export function simulateWorld(
           id: `session-step:${session.sessionId}:${session.step}`,
           kind: "session_step",
           timestampMs:
-            event.timestampMs + step.delayMs,
+            event.timestampMs +
+            step.delayMs *
+              (externalReality?.applyAt(
+                `${session.sessionId}:step:${session.step}:consideration-time`,
+                "consideration_time",
+                event.timestampMs,
+                {
+                  channel: session.source,
+                  device: session.device,
+                },
+              ) ?? 1),
           priority: 40,
           customerId: customer.customerId,
           payload: { sessionId: session.sessionId },
@@ -2863,11 +3050,23 @@ export function simulateWorld(
 
   return {
     observableEvents,
+    ...(request.commercePolicy
+      ?.externalRealityEnvironment === undefined
+      ? {}
+      : {
+          externalSignals:
+            projectExternalObservations(
+              request.commercePolicy
+                .externalRealityEnvironment,
+              Date.parse(request.endTime),
+            ),
+        }),
     purchases,
     platformMetrics: buildPlatformMetrics(
       request,
       observableEvents,
       purchases,
+      externalReality,
     ),
     totals: {
       representedPurchases: representedOrders,
@@ -2878,6 +3077,13 @@ export function simulateWorld(
     },
     godMode: {
       exposureEffects: exposureTruth,
+      ...(request.commercePolicy
+        ?.externalRealityEnvironment === undefined
+        ? {}
+        : {
+            externalReality:
+              externalReality!.godModeTruth(),
+          }),
       ...(request.commercePolicy
         ?.websiteScenario === undefined
         ? {}
@@ -2994,6 +3200,17 @@ export function simulateWorld(
               websiteScenarioFingerprint(
                 request.commercePolicy.websiteScenario,
               ),
+          }),
+      ...(request.commercePolicy
+        ?.externalRealityEnvironment === undefined
+        ? {}
+        : {
+            externalRealityModelVersion:
+              EXTERNAL_REALITY_MODEL_VERSION,
+            externalRealityEnvironmentId:
+              request.commercePolicy
+                .externalRealityEnvironment
+                .environmentId,
           }),
     },
   };
