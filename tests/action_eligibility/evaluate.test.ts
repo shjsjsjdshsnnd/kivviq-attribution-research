@@ -27,6 +27,10 @@ function action(overrides: Partial<Action> = {}) {
   return adaptLegacyAction(original);
 }
 
+function legacyOnly(candidate: ReturnType<typeof action>) {
+  return canonicalActionSchema.parse({ ...candidate, constraints: [] });
+}
+
 function bound(actionValue: ReturnType<typeof action>) {
   return {
     actionId: actionValue.actionId,
@@ -64,7 +68,7 @@ function evaluateActionEligibility(input: unknown, context: unknown) {
 
 describe("evaluateActionEligibility", () => {
   it("evaluates every precondition and hard legacy constraint in definition order", () => {
-    const candidate = action();
+    const candidate = legacyOnly(action());
     const result = evaluateActionEligibility(
       { action: candidate },
       {
@@ -118,7 +122,7 @@ describe("evaluateActionEligibility", () => {
         whenUnknown: "unknown_eligibility",
       },
     ];
-    const candidate = action(legacy);
+    const candidate = legacyOnly(action(legacy));
     const result = evaluateActionEligibility(
       { action: candidate },
       { evaluatedAt, observations: [] },
@@ -140,7 +144,7 @@ describe("evaluateActionEligibility", () => {
       expression: { kind: "evidence_available", evidenceRef: "approval", maximumAgeSeconds: 60 },
       whenUnknown: "unknown_eligibility",
     }];
-    const candidate = action(legacy);
+    const candidate = legacyOnly(action(legacy));
     const result = evaluateActionEligibility(
       { action: candidate },
       { evaluatedAt, observations: [{ ...bound(candidate), observedAt: "2026-09-21T13:08:00Z", kind: "EVIDENCE", evidenceRef: "receipt:approval", reference: "approval", available: true }] },
@@ -168,7 +172,7 @@ describe("evaluateActionEligibility", () => {
         expression: { kind: "property_comparison", propertyId: "budget.available_minor", operator: "GTE", value: { kind: "money", amountMinor: 10, currency: currencyCode("CAD") } },
       },
     ];
-    const candidate = action(legacy);
+    const candidate = legacyOnly(action(legacy));
     const common = bound(candidate);
     const result = evaluateActionEligibility(
       { action: candidate },
@@ -213,7 +217,7 @@ describe("evaluateActionEligibility", () => {
     const legacy = structuredClone(increaseGoogleShoppingBudget20) as MutableLegacy;
     legacy.preconditions = [];
     legacy.constraints = [legacy.constraints[0]!];
-    const candidate = action(legacy);
+    const candidate = legacyOnly(action(legacy));
     const base = {
       ...bound(candidate), kind: "PROPERTY" as const, evidenceRef: "budget:1",
       propertyId: "budget.available_minor", value: { kind: "money" as const, amountMinor: 100, currency: "CAD" },
@@ -230,7 +234,7 @@ describe("evaluateActionEligibility", () => {
     const legacy = structuredClone(increaseGoogleShoppingBudget20) as MutableLegacy;
     legacy.preconditions = [];
     legacy.constraints = [legacy.constraints[0]!];
-    const candidate = action(legacy);
+    const candidate = legacyOnly(action(legacy));
     const first = { ...bound(candidate), kind: "PROPERTY" as const, evidenceRef: "a", propertyId: "budget.available_minor", value: { kind: "money" as const, amountMinor: 100, currency: "CAD" } };
     const second = { ...first, evidenceRef: "b" };
     const left = evaluateActionEligibility({ action: candidate }, { evaluatedAt, observations: [first, second] });
@@ -441,31 +445,39 @@ describe("evaluateActionEligibility", () => {
     expect(translation.ok && translation.result.checks.some((check) => check.checkId === "decision.floor")).toBe(false);
   });
 
-  it("evaluates legacy property evidence at translation time and ignores decision-time evidence", () => {
+  it("uses a mapped minimum-margin constraint only at its canonical boundary and exactly once", () => {
     const legacy = structuredClone(increaseGoogleShoppingBudget20) as MutableLegacy;
     legacy.preconditions = [];
+    legacy.constraints = [{
+      constraintId: constraintId("minimum_margin"),
+      constraintClass: "hard",
+      expression: { kind: "property_comparison", propertyId: "finance.gross_margin_rate", operator: "GTE", value: { kind: "percentage", basisPoints: 3000 } },
+    }];
     const candidate = action(legacy);
-    const translationObservation = {
-      ...bound(candidate),
-      evaluationBoundary: "TRANSLATION_TIME" as const,
-      kind: "PROPERTY" as const,
-      evidenceRef: "property:translation-budget",
-      propertyId: "budget.available_minor",
-      value: { kind: "money" as const, amountMinor: 99_999_999, currency: "CAD" },
-    };
+    expect(candidate.constraints[0]).toMatchObject({ kind: "MINIMUM_MARGIN", evaluationBoundary: "DECISION_TIME" });
     const translationFacts = domainFacts(candidate).map((fact) => ({ ...fact, evaluationBoundary: "TRANSLATION_TIME" as const }));
-    const matching = evaluateActionEligibilityRaw(
+    const translation = evaluateActionEligibilityRaw(
       { action: candidate },
-      { evaluationBoundary: "TRANSLATION_TIME", evaluatedAt, observations: [translationObservation], domainFacts: translationFacts },
+      { evaluationBoundary: "TRANSLATION_TIME", evaluatedAt, observations: [], domainFacts: translationFacts },
     );
-    expect(matching.ok && matching.result.status).toBe("ELIGIBLE");
-    expect(matching.ok && matching.result.checks.find((check) => check.checkId === "budget_available")?.status).toBe("SATISFIED");
+    expect(translation.ok && translation.result.checks.some((check) => check.checkId === "minimum_margin")).toBe(false);
 
-    const mismatched = evaluateActionEligibilityRaw(
+    const constraint = candidate.constraints[0]!;
+    const fingerprint = fingerprintCanonicalAction(candidate);
+    const decision = evaluateActionEligibilityRaw(
       { action: candidate },
-      { evaluationBoundary: "TRANSLATION_TIME", evaluatedAt, observations: [{ ...translationObservation, evaluationBoundary: "DECISION_TIME" }], domainFacts: translationFacts },
+      {
+        evaluationBoundary: "DECISION_TIME", evaluatedAt, observations: [], domainFacts: domainFacts(candidate),
+        constraintReceipts: [{
+          evidenceRef: "margin:typed", actionId: candidate.actionId, actionFingerprint: fingerprint,
+          constraintId: constraint.constraintId, target: constraint.target, evaluationBoundary: "DECISION_TIME",
+          observedAt: "2026-09-21T13:05:00Z", sourceRef: "ledger", provenance: ["ledger:margin"],
+          fact: { kind: "VALUE", valueRef: { kind: "FACT", ref: "finance.gross_margin_rate" }, valueBasis: "PROJECTED_AFTER_ACTION", value: { valueType: "PERCENTAGE", basisPoints: 3200 } },
+        }],
+      },
     );
-    expect(mismatched.ok && mismatched.result.status).toBe("UNKNOWN");
-    expect(mismatched.ok && mismatched.result.checks.find((check) => check.checkId === "budget_available")?.reasonCodes).toEqual(["MISSING_BOUND_EVIDENCE"]);
+    expect(decision.ok && decision.result.status).toBe("ELIGIBLE");
+    expect(decision.ok && decision.result.checks.filter((check) => check.checkId === "minimum_margin")).toHaveLength(1);
+    expect(decision.ok && decision.result.checks.find((check) => check.checkId === "minimum_margin")).toMatchObject({ status: "SATISFIED", evidenceRefs: ["margin:typed"] });
   });
 });

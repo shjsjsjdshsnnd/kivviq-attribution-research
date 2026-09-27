@@ -122,7 +122,7 @@ describe("native experiment translation", () => {
 
   it("rejects a mutated check whose assessment fingerprint was not recomputed", () => {
     const valid = eligibility();
-    const mutated = { ...valid, checks: [{ kind: "DOMAIN_RULE", checkId: "forged", status: "SATISFIED", reasonCodes: ["FORGED"], evidenceRefs: [], missingInformation: [] }] };
+    const mutated = { ...valid, checks: [{ kind: "DOMAIN_RULE", checkId: "forged", status: "SATISFIED", reasonCodes: ["FORGED"], evidenceRefs: ["forged.evidence"], missingInformation: [] }] };
     expect(translateCanonicalAction(action, context({ eligibility: mutated }))).toMatchObject({ status: "INVALID_ACTION", code: "INVALID_EXPERIMENT_ELIGIBILITY_INTEGRITY" });
   });
 

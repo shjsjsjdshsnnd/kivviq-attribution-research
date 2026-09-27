@@ -33,7 +33,19 @@ export const eligibilityCheckSchema = z
       });
     }),
   })
-  .strict();
+  .strict()
+  .superRefine((value, context) => {
+    const failClosedMissing = value.status === "VIOLATED" && value.reasonCodes.includes("MISSING_INFORMATION_FAIL_CLOSED");
+    if (value.status === "UNKNOWN") {
+      if (value.missingInformation.length === 0)
+        context.addIssue({ code: "custom", path: ["missingInformation"], message: "UNKNOWN checks require missing information" });
+      return;
+    }
+    if (!failClosedMissing && value.evidenceRefs.length === 0)
+      context.addIssue({ code: "custom", path: ["evidenceRefs"], message: `${value.status} checks require evidence` });
+    if (!failClosedMissing && value.missingInformation.length !== 0)
+      context.addIssue({ code: "custom", path: ["missingInformation"], message: `${value.status} checks cannot retain missing information` });
+  });
 
 export const actionEligibilitySchema = z
   .object({

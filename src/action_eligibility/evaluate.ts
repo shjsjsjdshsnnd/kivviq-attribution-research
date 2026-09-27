@@ -223,6 +223,7 @@ function legacyChecks(action: CanonicalAction, observations: readonly Eligibilit
   }
   for (const constraint of action.what.constraints) {
     if (constraint.constraintClass !== "hard") continue;
+    if (action.constraints.some((canonical) => canonical.constraintId === constraint.constraintId)) continue;
     checks.push({ kind: "HARD_CONSTRAINT", checkId: constraint.constraintId, ...checkExpression(constraint.expression, bound.filter((entry) => matches(constraint.expression, entry)), evaluatedAt, maximumAgeSeconds) });
   }
   return checks;
@@ -237,14 +238,11 @@ export function expectedEligibilityCheckManifest(
     for (const precondition of action.what.preconditions)
       expected.push({ kind: "PRECONDITION", checkId: precondition.preconditionId });
     for (const constraint of action.what.constraints)
-      if (constraint.constraintClass === "hard")
+      if (constraint.constraintClass === "hard" && !action.constraints.some((canonical) => canonical.constraintId === constraint.constraintId))
         expected.push({ kind: "HARD_CONSTRAINT", checkId: constraint.constraintId });
   }
-  const legacyHardIds = new Set<string>("kind" in action.what && action.what.kind === "legacy_business"
-    ? action.what.constraints.filter((constraint) => constraint.constraintClass === "hard").map((constraint) => constraint.constraintId)
-    : []);
   for (const constraint of action.constraints)
-    if (constraint.evaluationBoundary === boundary && !legacyHardIds.has(constraint.constraintId))
+    if (constraint.evaluationBoundary === boundary)
       expected.push({ kind: "HARD_CONSTRAINT", checkId: constraint.constraintId });
   for (const check of evaluateDomainEligibility({
     action,
@@ -268,10 +266,7 @@ export function hasCompleteEligibilityCheckManifest(
 }
 
 function nativeChecks(action: CanonicalAction, resourceRequirements: { resourceRequirementId: string; value: ConstraintThreshold }[], context: z.infer<typeof contextSchema>): EligibilityCheck[] | undefined {
-  const legacyHardIds = new Set<string>("kind" in action.what && action.what.kind === "legacy_business"
-    ? action.what.constraints.filter((constraint) => constraint.constraintClass === "hard").map((constraint) => constraint.constraintId)
-    : []);
-  const applicableConstraints = action.constraints.filter((constraint) => constraint.evaluationBoundary === context.evaluationBoundary && !legacyHardIds.has(constraint.constraintId));
+  const applicableConstraints = action.constraints.filter((constraint) => constraint.evaluationBoundary === context.evaluationBoundary);
   const report = assessHardConstraints(
     { actionId: action.actionId, actionFingerprint: fingerprintCanonicalAction(action), constraints: applicableConstraints, resourceRequirements },
     { evaluatedAt: context.evaluatedAt, ...(context.maximumAgeSeconds === undefined ? {} : { maximumAgeSeconds: context.maximumAgeSeconds }), receipts: context.constraintReceipts ?? [] },
