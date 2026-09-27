@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { actionEligibilitySchema, type ActionEligibility } from "../action_eligibility/schema.js";
 import {
   checkInvestigationDependency,
   type InvestigationResult,
@@ -149,6 +150,8 @@ export interface ComponentReadinessEvidence {
 export interface CompoundReadinessContext {
   timing: ActionTimingResolutionContext;
   components: Readonly<Record<string, ComponentReadinessEvidence>>;
+  eligibilityResults?: Readonly<Record<string, unknown>>;
+  eligibilityBoundary?: "DECISION_TIME" | "TRANSLATION_TIME" | "EFFECTIVE_TIME";
   constraintEvidence?: Readonly<
     Record<
       string,
@@ -168,6 +171,7 @@ export interface CompoundActionReadiness {
     actionId: string;
     status: ComponentReadinessStatus;
     codes: string[];
+    eligibility?: ActionEligibility;
   }[];
   constraintResults: {
     constraintId: string;
@@ -203,9 +207,59 @@ export function assessCompoundActionReadiness(
     const codes: string[] = [];
     let status: ComponentReadinessStatus =
       evidence?.status ?? "MISSING_CONTEXT";
+    let eligibility: ActionEligibility | undefined;
     if (!evidence?.evidenceRefs.length) {
       status = "MISSING_CONTEXT";
       codes.push("MISSING_READINESS_EVIDENCE");
+    }
+    if (context.eligibilityResults === undefined) {
+      codes.push("COMPONENT_ELIGIBILITY_REQUIRED");
+      if (status === "READY") status = "MISSING_CONTEXT";
+    } else {
+      const parsedEligibility = actionEligibilitySchema.safeParse(
+        context.eligibilityResults[c.componentId],
+      );
+      if (!parsedEligibility.success) {
+        codes.push("COMPONENT_ELIGIBILITY_REQUIRED");
+        if (status === "READY") status = "MISSING_CONTEXT";
+      } else {
+        eligibility = parsedEligibility.data;
+        const derived = eligibility.checks.some((check) => check.status === "VIOLATED")
+          ? "INELIGIBLE"
+          : eligibility.checks.some((check) => check.status === "UNKNOWN")
+            ? "UNKNOWN"
+            : "ELIGIBLE";
+        const evaluationBoundary = eligibility.evaluationBoundary;
+        const applicableConstraintIds = c.action.constraints
+          .filter((constraint) => constraint.evaluationBoundary === evaluationBoundary)
+          .map((constraint) => constraint.constraintId);
+        const hardConstraintCheckIds = eligibility.checks
+          .filter((check) => check.kind === "HARD_CONSTRAINT")
+          .map((check) => check.checkId);
+        const expectedConstraintIds = new Set(applicableConstraintIds);
+        const constraintsComplete =
+          expectedConstraintIds.size === applicableConstraintIds.length &&
+          hardConstraintCheckIds.length === applicableConstraintIds.length &&
+          hardConstraintCheckIds.every((id) => expectedConstraintIds.has(id)) &&
+          new Set(hardConstraintCheckIds).size === hardConstraintCheckIds.length;
+        if (
+          eligibility.actionId !== c.action.actionId ||
+          eligibility.actionFingerprint !== fingerprintCanonicalAction(c.action) ||
+          (context.eligibilityBoundary !== undefined &&
+            eligibility.evaluationBoundary !== context.eligibilityBoundary) ||
+          eligibility.status !== derived ||
+          (eligibility.status === "ELIGIBLE" && !constraintsComplete)
+        ) {
+          codes.push("COMPONENT_ELIGIBILITY_MISMATCH");
+          if (status === "READY") status = "MISSING_CONTEXT";
+        } else if (eligibility.status === "INELIGIBLE") {
+          codes.push("COMPONENT_INELIGIBLE");
+          if (status !== "UNSUPPORTED_SIMULATOR_CAPABILITY") status = "INELIGIBLE";
+        } else if (eligibility.status === "UNKNOWN") {
+          codes.push("COMPONENT_ELIGIBILITY_UNKNOWN");
+          if (status === "READY") status = "UNKNOWN";
+        }
+      }
     }
     for (const issue of timing.issues.filter(
       (i) => i.componentId === c.componentId,
@@ -253,6 +307,7 @@ export function assessCompoundActionReadiness(
       actionId: c.action.actionId,
       status,
       codes,
+      ...(eligibility ? { eligibility } : {}),
     };
   });
   const constraintResults = action.constraints.map((c) => {
@@ -374,6 +429,8 @@ export const compoundReadinessContextSchema = z
         })
         .strict(),
     ),
+    eligibilityResults: z.record(z.unknown()).optional(),
+    eligibilityBoundary: z.enum(["DECISION_TIME", "TRANSLATION_TIME", "EFFECTIVE_TIME"]).optional(),
     constraintEvidence: z
       .record(
         z
