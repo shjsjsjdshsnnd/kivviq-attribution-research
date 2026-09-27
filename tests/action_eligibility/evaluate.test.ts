@@ -423,4 +423,32 @@ describe("evaluateActionEligibility", () => {
     expect(translation.ok && translation.result).toMatchObject({ evaluationBoundary: "TRANSLATION_TIME", status: "INELIGIBLE" });
     expect(translation.ok && translation.result.checks.some((check) => check.checkId === "decision.floor")).toBe(false);
   });
+
+  it("evaluates legacy property evidence at translation time and ignores decision-time evidence", () => {
+    const legacy = structuredClone(increaseGoogleShoppingBudget20) as MutableLegacy;
+    legacy.preconditions = [];
+    const candidate = action(legacy);
+    const translationObservation = {
+      ...bound(candidate),
+      evaluationBoundary: "TRANSLATION_TIME" as const,
+      kind: "PROPERTY" as const,
+      evidenceRef: "property:translation-budget",
+      propertyId: "budget.available_minor",
+      value: { kind: "money" as const, amountMinor: 99_999_999, currency: "CAD" },
+    };
+    const translationFacts = domainFacts(candidate).map((fact) => ({ ...fact, evaluationBoundary: "TRANSLATION_TIME" as const }));
+    const matching = evaluateActionEligibilityRaw(
+      { action: candidate },
+      { evaluationBoundary: "TRANSLATION_TIME", evaluatedAt, observations: [translationObservation], domainFacts: translationFacts },
+    );
+    expect(matching.ok && matching.result.status).toBe("ELIGIBLE");
+    expect(matching.ok && matching.result.checks.find((check) => check.checkId === "budget_available")?.status).toBe("SATISFIED");
+
+    const mismatched = evaluateActionEligibilityRaw(
+      { action: candidate },
+      { evaluationBoundary: "TRANSLATION_TIME", evaluatedAt, observations: [{ ...translationObservation, evaluationBoundary: "DECISION_TIME" }], domainFacts: translationFacts },
+    );
+    expect(mismatched.ok && mismatched.result.status).toBe("UNKNOWN");
+    expect(mismatched.ok && mismatched.result.checks.find((check) => check.checkId === "budget_available")?.reasonCodes).toEqual(["MISSING_BOUND_EVIDENCE"]);
+  });
 });

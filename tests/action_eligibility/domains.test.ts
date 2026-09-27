@@ -8,7 +8,7 @@ import {
 } from "../../src/action_eligibility/index.js";
 import { reorderSkuA100, reorderSkuB50SupplierX } from "../../src/inventory/fixtures.js";
 import { googleBudgetUp2000, metaBudgetDown2000 } from "../../src/action_translation/fixtures.js";
-import { actionTypeIsolationScenarios, domainAdapterScenarios, hardConstraintEligibilityScenarios, inventoryAvailabilityScenarios } from "../../src/action_eligibility/fixtures.js";
+import { actionTypeIsolationScenarios, arbitraryLifecycleRuleAction, arbitraryLifecycleRuleFacts, domainAdapterScenarios, hardConstraintEligibilityScenarios, inventoryAvailabilityScenarios } from "../../src/action_eligibility/fixtures.js";
 
 const NOW = "2026-09-27T12:00:00.000Z";
 
@@ -132,14 +132,15 @@ describe("evidence-derived domain eligibility", () => {
     expect(result.checks.find((check) => check.checkId === "domain.paid_media.channel_enabled")?.reasonCodes).toEqual([reason]);
   });
 
-  it("rejects duplicate domain facts rather than choosing by input order", () => {
+  it("treats duplicate bound domain facts as ambiguous rather than choosing by input order", () => {
     const action = adaptLegacyAction(metaBudgetDown2000);
     const duplicate = fact(action, "CHANNEL_MERCHANT_ENABLED", true);
     const result = evaluateActionEligibility(
       { action },
       { evaluatedAt: NOW, observations: [], domainFacts: [duplicate, { ...duplicate, evidenceRef: "evidence:second" }] },
     );
-    expect(result).toMatchObject({ ok: false, failure: { code: "INVALID_CONTEXT" } });
+    expect(result.ok && result.result.status).toBe("UNKNOWN");
+    expect(result.ok && result.result.checks.find((check) => check.checkId === "domain.paid_media.channel_enabled")?.reasonCodes).toEqual(["AMBIGUOUS_BOUND_DOMAIN_FACT"]);
   });
 
   it.each(domainAdapterScenarios)("evaluates $family applicability from bound facts", ({ action, facts, representativeFactId }) => {
@@ -155,15 +156,24 @@ describe("evidence-derived domain eligibility", () => {
     expect(denied.ok && denied.result.checks.some((check) => check.kind === "DOMAIN_RULE" && check.status === "VIOLATED")).toBe(true);
   });
 
-  it("requires the first flow step's channel and contact policy evidence", () => {
+  it("requires the first flow step's channel and referenced suppression evidence", () => {
     const scenario = domainAdapterScenarios.find((entry) => entry.family === "lifecycle_flow")!;
-    for (const [factId, checkId] of [["CHANNEL_AVAILABLE", "domain.lifecycle.channel_available"], ["CONTACT_POLICY_ALLOWS", "domain.lifecycle.contact_policy"]] as const) {
-      const missing = evaluateActionEligibility({ action: scenario.action }, { evaluationBoundary: "DECISION_TIME", evaluatedAt: NOW, observations: [], domainFacts: scenario.facts.filter((fact) => fact.factId !== factId) });
+    for (const [factId, ruleRef, checkId] of [["CHANNEL_AVAILABLE", undefined, "domain.lifecycle.channel_available"], ["LIFECYCLE_SUPPRESSION_RULE_CLEAR", "contact_cap_reached", "domain.lifecycle.suppression_rule.contact_cap_reached"]] as const) {
+      const selected = (fact: DomainEligibilityFact) => fact.factId === factId && fact.ruleRef === ruleRef;
+      const missing = evaluateActionEligibility({ action: scenario.action }, { evaluationBoundary: "DECISION_TIME", evaluatedAt: NOW, observations: [], domainFacts: scenario.facts.filter((fact) => !selected(fact)) });
       expect(missing.ok && missing.result.status).toBe("UNKNOWN");
-      const denied = evaluateActionEligibility({ action: scenario.action }, { evaluationBoundary: "DECISION_TIME", evaluatedAt: NOW, observations: [], domainFacts: scenario.facts.map((fact) => fact.factId === factId ? { ...fact, value: false } : fact) });
+      const denied = evaluateActionEligibility({ action: scenario.action }, { evaluationBoundary: "DECISION_TIME", evaluatedAt: NOW, observations: [], domainFacts: scenario.facts.map((fact) => selected(fact) ? { ...fact, value: false } : fact) });
       expect(denied.ok && denied.result.status).toBe("INELIGIBLE");
       expect(denied.ok && denied.result.checks.find((check) => check.checkId === checkId)?.status).toBe("VIOLATED");
     }
+  });
+
+  it("binds arbitrary lifecycle rule references without substring inference", () => {
+    const result = evaluateActionEligibility({ action: arbitraryLifecycleRuleAction }, { evaluatedAt: NOW, observations: [], domainFacts: arbitraryLifecycleRuleFacts });
+    expect(result.ok && result.result.status).toBe("ELIGIBLE");
+    expect(result.ok && result.result.checks.map((check) => check.checkId)).toContain("domain.lifecycle.eligibility_rule.blocked");
+    expect(result.ok && result.result.checks.map((check) => check.checkId)).toContain("domain.lifecycle.suppression_rule.contactless_delivery");
+    expect(result.ok && result.result.checks.map((check) => check.checkId)).not.toContain("domain.lifecycle.contact_policy");
   });
 
   it.each(actionTypeIsolationScenarios)("does not impose unrelated $excludedFactId evidence", ({ action, facts, excludedFactId }) => {

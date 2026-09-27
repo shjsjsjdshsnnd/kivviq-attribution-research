@@ -11,6 +11,7 @@ import { actionEligibilitySchema, type ActionEligibility, type EligibilityCheck,
 import { domainEligibilityFactSchema, evaluateDomainEligibility } from "./adapters.js";
 
 const utcZSchema = z.string().datetime().regex(/Z$/);
+const evaluationBoundarySchema = z.enum(["DECISION_TIME", "TRANSLATION_TIME", "EFFECTIVE_TIME"]);
 const scalarValueSchema = z.discriminatedUnion("kind", [
   z.object({ kind: z.literal("money"), amountMinor: z.number().finite(), currency: z.string().regex(/^[A-Z]{3}$/) }).strict(),
   z.object({ kind: z.literal("money_rate"), amountMinor: z.number().finite(), currency: z.string().regex(/^[A-Z]{3}$/), per: z.enum(["day", "week", "month"]) }).strict(),
@@ -28,7 +29,7 @@ const commonEvidence = {
   actionId: z.string().min(1),
   actionFingerprint: z.string().min(1),
   targetRef: targetRefSchema,
-  evaluationBoundary: z.literal("DECISION_TIME"),
+  evaluationBoundary: evaluationBoundarySchema,
   observedAt: utcZSchema,
   sourceRef: z.string().min(1),
   provenance: z.array(z.string().min(1)).min(1),
@@ -51,7 +52,7 @@ const nativeConstraintsSchema = z.object({
 }).strict();
 const contextSchema = z.object({
   evaluatedAt: utcZSchema,
-  evaluationBoundary: z.enum(["DECISION_TIME", "TRANSLATION_TIME", "EFFECTIVE_TIME"]),
+  evaluationBoundary: evaluationBoundarySchema,
   maximumAgeSeconds: z.number().int().nonnegative().safe().optional(),
   observations: z.array(eligibilityEvidenceObservationSchema).superRefine((observations, context) => {
     const seen = new Set<string>();
@@ -62,14 +63,7 @@ const contextSchema = z.object({
     });
   }),
   constraintReceipts: z.array(constraintEvidenceReceiptSchema).optional(),
-  domainFacts: z.array(domainEligibilityFactSchema).default([]).superRefine((facts, context) => {
-    const seen = new Set<string>();
-    facts.forEach((fact, index) => {
-      const key = `${fact.actionId}|${fact.actionFingerprint}|${fact.targetRef}|${fact.evaluationBoundary}|${fact.factId}`;
-      if (seen.has(key)) context.addIssue({ code: "custom", path: [index], message: `Duplicate bound domain fact: ${fact.factId}` });
-      seen.add(key);
-    });
-  }),
+  domainFacts: z.array(domainEligibilityFactSchema).default([]),
 }).strict();
 
 export type EligibilityEvidenceObservation = z.infer<typeof eligibilityEvidenceObservationSchema>;

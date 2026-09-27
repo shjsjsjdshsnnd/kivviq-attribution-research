@@ -27,6 +27,8 @@ export const domainFactIdSchema = z.enum([
   "COMPONENT_AVAILABLE",
   "CHANNEL_AVAILABLE",
   "CONTACT_POLICY_ALLOWS",
+  "LIFECYCLE_ELIGIBILITY_RULE_ALLOWS",
+  "LIFECYCLE_SUPPRESSION_RULE_CLEAR",
 ]);
 
 export const domainEligibilityFactSchema = z.object({
@@ -41,12 +43,17 @@ export const domainEligibilityFactSchema = z.object({
   observedAt: utcZ,
   sourceRef: ref,
   provenance: z.array(ref).min(1),
-}).strict();
+  ruleRef: ref.optional(),
+}).strict().superRefine((fact, context) => {
+  const isRuleFact = fact.factId === "LIFECYCLE_ELIGIBILITY_RULE_ALLOWS" || fact.factId === "LIFECYCLE_SUPPRESSION_RULE_CLEAR";
+  if (isRuleFact && fact.ruleRef === undefined) context.addIssue({ code: "custom", path: ["ruleRef"], message: "Lifecycle rule facts require ruleRef" });
+  if (!isRuleFact && fact.ruleRef !== undefined) context.addIssue({ code: "custom", path: ["ruleRef"], message: "ruleRef is only valid for lifecycle rule facts" });
+});
 
 export type DomainEligibilityFact = z.infer<typeof domainEligibilityFactSchema>;
 
 type DomainFamily = "paid_media" | "pricing" | "promotion" | "shipping" | "merchandising" | "inventory" | "cro" | "lifecycle";
-type Requirement = Readonly<{ factId: DomainEligibilityFact["factId"]; suffix: string; trueReason: string; falseReason: string }>;
+type Requirement = Readonly<{ factId: DomainEligibilityFact["factId"]; suffix: string; trueReason: string; falseReason: string; ruleRef?: string }>;
 
 const capability = (family: DomainFamily): Requirement => ({
   factId: "ACTION_FAMILY_CAPABILITY",
@@ -136,13 +143,17 @@ export function evaluateDomainEligibility(input: {
   if (actionType === "lifecycle.start_flow" && lifecycle.success && lifecycle.data.actionType === "lifecycle.start_flow") {
     const firstStep = lifecycle.data.flow.steps[0];
     requirements.push({ factId: "AUDIENCE_AVAILABLE", suffix: "audience_available", trueReason: "AUDIENCE_AVAILABLE", falseReason: "AUDIENCE_UNAVAILABLE" });
-    if (firstStep?.eligibility.includes("consent")) requirements.push({ factId: "CONSENT_AVAILABLE", suffix: "consent_available", trueReason: "CONSENT_AVAILABLE", falseReason: "CONSENT_UNAVAILABLE" });
-    if (firstStep?.eligibility.includes("valid_destination")) requirements.push({ factId: "CHANNEL_AVAILABLE", suffix: "channel_available", trueReason: "CHANNEL_AVAILABLE", falseReason: "CHANNEL_UNAVAILABLE" });
-    if (firstStep?.suppression.some((entry) => entry.includes("contact"))) requirements.push({ factId: "CONTACT_POLICY_ALLOWS", suffix: "contact_policy", trueReason: "CONTACT_POLICY_ALLOWS", falseReason: "CONTACT_POLICY_BLOCKS" });
+    if (firstStep) {
+      requirements.push({ factId: "CHANNEL_AVAILABLE", suffix: "channel_available", trueReason: "CHANNEL_AVAILABLE", falseReason: "CHANNEL_UNAVAILABLE" });
+      for (const ruleRef of firstStep.eligibility)
+        requirements.push({ factId: "LIFECYCLE_ELIGIBILITY_RULE_ALLOWS", ruleRef, suffix: `eligibility_rule.${ruleRef}`, trueReason: "LIFECYCLE_ELIGIBILITY_RULE_ALLOWS", falseReason: "LIFECYCLE_ELIGIBILITY_RULE_BLOCKS" });
+      for (const ruleRef of firstStep.suppression)
+        requirements.push({ factId: "LIFECYCLE_SUPPRESSION_RULE_CLEAR", ruleRef, suffix: `suppression_rule.${ruleRef}`, trueReason: "LIFECYCLE_SUPPRESSION_RULE_CLEAR", falseReason: "LIFECYCLE_SUPPRESSION_RULE_BLOCKS" });
+    }
   }
   return requirements.map((requirement): EligibilityCheck => {
     const checkId = `domain.${family}.${requirement.suffix}`;
-    const matches = bound.filter((fact) => fact.factId === requirement.factId);
+    const matches = bound.filter((fact) => fact.factId === requirement.factId && fact.ruleRef === requirement.ruleRef);
     if (matches.length === 0) return unknown(checkId, ["MISSING_BOUND_DOMAIN_FACT"]);
     if (matches.length > 1) return unknown(checkId, ["AMBIGUOUS_BOUND_DOMAIN_FACT"], matches.map((fact) => fact.evidenceRef).sort());
     const fact = matches[0]!;

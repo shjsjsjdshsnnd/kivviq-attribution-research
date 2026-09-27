@@ -4,7 +4,7 @@ import { googleBudgetUp2000, metaBudgetDown2000 } from "../action_translation/fi
 import { reorderSkuA100, reorderSkuB50SupplierX } from "../inventory/fixtures.js";
 import { canonicalEligibilityTargetRef } from "./evaluate.js";
 import type { DomainEligibilityFact } from "./adapters.js";
-import type { CanonicalAction } from "../canonical_action/schema.js";
+import { canonicalActionSchema, type CanonicalAction } from "../canonical_action/schema.js";
 import type { HardConstraint, ConstraintThreshold } from "../action_constraints/schema.js";
 import type { ConstraintEvidenceReceipt } from "../action_constraints/assessment.js";
 import { startAutomaticCollectionX15FourDays, stopCollectionXAutomatic15 } from "../promotion/fixtures.js";
@@ -13,6 +13,7 @@ import { featureProductAHomepage, deprioritizeProductBCollectionY } from "../mer
 import { modifyHomepageHeroPresentation, addFeaturedCollectionHomepage } from "../cro/fixtures.js";
 import { setSkuA849Cad } from "../pricing/fixtures.js";
 import { createCanonicalFixtures } from "../canonical_action/fixtures.js";
+import { lifecycleWhatSchema } from "../lifecycle/canonical.js";
 
 export const DOMAIN_FIXTURE_TIME = "2026-09-27T12:00:00.000Z";
 export const inventoryIncreaseSkuA = adaptLegacyAction(reorderSkuA100);
@@ -86,6 +87,10 @@ function facts(action: CanonicalAction, factIds: readonly DomainEligibilityFact[
   return factIds.map((factId) => domainFactFixture(action, factId, true, action.actionId));
 }
 
+function lifecycleRuleFact(action: CanonicalAction, factId: "LIFECYCLE_ELIGIBILITY_RULE_ALLOWS" | "LIFECYCLE_SUPPRESSION_RULE_CLEAR", ruleRef: string): DomainEligibilityFact {
+  return { ...domainFactFixture(action, factId, true, ruleRef), ruleRef };
+}
+
 const promotionAction = adaptLegacyAction(startAutomaticCollectionX15FourDays);
 const shippingAction = adaptLegacyAction(freeStandardShippingAllOrders);
 const merchandisingAction = adaptLegacyAction(featureProductAHomepage);
@@ -94,6 +99,19 @@ const lifecycleAction = createCanonicalFixtures().find((fixture) => fixture.numb
 if (!lifecycleAction) throw new Error("Missing canonical lifecycle fixture");
 const lifecycleFlowAction = createCanonicalFixtures().find((fixture) => fixture.number === 6)?.action;
 if (!lifecycleFlowAction) throw new Error("Missing canonical lifecycle flow fixture");
+const lifecycleFlowWhat = lifecycleWhatSchema.parse(lifecycleFlowAction.what);
+if (lifecycleFlowWhat.actionType !== "lifecycle.start_flow") throw new Error("Expected lifecycle flow fixture");
+export const arbitraryLifecycleRuleAction = canonicalActionSchema.parse({
+  ...lifecycleFlowAction,
+  actionId: "action_lifecycle_arbitrary_rule_refs",
+  what: {
+    ...lifecycleFlowWhat,
+    flow: {
+      ...lifecycleFlowWhat.flow,
+      steps: lifecycleFlowWhat.flow.steps.map((step, index) => index === 0 ? { ...step, eligibility: ["blocked"], suppression: ["contactless_delivery"] } : step),
+    },
+  },
+});
 
 export const domainAdapterScenarios = [
   {
@@ -129,9 +147,21 @@ export const domainAdapterScenarios = [
   {
     family: "lifecycle_flow",
     action: lifecycleFlowAction,
-    representativeFactId: "CONSENT_AVAILABLE" as const,
-    facts: facts(lifecycleFlowAction, ["ACTION_FAMILY_CAPABILITY", "AUDIENCE_AVAILABLE", "CONSENT_AVAILABLE", "CHANNEL_AVAILABLE", "CONTACT_POLICY_ALLOWS"]),
+    representativeFactId: "CHANNEL_AVAILABLE" as const,
+    facts: [
+      ...facts(lifecycleFlowAction, ["ACTION_FAMILY_CAPABILITY", "AUDIENCE_AVAILABLE", "CHANNEL_AVAILABLE"]),
+      lifecycleRuleFact(lifecycleFlowAction, "LIFECYCLE_ELIGIBILITY_RULE_ALLOWS", "consent"),
+      lifecycleRuleFact(lifecycleFlowAction, "LIFECYCLE_ELIGIBILITY_RULE_ALLOWS", "valid_destination"),
+      lifecycleRuleFact(lifecycleFlowAction, "LIFECYCLE_SUPPRESSION_RULE_CLEAR", "channel_suppressed"),
+      lifecycleRuleFact(lifecycleFlowAction, "LIFECYCLE_SUPPRESSION_RULE_CLEAR", "contact_cap_reached"),
+    ],
   },
+] as const;
+
+export const arbitraryLifecycleRuleFacts = [
+  ...facts(arbitraryLifecycleRuleAction, ["ACTION_FAMILY_CAPABILITY", "AUDIENCE_AVAILABLE", "CHANNEL_AVAILABLE"]),
+  lifecycleRuleFact(arbitraryLifecycleRuleAction, "LIFECYCLE_ELIGIBILITY_RULE_ALLOWS", "blocked"),
+  lifecycleRuleFact(arbitraryLifecycleRuleAction, "LIFECYCLE_SUPPRESSION_RULE_CLEAR", "contactless_delivery"),
 ] as const;
 
 const stoppedPromotion = adaptLegacyAction(stopCollectionXAutomatic15);
