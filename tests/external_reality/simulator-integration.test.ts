@@ -119,6 +119,56 @@ function confoundedEnvironment(): ExternalEnvironment {
 }
 
 describe("Step 14 simulator integration", () => {
+
+  it(
+    "is inert when no external environment is configured",
+    () => {
+      const world = baseAdversarialWorld(64102);
+      const population = populationFor(
+        world,
+        74102,
+        24,
+      );
+      const baseRequest = {
+        merchantWorld: world,
+        latentPopulation: population,
+        simulationSeed: 142,
+        startTime: START,
+        endTime: "2026-01-20T00:00:00.000Z",
+        config: {
+          maxEvents: 60_000,
+          maxSessionsPerCustomer: 10,
+        },
+      } as const;
+
+      const withoutPolicy = simulateWorld(baseRequest);
+      const emptyPolicy = simulateWorld({
+        ...baseRequest,
+        commercePolicy: {},
+      });
+
+      expect(JSON.stringify(emptyPolicy)).toBe(
+        JSON.stringify(withoutPolicy),
+      );
+      expect(emptyPolicy.externalSignals).toBeUndefined();
+      expect(
+        emptyPolicy.godMode.externalReality,
+      ).toBeUndefined();
+      expect(
+        emptyPolicy.provenance
+          .externalRealityModelVersion,
+      ).toBeUndefined();
+      expect(
+        emptyPolicy.purchases.every(
+          (purchase) =>
+            purchase.realizedCustomerShippingChargeMinor ===
+              undefined &&
+            purchase.estimatedDeliveryDays === undefined,
+        ),
+      ).toBe(true);
+    },
+    45_000,
+  );
   it(
     "keeps merchant interventions and external causes separate in one confounded run",
     () => {
