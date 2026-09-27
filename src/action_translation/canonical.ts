@@ -222,11 +222,11 @@ export function translateCanonicalAction(
       return { status: "MISSING_CONTEXT", actionId: action.actionId, code: "ACTION_ELIGIBILITY_BOUNDARY", message: "Canonical translation requires TRANSLATION_TIME eligibility." };
     if (!hasCompleteEligibilityCheckManifest(action, "TRANSLATION_TIME", eligibility.checks))
       return { status: "INVALID_ACTION", actionId: action.actionId, code: "INCOMPLETE_ACTION_ELIGIBILITY", message: "Eligibility must contain the complete deterministic check manifest." };
-    if (!hasMatchingRecomputedActionEligibility(action, eligibility, context.eligibilityEvaluationContext, context.eligibilityResourceRequirements))
-      return { status: "INVALID_ACTION", actionId: action.actionId, code: "ACTION_ELIGIBILITY_RECOMPUTATION_MISMATCH", message: "Eligibility must exactly match a recomputation from the supplied raw evidence and resource requirements." };
     const approvedClock = context.timing && typeof context.timing === "object" && "approvedClock" in context.timing ? (context.timing as { approvedClock?: unknown }).approvedClock : undefined;
     if (typeof approvedClock !== "string" || context.eligibilityMaximumAgeSeconds === undefined)
       return { status: "MISSING_CONTEXT", actionId: action.actionId, code: "ACTION_ELIGIBILITY_FRESHNESS_REQUIRED", message: "An approved clock and maximum eligibility age are required." };
+    if (!hasMatchingRecomputedActionEligibility(action, eligibility, context.eligibilityEvaluationContext, context.eligibilityResourceRequirements, context.eligibilityMaximumAgeSeconds))
+      return { status: "INVALID_ACTION", actionId: action.actionId, code: "ACTION_ELIGIBILITY_RECOMPUTATION_MISMATCH", message: "Eligibility must exactly match a recomputation from the supplied raw evidence and resource requirements under the gate freshness limit." };
     const evaluated = Date.parse(eligibility.evaluatedAt), approved = Date.parse(approvedClock);
     if (evaluated > approved)
       return { status: "MISSING_CONTEXT", actionId: action.actionId, code: "ACTION_ELIGIBILITY_FUTURE", message: "Eligibility cannot be evaluated in the future." };

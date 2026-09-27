@@ -169,4 +169,3 @@
 - [ ] Run `npm run check` and confirm architecture, type checks, the full inherited suite, and build all pass.
 - [ ] Commit the implementation, push `action-space/steps16-18-experiment-eligibility-constraints`, and open a draft PR against `action-space/steps13-15-decision-forms`.
 - [ ] Attach the PR and wait for all GitHub checks.
-

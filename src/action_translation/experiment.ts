@@ -57,13 +57,13 @@ export function translateExperimentAction(
     return failure(action.actionId, "MISSING_CONTEXT", "EXPERIMENT_ELIGIBILITY_BOUNDARY", "Experiment translation requires TRANSLATION_TIME eligibility.");
   if (!hasCompleteEligibilityCheckManifest(action, "TRANSLATION_TIME", eligibility.checks))
     return failure(action.actionId, "INVALID_ACTION", "INCOMPLETE_EXPERIMENT_ELIGIBILITY", "Eligibility must contain the complete deterministic check manifest for this action and boundary.");
-  if (!hasMatchingRecomputedActionEligibility(action, eligibility, context.eligibilityEvaluationContext, context.eligibilityResourceRequirements))
-    return failure(action.actionId, "INVALID_ACTION", "EXPERIMENT_ELIGIBILITY_RECOMPUTATION_MISMATCH", "Experiment eligibility must exactly match a recomputation from the supplied raw evidence and resource requirements.");
   const approvedClock = context.timing && typeof context.timing === "object" && "approvedClock" in context.timing
     ? (context.timing as { approvedClock?: unknown }).approvedClock
     : undefined;
   if (typeof approvedClock !== "string" || context.eligibilityMaximumAgeSeconds === undefined)
     return failure(action.actionId, "MISSING_CONTEXT", "EXPERIMENT_ELIGIBILITY_FRESHNESS_REQUIRED", "An approved clock and maximum eligibility age are required.");
+  if (!hasMatchingRecomputedActionEligibility(action, eligibility, context.eligibilityEvaluationContext, context.eligibilityResourceRequirements, context.eligibilityMaximumAgeSeconds))
+    return failure(action.actionId, "INVALID_ACTION", "EXPERIMENT_ELIGIBILITY_RECOMPUTATION_MISMATCH", "Experiment eligibility must exactly match a recomputation from raw evidence under the gate freshness limit.");
   const evaluated = Date.parse(eligibility.evaluatedAt), approved = Date.parse(approvedClock);
   if (evaluated > approved)
     return failure(action.actionId, "MISSING_CONTEXT", "EXPERIMENT_ELIGIBILITY_FUTURE", "Eligibility evidence cannot be from the future.");

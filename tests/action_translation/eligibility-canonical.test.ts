@@ -5,6 +5,9 @@ import { immediatePersistentBudgetTiming } from "../../src/action_timing/fixture
 import { translateCanonicalAction } from "../../src/action_translation/canonical.js";
 import { evaluateActionEligibility, expectedEligibilityCheckManifest } from "../../src/action_eligibility/evaluate.js";
 import { fingerprintEligibilityAssessment } from "../../src/action_eligibility/integrity.js";
+import { adaptLegacyAction } from "../../src/canonical_action/legacy.js";
+import { increaseGoogleShoppingBudget20 } from "../../src/action_ontology/fixtures.js";
+import { evaluateEligibilityForTest } from "./eligibility-helper.js";
 
 const NOW = "2026-09-27T00:00:00Z";
 const base = canonicalActionSchema.parse({
@@ -90,5 +93,24 @@ describe("canonical atomic translation eligibility", () => {
     const forgedProjection = { ...actualProjection, status: "ELIGIBLE" as const, checks: actual.result.checks.map((check) => ({ ...check, status: "SATISFIED" as const, reasonCodes: ["CUSTOM_SATISFIED"] })) };
     const forged = { ...forgedProjection, assessmentFingerprint: fingerprintEligibilityAssessment(forgedProjection) };
     expect(translateCanonicalAction(constrained, context(forged, raw))).toMatchObject({ status: "INVALID_ACTION", code: "ACTION_ELIGIBILITY_RECOMPUTATION_MISMATCH" });
+  });
+
+  it.each(["legacy observation", "domain fact", "constraint receipt"] as const)("applies gate freshness to a stale %s when raw max age is omitted", (kind) => {
+    const actionValue = kind === "constraint receipt"
+      ? canonicalActionSchema.parse({ ...base, constraints: [{ constraintId: "atomic.policy", kind: "CUSTOM", target: { kind: "GLOBAL" }, evaluationBoundary: "TRANSLATION_TIME", whenUnknown: "UNKNOWN", registryRef: "atomic.policy", code: "ALLOWED" }] })
+      : adaptLegacyAction(increaseGoogleShoppingBudget20);
+    const generated = evaluateEligibilityForTest(actionValue, "TRANSLATION_TIME", NOW);
+    const staleAt = "2026-09-26T00:00:00Z";
+    const raw = structuredClone(generated.evaluationContext);
+    if (kind === "legacy observation") raw.observations[0]!.observedAt = staleAt;
+    else if (kind === "domain fact") raw.domainFacts[0]!.observedAt = staleAt;
+    else raw.constraintReceipts[0]!.observedAt = staleAt;
+    const withoutRawAgeLimit = evaluateActionEligibility({ action: actionValue, nativeConstraints: { constraints: actionValue.constraints, resourceRequirements: [] } }, raw);
+    expect(withoutRawAgeLimit.ok && withoutRawAgeLimit.result.status).toBe("ELIGIBLE");
+    if (!withoutRawAgeLimit.ok) return;
+    expect(translateCanonicalAction(actionValue, {
+      timing: { approvedClock: NOW }, eligibility: withoutRawAgeLimit.result, eligibilityEvaluationContext: raw,
+      eligibilityResourceRequirements: [], eligibilityMaximumAgeSeconds: 60,
+    })).toMatchObject({ status: "INVALID_ACTION", code: "ACTION_ELIGIBILITY_RECOMPUTATION_MISMATCH" });
   });
 });

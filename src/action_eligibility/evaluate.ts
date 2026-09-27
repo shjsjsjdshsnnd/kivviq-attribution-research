@@ -346,7 +346,15 @@ export function hasMatchingRecomputedActionEligibility(
   supplied: ActionEligibility,
   evaluationContext: unknown,
   resourceRequirements: unknown,
+  gateMaximumAgeSeconds: number,
 ): boolean {
+  if (evaluationContext === null || typeof evaluationContext !== "object" || Array.isArray(evaluationContext)) return false;
+  const rawMaximumAge = "maximumAgeSeconds" in evaluationContext && typeof evaluationContext.maximumAgeSeconds === "number"
+    ? evaluationContext.maximumAgeSeconds
+    : undefined;
+  const effectiveMaximumAgeSeconds = rawMaximumAge === undefined
+    ? gateMaximumAgeSeconds
+    : Math.min(rawMaximumAge, gateMaximumAgeSeconds);
   const recomputed = evaluateActionEligibility(
     {
       action,
@@ -355,7 +363,7 @@ export function hasMatchingRecomputedActionEligibility(
         resourceRequirements: resourceRequirements ?? [],
       },
     },
-    evaluationContext,
+    { ...evaluationContext, maximumAgeSeconds: effectiveMaximumAgeSeconds },
   );
   return recomputed.ok && stable(recomputed.result) === stable(supplied);
 }

@@ -236,11 +236,9 @@ export function assessCompoundActionReadiness(
             ? "UNKNOWN"
             : "ELIGIBLE";
         const manifestComplete = hasCompleteEligibilityCheckManifest(c.action, candidate.evaluationBoundary, candidate.checks);
-        const recomputationMatches = hasMatchingRecomputedActionEligibility(
-          c.action,
-          candidate,
-          context.eligibilityEvaluationContexts?.[c.componentId],
-          context.eligibilityResourceRequirements?.[c.componentId],
+        const recomputationMatches = context.eligibilityMaximumAgeSeconds === undefined || hasMatchingRecomputedActionEligibility(
+          c.action, candidate, context.eligibilityEvaluationContexts?.[c.componentId],
+          context.eligibilityResourceRequirements?.[c.componentId], context.eligibilityMaximumAgeSeconds,
         );
         const identityMismatch =
           candidate.actionId !== c.action.actionId ||
