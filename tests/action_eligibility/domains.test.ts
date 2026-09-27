@@ -3,7 +3,7 @@ import { adaptLegacyAction } from "../../src/canonical_action/legacy.js";
 import { fingerprintCanonicalAction } from "../../src/canonical_action/serialization.js";
 import {
   canonicalEligibilityTargetRef,
-  evaluateActionEligibility,
+  evaluateActionEligibility as evaluateActionEligibilityRaw,
   type DomainEligibilityFact,
 } from "../../src/action_eligibility/index.js";
 import { reorderSkuA100, reorderSkuB50SupplierX } from "../../src/inventory/fixtures.js";
@@ -11,6 +11,10 @@ import { googleBudgetUp2000, metaBudgetDown2000 } from "../../src/action_transla
 import { actionTypeIsolationScenarios, domainAdapterScenarios, hardConstraintEligibilityScenarios, inventoryAvailabilityScenarios } from "../../src/action_eligibility/fixtures.js";
 
 const NOW = "2026-09-27T12:00:00.000Z";
+
+function evaluateActionEligibility(input: unknown, context: unknown) {
+  return evaluateActionEligibilityRaw(input, { evaluationBoundary: "DECISION_TIME", ...(context as object) });
+}
 
 function fact(
   action: ReturnType<typeof adaptLegacyAction>,
@@ -149,6 +153,17 @@ describe("evidence-derived domain eligibility", () => {
     const denied = evaluateActionEligibility({ action }, { evaluatedAt: NOW, observations: [], domainFacts: deniedFacts });
     expect(denied.ok && denied.result.status).toBe("INELIGIBLE");
     expect(denied.ok && denied.result.checks.some((check) => check.kind === "DOMAIN_RULE" && check.status === "VIOLATED")).toBe(true);
+  });
+
+  it("requires the first flow step's channel and contact policy evidence", () => {
+    const scenario = domainAdapterScenarios.find((entry) => entry.family === "lifecycle_flow")!;
+    for (const [factId, checkId] of [["CHANNEL_AVAILABLE", "domain.lifecycle.channel_available"], ["CONTACT_POLICY_ALLOWS", "domain.lifecycle.contact_policy"]] as const) {
+      const missing = evaluateActionEligibility({ action: scenario.action }, { evaluationBoundary: "DECISION_TIME", evaluatedAt: NOW, observations: [], domainFacts: scenario.facts.filter((fact) => fact.factId !== factId) });
+      expect(missing.ok && missing.result.status).toBe("UNKNOWN");
+      const denied = evaluateActionEligibility({ action: scenario.action }, { evaluationBoundary: "DECISION_TIME", evaluatedAt: NOW, observations: [], domainFacts: scenario.facts.map((fact) => fact.factId === factId ? { ...fact, value: false } : fact) });
+      expect(denied.ok && denied.result.status).toBe("INELIGIBLE");
+      expect(denied.ok && denied.result.checks.find((check) => check.checkId === checkId)?.status).toBe("VIOLATED");
+    }
   });
 
   it.each(actionTypeIsolationScenarios)("does not impose unrelated $excludedFactId evidence", ({ action, facts, excludedFactId }) => {

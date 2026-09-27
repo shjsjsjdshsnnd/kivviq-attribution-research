@@ -2,6 +2,7 @@ import { z } from "zod";
 import type { CanonicalAction } from "../canonical_action/schema.js";
 import { fingerprintCanonicalAction } from "../canonical_action/serialization.js";
 import type { EligibilityCheck } from "./schema.js";
+import { lifecycleWhatSchema } from "../lifecycle/canonical.js";
 
 const ref = z.string().min(1);
 const utcZ = z.string().datetime().regex(/Z$/);
@@ -36,7 +37,7 @@ export const domainEligibilityFactSchema = z.object({
   actionId: ref,
   actionFingerprint: ref,
   targetRef: z.string().regex(/^eligibility-target:fnv1a64:[0-9a-f]{16}$/),
-  evaluationBoundary: z.literal("DECISION_TIME"),
+  evaluationBoundary: z.enum(["DECISION_TIME", "TRANSLATION_TIME", "EFFECTIVE_TIME"]),
   observedAt: utcZ,
   sourceRef: ref,
   provenance: z.array(ref).min(1),
@@ -95,10 +96,6 @@ const actionTypeRequirements: Readonly<Record<string, readonly Requirement[]>> =
     { factId: "CHANNEL_AVAILABLE", suffix: "channel_available", trueReason: "CHANNEL_AVAILABLE", falseReason: "CHANNEL_UNAVAILABLE" },
     { factId: "CONTACT_POLICY_ALLOWS", suffix: "contact_policy", trueReason: "CONTACT_POLICY_ALLOWS", falseReason: "CONTACT_POLICY_BLOCKS" },
   ],
-  "lifecycle.start_flow": [
-    { factId: "AUDIENCE_AVAILABLE", suffix: "audience_available", trueReason: "AUDIENCE_AVAILABLE", falseReason: "AUDIENCE_UNAVAILABLE" },
-    { factId: "CONSENT_AVAILABLE", suffix: "consent_available", trueReason: "CONSENT_AVAILABLE", falseReason: "CONSENT_UNAVAILABLE" },
-  ],
 });
 
 function actionTypeOf(action: CanonicalAction): string | undefined {
@@ -125,14 +122,24 @@ export function evaluateDomainEligibility(input: {
   action: CanonicalAction;
   targetRef: string;
   evaluatedAt: string;
+  evaluationBoundary: DomainEligibilityFact["evaluationBoundary"];
   maximumAgeSeconds?: number;
   facts: readonly DomainEligibilityFact[];
 }): EligibilityCheck[] {
   const family = familyOf(input.action);
   if (!family) return [];
   const fingerprint = fingerprintCanonicalAction(input.action);
-  const bound = input.facts.filter((fact) => fact.actionId === input.action.actionId && fact.actionFingerprint === fingerprint && fact.targetRef === input.targetRef && fact.evaluationBoundary === "DECISION_TIME");
-  const requirements = [...registry[family], ...(actionTypeRequirements[actionTypeOf(input.action) ?? ""] ?? [])];
+  const bound = input.facts.filter((fact) => fact.actionId === input.action.actionId && fact.actionFingerprint === fingerprint && fact.targetRef === input.targetRef && fact.evaluationBoundary === input.evaluationBoundary);
+  const actionType = actionTypeOf(input.action);
+  const requirements = [...registry[family], ...(actionTypeRequirements[actionType ?? ""] ?? [])];
+  const lifecycle = lifecycleWhatSchema.safeParse(input.action.what);
+  if (actionType === "lifecycle.start_flow" && lifecycle.success && lifecycle.data.actionType === "lifecycle.start_flow") {
+    const firstStep = lifecycle.data.flow.steps[0];
+    requirements.push({ factId: "AUDIENCE_AVAILABLE", suffix: "audience_available", trueReason: "AUDIENCE_AVAILABLE", falseReason: "AUDIENCE_UNAVAILABLE" });
+    if (firstStep?.eligibility.includes("consent")) requirements.push({ factId: "CONSENT_AVAILABLE", suffix: "consent_available", trueReason: "CONSENT_AVAILABLE", falseReason: "CONSENT_UNAVAILABLE" });
+    if (firstStep?.eligibility.includes("valid_destination")) requirements.push({ factId: "CHANNEL_AVAILABLE", suffix: "channel_available", trueReason: "CHANNEL_AVAILABLE", falseReason: "CHANNEL_UNAVAILABLE" });
+    if (firstStep?.suppression.some((entry) => entry.includes("contact"))) requirements.push({ factId: "CONTACT_POLICY_ALLOWS", suffix: "contact_policy", trueReason: "CONTACT_POLICY_ALLOWS", falseReason: "CONTACT_POLICY_BLOCKS" });
+  }
   return requirements.map((requirement): EligibilityCheck => {
     const checkId = `domain.${family}.${requirement.suffix}`;
     const matches = bound.filter((fact) => fact.factId === requirement.factId);

@@ -92,6 +92,8 @@ const merchandisingAction = adaptLegacyAction(featureProductAHomepage);
 const croAction = adaptLegacyAction(modifyHomepageHeroPresentation);
 const lifecycleAction = createCanonicalFixtures().find((fixture) => fixture.number === 1)?.action;
 if (!lifecycleAction) throw new Error("Missing canonical lifecycle fixture");
+const lifecycleFlowAction = createCanonicalFixtures().find((fixture) => fixture.number === 6)?.action;
+if (!lifecycleFlowAction) throw new Error("Missing canonical lifecycle flow fixture");
 
 export const domainAdapterScenarios = [
   {
@@ -123,6 +125,12 @@ export const domainAdapterScenarios = [
     action: lifecycleAction,
     representativeFactId: "CONSENT_AVAILABLE" as const,
     facts: facts(lifecycleAction, ["ACTION_FAMILY_CAPABILITY", "AUDIENCE_AVAILABLE", "CONSENT_AVAILABLE", "CHANNEL_AVAILABLE", "CONTACT_POLICY_ALLOWS"]),
+  },
+  {
+    family: "lifecycle_flow",
+    action: lifecycleFlowAction,
+    representativeFactId: "CONSENT_AVAILABLE" as const,
+    facts: facts(lifecycleFlowAction, ["ACTION_FAMILY_CAPABILITY", "AUDIENCE_AVAILABLE", "CONSENT_AVAILABLE", "CHANNEL_AVAILABLE", "CONTACT_POLICY_ALLOWS"]),
   },
 ] as const;
 

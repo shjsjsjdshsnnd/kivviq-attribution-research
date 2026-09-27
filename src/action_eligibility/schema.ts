@@ -40,6 +40,7 @@ export const actionEligibilitySchema = z
     actionId: refSchema,
     actionFingerprint: refSchema,
     evaluatedAt: utcZSchema,
+    evaluationBoundary: z.enum(["DECISION_TIME", "TRANSLATION_TIME", "EFFECTIVE_TIME"]),
     status: z.enum(["ELIGIBLE", "INELIGIBLE", "UNKNOWN"]),
     checks: z.array(eligibilityCheckSchema),
   })

@@ -53,7 +53,7 @@ function evaluateActionEligibility(input: unknown, context: unknown) {
   if (input && typeof input === "object" && "action" in input && context && typeof context === "object") {
     try {
       const candidate = (input as { action: ReturnType<typeof action> }).action;
-      return evaluateActionEligibilityRaw(input, { ...context, domainFacts: domainFacts(candidate) });
+      return evaluateActionEligibilityRaw(input, { evaluationBoundary: "DECISION_TIME", ...context, domainFacts: domainFacts(candidate) });
     } catch {
       return evaluateActionEligibilityRaw(input, context);
     }
@@ -386,5 +386,41 @@ describe("evaluateActionEligibility", () => {
     expect(result.ok).toBe(true);
     if (!result.ok) return;
     expect(actionEligibilitySchema.safeParse({ ...result.result, extra: true }).success).toBe(false);
+  });
+
+  it("evaluates only constraints and receipts at the selected boundary", () => {
+    const candidate = action({ constraints: [], preconditions: [] });
+    const target = { kind: "SKU" as const, ref: "sku:A" };
+    const constraint = (constraintId: string, evaluationBoundary: "DECISION_TIME" | "TRANSLATION_TIME") => ({
+      constraintId,
+      kind: "PRICE_FLOOR" as const,
+      target,
+      evaluationBoundary,
+      whenUnknown: "UNKNOWN" as const,
+      valueBasis: "PROJECTED_AFTER_ACTION" as const,
+      comparator: "GTE" as const,
+      threshold: { valueType: "MONEY" as const, amountMinor: 8_000, currency: "CAD" },
+      observedValue: { kind: "FACT" as const, ref: "resulting.price" },
+    });
+    const receipt = (constraintId: string, evaluationBoundary: "DECISION_TIME" | "TRANSLATION_TIME", amountMinor: number) => ({
+      evidenceRef: `evidence.${constraintId}`,
+      actionId: candidate.actionId,
+      actionFingerprint: fingerprintCanonicalAction(candidate),
+      observedAt: "2026-09-21T13:05:00Z",
+      sourceRef: "merchant_state",
+      provenance: ["snapshot:1"],
+      constraintId,
+      target,
+      evaluationBoundary,
+      fact: { kind: "VALUE" as const, valueRef: { kind: "FACT" as const, ref: "resulting.price" }, valueBasis: "PROJECTED_AFTER_ACTION" as const, value: { valueType: "MONEY" as const, amountMinor, currency: "CAD" } },
+    });
+    const input = { action: candidate, nativeConstraints: { constraints: [constraint("decision.floor", "DECISION_TIME"), constraint("translation.floor", "TRANSLATION_TIME")], resourceRequirements: [] } };
+    const context = { evaluatedAt, observations: [], constraintReceipts: [receipt("decision.floor", "DECISION_TIME", 8_000), receipt("translation.floor", "TRANSLATION_TIME", 7_000)] };
+    const decision = evaluateActionEligibilityRaw(input, { ...context, evaluationBoundary: "DECISION_TIME", domainFacts: domainFacts(candidate) });
+    expect(decision.ok && decision.result).toMatchObject({ evaluationBoundary: "DECISION_TIME", status: "ELIGIBLE" });
+    expect(decision.ok && decision.result.checks.some((check) => check.checkId === "translation.floor")).toBe(false);
+    const translation = evaluateActionEligibilityRaw(input, { ...context, evaluationBoundary: "TRANSLATION_TIME", domainFacts: domainFacts(candidate).map((fact) => ({ ...fact, evaluationBoundary: "TRANSLATION_TIME" as const })) });
+    expect(translation.ok && translation.result).toMatchObject({ evaluationBoundary: "TRANSLATION_TIME", status: "INELIGIBLE" });
+    expect(translation.ok && translation.result.checks.some((check) => check.checkId === "decision.floor")).toBe(false);
   });
 });
