@@ -3082,7 +3082,7 @@ export function simulateWorld(
         ? {}
         : {
             externalReality:
-              externalReality?.godModeTruth(),
+              externalReality!.godModeTruth(),
           }),
       ...(request.commercePolicy
         ?.websiteScenario === undefined
