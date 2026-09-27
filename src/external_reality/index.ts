@@ -138,11 +138,25 @@ export interface ExternalSignalObservation {
   readonly signal: string;
 }
 
+export interface ExternalEffectApplication {
+  readonly applicationId: string;
+  readonly occurredAt: string;
+  readonly target: ExternalTarget;
+  readonly context: ExternalContext;
+  readonly multiplier: number;
+  readonly contributions: readonly ExternalEffectContribution[];
+}
+
 export interface ExternalRealityGodModeTruth {
   readonly modelVersion: typeof EXTERNAL_REALITY_MODEL_VERSION;
   readonly environmentId: string;
   readonly seed: number;
   readonly events: readonly ExternalEvent[];
+  /**
+   * Realized applications only. Declared-but-never-applied effects remain in
+   * events but do not appear in this ledger.
+   */
+  readonly applications: readonly ExternalEffectApplication[];
 }
 
 export const CANONICAL_EXTERNAL_EVENT_KINDS: readonly ExternalEventKind[] = [
@@ -578,6 +592,7 @@ export function projectExternalObservations(
 
 export function externalRealityGodModeTruth(
   environment: ExternalEnvironment,
+  applications: readonly ExternalEffectApplication[] = [],
 ): ExternalRealityGodModeTruth {
   validateExternalEnvironment(environment);
   return {
@@ -585,6 +600,7 @@ export function externalRealityGodModeTruth(
     environmentId: environment.environmentId,
     seed: environment.seed,
     events: environment.events,
+    applications: [...applications],
   };
 }
 
@@ -594,6 +610,8 @@ export function externalRealityGodModeTruth(
  */
 export class ExternalRealityRuntime {
   private readonly streams: SharedRandomness;
+  private readonly applicationById =
+    new Map<string, ExternalEffectApplication>();
 
   public constructor(
     public readonly environment: ExternalEnvironment,
@@ -654,6 +672,47 @@ export class ExternalRealityRuntime {
     ).multiplier;
   }
 
+  public applyAt(
+    applicationId: string,
+    target: ExternalTarget,
+    timestampMs: number,
+    context: ExternalContext = {},
+  ): number {
+    if (!applicationId.trim()) {
+      throw new RangeError(
+        "external application id must be nonempty",
+      );
+    }
+    const resolved = this.resolveAt(
+      target,
+      timestampMs,
+      context,
+    );
+    if (resolved.contributions.length > 0) {
+      const next: ExternalEffectApplication = {
+        applicationId,
+        occurredAt: new Date(timestampMs).toISOString(),
+        target,
+        context,
+        multiplier: resolved.multiplier,
+        contributions: resolved.contributions,
+      };
+      const existing =
+        this.applicationById.get(applicationId);
+      if (
+        existing !== undefined &&
+        JSON.stringify(existing) !==
+          JSON.stringify(next)
+      ) {
+        throw new RangeError(
+          `external application id reused with different resolution: ${applicationId}`,
+        );
+      }
+      this.applicationById.set(applicationId, next);
+    }
+    return resolved.multiplier;
+  }
+
   public multiplier(
     target: ExternalTarget,
     context: ExternalContext = {},
@@ -670,6 +729,22 @@ export class ExternalRealityRuntime {
     return projectExternalObservations(
       this.environment,
       this.clock.nowMs,
+    );
+  }
+
+  public applications(): readonly ExternalEffectApplication[] {
+    return [...this.applicationById.values()].sort(
+      (a, b) =>
+        Date.parse(a.occurredAt) -
+          Date.parse(b.occurredAt) ||
+        a.applicationId.localeCompare(b.applicationId),
+    );
+  }
+
+  public godModeTruth(): ExternalRealityGodModeTruth {
+    return externalRealityGodModeTruth(
+      this.environment,
+      this.applications(),
     );
   }
 }
