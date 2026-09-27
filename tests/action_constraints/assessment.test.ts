@@ -88,6 +88,39 @@ describe("assessHardConstraints", () => {
     expect(stale.assessments[0]?.reasonCode).toBe("STALE_EVIDENCE");
   });
 
+  it("fails closed for duplicate exact bindings regardless of receipt order", () => {
+    const satisfied = receipt({ evidenceRef: "evidence.high" });
+    const violated = receipt({
+      evidenceRef: "evidence.low",
+      fact: {
+        ...receipt().fact,
+        value: { valueType: "MONEY", amountMinor: 7000, currency: "CAD" },
+      },
+    });
+    for (const receipts of [[satisfied, violated], [violated, satisfied]]) {
+      const report = assessHardConstraints(
+        { ...identity, constraints: [floor], resourceRequirements: [] },
+        { evaluatedAt: at, receipts },
+      );
+      expect(report.assessments[0]).toMatchObject({
+        status: "UNKNOWN",
+        reasonCode: "AMBIGUOUS_BOUND_EVIDENCE",
+        evidenceRefs: ["evidence.high", "evidence.low"],
+      });
+    }
+  });
+
+  it("rejects duplicate evidence identities and provenance entries", () => {
+    expect(() => constraintAssessmentContextSchema.parse({
+      evaluatedAt: at,
+      receipts: [receipt(), receipt({ constraintId: "other" })],
+    })).toThrow(/Duplicate evidenceRef/);
+    expect(() => constraintAssessmentContextSchema.parse({
+      evaluatedAt: at,
+      receipts: [receipt({ provenance: ["source.same", "source.same"] })],
+    })).toThrow(/Duplicate provenance/);
+  });
+
   it("reports a literal contradiction even when a caller includes a status claim", () => {
     const low = receipt({
       status: "SATISFIED",

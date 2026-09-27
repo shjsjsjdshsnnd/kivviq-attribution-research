@@ -38,7 +38,13 @@ const evidenceCommon = {
   evaluationBoundary: evaluationBoundarySchema,
   observedAt: z.string().datetime(),
   sourceRef: constraintReferenceSchema,
-  provenance: z.array(identitySchema).min(1),
+  provenance: z.array(identitySchema).min(1).superRefine((values, context) => {
+    const seen = new Set<string>();
+    values.forEach((value, index) => {
+      if (seen.has(value)) context.addIssue({ code: z.ZodIssueCode.custom, path: [index], message: `Duplicate provenance entry: ${value}` });
+      seen.add(value);
+    });
+  }),
   maximumAgeSeconds: z.number().int().nonnegative().safe().optional(),
 };
 
@@ -52,7 +58,13 @@ export const constraintEvidenceReceiptSchema = z.union([
 export const constraintAssessmentContextSchema = z.object({
   evaluatedAt: z.string().datetime(),
   maximumAgeSeconds: z.number().int().nonnegative().safe().optional(),
-  receipts: z.array(constraintEvidenceReceiptSchema),
+  receipts: z.array(constraintEvidenceReceiptSchema).superRefine((receipts, context) => {
+    const seen = new Set<string>();
+    receipts.forEach((receipt, index) => {
+      if (seen.has(receipt.evidenceRef)) context.addIssue({ code: z.ZodIssueCode.custom, path: [index, "evidenceRef"], message: `Duplicate evidenceRef: ${receipt.evidenceRef}` });
+      seen.add(receipt.evidenceRef);
+    });
+  }),
 }).strict();
 
 const resourceRequirementSchema = z.object({
@@ -167,14 +179,23 @@ function receiptFreshness(receipt: ConstraintEvidenceReceipt, context: Constrain
   return undefined;
 }
 
-function selectReceipt(input: HardConstraintAssessmentInput, constraint: HardConstraint, context: ConstraintAssessmentContext): ConstraintEvidenceReceipt | undefined {
-  return context.receipts.find((receipt) => receipt.actionId === input.actionId && receipt.actionFingerprint === input.actionFingerprint && receipt.constraintId === constraint.constraintId && receipt.evaluationBoundary === constraint.evaluationBoundary && sameTarget(receipt.target, constraint.target));
+function selectReceipts(input: HardConstraintAssessmentInput, constraint: HardConstraint, context: ConstraintAssessmentContext): ConstraintEvidenceReceipt[] {
+  return context.receipts.filter((receipt) => receipt.actionId === input.actionId && receipt.actionFingerprint === input.actionFingerprint && receipt.constraintId === constraint.constraintId && receipt.evaluationBoundary === constraint.evaluationBoundary && sameTarget(receipt.target, constraint.target));
 }
 
 function assessOne(input: HardConstraintAssessmentInput, constraint: HardConstraint, context: ConstraintAssessmentContext): ConstraintAssessment {
   const base = baseAssessment(input, constraint, context.evaluatedAt);
-  const receipt = selectReceipt(input, constraint, context);
-  if (!receipt) return base;
+  const receipts = selectReceipts(input, constraint, context);
+  if (receipts.length === 0) return base;
+  if (receipts.length > 1) {
+    return {
+      ...base,
+      reasonCode: "AMBIGUOUS_BOUND_EVIDENCE",
+      evidenceRefs: receipts.map(({ evidenceRef }) => evidenceRef).sort(),
+      provenance: [...new Set(receipts.flatMap(({ provenance }) => provenance))].sort(),
+    };
+  }
+  const receipt = receipts[0]!;
   const assessment = withReceipt(base, receipt);
   const freshness = receiptFreshness(receipt, context);
   if (freshness) return { ...assessment, reasonCode: freshness };
