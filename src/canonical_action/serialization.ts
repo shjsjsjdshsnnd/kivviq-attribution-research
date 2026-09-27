@@ -47,7 +47,13 @@ export function fingerprintCanonicalAction(input: CanonicalAction): string {
       what: semanticWhat,
       population,
       timing: canonicalizeTiming(timing),
-      ...(constraints.length > 0 ? { constraints } : {}),
+      ...(constraints.length > 0
+        ? {
+            constraints: [...constraints].sort((left, right) =>
+              left.constraintId.localeCompare(right.constraintId),
+            ),
+          }
+        : {}),
     }),
   );
   let hash = 0xcbf29ce484222325n;

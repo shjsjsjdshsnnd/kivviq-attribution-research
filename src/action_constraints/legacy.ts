@@ -49,6 +49,23 @@ function validateComparableBounds(constraints: readonly ActionConstraint[]): voi
     const numeric = expressions.filter((expression) => typeof primitive(expression.value).amount === "number");
     const lowers = numeric.filter((expression) => expression.operator === "GT" || expression.operator === "GTE");
     const uppers = numeric.filter((expression) => expression.operator === "LT" || expression.operator === "LTE");
+    const equalities = expressions.filter((expression) => expression.operator === "EQ");
+    const equalityValues = new Set(equalities.map((expression) => String(primitive(expression.value).amount)));
+    if (equalityValues.size > 1) throw new Error(`Contradictory legacy equality bounds for ${propertyId}`);
+    for (const equality of equalities) {
+      const exact = primitive(equality.value).amount;
+      if (typeof exact !== "number") continue;
+      for (const lower of lowers) {
+        const low = primitive(lower.value).amount as number;
+        if (exact < low || (exact === low && lower.operator === "GT"))
+          throw new Error(`Contradictory legacy equality and lower bound for ${propertyId}`);
+      }
+      for (const upper of uppers) {
+        const high = primitive(upper.value).amount as number;
+        if (exact > high || (exact === high && upper.operator === "LT"))
+          throw new Error(`Contradictory legacy equality and upper bound for ${propertyId}`);
+      }
+    }
     for (const lower of lowers) for (const upper of uppers) {
       const low = primitive(lower.value).amount as number, high = primitive(upper.value).amount as number;
       if (low > high || (low === high && (lower.operator === "GT" || upper.operator === "LT")))

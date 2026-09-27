@@ -40,6 +40,26 @@ describe("canonical hard-constraint integration", () => {
     expect(fingerprintCanonicalAction({ ...constrained, provenance: ["different_source"] })).toBe(fingerprintCanonicalAction(constrained));
   });
 
+  it("treats constraint definition order as semantically irrelevant", () => {
+    const action = createCanonicalFixtures()[0]!.action!;
+    const discount = {
+      constraintId: "canonical.discount.maximum",
+      kind: "MAXIMUM_DISCOUNT" as const,
+      target: { kind: "GLOBAL" as const },
+      evaluationBoundary: "DECISION_TIME" as const,
+      whenUnknown: "UNKNOWN" as const,
+      valueBasis: "PROJECTED_AFTER_ACTION" as const,
+      comparator: "LTE" as const,
+      threshold: { valueType: "PERCENTAGE" as const, basisPoints: 2_000 },
+      observedValue: { kind: "FACT" as const, ref: "resulting.discount" },
+    };
+    const forward = canonicalActionSchema.parse({ ...action, constraints: [floor, discount] });
+    const reversed = canonicalActionSchema.parse({ ...action, constraints: [discount, floor] });
+    expect(fingerprintCanonicalAction(forward)).toBe(fingerprintCanonicalAction(reversed));
+    const changed = canonicalActionSchema.parse({ ...action, constraints: [floor, { ...discount, threshold: { ...discount.threshold, basisPoints: 2_001 } }] });
+    expect(fingerprintCanonicalAction(changed)).not.toBe(fingerprintCanonicalAction(forward));
+  });
+
   it("maps recognized legacy margin comparisons exactly during adaptation", () => {
     const mapped = mapLegacyHardConstraints(reduceSkuA10WithGrossMargin35Floor);
     expect(mapped).toEqual([
@@ -95,5 +115,26 @@ describe("canonical hard-constraint integration", () => {
     const action = createCanonicalFixtures()[0]!.action!;
     expect(canonicalActionSchema.safeParse({ ...action, constraints: [{ ...floor, target: { kind: "SKU", ref: "" } }] }).success).toBe(false);
     expect(canonicalActionSchema.safeParse({ ...action, constraints: [floor, floor] }).success).toBe(false);
+  });
+
+  it.each([
+    [["EQ", 5], ["GTE", 6]],
+    [["EQ", 5], ["EQ", 6]],
+    [["GTE", 6], ["LTE", 5]],
+  ] as const)("rejects contradictory legacy equality and range bounds %#", (left, right) => {
+    const candidate = structuredClone(reduceSkuA10WithGrossMargin35Floor) as Action;
+    (candidate.constraints as Action["constraints"] & ActionConstraint[]).splice(0, candidate.constraints.length,
+      {
+        constraintId: "bound.left" as never,
+        constraintClass: "hard",
+        expression: { kind: "property_comparison", propertyId: "finance.gross_margin_rate", operator: left[0], value: { kind: "percentage", basisPoints: left[1] } },
+      },
+      {
+        constraintId: "bound.right" as never,
+        constraintClass: "hard",
+        expression: { kind: "property_comparison", propertyId: "finance.gross_margin_rate", operator: right[0], value: { kind: "percentage", basisPoints: right[1] } },
+      },
+    );
+    expect(() => mapLegacyHardConstraints(candidate)).toThrow(/contradict|minimum exceeds maximum|equality/i);
   });
 });
