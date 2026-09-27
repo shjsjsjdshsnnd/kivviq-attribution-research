@@ -9,11 +9,23 @@ import {
   fingerprintPopulationDefinition,
 } from "../population/index.js";
 import type { TranslationFailure } from "./types.js";
+import {
+  ACTION_TRANSLATION_VERSION,
+  type TranslationResult,
+  type TranslationOrigin,
+} from "./types.js";
+import { fingerprintCanonicalAction } from "../canonical_action/serialization.js";
+import { decisionWhatSchema } from "../decision_forms/index.js";
+import { validateInvestigationExecutionHorizon } from "../decision_forms/timing.js";
+import { translateResolvedLegacyBusiness } from "./canonical-legacy.js";
+import type { CanonicalAction } from "../canonical_action/schema.js";
+import type { TimingResolution } from "../action_timing/types.js";
 
 const timestamp = z.string().datetime({ offset: true });
-const contextSchema = z
+export const canonicalTranslationContextSchema = z
   .object({
     timing: z.unknown().optional(),
+    simulator: z.unknown().optional(),
     populations: z.array(populationDefinitionSchema).optional(),
     evaluations: z.array(populationEvaluationSchema).optional(),
     snapshots: z.array(populationSnapshotSchema).optional(),
@@ -29,12 +41,18 @@ const contextSchema = z
       .optional(),
   })
   .strict();
-/** No simulator supports these complete semantics yet. Resolve evidence before
- * reporting unsupported capability, and never invent effects or broadcasts. */
-export function translateCanonicalAction(
+/** Resolution and eligibility are independent of simulator capability. */
+export function resolveCanonicalTranslationContext(
   input: unknown,
   contextInput: unknown,
-): TranslationFailure {
+):
+  | TranslationFailure
+  | {
+      status: "RESOLVED";
+      action: CanonicalAction;
+      context: z.infer<typeof canonicalTranslationContextSchema>;
+      resolution: TimingResolution;
+    } {
   const parsed = canonicalActionSchema.safeParse(input);
   if (!parsed.success)
     return {
@@ -53,7 +71,7 @@ export function translateCanonicalAction(
     message,
     actionId: action.actionId,
   });
-  const checked = contextSchema.safeParse(contextInput);
+  const checked = canonicalTranslationContextSchema.safeParse(contextInput);
   if (!checked.success)
     return fail(
       "MISSING_CONTEXT",
@@ -147,9 +165,87 @@ export function translateCanonicalAction(
         );
     }
   }
-  return fail(
-    "UNSUPPORTED_SIMULATOR_CAPABILITY",
-    "CANONICAL_SEMANTICS_UNSUPPORTED",
-    "The simulator has no adapter preserving this Action’s lifecycle, population and universal timing semantics.",
-  );
+  return { status: "RESOLVED" as const, action, context, resolution };
+}
+
+export function translateCanonicalAction(
+  input: unknown,
+  contextInput: unknown,
+  origin?: TranslationOrigin,
+): TranslationResult {
+  const gate = resolveCanonicalTranslationContext(input, contextInput);
+  if (gate.status !== "RESOLVED") return gate as TranslationFailure;
+  const { action, context, resolution } = gate;
+  const decision = decisionWhatSchema.safeParse(action.what);
+  const common = {
+    status: "TRANSLATED" as const,
+    originatingBusinessActionId:
+      origin?.originatingBusinessActionId ?? action.actionId,
+    translationVersion: ACTION_TRANSLATION_VERSION,
+    interventions: [],
+  };
+  if (decision.success) {
+    if (decision.data.actionType === "investigation.inspect") {
+      const horizon = validateInvestigationExecutionHorizon(
+        decision.data,
+        action.timing,
+        context.timing as ActionTimingResolutionContext,
+      );
+      if (horizon.status !== "VALID")
+        return {
+          status:
+            horizon.status === "INVALID" ? "INVALID_ACTION" : "MISSING_CONTEXT",
+          actionId: action.actionId,
+          code: horizon.code,
+          message:
+            "Investigation execution must resolve within its maximum horizon.",
+        };
+    }
+    switch (decision.data.actionType) {
+      case "no_op.do_nothing":
+        return { ...common, decisionType: "NO_OP" };
+      case "no_op.wait_observe":
+        return {
+          ...common,
+          decisionType: "WAIT_OBSERVE",
+          observationRequests: [
+            {
+              actionId: action.actionId,
+              actionFingerprint: fingerprintCanonicalAction(action),
+              specification: decision.data,
+              timing: action.timing,
+              ...(action.population ? { population: action.population } : {}),
+            },
+          ],
+        };
+      case "investigation.inspect":
+        return {
+          ...common,
+          decisionType: "INVESTIGATE",
+          informationTasks: [
+            {
+              actionId: action.actionId,
+              actionFingerprint: fingerprintCanonicalAction(action),
+              specification: decision.data,
+              timing: action.timing,
+              ...(action.population ? { population: action.population } : {}),
+            },
+          ],
+        };
+    }
+  }
+  if ("kind" in action.what && action.what.kind === "legacy_business")
+    return translateResolvedLegacyBusiness(
+      action,
+      resolution,
+      context.simulator,
+      origin,
+    );
+  return {
+    actionId: action.actionId,
+    status: "UNSUPPORTED_SIMULATOR_CAPABILITY",
+    code: "CANONICAL_SEMANTICS_UNSUPPORTED",
+    message:
+      "The simulator has no adapter preserving this Action’s lifecycle, population and universal timing semantics.",
+  };
 }
