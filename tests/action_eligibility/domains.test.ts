@@ -143,6 +143,24 @@ describe("evidence-derived domain eligibility", () => {
     expect(result.ok && result.result.checks.find((check) => check.checkId === "domain.paid_media.channel_enabled")?.reasonCodes).toEqual(["AMBIGUOUS_BOUND_DOMAIN_FACT"]);
   });
 
+  it("returns an ambiguous check for byte-identical domain facts without throwing", () => {
+    const action = adaptLegacyAction(metaBudgetDown2000);
+    const duplicate = fact(action, "CHANNEL_MERCHANT_ENABLED", true);
+    expect(() => evaluateActionEligibility(
+      { action },
+      { evaluatedAt: NOW, observations: [], domainFacts: [duplicate, structuredClone(duplicate)] },
+    )).not.toThrow();
+    const result = evaluateActionEligibility(
+      { action },
+      { evaluatedAt: NOW, observations: [], domainFacts: [duplicate, structuredClone(duplicate)] },
+    );
+    expect(result.ok && result.result.checks.find((check) => check.checkId === "domain.paid_media.channel_enabled")).toMatchObject({
+      status: "UNKNOWN",
+      reasonCodes: ["AMBIGUOUS_BOUND_DOMAIN_FACT"],
+      evidenceRefs: [duplicate.evidenceRef],
+    });
+  });
+
   it.each(domainAdapterScenarios)("evaluates $family applicability from bound facts", ({ action, facts, representativeFactId }) => {
     const eligible = evaluateActionEligibility({ action }, { evaluatedAt: NOW, observations: [], domainFacts: facts });
     expect(eligible.ok && eligible.result.status).toBe("ELIGIBLE");

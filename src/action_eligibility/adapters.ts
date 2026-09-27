@@ -155,7 +155,7 @@ export function evaluateDomainEligibility(input: {
     const checkId = `domain.${family}.${requirement.suffix}`;
     const matches = bound.filter((fact) => fact.factId === requirement.factId && fact.ruleRef === requirement.ruleRef);
     if (matches.length === 0) return unknown(checkId, ["MISSING_BOUND_DOMAIN_FACT"]);
-    if (matches.length > 1) return unknown(checkId, ["AMBIGUOUS_BOUND_DOMAIN_FACT"], matches.map((fact) => fact.evidenceRef).sort());
+    if (matches.length > 1) return unknown(checkId, ["AMBIGUOUS_BOUND_DOMAIN_FACT"], [...new Set(matches.map((fact) => fact.evidenceRef))].sort());
     const fact = matches[0]!;
     const observed = Date.parse(fact.observedAt);
     const evaluated = Date.parse(input.evaluatedAt);
