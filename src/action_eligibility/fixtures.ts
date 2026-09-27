@@ -52,6 +52,31 @@ export const activeInventoryProductFacts = discontinuedInventoryProductFacts.map
   fact.factId === "TARGET_ACTIVE" ? { ...fact, value: true, evidenceRef: "domain-evidence:target_active:active" } : fact,
 );
 
+export const inventoryAvailabilityScenarios = [
+  {
+    action: inventoryIncreaseSkuA,
+    factId: "SUPPLIER_AVAILABLE" as const,
+    checkId: "domain.inventory.supplier_available",
+    reasonCode: "SUPPLIER_UNAVAILABLE",
+    facts: activeInventoryProductFacts.map((fact) =>
+      fact.factId === "SUPPLIER_AVAILABLE"
+        ? { ...fact, value: false, evidenceRef: "domain-evidence:supplier_available:unavailable" }
+        : fact,
+    ),
+  },
+  {
+    action: inventoryIncreaseSkuA,
+    factId: "WAREHOUSE_AVAILABLE" as const,
+    checkId: "domain.inventory.warehouse_available",
+    reasonCode: "WAREHOUSE_UNAVAILABLE",
+    facts: activeInventoryProductFacts.map((fact) =>
+      fact.factId === "WAREHOUSE_AVAILABLE"
+        ? { ...fact, value: false, evidenceRef: "domain-evidence:warehouse_available:unavailable" }
+        : fact,
+    ),
+  },
+] as const;
+
 export const unusedMetaChannelFacts = [
   domainFactFixture(metaPaidMediaAction, "ACTION_FAMILY_CAPABILITY", true),
   domainFactFixture(metaPaidMediaAction, "CHANNEL_MERCHANT_ENABLED", false),

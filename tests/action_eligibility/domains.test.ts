@@ -8,7 +8,7 @@ import {
 } from "../../src/action_eligibility/index.js";
 import { reorderSkuA100, reorderSkuB50SupplierX } from "../../src/inventory/fixtures.js";
 import { googleBudgetUp2000, metaBudgetDown2000 } from "../../src/action_translation/fixtures.js";
-import { actionTypeIsolationScenarios, domainAdapterScenarios, hardConstraintEligibilityScenarios } from "../../src/action_eligibility/fixtures.js";
+import { actionTypeIsolationScenarios, domainAdapterScenarios, hardConstraintEligibilityScenarios, inventoryAvailabilityScenarios } from "../../src/action_eligibility/fixtures.js";
 
 const NOW = "2026-09-27T12:00:00.000Z";
 
@@ -161,6 +161,29 @@ describe("evidence-derived domain eligibility", () => {
     const result = evaluateActionEligibility({ action, nativeConstraints }, { evaluatedAt: NOW, observations: [], domainFacts, constraintReceipts: receipts });
     expect(result.ok && result.result.status).toBe("INELIGIBLE");
     expect(result.ok && result.result.checks.some((check) => check.kind === "HARD_CONSTRAINT" && check.status === "VIOLATED")).toBe(true);
+  });
+
+  it.each(inventoryAvailabilityScenarios)("blocks inventory reorder when $factId is false", ({ action, facts, factId, checkId, reasonCode }) => {
+    const result = evaluateActionEligibility({ action }, { evaluatedAt: NOW, observations: [], domainFacts: facts });
+    expect(result.ok && result.result.status).toBe("INELIGIBLE");
+    expect(result.ok && result.result.checks.find((check) => check.checkId === checkId)).toMatchObject({
+      kind: "DOMAIN_RULE",
+      status: "VIOLATED",
+      reasonCodes: [reasonCode],
+    });
+  });
+
+  it("keeps inventory eligibility unknown when supplier evidence is missing", () => {
+    const scenario = inventoryAvailabilityScenarios[0]!;
+    const result = evaluateActionEligibility(
+      { action: scenario.action },
+      { evaluatedAt: NOW, observations: [], domainFacts: scenario.facts.filter((fact) => fact.factId !== "SUPPLIER_AVAILABLE") },
+    );
+    expect(result.ok && result.result.status).toBe("UNKNOWN");
+    expect(result.ok && result.result.checks.find((check) => check.checkId === "domain.inventory.supplier_available")).toMatchObject({
+      status: "UNKNOWN",
+      reasonCodes: ["MISSING_BOUND_DOMAIN_FACT"],
+    });
   });
 
   it("accepts a price exactly at its floor, leaves missing evidence unknown, and rejects another target's receipt", () => {
