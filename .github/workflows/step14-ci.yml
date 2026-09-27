@@ -1,0 +1,36 @@
+name: Step 14 External Reality CI
+
+on:
+  push:
+    branches:
+      - step14/external-reality
+  pull_request:
+    branches:
+      - step12/website-cro-simulation
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: Install
+        run: npm install --no-audit --no-fund
+      - name: Architecture boundary
+        run: npm run architecture
+      - name: Typecheck
+        run: npm run typecheck
+      - name: Step 14 tests
+        run: npm run test:step14 -- --maxWorkers=1
+      - name: Full test suite
+        run: npm test
+      - name: Build
+        run: npm run build
