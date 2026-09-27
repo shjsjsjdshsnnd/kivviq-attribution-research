@@ -59,7 +59,7 @@ const timingContextSchema = z
   })
   .strict();
 
-export const experimentReadinessContextSchema = z
+const experimentReadinessContextObjectSchema = z
   .object({
     armRegistry: z.array(registryEntrySchema),
     graphRegistry: z.array(registryEntrySchema),
@@ -91,8 +91,11 @@ export const experimentReadinessContextSchema = z
       z.object({ registryRef: ref, code: z.string().regex(/^[A-Z][A-Z0-9_]{1,79}$/), evidenceRefs }).strict(),
     ),
   })
-  .strict()
-  .superRefine((context, refinement) => {
+  .strict();
+
+export const experimentReadinessContextSchema: z.ZodEffects<
+  typeof experimentReadinessContextObjectSchema
+> = experimentReadinessContextObjectSchema.superRefine((context, refinement) => {
     for (const [collection, entries] of [
       ["evaluations", context.evaluations],
       ["snapshots", context.snapshots ?? []],
