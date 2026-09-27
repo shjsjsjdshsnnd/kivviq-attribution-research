@@ -195,6 +195,29 @@ export const CANONICAL_EXTERNAL_EVENT_KINDS: readonly ExternalEventKind[] = [
   "consumer_trend",
 ] as const;
 
+export const EXTERNAL_TARGET_EXECUTION_SURFACES: Readonly<
+  Record<ExternalTarget, string>
+> = {
+  demand: "simulation.need_formation",
+  purchase_propensity: "simulation.checkout",
+  price_sensitivity: "commerce.product_choice_and_checkout",
+  consideration_time: "simulation.session_timing",
+  organic_traffic: "simulation.natural_visit_opportunity",
+  store_traffic: "simulation.natural_visit_opportunity",
+  cpm: "simulation.paid_delivery",
+  cpc: "simulation.paid_delivery",
+  ctr: "simulation.paid_delivery",
+  traffic_quality: "simulation.paid_delivery",
+  reported_attribution: "simulation.platform_reporting",
+  supplier_lead_time: "inventory.replenishment_timing",
+  inventory_availability: "commerce.product_choice_and_purchase_gate",
+  landed_cost: "commerce.cogs",
+  delivery_time: "session.delivery_estimate_and_checkout",
+  shipping_cost: "commerce.checkout_and_shipping_subsidy",
+  return_propensity: "commerce.realized_return_propensity",
+  category_preference: "commerce.product_choice",
+};
+
 const DOMAIN_BY_KIND: Readonly<Record<ExternalEventKind, ExternalDomain>> = {
   competitor_launch: "competition",
   competitor_sale: "competition",
