@@ -137,4 +137,17 @@ describe("canonical hard-constraint integration", () => {
     );
     expect(() => mapLegacyHardConstraints(candidate)).toThrow(/contradict|minimum exceeds maximum|equality/i);
   });
+
+  it("rejects EQ and NEQ of the same typed value while allowing a different exclusion", () => {
+    const candidate = (excluded: number) => {
+      const value = structuredClone(reduceSkuA10WithGrossMargin35Floor) as Action;
+      (value.constraints as Action["constraints"] & ActionConstraint[]).splice(0, value.constraints.length,
+        { constraintId: "equal.margin" as never, constraintClass: "hard", expression: { kind: "property_comparison", propertyId: "finance.gross_margin_rate", operator: "EQ", value: { kind: "percentage", basisPoints: 500 } } },
+        { constraintId: "not.equal.margin" as never, constraintClass: "hard", expression: { kind: "property_comparison", propertyId: "finance.gross_margin_rate", operator: "NEQ", value: { kind: "percentage", basisPoints: excluded } } },
+      );
+      return value;
+    };
+    expect(() => mapLegacyHardConstraints(candidate(500))).toThrow(/contradict|equality/i);
+    expect(() => mapLegacyHardConstraints(candidate(600))).not.toThrow();
+  });
 });

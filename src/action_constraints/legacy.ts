@@ -50,10 +50,13 @@ function validateComparableBounds(constraints: readonly ActionConstraint[]): voi
     const lowers = numeric.filter((expression) => expression.operator === "GT" || expression.operator === "GTE");
     const uppers = numeric.filter((expression) => expression.operator === "LT" || expression.operator === "LTE");
     const equalities = expressions.filter((expression) => expression.operator === "EQ");
+    const exclusions = expressions.filter((expression) => expression.operator === "NEQ");
     const equalityValues = new Set(equalities.map((expression) => String(primitive(expression.value).amount)));
     if (equalityValues.size > 1) throw new Error(`Contradictory legacy equality bounds for ${propertyId}`);
     for (const equality of equalities) {
       const exact = primitive(equality.value).amount;
+      if (exclusions.some((exclusion) => Object.is(primitive(exclusion.value).amount, exact)))
+        throw new Error(`Contradictory legacy equality exclusion for ${propertyId}`);
       if (typeof exact !== "number") continue;
       for (const lower of lowers) {
         const low = primitive(lower.value).amount as number;
