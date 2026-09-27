@@ -13,6 +13,11 @@ import type {
   WebsiteScenario,
   WebsiteComponentName,
 } from "../website_cro/types.js";
+import type {
+  ExternalEnvironment,
+  ExternalRealityGodModeTruth,
+  ExternalSignalObservation,
+} from "../external_reality/index.js";
 
 export type ObservableJourneyEventKind =
   | "impression"
@@ -226,6 +231,11 @@ export interface GodModeSimulationTruth {
    * the website/CRO sidecar is explicitly enabled.
    */
   readonly website?: WebsiteGodModeTruth;
+  /**
+   * Step 14 evaluator-only external environment truth. Effects and future
+   * events remain hidden from Operator-facing projections.
+   */
+  readonly externalReality?: ExternalRealityGodModeTruth;
 }
 
 export interface PlatformStyleChannelMetric {
@@ -261,10 +271,18 @@ export interface SimulationProvenance {
   readonly websiteModelVersion?: string;
   readonly websiteSchemaVersion?: number;
   readonly websiteScenarioFingerprint?: string;
+  /** Step 14 external-reality provenance. */
+  readonly externalRealityModelVersion?: string;
+  readonly externalRealityEnvironmentId?: string;
 }
 
 export interface SimulationResult {
   readonly observableEvents: readonly PerfectObservableJourneyEvent[];
+  /**
+   * Step 14 operator-safe external signals available by the simulation end.
+   * These never expose hidden effect sizes or future events.
+   */
+  readonly externalSignals?: readonly ExternalSignalObservation[];
   readonly purchases: readonly RealizedPurchase[];
   readonly platformMetrics: readonly PlatformStyleChannelMetric[];
   readonly totals: SimulationTotals;
@@ -299,6 +317,11 @@ export interface SimulationCommercePolicy {
    * under God mode and never exported by the Operator-safe root.
    */
   readonly websiteScenario?: WebsiteScenario;
+  /**
+   * Opt-in Step 14 external environment. Omitted preserves the frozen Step
+   * 1-12 simulation path exactly.
+   */
+  readonly externalRealityEnvironment?: ExternalEnvironment;
   /**
    * Step 9 physical-return parameters are supplied by the Step 7 economic
    * profiles so inventory and return accounting use the same product truth.
