@@ -43,6 +43,7 @@ export const canonicalTranslationContextSchema = z
       .optional(),
     eligibility: z.unknown().optional(),
     eligibilityMaximumAgeSeconds: z.number().int().nonnegative().safe().optional(),
+    experimentArmRegistry: z.unknown().optional(),
   })
   .strict();
 /** Resolution and eligibility are independent of simulator capability. */

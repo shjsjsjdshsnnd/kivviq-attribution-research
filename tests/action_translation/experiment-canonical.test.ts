@@ -4,6 +4,8 @@ import { canonicalActionSchema } from "../../src/canonical_action/schema.js";
 import { fingerprintCanonicalAction } from "../../src/canonical_action/serialization.js";
 import { translateCanonicalAction } from "../../src/action_translation/canonical.js";
 import { evaluatePopulation, fingerprintPopulationDefinition } from "../../src/population/index.js";
+import { createCompoundFixtures, fingerprintCompoundAction } from "../../src/compound_action/index.js";
+import { experimentWhatSchema } from "../../src/experiment/index.js";
 
 const NOW = "2026-09-22T14:00:00.000Z";
 const populationDefinition = {
@@ -68,6 +70,10 @@ function context(overrides: Record<string, unknown> = {}) {
     bindingTimes: { DECISION_TIME: NOW },
     eligibility: eligibility(),
     eligibilityMaximumAgeSeconds: 3600,
+    experimentArmRegistry: [
+      { entityKind: "ACTION", action: control },
+      { entityKind: "ACTION", action: treatment },
+    ],
     ...overrides,
   };
 }
@@ -108,5 +114,51 @@ describe("native experiment translation", () => {
   it("rejects a forged eligible aggregate containing a violated check", () => {
     const forged = eligibility({ checks: [{ kind: "HARD_CONSTRAINT", checkId: "budget", status: "VIOLATED", reasonCodes: ["CONSTRAINT_VIOLATED"], evidenceRefs: ["budget.evidence"], missingInformation: [] }] });
     expect(translateCanonicalAction(action, context({ eligibility: forged }))).toMatchObject({ status: "INVALID_ACTION", code: "INVALID_EXPERIMENT_ELIGIBILITY" });
+  });
+
+  it.each([
+    ["absent arm", [{ entityKind: "ACTION", action: control }], "EXPERIMENT_ARM_REQUIRED"],
+    ["ambiguous arm", [{ entityKind: "ACTION", action: control }, { entityKind: "ACTION", action: treatment }, { entityKind: "ACTION", action: treatment }], "AMBIGUOUS_EXPERIMENT_ARM"],
+    ["mismatched arm fingerprint", [{ entityKind: "ACTION", action: control }, { entityKind: "ACTION", action: { ...treatment, what: { actionType: "no_op.do_nothing", scope: { kind: "FAMILY", family: "PRICING" } } } }], "EXPERIMENT_ARM_FINGERPRINT_MISMATCH"],
+  ])("rejects %s registry resolution", (_label, experimentArmRegistry, code) => {
+    expect(translateCanonicalAction(action, context({ experimentArmRegistry }))).toMatchObject({ status: "MISSING_CONTEXT", code });
+  });
+
+  it("resolves compound arm identity and fingerprint exactly", () => {
+    const compound = createCompoundFixtures()[0]!.action;
+    const experimentWhat = experimentWhatSchema.parse(action.what);
+    const compoundExperiment = canonicalActionSchema.parse({
+      ...action,
+      actionId: "action_translation_compound_experiment",
+      what: {
+        ...action.what,
+        arms: [
+          experimentWhat.arms[0],
+          { entityKind: "COMPOUND", armId: "arm_treatment", role: "TREATMENT", compoundActionId: compound.compoundActionId, actionFingerprint: fingerprintCompoundAction(compound), allocationBasisPoints: 5000 },
+        ],
+      },
+    });
+    const bound = eligibility({ actionId: compoundExperiment.actionId, actionFingerprint: fingerprintCanonicalAction(compoundExperiment) });
+    const result = translateCanonicalAction(compoundExperiment, context({ eligibility: bound, experimentArmRegistry: [{ entityKind: "ACTION", action: control }, { entityKind: "COMPOUND", action: compound }] }));
+    expect(result.status).toBe("TRANSLATED");
+    const tampered = {
+      ...compound,
+      components: compound.components.map((component, index) => index === 0
+        ? { ...component, role: `${component.role}_tampered` }
+        : component),
+    };
+    expect(translateCanonicalAction(compoundExperiment, context({ eligibility: bound, experimentArmRegistry: [{ entityKind: "ACTION", action: control }, { entityKind: "COMPOUND", action: tampered }] }))).toMatchObject({ status: "MISSING_CONTEXT", code: "EXPERIMENT_ARM_FINGERPRINT_MISMATCH" });
+  });
+
+  it("requires complete, unique translation-time hard-constraint checks", () => {
+    const constraint = { constraintId: "experiment.translation.policy", kind: "CUSTOM" as const, target: { kind: "GLOBAL" as const }, evaluationBoundary: "TRANSLATION_TIME" as const, whenUnknown: "UNKNOWN" as const, registryRef: "experiment.policy", code: "ENGINE_ALLOWED" };
+    const constrained = canonicalActionSchema.parse({ ...action, constraints: [constraint] });
+    const base = eligibility({ actionFingerprint: fingerprintCanonicalAction(constrained) });
+    const satisfied = { kind: "HARD_CONSTRAINT", checkId: constraint.constraintId, status: "SATISFIED", reasonCodes: ["CUSTOM_SATISFIED"], evidenceRefs: ["policy.evidence"], missingInformation: [] };
+    const translate = (checks: unknown[]) => translateCanonicalAction(constrained, context({ eligibility: { ...base, checks } }));
+    expect(translate([satisfied]).status).toBe("TRANSLATED");
+    expect(translate([])).toMatchObject({ status: "INVALID_ACTION", code: "INCOMPLETE_EXPERIMENT_ELIGIBILITY" });
+    expect(translate([satisfied, satisfied])).toMatchObject({ status: "INVALID_ACTION", code: "INCOMPLETE_EXPERIMENT_ELIGIBILITY" });
+    expect(translate([satisfied, { ...satisfied, checkId: "unexpected" }])).toMatchObject({ status: "INVALID_ACTION", code: "INCOMPLETE_EXPERIMENT_ELIGIBILITY" });
   });
 });

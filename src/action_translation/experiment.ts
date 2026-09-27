@@ -1,7 +1,10 @@
+import { z } from "zod";
 import { actionEligibilitySchema } from "../action_eligibility/schema.js";
 import type { CanonicalAction } from "../canonical_action/schema.js";
+import { canonicalActionSchema } from "../canonical_action/schema.js";
 import { fingerprintCanonicalAction } from "../canonical_action/serialization.js";
 import type { ExperimentWhat } from "../experiment/index.js";
+import { compoundActionSchema, fingerprintCompoundAction } from "../compound_action/schema.js";
 import {
   ACTION_TRANSLATION_VERSION,
   type TranslationFailure,
@@ -13,7 +16,19 @@ interface ExperimentTranslationContext {
   readonly timing?: unknown;
   readonly eligibility?: unknown;
   readonly eligibilityMaximumAgeSeconds?: number | undefined;
+  readonly experimentArmRegistry?: unknown;
 }
+
+const experimentArmRegistrySchema = z.array(z.union([
+  z.object({
+    entityKind: z.literal("ACTION"),
+    action: canonicalActionSchema,
+  }).strict(),
+  z.object({
+    entityKind: z.literal("COMPOUND"),
+    action: z.lazy(() => compoundActionSchema),
+  }).strict(),
+]));
 
 function failure(actionId: string, status: TranslationFailure["status"], code: string, message: string): TranslationFailure {
   return { actionId, status, code, message };
@@ -44,6 +59,30 @@ export function translateExperimentAction(
     return failure(action.actionId, "MISSING_CONTEXT", "EXPERIMENT_ELIGIBILITY_FUTURE", "Eligibility evidence cannot be from the future.");
   if (approved - evaluated > context.eligibilityMaximumAgeSeconds * 1000)
     return failure(action.actionId, "MISSING_CONTEXT", "EXPERIMENT_ELIGIBILITY_STALE", "Eligibility evidence is stale.");
+  const registry = experimentArmRegistrySchema.safeParse(context.experimentArmRegistry);
+  if (!registry.success)
+    return failure(action.actionId, "MISSING_CONTEXT", "EXPERIMENT_ARM_REGISTRY_REQUIRED", "A valid experiment arm registry is required before translation.");
+  for (const arm of specification.arms) {
+    const compoundArm = arm.entityKind === "COMPOUND";
+    const entityKind = compoundArm ? "COMPOUND" : "ACTION";
+    const referenceId = compoundArm ? arm.compoundActionId : arm.actionId;
+    const matches = registry.data.filter((entry) =>
+      entry.entityKind === entityKind &&
+      (entry.entityKind === "COMPOUND"
+        ? entry.action.compoundActionId === referenceId
+        : entry.action.actionId === referenceId),
+    );
+    if (!matches.length)
+      return failure(action.actionId, "MISSING_CONTEXT", "EXPERIMENT_ARM_REQUIRED", `Experiment arm ${arm.armId} requires exact registry entry ${entityKind}:${referenceId}.`);
+    if (matches.length > 1)
+      return failure(action.actionId, "MISSING_CONTEXT", "AMBIGUOUS_EXPERIMENT_ARM", `Experiment arm ${arm.armId} has ambiguous registry entries for ${entityKind}:${referenceId}.`);
+    const registered = matches[0]!;
+    const actualFingerprint = registered.entityKind === "COMPOUND"
+      ? fingerprintCompoundAction(registered.action)
+      : fingerprintCanonicalAction(registered.action);
+    if (actualFingerprint !== arm.actionFingerprint)
+      return failure(action.actionId, "MISSING_CONTEXT", "EXPERIMENT_ARM_FINGERPRINT_MISMATCH", `Experiment arm ${arm.armId} does not match its registered semantic fingerprint.`);
+  }
   const derived = eligibility.checks.some((check) => check.status === "VIOLATED")
     ? "INELIGIBLE"
     : eligibility.checks.some((check) => check.status === "UNKNOWN")
@@ -55,6 +94,20 @@ export function translateExperimentAction(
     return failure(action.actionId, "INELIGIBLE_ACTION", "EXPERIMENT_INELIGIBLE", "The experiment violates one or more eligibility checks.");
   if (eligibility.status === "UNKNOWN")
     return failure(action.actionId, "MISSING_CONTEXT", "EXPERIMENT_ELIGIBILITY_UNKNOWN", "Experiment eligibility remains unresolved.");
+  const applicableConstraintIds = action.constraints
+    .filter((constraint) => constraint.evaluationBoundary === "TRANSLATION_TIME")
+    .map((constraint) => constraint.constraintId);
+  const hardConstraintCheckIds = eligibility.checks
+    .filter((check) => check.kind === "HARD_CONSTRAINT")
+    .map((check) => check.checkId);
+  const expected = new Set(applicableConstraintIds);
+  const complete =
+    expected.size === applicableConstraintIds.length &&
+    hardConstraintCheckIds.length === applicableConstraintIds.length &&
+    hardConstraintCheckIds.every((id) => expected.has(id)) &&
+    new Set(hardConstraintCheckIds).size === hardConstraintCheckIds.length;
+  if (!complete)
+    return failure(action.actionId, "INVALID_ACTION", "INCOMPLETE_EXPERIMENT_ELIGIBILITY", "Eligibility must contain exactly one hard-constraint check for every constraint applicable at TRANSLATION_TIME.");
   if (!action.population)
     return failure(action.actionId, "INVALID_ACTION", "EXPERIMENT_POPULATION_REQUIRED", "The experiment requires an envelope population.");
   return {
