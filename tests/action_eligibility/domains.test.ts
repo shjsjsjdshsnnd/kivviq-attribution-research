@@ -8,6 +8,7 @@ import {
 } from "../../src/action_eligibility/index.js";
 import { reorderSkuA100, reorderSkuB50SupplierX } from "../../src/inventory/fixtures.js";
 import { googleBudgetUp2000, metaBudgetDown2000 } from "../../src/action_translation/fixtures.js";
+import { actionTypeIsolationScenarios, domainAdapterScenarios, hardConstraintEligibilityScenarios } from "../../src/action_eligibility/fixtures.js";
 
 const NOW = "2026-09-27T12:00:00.000Z";
 
@@ -135,5 +136,44 @@ describe("evidence-derived domain eligibility", () => {
       { evaluatedAt: NOW, observations: [], domainFacts: [duplicate, { ...duplicate, evidenceRef: "evidence:second" }] },
     );
     expect(result).toMatchObject({ ok: false, failure: { code: "INVALID_CONTEXT" } });
+  });
+
+  it.each(domainAdapterScenarios)("evaluates $family applicability from bound facts", ({ action, facts, representativeFactId }) => {
+    const eligible = evaluateActionEligibility({ action }, { evaluatedAt: NOW, observations: [], domainFacts: facts });
+    expect(eligible.ok && eligible.result.status).toBe("ELIGIBLE");
+
+    const missing = evaluateActionEligibility({ action }, { evaluatedAt: NOW, observations: [], domainFacts: facts.filter((entry) => entry.factId !== representativeFactId) });
+    expect(missing.ok && missing.result.status).toBe("UNKNOWN");
+
+    const deniedFacts = facts.map((entry) => entry.factId === representativeFactId ? { ...entry, value: false } : entry);
+    const denied = evaluateActionEligibility({ action }, { evaluatedAt: NOW, observations: [], domainFacts: deniedFacts });
+    expect(denied.ok && denied.result.status).toBe("INELIGIBLE");
+    expect(denied.ok && denied.result.checks.some((check) => check.kind === "DOMAIN_RULE" && check.status === "VIOLATED")).toBe(true);
+  });
+
+  it.each(actionTypeIsolationScenarios)("does not impose unrelated $excludedFactId evidence", ({ action, facts, excludedFactId }) => {
+    const result = evaluateActionEligibility({ action }, { evaluatedAt: NOW, observations: [], domainFacts: facts });
+    expect(result.ok && result.result.status).toBe("ELIGIBLE");
+    expect(result.ok && result.result.checks.some((check) => check.checkId.endsWith(excludedFactId.toLowerCase()))).toBe(false);
+  });
+
+  it.each(hardConstraintEligibilityScenarios)("evaluates $kind through unified eligibility", ({ action, nativeConstraints, domainFacts, receipts }) => {
+    const result = evaluateActionEligibility({ action, nativeConstraints }, { evaluatedAt: NOW, observations: [], domainFacts, constraintReceipts: receipts });
+    expect(result.ok && result.result.status).toBe("INELIGIBLE");
+    expect(result.ok && result.result.checks.some((check) => check.kind === "HARD_CONSTRAINT" && check.status === "VIOLATED")).toBe(true);
+  });
+
+  it("accepts a price exactly at its floor, leaves missing evidence unknown, and rejects another target's receipt", () => {
+    const scenario = hardConstraintEligibilityScenarios.find((entry) => entry.kind === "PRICE_FLOOR")!;
+    const receipt = scenario.receipts[0]!;
+    if (receipt.fact.kind !== "VALUE" || receipt.fact.value.valueType !== "MONEY") throw new Error("price fixture must carry money evidence");
+    const boundaryReceipt = { ...receipt, fact: { ...receipt.fact, value: { ...receipt.fact.value, amountMinor: 8_000 } } };
+    const boundary = evaluateActionEligibility({ action: scenario.action, nativeConstraints: scenario.nativeConstraints }, { evaluatedAt: NOW, observations: [], domainFacts: scenario.domainFacts, constraintReceipts: [boundaryReceipt] });
+    expect(boundary.ok && boundary.result.status).toBe("ELIGIBLE");
+    const missing = evaluateActionEligibility({ action: scenario.action, nativeConstraints: scenario.nativeConstraints }, { evaluatedAt: NOW, observations: [], domainFacts: scenario.domainFacts, constraintReceipts: [] });
+    expect(missing.ok && missing.result.status).toBe("UNKNOWN");
+    const wrongTarget = { ...receipt, target: { kind: "SKU" as const, ref: "sku:B" } };
+    const mismatched = evaluateActionEligibility({ action: scenario.action, nativeConstraints: scenario.nativeConstraints }, { evaluatedAt: NOW, observations: [], domainFacts: scenario.domainFacts, constraintReceipts: [wrongTarget] });
+    expect(mismatched.ok && mismatched.result.status).toBe("UNKNOWN");
   });
 });

@@ -15,6 +15,17 @@ export const domainFactIdSchema = z.enum([
   "SURFACE_AVAILABLE",
   "AUDIENCE_AVAILABLE",
   "CONSENT_AVAILABLE",
+  "DISCOUNT_APPLICABLE",
+  "FULFILLMENT_AVAILABLE",
+  "GEOGRAPHY_ELIGIBLE",
+  "CART_ELIGIBLE",
+  "PROVIDER_CAPACITY_AVAILABLE",
+  "SLOT_AVAILABLE",
+  "PAGE_AVAILABLE",
+  "DEVICE_APPLICABLE",
+  "COMPONENT_AVAILABLE",
+  "CHANNEL_AVAILABLE",
+  "CONTACT_POLICY_ALLOWS",
 ]);
 
 export const domainEligibilityFactSchema = z.object({
@@ -49,9 +60,9 @@ const registry: Readonly<Record<DomainFamily, readonly Requirement[]>> = Object.
   pricing: [capability("pricing"), targetActive],
   promotion: [capability("promotion"), targetActive],
   shipping: [capability("shipping")],
-  merchandising: [capability("merchandising"), { factId: "SURFACE_AVAILABLE", suffix: "surface_available", trueReason: "SURFACE_AVAILABLE", falseReason: "SURFACE_UNAVAILABLE" }, targetActive],
+  merchandising: [capability("merchandising"), targetActive],
   inventory: [capability("inventory"), targetActive],
-  cro: [capability("cro"), { factId: "SURFACE_AVAILABLE", suffix: "surface_available", trueReason: "SURFACE_AVAILABLE", falseReason: "SURFACE_UNAVAILABLE" }],
+  cro: [capability("cro")],
   lifecycle: [capability("lifecycle")],
 });
 
@@ -60,9 +71,29 @@ const actionTypeRequirements: Readonly<Record<string, readonly Requirement[]>> =
     { factId: "SUPPLIER_AVAILABLE", suffix: "supplier_available", trueReason: "SUPPLIER_AVAILABLE", falseReason: "SUPPLIER_UNAVAILABLE" },
     { factId: "WAREHOUSE_AVAILABLE", suffix: "warehouse_available", trueReason: "WAREHOUSE_AVAILABLE", falseReason: "WAREHOUSE_UNAVAILABLE" },
   ],
+  "promotion.start": [
+    { factId: "DISCOUNT_APPLICABLE", suffix: "discount_applicable", trueReason: "DISCOUNT_APPLICABLE", falseReason: "DISCOUNT_NOT_APPLICABLE" },
+  ],
+  "shipping.set_offer": [
+    { factId: "FULFILLMENT_AVAILABLE", suffix: "fulfillment_available", trueReason: "FULFILLMENT_AVAILABLE", falseReason: "FULFILLMENT_UNAVAILABLE" },
+    { factId: "GEOGRAPHY_ELIGIBLE", suffix: "geography_eligible", trueReason: "GEOGRAPHY_ELIGIBLE", falseReason: "GEOGRAPHY_INELIGIBLE" },
+    { factId: "CART_ELIGIBLE", suffix: "cart_eligible", trueReason: "CART_ELIGIBLE", falseReason: "CART_INELIGIBLE" },
+    { factId: "PROVIDER_CAPACITY_AVAILABLE", suffix: "provider_capacity", trueReason: "PROVIDER_CAPACITY_AVAILABLE", falseReason: "PROVIDER_CAPACITY_UNAVAILABLE" },
+  ],
+  "merchandising.feature": [
+    { factId: "SURFACE_AVAILABLE", suffix: "surface_available", trueReason: "SURFACE_AVAILABLE", falseReason: "SURFACE_UNAVAILABLE" },
+    { factId: "SLOT_AVAILABLE", suffix: "slot_available", trueReason: "SLOT_AVAILABLE", falseReason: "SLOT_UNAVAILABLE" },
+  ],
+  "cro.modify_experience": [
+    { factId: "PAGE_AVAILABLE", suffix: "page_available", trueReason: "PAGE_AVAILABLE", falseReason: "PAGE_UNAVAILABLE" },
+    { factId: "DEVICE_APPLICABLE", suffix: "device_applicable", trueReason: "DEVICE_APPLICABLE", falseReason: "DEVICE_NOT_APPLICABLE" },
+    { factId: "COMPONENT_AVAILABLE", suffix: "component_available", trueReason: "COMPONENT_AVAILABLE", falseReason: "COMPONENT_UNAVAILABLE" },
+  ],
   "lifecycle.send": [
     { factId: "AUDIENCE_AVAILABLE", suffix: "audience_available", trueReason: "AUDIENCE_AVAILABLE", falseReason: "AUDIENCE_UNAVAILABLE" },
     { factId: "CONSENT_AVAILABLE", suffix: "consent_available", trueReason: "CONSENT_AVAILABLE", falseReason: "CONSENT_UNAVAILABLE" },
+    { factId: "CHANNEL_AVAILABLE", suffix: "channel_available", trueReason: "CHANNEL_AVAILABLE", falseReason: "CHANNEL_UNAVAILABLE" },
+    { factId: "CONTACT_POLICY_ALLOWS", suffix: "contact_policy", trueReason: "CONTACT_POLICY_ALLOWS", falseReason: "CONTACT_POLICY_BLOCKS" },
   ],
   "lifecycle.start_flow": [
     { factId: "AUDIENCE_AVAILABLE", suffix: "audience_available", trueReason: "AUDIENCE_AVAILABLE", falseReason: "AUDIENCE_UNAVAILABLE" },
