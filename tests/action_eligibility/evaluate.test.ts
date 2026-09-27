@@ -1,0 +1,274 @@
+import { describe, expect, it } from "vitest";
+import { adaptLegacyAction } from "../../src/canonical_action/legacy.js";
+import { fingerprintCanonicalAction } from "../../src/canonical_action/serialization.js";
+import { increaseGoogleShoppingBudget20 } from "../../src/action_ontology/fixtures.js";
+import type { Action, ActionConstraint, ActionPrecondition } from "../../src/action_ontology/types.js";
+import { constraintId } from "../../src/action_ontology/identity.js";
+import { currencyCode } from "../../src/core/units.js";
+import {
+  actionEligibilitySchema,
+  evaluateActionEligibility,
+} from "../../src/action_eligibility/index.js";
+
+const evaluatedAt = "2026-09-21T13:10:00Z";
+type MutableLegacy = Omit<Action, "constraints" | "preconditions"> & {
+  constraints: ActionConstraint[];
+  preconditions: ActionPrecondition[];
+};
+
+function action(overrides: Partial<Action> = {}) {
+  const original = structuredClone(increaseGoogleShoppingBudget20) as Action;
+  Object.assign(original, overrides);
+  return adaptLegacyAction(original);
+}
+
+function bound(actionValue: ReturnType<typeof action>) {
+  return {
+    actionId: actionValue.actionId,
+    actionFingerprint: fingerprintCanonicalAction(actionValue),
+    evaluationBoundary: "DECISION_TIME" as const,
+    observedAt: "2026-09-21T13:05:00Z",
+    sourceRef: "merchant_state",
+    provenance: ["snapshot:1"],
+  };
+}
+
+describe("evaluateActionEligibility", () => {
+  it("evaluates every precondition and hard legacy constraint in definition order", () => {
+    const candidate = action();
+    const result = evaluateActionEligibility(
+      { action: candidate },
+      {
+        evaluatedAt,
+        maximumAgeSeconds: 3600,
+        observations: [
+          {
+            ...bound(candidate),
+            kind: "ENTITY",
+            evidenceRef: "entity:campaign",
+            target: (candidate.what as { target: Action["target"] }).target,
+            exists: false,
+          },
+          {
+            ...bound(candidate),
+            kind: "PROPERTY",
+            evidenceRef: "property:budget",
+            propertyId: "budget.available_minor",
+            value: { kind: "money", amountMinor: 0, currency: "CAD" },
+          },
+        ],
+      },
+    );
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.result.status).toBe("INELIGIBLE");
+    expect(result.result.checks.map(({ checkId, status }) => [checkId, status])).toEqual([
+      ["campaign_exists", "VIOLATED"],
+      ["budget_available", "VIOLATED"],
+    ]);
+    expect(result.result.checks.flatMap((check) => check.reasonCodes)).toEqual([
+      "ENTITY_DOES_NOT_EXIST",
+      "COMPARISON_FALSE",
+    ]);
+    expect(actionEligibilitySchema.parse(result.result)).toEqual(result.result);
+  });
+
+  it("turns unknown evidence into a violation only when the precondition says ineligible", () => {
+    const legacy = structuredClone(increaseGoogleShoppingBudget20) as MutableLegacy;
+    legacy.constraints = [];
+    legacy.preconditions = [
+      {
+        preconditionId: "required_capability",
+        expression: { kind: "capability_available", capabilityId: "ads.google" },
+        whenUnknown: "ineligible",
+      },
+      {
+        preconditionId: "optional_evidence",
+        expression: { kind: "evidence_available", evidenceRef: "margin:current" },
+        whenUnknown: "unknown_eligibility",
+      },
+    ];
+    const candidate = action(legacy);
+    const result = evaluateActionEligibility(
+      { action: candidate },
+      { evaluatedAt, observations: [] },
+    );
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.result.status).toBe("INELIGIBLE");
+    expect(result.result.checks).toMatchObject([
+      { checkId: "required_capability", status: "VIOLATED", reasonCodes: ["MISSING_INFORMATION_FAIL_CLOSED"] },
+      { checkId: "optional_evidence", status: "UNKNOWN", reasonCodes: ["MISSING_BOUND_EVIDENCE"] },
+    ]);
+  });
+
+  it("honors an evidence expression's stricter maximum age", () => {
+    const legacy = structuredClone(increaseGoogleShoppingBudget20) as MutableLegacy;
+    legacy.constraints = [];
+    legacy.preconditions = [{
+      preconditionId: "recent_approval",
+      expression: { kind: "evidence_available", evidenceRef: "approval", maximumAgeSeconds: 60 },
+      whenUnknown: "unknown_eligibility",
+    }];
+    const candidate = action(legacy);
+    const result = evaluateActionEligibility(
+      { action: candidate },
+      { evaluatedAt, observations: [{ ...bound(candidate), observedAt: "2026-09-21T13:08:00Z", kind: "EVIDENCE", evidenceRef: "receipt:approval", reference: "approval", available: true }] },
+    );
+    expect(result.ok && result.result.checks[0]).toMatchObject({ status: "UNKNOWN", reasonCodes: ["STALE_EVIDENCE"] });
+  });
+
+  it("compares scalar values without coercion and rejects incompatible dimensions", () => {
+    const legacy = structuredClone(increaseGoogleShoppingBudget20) as MutableLegacy;
+    legacy.preconditions = [];
+    legacy.constraints = [
+      {
+        constraintId: constraintId("lt"),
+        constraintClass: "hard",
+        expression: { kind: "property_comparison", propertyId: "budget.available_minor", operator: "LT", value: { kind: "money", amountMinor: 300, currency: currencyCode("CAD") } },
+      },
+      {
+        constraintId: constraintId("neq"),
+        constraintClass: "hard",
+        expression: { kind: "property_comparison", propertyId: "budget.available_minor", operator: "NEQ", value: { kind: "money", amountMinor: 300, currency: currencyCode("CAD") } },
+      },
+      {
+        constraintId: constraintId("currency"),
+        constraintClass: "hard",
+        expression: { kind: "property_comparison", propertyId: "budget.available_minor", operator: "GTE", value: { kind: "money", amountMinor: 10, currency: currencyCode("CAD") } },
+      },
+    ];
+    const candidate = action(legacy);
+    const common = bound(candidate);
+    const result = evaluateActionEligibility(
+      { action: candidate },
+      {
+        evaluatedAt,
+        observations: [
+          { ...common, kind: "PROPERTY", evidenceRef: "e1", propertyId: "budget.available_minor", value: { kind: "money", amountMinor: 200, currency: "CAD" } },
+        ],
+      },
+    );
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.result.checks.map(({ status, reasonCodes }) => [status, reasonCodes[0]])).toEqual([
+      ["SATISFIED", "COMPARISON_TRUE"],
+      ["SATISFIED", "COMPARISON_TRUE"],
+      ["SATISFIED", "COMPARISON_TRUE"],
+    ]);
+
+    const incompatible = evaluateActionEligibility(
+      { action: candidate },
+      {
+        evaluatedAt,
+        observations: [{
+          ...common,
+          kind: "PROPERTY",
+          evidenceRef: "usd",
+          propertyId: "budget.available_minor",
+          value: { kind: "money", amountMinor: 200, currency: "USD" },
+        }],
+      },
+    );
+    expect(incompatible.ok && incompatible.result.checks.every(
+      (check) => check.status === "VIOLATED" && check.reasonCodes[0] === "INCOMPATIBLE_VALUE",
+    )).toBe(true);
+  });
+
+  it.each([
+    ["missing", [], "MISSING_BOUND_EVIDENCE"],
+    ["stale", [{ observedAt: "2026-09-21T11:00:00Z" }], "STALE_EVIDENCE"],
+    ["future", [{ observedAt: "2026-09-21T14:00:00Z" }], "FUTURE_EVIDENCE"],
+  ])("fails closed for %s evidence", (_label, modifications, reason) => {
+    const legacy = structuredClone(increaseGoogleShoppingBudget20) as MutableLegacy;
+    legacy.preconditions = [];
+    legacy.constraints = [legacy.constraints[0]!];
+    const candidate = action(legacy);
+    const base = {
+      ...bound(candidate), kind: "PROPERTY" as const, evidenceRef: "budget:1",
+      propertyId: "budget.available_minor", value: { kind: "money" as const, amountMinor: 100, currency: "CAD" },
+    };
+    const observations = modifications.length === 0 ? [] : modifications.map((entry) => ({ ...base, ...entry }));
+    const result = evaluateActionEligibility({ action: candidate }, { evaluatedAt, maximumAgeSeconds: 3600, observations });
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.result.status).toBe("UNKNOWN");
+    expect(result.result.checks[0]?.reasonCodes).toEqual([reason]);
+  });
+
+  it("treats duplicate bound observations as ambiguous independent of order", () => {
+    const legacy = structuredClone(increaseGoogleShoppingBudget20) as MutableLegacy;
+    legacy.preconditions = [];
+    legacy.constraints = [legacy.constraints[0]!];
+    const candidate = action(legacy);
+    const first = { ...bound(candidate), kind: "PROPERTY" as const, evidenceRef: "a", propertyId: "budget.available_minor", value: { kind: "money" as const, amountMinor: 100, currency: "CAD" } };
+    const second = { ...first, evidenceRef: "b" };
+    const left = evaluateActionEligibility({ action: candidate }, { evaluatedAt, observations: [first, second] });
+    const right = evaluateActionEligibility({ action: candidate }, { evaluatedAt, observations: [second, first] });
+    expect(left.ok && left.result.checks[0]).toEqual(right.ok && right.result.checks[0]);
+    expect(left.ok && left.result.checks[0]?.reasonCodes).toEqual(["AMBIGUOUS_BOUND_EVIDENCE"]);
+  });
+
+  it("requires exact action, fingerprint, target and observation binding", () => {
+    const candidate = action();
+    const unrelated = {
+      ...bound(candidate), kind: "ENTITY" as const, evidenceRef: "wrong",
+      actionFingerprint: "fnv1a64:0000000000000000",
+      target: { kind: "campaign" as const, channelId: "google_ads", campaignId: "other" }, exists: true,
+    };
+    const result = evaluateActionEligibility({ action: candidate }, { evaluatedAt, observations: [unrelated] });
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.result.checks[0]).toMatchObject({ status: "UNKNOWN", reasonCodes: ["MISSING_BOUND_EVIDENCE"] });
+  });
+
+  it("maps fingerprint-bound native hard constraint assessments", () => {
+    const candidate = action({ constraints: [], preconditions: [] });
+    const fingerprint = fingerprintCanonicalAction(candidate);
+    const result = evaluateActionEligibility(
+      {
+        action: candidate,
+        nativeConstraints: {
+          constraints: [{ constraintId: "margin", kind: "MINIMUM_MARGIN", evaluationBoundary: "DECISION_TIME", whenUnknown: "INELIGIBLE", target: { kind: "GLOBAL" }, valueBasis: "CURRENT_STATE", comparator: "GTE", threshold: { valueType: "PERCENTAGE", basisPoints: 3000 }, observedValue: { kind: "METRIC", ref: "margin" } }],
+          resourceRequirements: [],
+        },
+      },
+      {
+        evaluatedAt,
+        observations: [],
+        constraintReceipts: [{ evidenceRef: "margin:1", actionId: candidate.actionId, actionFingerprint: fingerprint, constraintId: "margin", target: { kind: "GLOBAL" }, evaluationBoundary: "DECISION_TIME", observedAt: "2026-09-21T13:05:00Z", sourceRef: "ledger", provenance: ["ledger:1"], fact: { kind: "VALUE", valueRef: { kind: "METRIC", ref: "margin" }, valueBasis: "CURRENT_STATE", value: { valueType: "PERCENTAGE", basisPoints: 2500 } } }],
+      },
+    );
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.result).toMatchObject({ status: "INELIGIBLE", checks: [{ kind: "HARD_CONSTRAINT", checkId: "margin", status: "VIOLATED", reasonCodes: ["CONSTRAINT_VIOLATED"] }] });
+  });
+
+  it("returns separate failures for invalid actions, unsupported families and invalid context", () => {
+    expect(evaluateActionEligibility({ action: {} }, { evaluatedAt, observations: [] })).toMatchObject({ ok: false, failure: { code: "INVALID_ACTION" } });
+    const unsupported = structuredClone(action());
+    (unsupported.what as { actionCategory: string }).actionCategory = "future_family";
+    expect(evaluateActionEligibility({ action: unsupported }, { evaluatedAt, observations: [] })).toMatchObject({ ok: false, failure: { code: "UNSUPPORTED_ACTION_FAMILY" } });
+    const valid = action();
+    expect(evaluateActionEligibility({ action: valid }, { evaluatedAt: "2026-09-21T13:10:00+00:00", observations: [] })).toMatchObject({ ok: false, failure: { code: "INVALID_CONTEXT" } });
+    expect(evaluateActionEligibility({ action: valid, nativeConstraints: { constraints: "bad", resourceRequirements: [] } }, { evaluatedAt, observations: [] })).toMatchObject({ ok: false, failure: { code: "INVALID_NATIVE_CONSTRAINTS" } });
+  });
+
+  it("does not mutate inputs", () => {
+    const candidate = action({ constraints: [], preconditions: [] });
+    const input = { action: candidate };
+    const context = { evaluatedAt, observations: [] };
+    const before = JSON.stringify({ input, context });
+    expect(evaluateActionEligibility(input, context)).toMatchObject({ ok: true, result: { status: "ELIGIBLE", checks: [] } });
+    expect(JSON.stringify({ input, context })).toBe(before);
+  });
+
+  it("rejects extra result fields", () => {
+    const candidate = action({ constraints: [], preconditions: [] });
+    const result = evaluateActionEligibility({ action: candidate }, { evaluatedAt, observations: [] });
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(actionEligibilitySchema.safeParse({ ...result.result, extra: true }).success).toBe(false);
+  });
+});

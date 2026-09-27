@@ -60,7 +60,8 @@
     "./decision-forms": "./dist/decision_forms/index.js",
     "./investigation": "./dist/investigation/index.js",
     "./action-constraints": "./dist/action_constraints/index.js",
-    "./experiment": "./dist/experiment/index.js"
+    "./experiment": "./dist/experiment/index.js",
+    "./action-eligibility": "./dist/action_eligibility/index.js"
   },
   "devDependencies": {
     "dependency-cruiser": "^16.10.4",
