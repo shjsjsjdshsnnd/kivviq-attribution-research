@@ -502,6 +502,7 @@ function buildPlatformMetrics(
   request: SimulateWorldRequest,
   observableEvents: readonly PerfectObservableJourneyEvent[],
   purchases: readonly RealizedPurchase[],
+  externalReality?: ExternalRealityRuntime,
 ): readonly PlatformStyleChannelMetric[] {
   const weightByCustomer = new Map(
     request.latentPopulation.customers.map(
@@ -539,11 +540,21 @@ function buildPlatformMetrics(
     if (!lastTouch?.source) continue;
     sources.add(lastTouch.source);
     const weight = weightByCustomer.get(purchase.customerId) ?? 1;
+    const reportingMultiplier =
+      externalReality?.applyAt(
+        `platform-report:${purchase.orderId}:${lastTouch.source}`,
+        "reported_attribution",
+        purchaseMs,
+        { channel: lastTouch.source },
+      ) ?? 1;
     const current =
       purchaseAttributed.get(lastTouch.source) ??
       { purchases: 0, revenue: 0 };
-    current.purchases += weight;
-    current.revenue += purchase.netRevenueMinor * weight;
+    current.purchases += weight * reportingMultiplier;
+    current.revenue +=
+      purchase.netRevenueMinor *
+      weight *
+      reportingMultiplier;
     purchaseAttributed.set(lastTouch.source, current);
   }
 
@@ -2153,6 +2164,7 @@ export function simulateWorld(
         randomness,
         maxSessionSteps,
         request.commercePolicy,
+        externalReality,
       );
       observableEvents.push(...step.observableEvents);
       websiteTruth.push(...(step.websiteCausalEvents ?? []));
@@ -2222,11 +2234,47 @@ export function simulateWorld(
             request.commercePolicy
               ?.freeShippingThresholdMinor,
           );
+        const checkoutShippingCostMultiplier =
+          externalReality?.applyAt(
+            `${session.sessionId}:checkout:${session.step}:shipping-cost`,
+            "shipping_cost",
+            event.timestampMs,
+            {
+              channel: session.source,
+              device: session.device,
+            },
+          ) ?? 1;
         const actualShippingChargeMinor =
           shippingTerms.freeShipping
             ? 0
-            : request.commercePolicy
-                ?.customerShippingChargeMinor ?? 0;
+            : Math.max(
+                0,
+                Math.round(
+                  (request.commercePolicy
+                    ?.customerShippingChargeMinor ?? 0) *
+                    checkoutShippingCostMultiplier,
+                ),
+              );
+        const checkoutDeliveryTimeMultiplier =
+          externalReality?.applyAt(
+            `${session.sessionId}:checkout:${session.step}:delivery-time`,
+            "delivery_time",
+            event.timestampMs,
+            {
+              channel: session.source,
+              device: session.device,
+            },
+          ) ?? 1;
+        const checkoutPriceSensitivityMultiplier =
+          externalReality?.applyAt(
+            `${session.sessionId}:checkout:${session.step}:price-sensitivity`,
+            "price_sensitivity",
+            event.timestampMs,
+            {
+              channel: session.source,
+              device: session.device,
+            },
+          ) ?? 1;
         const checkoutExperience =
           resolveCheckoutExperience({
             scenario:
@@ -2509,6 +2557,8 @@ export function simulateWorld(
             ),
             request.commercePolicy,
             session.source,
+            actualShippingChargeMinor,
+            checkoutPriceSensitivityMultiplier,
           );
         const purchaseProbability = clamp(
           baselinePurchaseProbability *
@@ -2522,7 +2572,18 @@ export function simulateWorld(
                 channel: session.source,
                 device: session.device,
               },
-            ) ?? 1),
+            ) ?? 1) *
+            clamp(
+              1 /
+                Math.sqrt(
+                  Math.max(
+                    0.05,
+                    checkoutDeliveryTimeMultiplier,
+                  ),
+                ),
+              0.5,
+              1.35,
+            ),
           0.001,
           0.98,
         );
@@ -2548,6 +2609,7 @@ export function simulateWorld(
             interventionState,
             randomness,
             request.commercePolicy,
+            externalReality,
           );
           if (purchase) {
             purchaseCount.set(
@@ -2878,7 +2940,17 @@ export function simulateWorld(
           id: `session-step:${session.sessionId}:${session.step}`,
           kind: "session_step",
           timestampMs:
-            event.timestampMs + step.delayMs,
+            event.timestampMs +
+            step.delayMs *
+              (externalReality?.applyAt(
+                `${session.sessionId}:step:${session.step}:consideration-time`,
+                "consideration_time",
+                event.timestampMs,
+                {
+                  channel: session.source,
+                  device: session.device,
+                },
+              ) ?? 1),
           priority: 40,
           customerId: customer.customerId,
           payload: { sessionId: session.sessionId },
@@ -2994,6 +3066,7 @@ export function simulateWorld(
       request,
       observableEvents,
       purchases,
+      externalReality,
     ),
     totals: {
       representedPurchases: representedOrders,
