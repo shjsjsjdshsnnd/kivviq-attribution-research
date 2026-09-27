@@ -258,7 +258,8 @@ export type TranslationFailureStatus =
   | "UNSUPPORTED_SIMULATOR_CAPABILITY"
   | "MISSING_CONTEXT"
   | "INVALID_ACTION"
-  | "AMBIGUOUS_TRANSLATION";
+  | "AMBIGUOUS_TRANSLATION"
+  | "INELIGIBLE_ACTION";
 
 export interface TranslationFailure {
   readonly status: TranslationFailureStatus;
@@ -274,9 +275,24 @@ export interface TranslatedResult {
   readonly translationVersion: typeof ACTION_TRANSLATION_VERSION;
   readonly interventions: readonly SimulatorIntervention[];
   readonly decisionType?:
-    "NO_OP" | "WAIT_OBSERVE" | "INVESTIGATE" | "BUSINESS_INTERVENTION";
+    "NO_OP" | "WAIT_OBSERVE" | "INVESTIGATE" | "EXPERIMENT" | "BUSINESS_INTERVENTION";
   readonly informationTasks?: readonly InformationAcquisitionTask[];
   readonly observationRequests?: readonly ObservationRequest[];
+  readonly experimentTasks?: readonly ExperimentEngineTask[];
+}
+
+export interface ExperimentEngineTask {
+  readonly actionId: string;
+  readonly actionFingerprint: string;
+  readonly specification: import("../experiment/index.js").ExperimentWhat;
+  readonly population: import("../population/index.js").PopulationReference;
+  readonly timing: import("../action_timing/types.js").ActionTiming;
+  readonly eligibility: {
+    readonly evaluationBoundary: "TRANSLATION_TIME";
+    readonly evaluatedAt: string;
+  };
+  readonly compoundActionId?: string;
+  readonly componentId?: string;
 }
 
 /** Information intent is preserved separately from commercial interventions. */

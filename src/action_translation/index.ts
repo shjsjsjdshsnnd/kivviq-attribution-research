@@ -6,3 +6,4 @@ export * from "./registry.js";
 export * from "./translate.js";
 export * from './canonical.js';
 export * from './compound.js';
+export * from "./experiment.js";

@@ -20,6 +20,8 @@ import { validateInvestigationExecutionHorizon } from "../decision_forms/timing.
 import { translateResolvedLegacyBusiness } from "./canonical-legacy.js";
 import type { CanonicalAction } from "../canonical_action/schema.js";
 import type { TimingResolution } from "../action_timing/types.js";
+import { experimentWhatSchema } from "../experiment/index.js";
+import { translateExperimentAction } from "./experiment.js";
 
 const timestamp = z.string().datetime({ offset: true });
 export const canonicalTranslationContextSchema = z
@@ -39,6 +41,8 @@ export const canonicalTranslationContextSchema = z
       })
       .strict()
       .optional(),
+    eligibility: z.unknown().optional(),
+    eligibilityMaximumAgeSeconds: z.number().int().nonnegative().safe().optional(),
   })
   .strict();
 /** Resolution and eligibility are independent of simulator capability. */
@@ -177,6 +181,7 @@ export function translateCanonicalAction(
   if (gate.status !== "RESOLVED") return gate as TranslationFailure;
   const { action, context, resolution } = gate;
   const decision = decisionWhatSchema.safeParse(action.what);
+  const experiment = experimentWhatSchema.safeParse(action.what);
   const common = {
     status: "TRANSLATED" as const,
     originatingBusinessActionId:
@@ -234,6 +239,8 @@ export function translateCanonicalAction(
         };
     }
   }
+  if (experiment.success)
+    return translateExperimentAction(action, experiment.data, context, origin);
   if ("kind" in action.what && action.what.kind === "legacy_business")
     return translateResolvedLegacyBusiness(
       action,
