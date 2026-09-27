@@ -1,5 +1,6 @@
 import type { RuntimeCustomerState, RuntimeWorldState } from "./state.js";
 import type { SharedRandomness } from "./kernel.js";
+import type { ExternalRealityRuntime } from "../external_reality/index.js";
 import type {
   ObservableSource,
   PerfectObservableJourneyEvent,
@@ -333,6 +334,7 @@ function productViewEvent(
   offer: ProductOffer,
   suffix: string,
   commercePolicy?: SimulationCommercePolicy,
+  externalReality?: ExternalRealityRuntime,
 ): PerfectObservableJourneyEvent {
   const inventoryMechanism =
     runtime.merchantWorld.manifest.inventoryMechanisms.find(
@@ -361,7 +363,7 @@ function productViewEvent(
           offer.productId,
         )?.expectedArrivalAt
       : undefined;
-  const deliveryEstimateDays =
+  const baseDeliveryEstimateDays =
     expectedArrival === undefined
       ? undefined
       : Math.max(
@@ -369,6 +371,34 @@ function productViewEvent(
           Math.ceil(
             (Date.parse(expectedArrival) - timestampMs) /
               86_400_000,
+          ),
+        );
+  const categoryId = productCategory(
+    runtime,
+    offer.productId,
+  );
+  const deliveryTimeMultiplier =
+    externalReality?.applyAt(
+      `${session.sessionId}:${suffix}:delivery-time`,
+      "delivery_time",
+      timestampMs,
+      {
+        product: offer.productId,
+        channel: session.source,
+        device: session.device,
+        ...(categoryId === undefined
+          ? {}
+          : { category: categoryId }),
+      },
+    ) ?? 1;
+  const deliveryEstimateDays =
+    baseDeliveryEstimateDays === undefined
+      ? undefined
+      : Math.max(
+          0,
+          Math.ceil(
+            baseDeliveryEstimateDays *
+              deliveryTimeMultiplier,
           ),
         );
 
@@ -401,6 +431,7 @@ export function advanceSession(
   randomness: SharedRandomness,
   maxSteps: number,
   commercePolicy?: SimulationCommercePolicy,
+  externalReality?: ExternalRealityRuntime,
 ): SessionStepResult {
   if (session.ended || session.step >= maxSteps) {
     session.ended = true;
@@ -831,6 +862,7 @@ export function advanceSession(
           surface: listSurface,
           device: session.device,
         },
+        externalReality,
       );
       if (offer) {
         session.currentProductId = offer.productId;
@@ -844,6 +876,7 @@ export function advanceSession(
             offer,
             `pdp_${session.step}`,
             commercePolicy,
+            externalReality,
           ),
         );
       }
@@ -870,6 +903,7 @@ export function advanceSession(
           surface: "pdp",
           device: session.device,
         },
+        externalReality,
       );
       if (offer && offer.productId !== session.currentProductId) {
         // Browsing can move to another preferred product.
@@ -888,6 +922,7 @@ export function advanceSession(
           surface: "pdp",
           device: session.device,
         },
+        externalReality,
       );
       if (offer) session.currentProductId = offer.productId;
     }
