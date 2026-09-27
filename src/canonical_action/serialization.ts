@@ -27,7 +27,7 @@ export function readCanonicalAction(
   return deserializeAction(serialized);
 }
 export function fingerprintCanonicalAction(input: CanonicalAction): string {
-  const { schemaVersion, what, population, timing } =
+  const { schemaVersion, what, population, timing, constraints } =
     canonicalActionSchema.parse(input);
   const experiment = experimentWhatSchema.safeParse(what);
   const semanticWhat =
@@ -47,6 +47,7 @@ export function fingerprintCanonicalAction(input: CanonicalAction): string {
       what: semanticWhat,
       population,
       timing: canonicalizeTiming(timing),
+      ...(constraints.length > 0 ? { constraints } : {}),
     }),
   );
   let hash = 0xcbf29ce484222325n;

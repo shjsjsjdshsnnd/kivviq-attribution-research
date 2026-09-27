@@ -11,6 +11,7 @@ import { lifecycleWhatSchema } from "../lifecycle/canonical.js";
 import { populationReferenceSchema } from "../population/index.js";
 import { decisionWhatSchema } from "../decision_forms/index.js";
 import { experimentWhatSchema } from "../experiment/schema.js";
+import { hardConstraintsSchema } from "../action_constraints/schema.js";
 
 export const CANONICAL_ACTION_SCHEMA_VERSION = "2.0.0" as const;
 export type LegacyBusiness = Omit<
@@ -191,6 +192,7 @@ export const canonicalActionSchema = z
     ]),
     population: populationReferenceSchema.optional(),
     timing: universalTimingSchema,
+    constraints: hardConstraintsSchema.default([]),
     provenance: z.array(z.string().regex(/^[A-Za-z][A-Za-z0-9_.:-]*$/)).min(1),
   })
   .strict()
