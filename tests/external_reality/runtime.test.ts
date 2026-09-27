@@ -4,6 +4,7 @@ import {
   ALLOWED_TARGETS_BY_KIND,
   CANONICAL_EXTERNAL_EVENT_KINDS,
   EXTERNAL_REALITY_MODEL_VERSION,
+  EXTERNAL_TARGET_EXECUTION_SURFACES,
   ExternalRealityRuntime,
   externalEvidenceAt,
   projectExternalObservations,
@@ -55,6 +56,19 @@ describe("external reality contracts", () => {
     for (const kind of CANONICAL_EXTERNAL_EVENT_KINDS) {
       expect(ALLOWED_TARGETS_BY_KIND[kind].length).toBeGreaterThan(0);
     }
+
+    const allowedTargets = new Set(
+      CANONICAL_EXTERNAL_EVENT_KINDS.flatMap(
+        (kind) => ALLOWED_TARGETS_BY_KIND[kind],
+      ),
+    );
+    expect(
+      [...allowedTargets].sort(),
+    ).toEqual(
+      Object.keys(
+        EXTERNAL_TARGET_EXECUTION_SURFACES,
+      ).sort(),
+    );
   });
 
   it("keeps effects scoped to interval and market", () => {
