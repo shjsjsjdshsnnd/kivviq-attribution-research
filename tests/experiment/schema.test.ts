@@ -104,6 +104,7 @@ describe("canonical experiment intent", () => {
     ["duplicate arm", { ...what(), arms: [control, { ...treatment, armId: control.armId }] }],
     ["duplicate action identity", { ...what(), arms: [control, { ...treatment, actionId: control.actionId, actionFingerprint: control.actionFingerprint }] }],
     ["duplicate action ID with conflicting fingerprints", { ...what(), arms: [control, { ...treatment, actionId: control.actionId }] }],
+    ["duplicate action semantics under different IDs", { ...what(), arms: [control, { ...treatment, actionFingerprint: control.actionFingerprint }] }],
     ["missing control", { ...what(), arms: [{ ...control, role: "TREATMENT" }, treatment] }],
     ["multiple controls", { ...what(), arms: [control, { ...treatment, role: "CONTROL" }] }],
     ["zero allocation", { ...what(), arms: [control, { ...treatment, allocationBasisPoints: 0 }] }],

@@ -110,6 +110,15 @@ export const experimentWhatSchema = z
         message: "Each canonical action ID may appear in only one arm",
       });
     if (
+      new Set(value.arms.map((arm) => arm.actionFingerprint)).size !==
+      value.arms.length
+    )
+      ctx.addIssue({
+        code: "custom",
+        path: ["arms"],
+        message: "Experiment arms must reference distinct action semantics",
+      });
+    if (
       value.guardrailMetricRefs &&
       new Set(value.guardrailMetricRefs).size !== value.guardrailMetricRefs.length
     )
