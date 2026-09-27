@@ -53,7 +53,8 @@ export const domainEligibilityFactSchema = z.object({
 export type DomainEligibilityFact = z.infer<typeof domainEligibilityFactSchema>;
 
 type DomainFamily = "paid_media" | "pricing" | "promotion" | "shipping" | "merchandising" | "inventory" | "cro" | "lifecycle";
-type Requirement = Readonly<{ factId: DomainEligibilityFact["factId"]; suffix: string; trueReason: string; falseReason: string; ruleRef?: string }>;
+export type DomainEligibilityRequirement = Readonly<{ factId: DomainEligibilityFact["factId"]; suffix: string; trueReason: string; falseReason: string; ruleRef?: string }>;
+type Requirement = DomainEligibilityRequirement;
 
 const capability = (family: DomainFamily): Requirement => ({
   factId: "ACTION_FAMILY_CAPABILITY",
@@ -121,7 +122,7 @@ function familyOf(action: CanonicalAction): DomainFamily | undefined {
   return undefined;
 }
 
-function requirementsFor(action: CanonicalAction): Requirement[] {
+export function domainEligibilityRequirements(action: CanonicalAction): readonly DomainEligibilityRequirement[] {
   const family = familyOf(action);
   if (!family) return [];
   const actionType = actionTypeOf(action);
@@ -144,7 +145,7 @@ function requirementsFor(action: CanonicalAction): Requirement[] {
 export function expectedDomainEligibilityCheckIds(action: CanonicalAction): readonly string[] {
   const family = familyOf(action);
   if (!family) return [];
-  return requirementsFor(action).map((requirement) => `domain.${family}.${requirement.suffix}`).sort();
+  return domainEligibilityRequirements(action).map((requirement) => `domain.${family}.${requirement.suffix}`).sort();
 }
 
 function unknown(checkId: string, reasonCodes: string[], evidenceRefs: string[] = []): EligibilityCheck {
@@ -163,7 +164,7 @@ export function evaluateDomainEligibility(input: {
   if (!family) return [];
   const fingerprint = fingerprintCanonicalAction(input.action);
   const bound = input.facts.filter((fact) => fact.actionId === input.action.actionId && fact.actionFingerprint === fingerprint && fact.targetRef === input.targetRef && fact.evaluationBoundary === input.evaluationBoundary);
-  const requirements = requirementsFor(input.action);
+  const requirements = domainEligibilityRequirements(input.action);
   return requirements.map((requirement): EligibilityCheck => {
     const checkId = `domain.${family}.${requirement.suffix}`;
     const matches = bound.filter((fact) => fact.factId === requirement.factId && fact.ruleRef === requirement.ruleRef);

@@ -336,3 +336,26 @@ export function evaluateActionEligibility(inputValue: unknown, contextValue: unk
   const assessment = { actionId: action.data.actionId, actionFingerprint: fingerprintCanonicalAction(action.data), evaluatedAt: context.data.evaluatedAt, evaluationBoundary: context.data.evaluationBoundary, status, checks };
   return { ok: true, result: actionEligibilitySchema.parse({ ...assessment, assessmentFingerprint: fingerprintEligibilityAssessment(assessment) }) };
 }
+
+/**
+ * Re-evaluates eligibility from raw evidence and requires the supplied
+ * assessment to be the evaluator's exact deterministic output.
+ */
+export function hasMatchingRecomputedActionEligibility(
+  action: CanonicalAction,
+  supplied: ActionEligibility,
+  evaluationContext: unknown,
+  resourceRequirements: unknown,
+): boolean {
+  const recomputed = evaluateActionEligibility(
+    {
+      action,
+      nativeConstraints: {
+        constraints: action.constraints,
+        resourceRequirements: resourceRequirements ?? [],
+      },
+    },
+    evaluationContext,
+  );
+  return recomputed.ok && stable(recomputed.result) === stable(supplied);
+}

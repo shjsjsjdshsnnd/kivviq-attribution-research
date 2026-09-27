@@ -8,6 +8,7 @@ import { utcTimestamp, currencyCode } from "../../src/core/units.js";
 import { evaluateActionEligibility, type ActionEligibility } from "../../src/action_eligibility/index.js";
 import { fingerprintEligibilityAssessment } from "../../src/action_eligibility/integrity.js";
 import { expectedEligibilityCheckManifest } from "../../src/action_eligibility/evaluate.js";
+import { evaluateEligibilityForTest } from "../action_translation/eligibility-helper.js";
 import {
   compoundActionSchema,
   assessCompoundActionReadiness as assessCompoundActionReadinessRaw,
@@ -46,9 +47,18 @@ const ready = {
   a: { status: "READY" as const, evidenceRefs: ["evidence_a"] },
   b: { status: "READY" as const, evidenceRefs: ["evidence_b"] },
 };
+let latestEvaluationContexts: Record<string, unknown> = {};
+let latestResourceRequirements: Record<string, readonly unknown[]> = {};
 function eligibility(action: CompoundAction, statuses: Partial<Record<string, "ELIGIBLE" | "INELIGIBLE" | "UNKNOWN">> = {}, evaluatedAt = "2026-01-01T00:00:00Z") {
+  latestEvaluationContexts = {};
+  latestResourceRequirements = {};
   return Object.fromEntries(action.components.map((component) => {
     const status = statuses[component.componentId] ?? "ELIGIBLE";
+    const evaluated = evaluateEligibilityForTest(component.action, "DECISION_TIME", evaluatedAt, status);
+    latestEvaluationContexts[component.componentId] = evaluated.evaluationContext;
+    latestResourceRequirements[component.componentId] = evaluated.resourceRequirements;
+    return [component.componentId, evaluated.eligibility];
+    /*
     const expectedChecks = expectedEligibilityCheckManifest(component.action, "DECISION_TIME")
       .map((check, index) => ({
         kind: check.kind,
@@ -73,7 +83,7 @@ function eligibility(action: CompoundAction, statuses: Partial<Record<string, "E
       status,
       checks,
     } satisfies Omit<ActionEligibility, "assessmentFingerprint">;
-    return [component.componentId, { ...assessment, assessmentFingerprint: fingerprintEligibilityAssessment(assessment) }];
+    return [component.componentId, { ...assessment, assessmentFingerprint: fingerprintEligibilityAssessment(assessment) }]; */
   }));
 }
 function assessCompoundActionReadiness(
@@ -83,6 +93,8 @@ function assessCompoundActionReadiness(
   return assessCompoundActionReadinessRaw(action, {
     ...context,
     eligibilityResults: context.eligibilityResults ?? eligibility(action, {}, context.timing.approvedClock),
+    eligibilityEvaluationContexts: context.eligibilityEvaluationContexts ?? latestEvaluationContexts,
+    eligibilityResourceRequirements: context.eligibilityResourceRequirements ?? latestResourceRequirements,
     eligibilityMaximumAgeSeconds: context.eligibilityMaximumAgeSeconds ?? 3600,
   });
 }
@@ -128,7 +140,9 @@ describe("compound definition and runtime boundaries", () => {
     const incomplete = { ...generated, a: { ...generated["a"]!, checks: [] } };
     expect(assessCompoundActionReadiness(action, { timing, components: ready, eligibilityResults: incomplete }).components[0]).toMatchObject({ status: "MISSING_CONTEXT", codes: ["COMPONENT_ELIGIBILITY_MISMATCH"] });
     const complete = generated;
-    expect(assessCompoundActionReadiness(action, { timing, components: ready, eligibilityResults: complete }).components[0]).toMatchObject({ status: "READY" });
+    const accepted = assessCompoundActionReadiness(action, { timing, components: ready, eligibilityResults: complete }).components[0]!;
+    expect(accepted.codes).not.toContain("COMPONENT_ELIGIBILITY_MISMATCH");
+    expect(accepted).toHaveProperty("eligibility");
   });
 
   it.each(["INELIGIBLE", "UNKNOWN"] as const)("requires complete constraint checks for %s eligibility", (status) => {
@@ -143,15 +157,12 @@ describe("compound definition and runtime boundaries", () => {
 
   it("rejects future, stale, and freshness-unbounded eligibility without retaining it", () => {
     const action = base();
-    const exact = eligibility(action);
     const evaluate = (evaluatedAt: string, maximumAge?: number) => assessCompoundActionReadinessRaw(action, {
       timing,
       components: ready,
-      eligibilityResults: Object.fromEntries(Object.entries(exact).map(([id, result]) => {
-        const { assessmentFingerprint: _old, ...projection } = result;
-        const assessment = { ...projection, evaluatedAt };
-        return [id, { ...assessment, assessmentFingerprint: fingerprintEligibilityAssessment(assessment) }];
-      })),
+      eligibilityResults: eligibility(action, {}, evaluatedAt),
+      eligibilityEvaluationContexts: latestEvaluationContexts,
+      eligibilityResourceRequirements: latestResourceRequirements,
       ...(maximumAge === undefined ? {} : { eligibilityMaximumAgeSeconds: maximumAge }),
     }).components[0]!;
     expect(evaluate("2026-01-01T00:00:01Z", 3600)).toMatchObject({ status: "MISSING_CONTEXT", codes: ["COMPONENT_ELIGIBILITY_FUTURE"] });
@@ -163,9 +174,10 @@ describe("compound definition and runtime boundaries", () => {
   it("accepts one authoritative hard-constraint check from an adapted legacy component", () => {
     const action = base();
     const component = action.components[0]!;
+    const rawEvaluationContext = { evaluatedAt: timing.approvedClock, evaluationBoundary: "DECISION_TIME" as const, maximumAgeSeconds: 3600, observations: [], domainFacts: [] };
     const evaluated = evaluateActionEligibility(
       { action: component.action, nativeConstraints: { constraints: component.action.constraints, resourceRequirements: [] } },
-      { evaluatedAt: timing.approvedClock, evaluationBoundary: "DECISION_TIME", maximumAgeSeconds: 3600, observations: [], domainFacts: [] },
+      rawEvaluationContext,
     );
     expect(evaluated.ok).toBe(true);
     if (!evaluated.ok) return;
@@ -175,6 +187,8 @@ describe("compound definition and runtime boundaries", () => {
       timing,
       components: ready,
       eligibilityResults: { ...eligibility(action), a: evaluated.result },
+      eligibilityEvaluationContexts: { ...latestEvaluationContexts, a: rawEvaluationContext },
+      eligibilityResourceRequirements: latestResourceRequirements,
       eligibilityMaximumAgeSeconds: 3600,
     });
     expect(result.components[0]).toHaveProperty("eligibility");

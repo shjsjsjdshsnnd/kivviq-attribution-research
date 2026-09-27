@@ -3,7 +3,7 @@ import { canonicalActionSchema } from "../../src/canonical_action/schema.js";
 import { fingerprintCanonicalAction } from "../../src/canonical_action/serialization.js";
 import { immediatePersistentBudgetTiming } from "../../src/action_timing/fixtures.js";
 import { translateCanonicalAction } from "../../src/action_translation/canonical.js";
-import { expectedEligibilityCheckManifest } from "../../src/action_eligibility/evaluate.js";
+import { evaluateActionEligibility, expectedEligibilityCheckManifest } from "../../src/action_eligibility/evaluate.js";
 import { fingerprintEligibilityAssessment } from "../../src/action_eligibility/integrity.js";
 
 const NOW = "2026-09-27T00:00:00Z";
@@ -27,8 +27,8 @@ function assessment(action: typeof base, status: "ELIGIBLE" | "INELIGIBLE" | "UN
   return { ...projection, assessmentFingerprint: fingerprintEligibilityAssessment(projection) };
 }
 
-function context(eligibility?: unknown) {
-  return { timing: { approvedClock: NOW }, eligibilityMaximumAgeSeconds: 3600, ...(eligibility === undefined ? {} : { eligibility }) };
+function context(eligibility?: unknown, eligibilityEvaluationContext: unknown = { evaluatedAt: NOW, evaluationBoundary: "TRANSLATION_TIME", observations: [], constraintReceipts: [], domainFacts: [] }) {
+  return { timing: { approvedClock: NOW }, eligibilityMaximumAgeSeconds: 3600, eligibilityEvaluationContext, eligibilityResourceRequirements: [], ...(eligibility === undefined ? {} : { eligibility }) };
 }
 
 describe("canonical atomic translation eligibility", () => {
@@ -45,7 +45,19 @@ describe("canonical atomic translation eligibility", () => {
       ...base,
       constraints: [{ constraintId: "atomic.policy", kind: "CUSTOM", target: { kind: "GLOBAL" }, evaluationBoundary: "TRANSLATION_TIME", whenUnknown: "UNKNOWN", registryRef: "atomic.policy", code: "ALLOWED" }],
     });
-    expect(translateCanonicalAction(constrained, context(assessment(constrained, status)))).toMatchObject({ status: resultStatus, code });
+    const raw = {
+      evaluatedAt: NOW, evaluationBoundary: "TRANSLATION_TIME", observations: [], domainFacts: [],
+      constraintReceipts: status === "UNKNOWN" ? [] : [{
+        evidenceRef: "eligibility.evidence", actionId: constrained.actionId, actionFingerprint: fingerprintCanonicalAction(constrained),
+        constraintId: "atomic.policy", target: { kind: "GLOBAL" }, evaluationBoundary: "TRANSLATION_TIME", observedAt: NOW,
+        sourceRef: "policy", provenance: ["policy:1"], fact: { kind: "CUSTOM", registryRef: "atomic.policy", code: "ALLOWED", decision: "VIOLATED" },
+      }],
+    };
+    const evaluated = evaluateActionEligibility({ action: constrained, nativeConstraints: { constraints: constrained.constraints, resourceRequirements: [] } }, raw);
+    expect(evaluated.ok).toBe(true);
+    if (!evaluated.ok) return;
+    expect(evaluated.result.status).toBe(status);
+    expect(translateCanonicalAction(constrained, context(evaluated.result, raw))).toMatchObject({ status: resultStatus, code });
   });
 
   it("rejects forged empty and mutated check manifests", () => {
@@ -60,5 +72,23 @@ describe("canonical atomic translation eligibility", () => {
     expect(translateCanonicalAction(constrained, context(forgedEmpty))).toMatchObject({ status: "INVALID_ACTION", code: "INCOMPLETE_ACTION_ELIGIBILITY" });
     const mutated = { ...valid, checks: valid.checks.map((check) => ({ ...check, status: "VIOLATED" as const })) };
     expect(translateCanonicalAction(constrained, context(mutated))).toMatchObject({ status: "INVALID_ACTION", code: "INVALID_ACTION_ELIGIBILITY_INTEGRITY" });
+  });
+
+  it("rejects an all-satisfied forgery even when the caller recomputes its digest", () => {
+    const constrained = canonicalActionSchema.parse({
+      ...base,
+      constraints: [{ constraintId: "atomic.policy", kind: "CUSTOM", target: { kind: "GLOBAL" }, evaluationBoundary: "TRANSLATION_TIME", whenUnknown: "UNKNOWN", registryRef: "atomic.policy", code: "ALLOWED" }],
+    });
+    const raw = {
+      evaluatedAt: NOW, evaluationBoundary: "TRANSLATION_TIME" as const, observations: [], domainFacts: [],
+      constraintReceipts: [{ evidenceRef: "policy.denied", actionId: constrained.actionId, actionFingerprint: fingerprintCanonicalAction(constrained), constraintId: "atomic.policy", target: { kind: "GLOBAL" as const }, evaluationBoundary: "TRANSLATION_TIME" as const, observedAt: NOW, sourceRef: "policy", provenance: ["policy:deny"], fact: { kind: "CUSTOM" as const, registryRef: "atomic.policy", code: "ALLOWED", decision: "VIOLATED" as const } }],
+    };
+    const actual = evaluateActionEligibility({ action: constrained, nativeConstraints: { constraints: constrained.constraints, resourceRequirements: [] } }, raw);
+    expect(actual.ok).toBe(true);
+    if (!actual.ok) return;
+    const { assessmentFingerprint: _actualFingerprint, ...actualProjection } = actual.result;
+    const forgedProjection = { ...actualProjection, status: "ELIGIBLE" as const, checks: actual.result.checks.map((check) => ({ ...check, status: "SATISFIED" as const, reasonCodes: ["CUSTOM_SATISFIED"] })) };
+    const forged = { ...forgedProjection, assessmentFingerprint: fingerprintEligibilityAssessment(forgedProjection) };
+    expect(translateCanonicalAction(constrained, context(forged, raw))).toMatchObject({ status: "INVALID_ACTION", code: "ACTION_ELIGIBILITY_RECOMPUTATION_MISMATCH" });
   });
 });

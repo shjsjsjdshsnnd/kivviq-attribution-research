@@ -7,6 +7,7 @@ import { createPopulationSnapshot, evaluatePopulation, fingerprintPopulationDefi
 import { createCompoundFixtures, fingerprintCompoundAction } from "../../src/compound_action/index.js";
 import { experimentWhatSchema } from "../../src/experiment/index.js";
 import { fingerprintEligibilityAssessment } from "../../src/action_eligibility/integrity.js";
+import { evaluateActionEligibility } from "../../src/action_eligibility/evaluate.js";
 
 const NOW = "2026-09-22T14:00:00.000Z";
 const populationDefinition = {
@@ -66,12 +67,15 @@ function eligibilityFor(actionValue: typeof action, overrides: Record<string, un
 function eligibility(overrides: Record<string, unknown> = {}) { return eligibilityFor(action, overrides); }
 
 function context(overrides: Record<string, unknown> = {}) {
+  const supplied = (overrides["eligibility"] ?? eligibility()) as { evaluatedAt?: string; evaluationBoundary?: string };
   return {
     timing: { approvedClock: NOW },
     populations: [populationDefinition],
     evaluations: [evaluation],
     bindingTimes: { DECISION_TIME: NOW },
     eligibility: eligibility(),
+    eligibilityEvaluationContext: { evaluatedAt: supplied.evaluatedAt ?? NOW, evaluationBoundary: supplied.evaluationBoundary ?? "TRANSLATION_TIME", observations: [], constraintReceipts: [], domainFacts: [] },
+    eligibilityResourceRequirements: [],
     eligibilityMaximumAgeSeconds: 3600,
     experimentArmRegistry: [
       { entityKind: "ACTION", action: control },
@@ -79,6 +83,22 @@ function context(overrides: Record<string, unknown> = {}) {
     ],
     ...overrides,
   };
+}
+
+function evaluatedFor(actionValue: typeof action, decision?: "SATISFIED" | "VIOLATED") {
+  const constraint = actionValue.constraints[0];
+  const raw = {
+    evaluatedAt: NOW, evaluationBoundary: "TRANSLATION_TIME" as const, observations: [], domainFacts: [],
+    constraintReceipts: !constraint || decision === undefined ? [] : [{
+      evidenceRef: "policy.evidence", actionId: actionValue.actionId, actionFingerprint: fingerprintCanonicalAction(actionValue),
+      constraintId: constraint.constraintId, target: constraint.target, evaluationBoundary: "TRANSLATION_TIME" as const,
+      observedAt: NOW, sourceRef: "policy", provenance: ["policy:1"],
+      fact: { kind: "CUSTOM" as const, registryRef: constraint.kind === "CUSTOM" ? constraint.registryRef : "unsupported", code: constraint.kind === "CUSTOM" ? constraint.code : "unsupported", decision },
+    }],
+  };
+  const result = evaluateActionEligibility({ action: actionValue, nativeConstraints: { constraints: actionValue.constraints, resourceRequirements: [] } }, raw);
+  if (!result.ok) throw new Error(result.failure.messages.join(", "));
+  return { eligibility: result.result, raw };
 }
 
 describe("native experiment translation", () => {
@@ -110,14 +130,14 @@ describe("native experiment translation", () => {
 
   it("maps ineligible evidence to an explicit failure", () => {
     const constrained = canonicalActionSchema.parse({ ...action, constraints: [{ constraintId: "budget", kind: "CUSTOM", target: { kind: "GLOBAL" }, evaluationBoundary: "TRANSLATION_TIME", whenUnknown: "UNKNOWN", registryRef: "budget", code: "AVAILABLE" }] });
-    const check = { kind: "HARD_CONSTRAINT", checkId: "budget", status: "VIOLATED", reasonCodes: ["CONSTRAINT_VIOLATED"], evidenceRefs: ["budget.evidence"], missingInformation: [] };
-    expect(translateCanonicalAction(constrained, context({ eligibility: eligibilityFor(constrained, { status: "INELIGIBLE", checks: [check] }) }))).toMatchObject({ status: "INELIGIBLE_ACTION", code: "EXPERIMENT_INELIGIBLE" });
+    const evaluated = evaluatedFor(constrained, "VIOLATED");
+    expect(translateCanonicalAction(constrained, context({ eligibility: evaluated.eligibility, eligibilityEvaluationContext: evaluated.raw }))).toMatchObject({ status: "INELIGIBLE_ACTION", code: "EXPERIMENT_INELIGIBLE" });
   });
 
   it("maps a complete unknown assessment to missing context", () => {
     const constrained = canonicalActionSchema.parse({ ...action, constraints: [{ constraintId: "budget", kind: "CUSTOM", target: { kind: "GLOBAL" }, evaluationBoundary: "TRANSLATION_TIME", whenUnknown: "UNKNOWN", registryRef: "budget", code: "AVAILABLE" }] });
-    const check = { kind: "HARD_CONSTRAINT", checkId: "budget", status: "UNKNOWN", reasonCodes: ["MISSING_BOUND_EVIDENCE"], evidenceRefs: [], missingInformation: ["budget"] };
-    expect(translateCanonicalAction(constrained, context({ eligibility: eligibilityFor(constrained, { status: "UNKNOWN", checks: [check] }) }))).toMatchObject({ status: "MISSING_CONTEXT", code: "EXPERIMENT_ELIGIBILITY_UNKNOWN" });
+    const evaluated = evaluatedFor(constrained);
+    expect(translateCanonicalAction(constrained, context({ eligibility: evaluated.eligibility, eligibilityEvaluationContext: evaluated.raw }))).toMatchObject({ status: "MISSING_CONTEXT", code: "EXPERIMENT_ELIGIBILITY_UNKNOWN" });
   });
 
   it("rejects a mutated check whose assessment fingerprint was not recomputed", () => {
@@ -129,7 +149,7 @@ describe("native experiment translation", () => {
   it("rejects a forged eligible aggregate containing a violated check", () => {
     const constrained = canonicalActionSchema.parse({ ...action, constraints: [{ constraintId: "budget", kind: "CUSTOM", target: { kind: "GLOBAL" }, evaluationBoundary: "TRANSLATION_TIME", whenUnknown: "UNKNOWN", registryRef: "budget", code: "AVAILABLE" }] });
     const forged = eligibilityFor(constrained, { checks: [{ kind: "HARD_CONSTRAINT", checkId: "budget", status: "VIOLATED", reasonCodes: ["CONSTRAINT_VIOLATED"], evidenceRefs: ["budget.evidence"], missingInformation: [] }] });
-    expect(translateCanonicalAction(constrained, context({ eligibility: forged }))).toMatchObject({ status: "INVALID_ACTION", code: "INVALID_EXPERIMENT_ELIGIBILITY" });
+    expect(translateCanonicalAction(constrained, context({ eligibility: forged }))).toMatchObject({ status: "INVALID_ACTION", code: "EXPERIMENT_ELIGIBILITY_RECOMPUTATION_MISMATCH" });
   });
 
   it.each([
@@ -169,9 +189,10 @@ describe("native experiment translation", () => {
   it("requires complete, unique translation-time hard-constraint checks", () => {
     const constraint = { constraintId: "experiment.translation.policy", kind: "CUSTOM" as const, target: { kind: "GLOBAL" as const }, evaluationBoundary: "TRANSLATION_TIME" as const, whenUnknown: "UNKNOWN" as const, registryRef: "experiment.policy", code: "ENGINE_ALLOWED" };
     const constrained = canonicalActionSchema.parse({ ...action, constraints: [constraint] });
-    const satisfied = { kind: "HARD_CONSTRAINT", checkId: constraint.constraintId, status: "SATISFIED", reasonCodes: ["CUSTOM_SATISFIED"], evidenceRefs: ["policy.evidence"], missingInformation: [] };
-    const translate = (checks: unknown[]) => translateCanonicalAction(constrained, context({ eligibility: eligibilityFor(constrained, { checks }) }));
-    expect(translate([satisfied]).status).toBe("TRANSLATED");
+    const evaluated = evaluatedFor(constrained, "SATISFIED");
+    const satisfied = evaluated.eligibility.checks[0]!;
+    const translate = (checks: unknown[]) => translateCanonicalAction(constrained, context({ eligibility: eligibilityFor(constrained, { checks }), eligibilityEvaluationContext: evaluated.raw }));
+    expect(translateCanonicalAction(constrained, context({ eligibility: evaluated.eligibility, eligibilityEvaluationContext: evaluated.raw })).status).toBe("TRANSLATED");
     expect(translate([])).toMatchObject({ status: "INVALID_ACTION", code: "INCOMPLETE_EXPERIMENT_ELIGIBILITY" });
     expect(translate([satisfied, satisfied])).toMatchObject({ status: "INVALID_ACTION", code: "INCOMPLETE_EXPERIMENT_ELIGIBILITY" });
     expect(translate([satisfied, { ...satisfied, checkId: "unexpected" }])).toMatchObject({ status: "INVALID_ACTION", code: "INCOMPLETE_EXPERIMENT_ELIGIBILITY" });

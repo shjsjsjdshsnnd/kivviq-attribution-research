@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { actionEligibilitySchema } from "../action_eligibility/schema.js";
 import { hasValidEligibilityAssessmentFingerprint } from "../action_eligibility/integrity.js";
-import { hasCompleteEligibilityCheckManifest } from "../action_eligibility/evaluate.js";
+import { hasCompleteEligibilityCheckManifest, hasMatchingRecomputedActionEligibility } from "../action_eligibility/evaluate.js";
 import type { CanonicalAction } from "../canonical_action/schema.js";
 import { canonicalActionSchema } from "../canonical_action/schema.js";
 import { fingerprintCanonicalAction } from "../canonical_action/serialization.js";
@@ -17,6 +17,8 @@ import {
 interface ExperimentTranslationContext {
   readonly timing?: unknown;
   readonly eligibility?: unknown;
+  readonly eligibilityEvaluationContext?: unknown;
+  readonly eligibilityResourceRequirements?: readonly unknown[] | undefined;
   readonly eligibilityMaximumAgeSeconds?: number | undefined;
   readonly experimentArmRegistry?: unknown;
 }
@@ -55,6 +57,8 @@ export function translateExperimentAction(
     return failure(action.actionId, "MISSING_CONTEXT", "EXPERIMENT_ELIGIBILITY_BOUNDARY", "Experiment translation requires TRANSLATION_TIME eligibility.");
   if (!hasCompleteEligibilityCheckManifest(action, "TRANSLATION_TIME", eligibility.checks))
     return failure(action.actionId, "INVALID_ACTION", "INCOMPLETE_EXPERIMENT_ELIGIBILITY", "Eligibility must contain the complete deterministic check manifest for this action and boundary.");
+  if (!hasMatchingRecomputedActionEligibility(action, eligibility, context.eligibilityEvaluationContext, context.eligibilityResourceRequirements))
+    return failure(action.actionId, "INVALID_ACTION", "EXPERIMENT_ELIGIBILITY_RECOMPUTATION_MISMATCH", "Experiment eligibility must exactly match a recomputation from the supplied raw evidence and resource requirements.");
   const approvedClock = context.timing && typeof context.timing === "object" && "approvedClock" in context.timing
     ? (context.timing as { approvedClock?: unknown }).approvedClock
     : undefined;

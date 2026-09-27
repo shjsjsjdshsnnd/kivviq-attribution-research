@@ -172,6 +172,10 @@ export function translateCanonicalCompoundAction(
               ...checkedComponent.data,
               eligibility:
                 context.readiness.eligibilityResults[component.componentId],
+              eligibilityEvaluationContext:
+                context.readiness.eligibilityEvaluationContexts?.[component.componentId],
+              eligibilityResourceRequirements:
+                context.readiness.eligibilityResourceRequirements?.[component.componentId],
               eligibilityMaximumAgeSeconds:
                 context.readiness.eligibilityMaximumAgeSeconds,
               timing: {

@@ -12,6 +12,7 @@ import { fingerprintCompoundAction } from "../../src/compound_action/schema.js";
 import { evaluatePopulation, fingerprintPopulationDefinition } from "../../src/population/index.js";
 import { fingerprintEligibilityAssessment } from "../../src/action_eligibility/integrity.js";
 import { expectedEligibilityCheckManifest } from "../../src/action_eligibility/evaluate.js";
+import { evaluateEligibilityForTest } from "./eligibility-helper.js";
 
 const timing = { approvedClock: "2026-09-27T00:00:00Z" };
 function fixture() {
@@ -47,29 +48,15 @@ function fixture() {
   return action;
 }
 function context(action = fixture()) {
+  const evaluations = Object.fromEntries(action.components.map((component) => [component.componentId, evaluateEligibilityForTest(component.action, "TRANSLATION_TIME", "2026-09-27T00:00:00Z")]));
   return {
     timing,
     components: { component_0: {}, component_1: {} },
     readiness: {
       eligibilityMaximumAgeSeconds: 3600,
-      eligibilityResults: Object.fromEntries(action.components.map((component) => {
-        const checks = expectedEligibilityCheckManifest(component.action, "TRANSLATION_TIME").map((check) => ({
-          ...check,
-          status: "SATISFIED" as const,
-          reasonCodes: ["CHECK_SATISFIED"],
-          evidenceRefs: ["eligibility.evidence"],
-          missingInformation: [],
-        }));
-        const assessment = {
-        actionId: component.action.actionId,
-        actionFingerprint: fingerprintCanonicalAction(component.action),
-        evaluatedAt: "2026-09-27T00:00:00Z",
-        evaluationBoundary: "TRANSLATION_TIME",
-        status: "ELIGIBLE",
-          checks,
-        } as const;
-        return [component.componentId, { ...assessment, assessmentFingerprint: fingerprintEligibilityAssessment(assessment) }];
-      })),
+      eligibilityResults: Object.fromEntries(Object.entries(evaluations).map(([id, value]) => [id, value.eligibility])),
+      eligibilityEvaluationContexts: Object.fromEntries(Object.entries(evaluations).map(([id, value]) => [id, value.evaluationContext])),
+      eligibilityResourceRequirements: Object.fromEntries(Object.entries(evaluations).map(([id, value]) => [id, value.resourceRequirements])),
       components: {
         component_0: { status: "READY", evidenceRefs: ["evidence_ready"] },
         component_1: { status: "READY", evidenceRefs: ["evidence_ready"] },
@@ -165,14 +152,10 @@ describe("canonical compound translation", () => {
       constraints: [{ constraintId: "translation.policy", kind: "CUSTOM", target: { kind: "GLOBAL" }, evaluationBoundary: "TRANSLATION_TIME", whenUnknown: "UNKNOWN", registryRef: "translation.policy", code: "ALLOWED" }],
     });
     const ctx = context(action);
+    const deniedEvaluation = evaluateEligibilityForTest(action.components[0]!.action, "TRANSLATION_TIME", "2026-09-27T00:00:00Z", "INELIGIBLE");
     const results = ctx.readiness.eligibilityResults as Record<string, unknown>;
-    const { assessmentFingerprint: _old, ...eligibleProjection } = results["component_0"] as Record<string, unknown>;
-    const denied = {
-      ...eligibleProjection,
-      status: "INELIGIBLE",
-      checks: [{ kind: "HARD_CONSTRAINT", checkId: "translation.policy", status: "VIOLATED", reasonCodes: ["POLICY_DENIED"], evidenceRefs: ["policy.evidence"], missingInformation: [] }],
-    };
-    results["component_0"] = { ...denied, assessmentFingerprint: fingerprintEligibilityAssessment(denied as never) };
+    results["component_0"] = deniedEvaluation.eligibility;
+    ctx.readiness.eligibilityEvaluationContexts["component_0"] = deniedEvaluation.evaluationContext;
     expect(translateCanonicalCompoundAction(action, ctx)).toMatchObject({ status: "INELIGIBLE_ACTION", code: "COMPONENT_NOT_READY" });
   });
   it.each(["BEST_EFFORT", "DEPENDENCY_GATED"] as const)(

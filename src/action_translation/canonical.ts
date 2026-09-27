@@ -24,7 +24,7 @@ import { experimentWhatSchema } from "../experiment/index.js";
 import { translateExperimentAction } from "./experiment.js";
 import { actionEligibilitySchema } from "../action_eligibility/schema.js";
 import { hasValidEligibilityAssessmentFingerprint } from "../action_eligibility/integrity.js";
-import { hasCompleteEligibilityCheckManifest } from "../action_eligibility/evaluate.js";
+import { hasCompleteEligibilityCheckManifest, hasMatchingRecomputedActionEligibility } from "../action_eligibility/evaluate.js";
 
 const timestamp = z.string().datetime({ offset: true });
 export const canonicalTranslationContextSchema = z
@@ -45,6 +45,8 @@ export const canonicalTranslationContextSchema = z
       .strict()
       .optional(),
     eligibility: z.unknown().optional(),
+    eligibilityEvaluationContext: z.unknown().optional(),
+    eligibilityResourceRequirements: z.array(z.unknown()).optional(),
     eligibilityMaximumAgeSeconds: z.number().int().nonnegative().safe().optional(),
     experimentArmRegistry: z.unknown().optional(),
   })
@@ -220,6 +222,8 @@ export function translateCanonicalAction(
       return { status: "MISSING_CONTEXT", actionId: action.actionId, code: "ACTION_ELIGIBILITY_BOUNDARY", message: "Canonical translation requires TRANSLATION_TIME eligibility." };
     if (!hasCompleteEligibilityCheckManifest(action, "TRANSLATION_TIME", eligibility.checks))
       return { status: "INVALID_ACTION", actionId: action.actionId, code: "INCOMPLETE_ACTION_ELIGIBILITY", message: "Eligibility must contain the complete deterministic check manifest." };
+    if (!hasMatchingRecomputedActionEligibility(action, eligibility, context.eligibilityEvaluationContext, context.eligibilityResourceRequirements))
+      return { status: "INVALID_ACTION", actionId: action.actionId, code: "ACTION_ELIGIBILITY_RECOMPUTATION_MISMATCH", message: "Eligibility must exactly match a recomputation from the supplied raw evidence and resource requirements." };
     const approvedClock = context.timing && typeof context.timing === "object" && "approvedClock" in context.timing ? (context.timing as { approvedClock?: unknown }).approvedClock : undefined;
     if (typeof approvedClock !== "string" || context.eligibilityMaximumAgeSeconds === undefined)
       return { status: "MISSING_CONTEXT", actionId: action.actionId, code: "ACTION_ELIGIBILITY_FRESHNESS_REQUIRED", message: "An approved clock and maximum eligibility age are required." };

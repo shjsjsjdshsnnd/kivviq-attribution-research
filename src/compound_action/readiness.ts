@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { actionEligibilitySchema, type ActionEligibility } from "../action_eligibility/schema.js";
 import { hasValidEligibilityAssessmentFingerprint } from "../action_eligibility/integrity.js";
-import { hasCompleteEligibilityCheckManifest } from "../action_eligibility/evaluate.js";
+import { hasCompleteEligibilityCheckManifest, hasMatchingRecomputedActionEligibility } from "../action_eligibility/evaluate.js";
 import {
   checkInvestigationDependency,
   type InvestigationResult,
@@ -153,6 +153,8 @@ export interface CompoundReadinessContext {
   timing: ActionTimingResolutionContext;
   components: Readonly<Record<string, ComponentReadinessEvidence>>;
   eligibilityResults?: Readonly<Record<string, unknown>>;
+  eligibilityEvaluationContexts?: Readonly<Record<string, unknown>>;
+  eligibilityResourceRequirements?: Readonly<Record<string, readonly unknown[]>>;
   eligibilityBoundary?: "DECISION_TIME" | "TRANSLATION_TIME" | "EFFECTIVE_TIME";
   eligibilityMaximumAgeSeconds?: number;
   constraintEvidence?: Readonly<
@@ -234,6 +236,12 @@ export function assessCompoundActionReadiness(
             ? "UNKNOWN"
             : "ELIGIBLE";
         const manifestComplete = hasCompleteEligibilityCheckManifest(c.action, candidate.evaluationBoundary, candidate.checks);
+        const recomputationMatches = hasMatchingRecomputedActionEligibility(
+          c.action,
+          candidate,
+          context.eligibilityEvaluationContexts?.[c.componentId],
+          context.eligibilityResourceRequirements?.[c.componentId],
+        );
         const identityMismatch =
           candidate.actionId !== c.action.actionId ||
           candidate.actionFingerprint !== fingerprintCanonicalAction(c.action) ||
@@ -241,7 +249,8 @@ export function assessCompoundActionReadiness(
             candidate.evaluationBoundary !== context.eligibilityBoundary) ||
           candidate.status !== derived ||
           !hasValidEligibilityAssessmentFingerprint(candidate) ||
-          !manifestComplete;
+          !manifestComplete ||
+          !recomputationMatches;
         const approvedAt = Date.parse(context.timing.approvedClock);
         const evaluatedAt = Date.parse(candidate.evaluatedAt);
         if (identityMismatch) {
@@ -439,6 +448,8 @@ export const compoundReadinessContextSchema = z
         .strict(),
     ),
     eligibilityResults: z.record(z.unknown()).optional(),
+    eligibilityEvaluationContexts: z.record(z.unknown()).optional(),
+    eligibilityResourceRequirements: z.record(z.array(z.unknown())).optional(),
     eligibilityBoundary: z.enum(["DECISION_TIME", "TRANSLATION_TIME", "EFFECTIVE_TIME"]).optional(),
     eligibilityMaximumAgeSeconds: z.number().int().nonnegative().safe().optional(),
     constraintEvidence: z
