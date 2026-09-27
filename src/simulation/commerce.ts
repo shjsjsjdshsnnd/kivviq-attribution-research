@@ -490,6 +490,16 @@ export function chooseProduct(
               retentionCustomerContext(customer),
               productId,
             );
+      const priceUtility =
+        externalReality === undefined
+          ? offer.priceUtilityMultiplier
+          : Math.pow(
+              Math.max(
+                1e-9,
+                offer.priceUtilityMultiplier,
+              ),
+              externalPriceSensitivity,
+            );
       const structuralWeight =
         Math.max(1e-9, preference) *
         Math.max(
@@ -497,10 +507,7 @@ export function chooseProduct(
           Number(demand?.baseLatentDemandUnits ?? 1),
         ) **
           0.25 *
-        Math.pow(
-          Math.max(1e-9, offer.priceUtilityMultiplier),
-          externalPriceSensitivity,
-        ) *
+        priceUtility *
         offer.promotionUtilityMultiplier *
         externalCategoryPreference *
         relationshipMultiplier *
@@ -1659,8 +1666,12 @@ export function completePurchase(
     allocatedMarketingSpendMinor: allocatedMarketing,
     contributionProfitMinor,
     repeatPurchase,
-    realizedCustomerShippingChargeMinor,
-    estimatedDeliveryDays,
+    ...(externalReality === undefined
+      ? {}
+      : {
+          realizedCustomerShippingChargeMinor,
+          estimatedDeliveryDays,
+        }),
     ...(shippingTerms.customerShippingChargeOverrideMinor === undefined
       ? {}
       : {
