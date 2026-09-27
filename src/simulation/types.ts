@@ -129,6 +129,12 @@ export interface RealizedPurchase {
   readonly contributionProfitMinor: number;
   readonly repeatPurchase: boolean;
   /**
+   * Step 14 realized customer-facing logistics after external shipping effects.
+   * Omitted on the frozen Step 1-12 path.
+   */
+  readonly realizedCustomerShippingChargeMinor?: number;
+  readonly estimatedDeliveryDays?: number;
+  /**
    * Step 10 order-specific shipping terms. Absent means Step 7 policy applies.
    */
   readonly customerShippingChargeOverrideMinor?: number;
