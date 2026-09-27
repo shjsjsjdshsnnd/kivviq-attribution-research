@@ -9,6 +9,7 @@ import type { ActionTiming } from "../action_timing/types.js";
 import { validateActionTiming } from "../action_timing/validation.js";
 import { lifecycleWhatSchema } from "../lifecycle/canonical.js";
 import { populationReferenceSchema } from "../population/index.js";
+import { decisionWhatSchema } from "../decision_forms/index.js";
 
 export const CANONICAL_ACTION_SCHEMA_VERSION = "2.0.0" as const;
 export type LegacyBusiness = Omit<
@@ -138,6 +139,14 @@ const forbidden = new Set([
   "score",
   "rank",
   "expectedLift",
+  "expectedROAS",
+  "expectedSynergy",
+  "expectedValueOfInformation",
+  "expectedProfitFromInvestigation",
+  "recommendedInvestigationScore",
+  "predictedBestAction",
+  "predictedInvestigationValue",
+  "bestCandidate",
   "email",
   "phone",
   "name",
@@ -164,7 +173,11 @@ export const canonicalActionSchema = z
   .object({
     schemaVersion: z.literal(CANONICAL_ACTION_SCHEMA_VERSION),
     actionId: z.string().regex(/^action_[A-Za-z0-9._:-]+$/),
-    what: z.union([lifecycleWhatSchema, legacyBusinessSchema]),
+    what: z.union([
+      lifecycleWhatSchema,
+      decisionWhatSchema,
+      legacyBusinessSchema,
+    ]),
     population: populationReferenceSchema.optional(),
     timing: universalTimingSchema,
     provenance: z.array(z.string().regex(/^[A-Za-z][A-Za-z0-9_.:-]*$/)).min(1),
@@ -172,6 +185,34 @@ export const canonicalActionSchema = z
   .strict()
   .superRefine((action, ctx) => {
     guard(action, ctx);
+    const decision = decisionWhatSchema.safeParse(action.what);
+    if (
+      decision.success &&
+      decision.data.actionType === "investigation.inspect" &&
+      decision.data.targets.some((target) => target.kind === "POPULATION") &&
+      !action.population
+    ) {
+      ctx.addIssue({
+        code: "custom",
+        path: ["population"],
+        message:
+          "Population investigations require the canonical envelope population",
+      });
+    }
+    if (
+      "scope" in action.what &&
+      action.what.scope &&
+      "kind" in action.what.scope &&
+      action.what.scope.kind === "POPULATION" &&
+      !action.population
+    ) {
+      ctx.addIssue({
+        code: "custom",
+        path: ["population"],
+        message:
+          "Population-scoped decisions require a canonical population reference",
+      });
+    }
     if ("kind" in action.what && action.what.kind === "legacy_business") {
       const checked = validateAction(
         legacyValidationInput(action.what, action.timing, action.actionId),

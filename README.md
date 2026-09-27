@@ -170,3 +170,4 @@ No private Kivviq, Maison Olive data, real merchant/customer data, production sy
 - `docs/step7-ecommerce-economics-acceptance.md`
 - `docs/step8-product-economics.md`
 - `docs/step8-product-economics-acceptance.md`
+- [Steps 13–15: compound actions, NO_OP, WAIT, and investigations](docs/decision-forms.md)

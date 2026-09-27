@@ -65,7 +65,6 @@ export interface TranslationReferenceBinding {
   readonly sourceRef: string;
 }
 
-
 export interface PricingMembershipMemberBinding {
   readonly skuTarget: Extract<ActionTarget, { readonly kind: "sku" }>;
   readonly simulatorTarget: Extract<SimulatorTarget, { readonly kind: "sku" }>;
@@ -84,7 +83,6 @@ export interface PricingMembershipBinding {
   readonly sourceRef: string;
   readonly members: readonly PricingMembershipMemberBinding[];
 }
-
 
 export interface PromotionMembershipMemberBinding {
   readonly businessTarget:
@@ -105,13 +103,9 @@ export interface PromotionMembershipBinding {
   readonly members: readonly PromotionMembershipMemberBinding[];
 }
 
-
 export interface MerchandisingRankingSnapshotBinding {
   readonly bindingRef: string;
-  readonly evaluateAt:
-    | "decision_time"
-    | "translation_time"
-    | "effective_time";
+  readonly evaluateAt: "decision_time" | "translation_time" | "effective_time";
   readonly snapshotTime: UtcTimestamp;
   readonly sourceRef: string;
   readonly surface: MerchandisingSurface;
@@ -125,12 +119,11 @@ export interface MerchandisingSurfaceDefinitionBinding {
   readonly namedSlotIds?: readonly string[];
 }
 
-
 export interface InventoryTranslationStateBinding {
   readonly target:
-    | Extract<ActionTarget,{readonly kind:"sku"}>
-    | Extract<ActionTarget,{readonly kind:"product"}>
-    | Extract<ActionTarget,{readonly kind:"inventory_policy"}>;
+    | Extract<ActionTarget, { readonly kind: "sku" }>
+    | Extract<ActionTarget, { readonly kind: "product" }>
+    | Extract<ActionTarget, { readonly kind: "inventory_policy" }>;
   readonly inventoryLocationId?: string;
   readonly supplierRelationshipId?: string;
   readonly onHandUnits?: number;
@@ -149,13 +142,9 @@ export interface InventoryTranslationStateBinding {
   readonly sourceRef: string;
 }
 
-
 export interface CroStructureSnapshotBinding {
   readonly bindingRef: string;
-  readonly evaluateAt:
-    | "decision_time"
-    | "translation_time"
-    | "effective_time";
+  readonly evaluateAt: "decision_time" | "translation_time" | "effective_time";
   readonly snapshotTime: UtcTimestamp;
   readonly sourceRef: string;
   readonly surface: CroSurface;
@@ -179,7 +168,6 @@ export interface CroExperienceContextBinding {
   readonly componentStates?: readonly CroComponentStateBinding[];
   readonly performanceConfigurationRef?: string;
 }
-
 
 export interface LifecycleFlowContextBinding {
   readonly flowId: string;
@@ -235,8 +223,7 @@ export interface LifecycleCustomerContextBinding {
 }
 
 export interface TranslationContext {
-  readonly schemaVersion:
-    (typeof SUPPORTED_TRANSLATION_CONTEXT_SCHEMA_VERSIONS)[number];
+  readonly schemaVersion: (typeof SUPPORTED_TRANSLATION_CONTEXT_SCHEMA_VERSIONS)[number];
   readonly simulatorClock: UtcTimestamp;
   readonly capabilities: readonly SimulatorCapability[];
   readonly entityMappings: readonly TranslationEntityMapping[];
@@ -263,8 +250,7 @@ export interface ResolvedCompoundBusinessAction {
 }
 
 export type BusinessActionTranslationInput =
-  | Action
-  | ResolvedCompoundBusinessAction;
+  Action | ResolvedCompoundBusinessAction;
 
 export type TranslationFailureStatus =
   | "UNSUPPORTED_ACTION_TYPE"
@@ -287,6 +273,33 @@ export interface TranslatedResult {
   readonly originatingBusinessActionId: string;
   readonly translationVersion: typeof ACTION_TRANSLATION_VERSION;
   readonly interventions: readonly SimulatorIntervention[];
+  readonly decisionType?:
+    "NO_OP" | "WAIT_OBSERVE" | "INVESTIGATE" | "BUSINESS_INTERVENTION";
+  readonly informationTasks?: readonly InformationAcquisitionTask[];
+  readonly observationRequests?: readonly ObservationRequest[];
+}
+
+/** Information intent is preserved separately from commercial interventions. */
+export interface InformationAcquisitionTask {
+  readonly actionId: string;
+  readonly actionFingerprint: string;
+  readonly specification: import("../decision_forms/index.js").InvestigationWhat;
+  readonly timing: import("../action_timing/types.js").ActionTiming;
+  readonly population?: import("../population/index.js").PopulationReference;
+  readonly compoundActionId?: string;
+  readonly componentId?: string;
+}
+export interface ObservationRequest {
+  readonly actionId: string;
+  readonly actionFingerprint: string;
+  readonly population?: import("../population/index.js").PopulationReference;
+  readonly compoundActionId?: string;
+  readonly componentId?: string;
+  readonly specification: Extract<
+    import("../decision_forms/index.js").DecisionWhat,
+    { actionType: "no_op.wait_observe" }
+  >;
+  readonly timing: import("../action_timing/types.js").ActionTiming;
 }
 
 export interface ExperimentTranslationReadiness {
@@ -305,9 +318,7 @@ export interface ExperimentTranslationReadiness {
 }
 
 export type TranslationResult =
-  | TranslatedResult
-  | TranslationFailure
-  | ExperimentTranslationReadiness;
+  TranslatedResult | TranslationFailure | ExperimentTranslationReadiness;
 
 export interface TranslationOrigin {
   readonly originatingBusinessActionId: string;
@@ -322,9 +333,7 @@ export interface TranslationSuccessDraft {
 }
 
 export type AtomicTranslatorResult =
-  | TranslationSuccessDraft
-  | TranslationFailure
-  | ExperimentTranslationReadiness;
+  TranslationSuccessDraft | TranslationFailure | ExperimentTranslationReadiness;
 
 export interface ActionTranslator {
   readonly actionType: string;

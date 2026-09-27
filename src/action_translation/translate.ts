@@ -1,30 +1,25 @@
+import { translateAtomic } from "./atomic.js";
+import {
+  translateCanonicalCompoundAction,
+  type CanonicalCompoundTranslationResult,
+} from "./compound.js";
 import {
   SUPPORTED_ACTION_SCHEMA_VERSIONS,
   type Action,
   type CompoundAction,
 } from "../action_ontology/types.js";
-import { translateCanonicalAction } from './canonical.js';
+import { translateCanonicalAction } from "./canonical.js";
 import { validateAction } from "../action_ontology/validation.js";
 import {
   ACTION_TRANSLATION_VERSION,
-  type BusinessActionTranslationInput,
-  type ExperimentTranslationReadiness,
   type ResolvedCompoundBusinessAction,
-  type TranslatedResult,
   type TranslationContext,
   type TranslationFailure,
-  type TranslationOrigin,
   type TranslationRegistry,
   type TranslationResult,
 } from "./types.js";
-import {
-  contextHasCapability,
-  validateTranslationContext,
-} from "./context.js";
-import {
-  CORE_TRANSLATION_REGISTRY,
-  translatorsForActionType,
-} from "./registry.js";
+import { validateTranslationContext } from "./context.js";
+import { CORE_TRANSLATION_REGISTRY } from "./registry.js";
 
 function record(value: unknown): value is any {
   return typeof value === "object" && value !== null && !Array.isArray(value);
@@ -41,98 +36,6 @@ function failure(
     code,
     message,
     ...(actionId ? { actionId } : {}),
-  };
-}
-
-function translateAtomic(
-  actionInput: unknown,
-  context: TranslationContext,
-  registry: TranslationRegistry,
-  origin?: TranslationOrigin,
-): TranslationResult {
-  const validation = validateAction(actionInput);
-  if (!validation.ok) {
-    return failure(
-      "INVALID_ACTION",
-      "INVALID_CANONICAL_ACTION",
-      validation.errors.map((issue) => issue.code).join(", "),
-      record(actionInput) && typeof actionInput.actionId === "string"
-        ? actionInput.actionId
-        : undefined,
-    );
-  }
-
-  const action = validation.action;
-  const translators = translatorsForActionType(registry, action.actionType);
-
-  if (translators.length === 0) {
-    return failure(
-      "UNSUPPORTED_ACTION_TYPE",
-      "NO_REGISTERED_TRANSLATOR",
-      "No explicit translator is registered for Action type " + action.actionType + ".",
-      action.actionId,
-    );
-  }
-  if (translators.length > 1) {
-    return failure(
-      "AMBIGUOUS_TRANSLATION",
-      "DUPLICATE_REGISTERED_TRANSLATORS",
-      "More than one translator is registered for Action type " + action.actionType + ".",
-      action.actionId,
-    );
-  }
-
-  const translator = translators[0]!;
-  if (!translator.supportedTargetKinds.includes(action.target.kind)) {
-    return failure(
-      "UNSUPPORTED_TARGET",
-      "TRANSLATOR_TARGET_UNSUPPORTED",
-      "Translator " +
-        translator.translatorId +
-        " does not support target kind " +
-        action.target.kind +
-        ".",
-      action.actionId,
-    );
-  }
-
-  if (
-    translator.requiredCapability &&
-    !contextHasCapability(context, translator.requiredCapability)
-  ) {
-    return failure(
-      "UNSUPPORTED_SIMULATOR_CAPABILITY",
-      "SIMULATOR_CAPABILITY_UNAVAILABLE",
-      "Simulator does not declare capability " + translator.requiredCapability + ".",
-      action.actionId,
-    );
-  }
-
-  const resolvedOrigin: TranslationOrigin = origin ?? {
-    originatingBusinessActionId: action.actionId,
-    sourceActionId: action.actionId,
-    componentIndex: 0,
-    componentCount: 1,
-  };
-
-  const result = translator.translate(action, context, resolvedOrigin);
-
-  if (result.status === "EXPERIMENT_REQUIRES_ENGINE") {
-    return {
-      ...result,
-      originatingBusinessActionId:
-        resolvedOrigin.originatingBusinessActionId,
-    };
-  }
-
-  if (result.status !== "TRANSLATED") return result;
-
-  return {
-    status: "TRANSLATED",
-    originatingBusinessActionId:
-      resolvedOrigin.originatingBusinessActionId,
-    translationVersion: ACTION_TRANSLATION_VERSION,
-    interventions: result.interventions,
   };
 }
 
@@ -160,7 +63,9 @@ function validateResolvedCompound(
   const compound = input.compoundAction as CompoundAction;
   if (
     compound.kind !== "compound_action" ||
-    !SUPPORTED_ACTION_SCHEMA_VERSIONS.includes(compound.schemaVersion as never) ||
+    !SUPPORTED_ACTION_SCHEMA_VERSIONS.includes(
+      compound.schemaVersion as never,
+    ) ||
     typeof compound.compoundActionId !== "string" ||
     !Array.isArray(compound.componentActionIds) ||
     compound.componentActionIds.length < 2
@@ -301,18 +206,18 @@ export function translateBusinessAction(
   input: unknown,
   contextInput: unknown,
   registry: TranslationRegistry = CORE_TRANSLATION_REGISTRY,
-): TranslationResult {
-  if (record(input) && input.schemaVersion === '2.0.0') {
+): CanonicalCompoundTranslationResult {
+  if (record(input) && input.kind === "compound_action") {
+    return translateCanonicalCompoundAction(input, contextInput);
+  }
+  if (record(input) && input.schemaVersion === "2.0.0") {
     return translateCanonicalAction(input, contextInput);
   }
   const contextValidation = validateTranslationContext(contextInput);
   if (!contextValidation.ok) return contextValidation.failure;
   const context = contextValidation.context;
 
-  if (
-    record(input) &&
-    input.kind === "resolved_compound_business_action"
-  ) {
+  if (record(input) && input.kind === "resolved_compound_business_action") {
     return translateCompound(input, context, registry);
   }
 

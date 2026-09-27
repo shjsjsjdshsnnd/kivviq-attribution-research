@@ -28,7 +28,8 @@
     "test:cro": "vitest run tests/cro --reporter=verbose",
     "test:lifecycle": "vitest run tests/lifecycle --reporter=verbose",
     "test:action-timing": "vitest run tests/action_timing --reporter=verbose",
-    "test:canonical": "vitest run tests/canonical_action tests/population tests/action_timing tests/lifecycle --maxWorkers=1"
+    "test:canonical": "vitest run tests/canonical_action tests/population tests/action_timing tests/lifecycle --maxWorkers=1",
+    "test:decision-forms": "vitest run tests/compound_action tests/decision_forms tests/investigation tests/decision_evolution tests/canonical_action tests/action_translation --maxWorkers=1"
   },
   "exports": {
     ".": "./dist/index.js",
@@ -54,7 +55,10 @@
     "./lifecycle": "./dist/lifecycle/index.js",
     "./action-timing": "./dist/action_timing/index.js",
     "./canonical-action": "./dist/canonical_action/index.js",
-    "./population": "./dist/population/index.js"
+    "./population": "./dist/population/index.js",
+    "./compound-action": "./dist/compound_action/index.js",
+    "./decision-forms": "./dist/decision_forms/index.js",
+    "./investigation": "./dist/investigation/index.js"
   },
   "devDependencies": {
     "dependency-cruiser": "^16.10.4",
