@@ -29,7 +29,10 @@ export const compoundTranslationContextSchema = z
     components: z.record(z.unknown()),
     readiness: compoundReadinessContextSchema
       .omit({ timing: true })
-      .extend({ eligibilityResults: z.record(z.unknown()) }),
+      .extend({
+        eligibilityResults: z.record(z.unknown()),
+        eligibilityMaximumAgeSeconds: z.number().int().nonnegative().safe(),
+      }),
   })
   .strict();
 export interface CompoundTranslationMetadata {
@@ -130,7 +133,7 @@ export function translateCanonicalCompoundAction(
         initial.status === "UNSUPPORTED_SIMULATOR_CAPABILITY"
           ? initial.status
           : initial.status === "INELIGIBLE"
-            ? "INVALID_ACTION"
+            ? "INELIGIBLE_ACTION"
             : "MISSING_CONTEXT",
         "COMPONENT_NOT_READY",
         initial.codes.join(", ") || initial.status,
@@ -169,6 +172,8 @@ export function translateCanonicalCompoundAction(
               ...checkedComponent.data,
               eligibility:
                 context.readiness.eligibilityResults[component.componentId],
+              eligibilityMaximumAgeSeconds:
+                context.readiness.eligibilityMaximumAgeSeconds,
               timing: {
                 ...(componentTiming as object),
                 ...timing,

@@ -152,6 +152,7 @@ export interface CompoundReadinessContext {
   components: Readonly<Record<string, ComponentReadinessEvidence>>;
   eligibilityResults?: Readonly<Record<string, unknown>>;
   eligibilityBoundary?: "DECISION_TIME" | "TRANSLATION_TIME" | "EFFECTIVE_TIME";
+  eligibilityMaximumAgeSeconds?: number;
   constraintEvidence?: Readonly<
     Record<
       string,
@@ -170,6 +171,7 @@ export interface CompoundActionReadiness {
     componentId: string;
     actionId: string;
     status: ComponentReadinessStatus;
+    readinessEvidenceStatus?: ComponentReadinessStatus;
     codes: string[];
     eligibility?: ActionEligibility;
   }[];
@@ -223,17 +225,17 @@ export function assessCompoundActionReadiness(
         codes.push("COMPONENT_ELIGIBILITY_REQUIRED");
         if (status === "READY") status = "MISSING_CONTEXT";
       } else {
-        eligibility = parsedEligibility.data;
-        const derived = eligibility.checks.some((check) => check.status === "VIOLATED")
+        const candidate = parsedEligibility.data;
+        const derived = candidate.checks.some((check) => check.status === "VIOLATED")
           ? "INELIGIBLE"
-          : eligibility.checks.some((check) => check.status === "UNKNOWN")
+          : candidate.checks.some((check) => check.status === "UNKNOWN")
             ? "UNKNOWN"
             : "ELIGIBLE";
-        const evaluationBoundary = eligibility.evaluationBoundary;
+        const evaluationBoundary = candidate.evaluationBoundary;
         const applicableConstraintIds = c.action.constraints
           .filter((constraint) => constraint.evaluationBoundary === evaluationBoundary)
           .map((constraint) => constraint.constraintId);
-        const hardConstraintCheckIds = eligibility.checks
+        const hardConstraintCheckIds = candidate.checks
           .filter((check) => check.kind === "HARD_CONSTRAINT")
           .map((check) => check.checkId);
         const expectedConstraintIds = new Set(applicableConstraintIds);
@@ -242,22 +244,37 @@ export function assessCompoundActionReadiness(
           hardConstraintCheckIds.length === applicableConstraintIds.length &&
           hardConstraintCheckIds.every((id) => expectedConstraintIds.has(id)) &&
           new Set(hardConstraintCheckIds).size === hardConstraintCheckIds.length;
-        if (
-          eligibility.actionId !== c.action.actionId ||
-          eligibility.actionFingerprint !== fingerprintCanonicalAction(c.action) ||
+        const identityMismatch =
+          candidate.actionId !== c.action.actionId ||
+          candidate.actionFingerprint !== fingerprintCanonicalAction(c.action) ||
           (context.eligibilityBoundary !== undefined &&
-            eligibility.evaluationBoundary !== context.eligibilityBoundary) ||
-          eligibility.status !== derived ||
-          (eligibility.status === "ELIGIBLE" && !constraintsComplete)
-        ) {
+            candidate.evaluationBoundary !== context.eligibilityBoundary) ||
+          candidate.status !== derived ||
+          !constraintsComplete;
+        const approvedAt = Date.parse(context.timing.approvedClock);
+        const evaluatedAt = Date.parse(candidate.evaluatedAt);
+        if (identityMismatch) {
           codes.push("COMPONENT_ELIGIBILITY_MISMATCH");
-          if (status === "READY") status = "MISSING_CONTEXT";
-        } else if (eligibility.status === "INELIGIBLE") {
+          status = "MISSING_CONTEXT";
+        } else if (context.eligibilityMaximumAgeSeconds === undefined) {
+          codes.push("COMPONENT_ELIGIBILITY_FRESHNESS_REQUIRED");
+          status = "MISSING_CONTEXT";
+        } else if (evaluatedAt > approvedAt) {
+          codes.push("COMPONENT_ELIGIBILITY_FUTURE");
+          status = "MISSING_CONTEXT";
+        } else if (approvedAt - evaluatedAt > context.eligibilityMaximumAgeSeconds * 1000) {
+          codes.push("COMPONENT_ELIGIBILITY_STALE");
+          status = "MISSING_CONTEXT";
+        } else if (candidate.status === "INELIGIBLE") {
+          eligibility = candidate;
           codes.push("COMPONENT_INELIGIBLE");
-          if (status !== "UNSUPPORTED_SIMULATOR_CAPABILITY") status = "INELIGIBLE";
-        } else if (eligibility.status === "UNKNOWN") {
+          status = "INELIGIBLE";
+        } else if (candidate.status === "UNKNOWN") {
+          eligibility = candidate;
           codes.push("COMPONENT_ELIGIBILITY_UNKNOWN");
-          if (status === "READY") status = "UNKNOWN";
+          status = "UNKNOWN";
+        } else {
+          eligibility = candidate;
         }
       }
     }
@@ -306,6 +323,7 @@ export function assessCompoundActionReadiness(
       componentId: c.componentId,
       actionId: c.action.actionId,
       status,
+      ...(evidence ? { readinessEvidenceStatus: evidence.status } : {}),
       codes,
       ...(eligibility ? { eligibility } : {}),
     };
@@ -431,6 +449,7 @@ export const compoundReadinessContextSchema = z
     ),
     eligibilityResults: z.record(z.unknown()).optional(),
     eligibilityBoundary: z.enum(["DECISION_TIME", "TRANSLATION_TIME", "EFFECTIVE_TIME"]).optional(),
+    eligibilityMaximumAgeSeconds: z.number().int().nonnegative().safe().optional(),
     constraintEvidence: z
       .record(
         z

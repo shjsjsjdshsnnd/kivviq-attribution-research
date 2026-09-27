@@ -49,6 +49,7 @@ function context(action = fixture()) {
     timing,
     components: { component_0: {}, component_1: {} },
     readiness: {
+      eligibilityMaximumAgeSeconds: 3600,
       eligibilityResults: Object.fromEntries(action.components.map((component) => [component.componentId, {
         actionId: component.action.actionId,
         actionFingerprint: fingerprintCanonicalAction(component.action),
@@ -107,7 +108,6 @@ describe("canonical compound translation", () => {
       populations: [definition],
       evaluations: [evaluatePopulation(definition, { evaluatedAt: "2026-09-27T00:00:00Z", customers: [{ customerId: "customer_one", completedOrderCount: 1 }] })],
       bindingTimes: { DECISION_TIME: "2026-09-27T00:00:00Z" },
-      eligibilityMaximumAgeSeconds: 60,
       experimentArmRegistry: [{ entityKind: "ACTION", action: control }, { entityKind: "COMPOUND", action: armCompound }],
     };
     const result = translateCanonicalCompoundAction(action, ctx);
@@ -144,6 +144,18 @@ describe("canonical compound translation", () => {
     expect(result).not.toHaveProperty("informationTasks");
     expect(result.compound?.components).toHaveLength(2);
     expect(result.compound?.emittedComponentIds).toEqual([]);
+  });
+  it("returns explicit ineligible action status for an eligibility-denied component", () => {
+    const action = fixture();
+    action.atomicity = "ALL_OR_NOTHING";
+    const ctx = context(action);
+    const results = ctx.readiness.eligibilityResults as Record<string, unknown>;
+    results["component_0"] = {
+      ...(results["component_0"] as Record<string, unknown>),
+      status: "INELIGIBLE",
+      checks: [{ kind: "DOMAIN_RULE", checkId: "policy", status: "VIOLATED", reasonCodes: ["POLICY_DENIED"], evidenceRefs: ["policy.evidence"], missingInformation: [] }],
+    };
+    expect(translateCanonicalCompoundAction(action, ctx)).toMatchObject({ status: "INELIGIBLE_ACTION", code: "COMPONENT_NOT_READY" });
   });
   it.each(["BEST_EFFORT", "DEPENDENCY_GATED"] as const)(
     "%s reports unsupported components and gates dependents",
