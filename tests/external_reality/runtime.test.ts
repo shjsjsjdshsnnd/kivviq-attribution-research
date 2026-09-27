@@ -5,6 +5,7 @@ import {
   CANONICAL_EXTERNAL_EVENT_KINDS,
   EXTERNAL_REALITY_MODEL_VERSION,
   ExternalRealityRuntime,
+  externalEvidenceAt,
   projectExternalObservations,
   resolveExternalEffect,
   validateExternalEnvironment,
@@ -245,5 +246,99 @@ describe("external reality contracts", () => {
         ],
       }),
     ).toThrow();
+  });
+});
+
+
+describe("external reality realized truth and evidence", () => {
+  it("records only effects that were actually applied", () => {
+    const clock = new SimulationClock({
+      startTime: day(1),
+      endTime: day(10),
+    });
+    const runtime = new ExternalRealityRuntime(
+      environment,
+      clock,
+    );
+
+    runtime.applyAt(
+      "checkout-1",
+      "purchase_propensity",
+      Date.parse(day(4)),
+      { market: "QC" },
+    );
+    runtime.applyAt(
+      "checkout-2",
+      "purchase_propensity",
+      Date.parse(day(4)),
+      { market: "ON" },
+    );
+
+    const truth = runtime.godModeTruth();
+    expect(truth.events).toHaveLength(1);
+    expect(truth.applications).toHaveLength(1);
+    expect(truth.applications[0]?.applicationId).toBe(
+      "checkout-1",
+    );
+    expect(
+      truth.applications[0]?.multiplier,
+    ).toBeCloseTo(0.8);
+  });
+
+  it("maps visible signals to realistic evidence without causal leakage", () => {
+    const evidence = externalEvidenceAt(
+      environment,
+      Date.parse(day(5)),
+    );
+    expect(evidence).toHaveLength(2);
+    expect(evidence[0]?.source).toBe(
+      "competitor_monitoring",
+    );
+    const serialized = JSON.stringify(evidence);
+    expect(serialized).not.toContain("logMultiplier");
+    expect(serialized).not.toContain("seed");
+    expect(serialized).not.toContain("effects");
+  });
+
+  it("replays more than three years of daily external resolution exactly", () => {
+    const longEnvironment: ExternalEnvironment = {
+      version: EXTERNAL_REALITY_MODEL_VERSION,
+      environmentId: "three-year-replay",
+      seed: 77,
+      events: [
+        {
+          id: "macro",
+          domain: "economy",
+          kind: "economic_slowdown",
+          startsAt: "2026-01-01T00:00:00Z",
+          endsAt: "2029-07-01T00:00:00Z",
+          effects: [
+            {
+              target: "demand",
+              logMultiplier: Math.log(0.92),
+              rampMs: 90 * 86_400_000,
+              decayMs: 30 * 86_400_000,
+            },
+          ],
+        },
+      ],
+    };
+
+    const resolveSeries = () => {
+      const values: number[] = [];
+      for (let offset = 0; offset < 1_280; offset += 1) {
+        values.push(
+          resolveExternalEffect(
+            longEnvironment,
+            "demand",
+            Date.parse("2026-01-01T00:00:00Z") +
+              offset * 86_400_000,
+          ).multiplier,
+        );
+      }
+      return values;
+    };
+
+    expect(resolveSeries()).toEqual(resolveSeries());
   });
 });
