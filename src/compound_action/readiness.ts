@@ -1,5 +1,7 @@
 import { z } from "zod";
 import { actionEligibilitySchema, type ActionEligibility } from "../action_eligibility/schema.js";
+import { hasValidEligibilityAssessmentFingerprint } from "../action_eligibility/integrity.js";
+import { hasCompleteEligibilityCheckManifest } from "../action_eligibility/evaluate.js";
 import {
   checkInvestigationDependency,
   type InvestigationResult,
@@ -231,26 +233,15 @@ export function assessCompoundActionReadiness(
           : candidate.checks.some((check) => check.status === "UNKNOWN")
             ? "UNKNOWN"
             : "ELIGIBLE";
-        const evaluationBoundary = candidate.evaluationBoundary;
-        const applicableConstraintIds = c.action.constraints
-          .filter((constraint) => constraint.evaluationBoundary === evaluationBoundary)
-          .map((constraint) => constraint.constraintId);
-        const hardConstraintCheckIds = candidate.checks
-          .filter((check) => check.kind === "HARD_CONSTRAINT")
-          .map((check) => check.checkId);
-        const expectedConstraintIds = new Set(applicableConstraintIds);
-        const constraintsComplete =
-          expectedConstraintIds.size === applicableConstraintIds.length &&
-          hardConstraintCheckIds.length === applicableConstraintIds.length &&
-          hardConstraintCheckIds.every((id) => expectedConstraintIds.has(id)) &&
-          new Set(hardConstraintCheckIds).size === hardConstraintCheckIds.length;
+        const manifestComplete = hasCompleteEligibilityCheckManifest(c.action, candidate.evaluationBoundary, candidate.checks);
         const identityMismatch =
           candidate.actionId !== c.action.actionId ||
           candidate.actionFingerprint !== fingerprintCanonicalAction(c.action) ||
           (context.eligibilityBoundary !== undefined &&
             candidate.evaluationBoundary !== context.eligibilityBoundary) ||
           candidate.status !== derived ||
-          !constraintsComplete;
+          !hasValidEligibilityAssessmentFingerprint(candidate) ||
+          !manifestComplete;
         const approvedAt = Date.parse(context.timing.approvedClock);
         const evaluatedAt = Date.parse(candidate.evaluatedAt);
         if (identityMismatch) {

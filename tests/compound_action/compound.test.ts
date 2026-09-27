@@ -5,7 +5,9 @@ import { fingerprintCanonicalAction } from "../../src/canonical_action/serializa
 import { increaseGoogleShoppingBudget20 } from "../../src/action_ontology/fixtures.js";
 import { createCanonicalFixtures } from "../../src/canonical_action/fixtures.js";
 import { utcTimestamp, currencyCode } from "../../src/core/units.js";
-import type { ActionEligibility } from "../../src/action_eligibility/index.js";
+import { evaluateActionEligibility, type ActionEligibility } from "../../src/action_eligibility/index.js";
+import { fingerprintEligibilityAssessment } from "../../src/action_eligibility/integrity.js";
+import { expectedEligibilityCheckManifest } from "../../src/action_eligibility/evaluate.js";
 import {
   compoundActionSchema,
   assessCompoundActionReadiness as assessCompoundActionReadinessRaw,
@@ -47,31 +49,31 @@ const ready = {
 function eligibility(action: CompoundAction, statuses: Partial<Record<string, "ELIGIBLE" | "INELIGIBLE" | "UNKNOWN">> = {}, evaluatedAt = "2026-01-01T00:00:00Z") {
   return Object.fromEntries(action.components.map((component) => {
     const status = statuses[component.componentId] ?? "ELIGIBLE";
-    const constraintChecks = component.action.constraints
-      .filter((constraint) => constraint.evaluationBoundary === "DECISION_TIME")
-      .map((constraint) => ({
-        kind: "HARD_CONSTRAINT" as const,
-        checkId: constraint.constraintId,
-        status: "SATISFIED" as const,
-        reasonCodes: ["CONSTRAINT_SATISFIED"],
-        evidenceRefs: ["constraint.evidence"],
-        missingInformation: [],
+    const expectedChecks = expectedEligibilityCheckManifest(component.action, "DECISION_TIME")
+      .map((check, index) => ({
+        kind: check.kind,
+        checkId: check.checkId,
+        status: status !== "ELIGIBLE" && index === 0 ? (status === "INELIGIBLE" ? "VIOLATED" as const : "UNKNOWN" as const) : "SATISFIED" as const,
+        reasonCodes: [status !== "ELIGIBLE" && index === 0 ? (status === "INELIGIBLE" ? "POLICY_DENIED" : "MISSING_EVIDENCE") : "CONSTRAINT_SATISFIED"],
+        evidenceRefs: status === "UNKNOWN" && index === 0 ? [] : ["constraint.evidence"],
+        missingInformation: status === "UNKNOWN" && index === 0 ? ["policy.evidence"] : [],
       }));
-    return [component.componentId, {
+    const checks = status === "ELIGIBLE" ? expectedChecks : expectedChecks.length ? expectedChecks : [{
+        kind: "DOMAIN_RULE" as const,
+        checkId: `eligibility.${component.componentId}`,
+        status: "SATISFIED" as const,
+        reasonCodes: ["CONSTRAINT_SATISFIED"], evidenceRefs: ["constraint.evidence"],
+        missingInformation: [],
+      }];
+    const assessment = {
       actionId: component.action.actionId,
       actionFingerprint: fingerprintCanonicalAction(component.action),
       evaluatedAt,
       evaluationBoundary: "DECISION_TIME",
       status,
-      checks: status === "ELIGIBLE" ? constraintChecks : [...constraintChecks, {
-        kind: "DOMAIN_RULE",
-        checkId: `eligibility.${component.componentId}`,
-        status: status === "INELIGIBLE" ? "VIOLATED" : "UNKNOWN",
-        reasonCodes: [status === "INELIGIBLE" ? "POLICY_DENIED" : "MISSING_EVIDENCE"],
-        evidenceRefs: status === "INELIGIBLE" ? ["policy.evidence"] : [],
-        missingInformation: status === "UNKNOWN" ? ["policy.evidence"] : [],
-      }],
-    } satisfies ActionEligibility];
+      checks,
+    } satisfies Omit<ActionEligibility, "assessmentFingerprint">;
+    return [component.componentId, { ...assessment, assessmentFingerprint: fingerprintEligibilityAssessment(assessment) }];
   }));
 }
 function assessCompoundActionReadiness(
@@ -125,7 +127,7 @@ describe("compound definition and runtime boundaries", () => {
     const generated = eligibility(action);
     const incomplete = { ...generated, a: { ...generated["a"]!, checks: [] } };
     expect(assessCompoundActionReadiness(action, { timing, components: ready, eligibilityResults: incomplete }).components[0]).toMatchObject({ status: "MISSING_CONTEXT", codes: ["COMPONENT_ELIGIBILITY_MISMATCH"] });
-    const complete = { ...incomplete, a: { ...incomplete["a"]!, checks: [{ kind: "HARD_CONSTRAINT", checkId: "component.policy", status: "SATISFIED", reasonCodes: ["CUSTOM_SATISFIED"], evidenceRefs: ["policy.evidence"], missingInformation: [] }] } };
+    const complete = generated;
     expect(assessCompoundActionReadiness(action, { timing, components: ready, eligibilityResults: complete }).components[0]).toMatchObject({ status: "READY" });
   });
 
@@ -145,13 +147,38 @@ describe("compound definition and runtime boundaries", () => {
     const evaluate = (evaluatedAt: string, maximumAge?: number) => assessCompoundActionReadinessRaw(action, {
       timing,
       components: ready,
-      eligibilityResults: Object.fromEntries(Object.entries(exact).map(([id, result]) => [id, { ...result, evaluatedAt }])),
+      eligibilityResults: Object.fromEntries(Object.entries(exact).map(([id, result]) => {
+        const { assessmentFingerprint: _old, ...projection } = result;
+        const assessment = { ...projection, evaluatedAt };
+        return [id, { ...assessment, assessmentFingerprint: fingerprintEligibilityAssessment(assessment) }];
+      })),
       ...(maximumAge === undefined ? {} : { eligibilityMaximumAgeSeconds: maximumAge }),
     }).components[0]!;
     expect(evaluate("2026-01-01T00:00:01Z", 3600)).toMatchObject({ status: "MISSING_CONTEXT", codes: ["COMPONENT_ELIGIBILITY_FUTURE"] });
     expect(evaluate("2025-12-31T22:59:59Z", 3600)).toMatchObject({ status: "MISSING_CONTEXT", codes: ["COMPONENT_ELIGIBILITY_STALE"] });
     expect(evaluate("2026-01-01T00:00:00Z")).toMatchObject({ status: "MISSING_CONTEXT", codes: ["COMPONENT_ELIGIBILITY_FRESHNESS_REQUIRED"] });
     expect(evaluate("2026-01-01T00:00:01Z", 3600)).not.toHaveProperty("eligibility");
+  });
+
+  it("accepts one authoritative hard-constraint check from an adapted legacy component", () => {
+    const action = base();
+    const component = action.components[0]!;
+    const evaluated = evaluateActionEligibility(
+      { action: component.action, nativeConstraints: { constraints: component.action.constraints, resourceRequirements: [] } },
+      { evaluatedAt: timing.approvedClock, evaluationBoundary: "DECISION_TIME", maximumAgeSeconds: 3600, observations: [], domainFacts: [] },
+    );
+    expect(evaluated.ok).toBe(true);
+    if (!evaluated.ok) return;
+    const hardChecks = evaluated.result.checks.filter((check) => check.kind === "HARD_CONSTRAINT");
+    expect(hardChecks.map((check) => check.checkId)).toEqual(component.action.constraints.map((constraint) => constraint.constraintId));
+    const result = assessCompoundActionReadinessRaw(action, {
+      timing,
+      components: ready,
+      eligibilityResults: { ...eligibility(action), a: evaluated.result },
+      eligibilityMaximumAgeSeconds: 3600,
+    });
+    expect(result.components[0]).toHaveProperty("eligibility");
+    expect(result.components[0]!.codes).not.toContain("COMPONENT_ELIGIBILITY_MISMATCH");
   });
   it("retains identities and rejects outcome leakage", () => {
     const action = base();

@@ -237,11 +237,12 @@ export function assessExperimentReadiness(
   if (!context.engineCapability.randomizationUnits.includes(unit)) blocked("RANDOMIZATION_UNIT_UNSUPPORTED");
   const customUnit = typeof what.randomizationUnit === "string" ? undefined : what.randomizationUnit;
   if (customUnit) {
-    const registration = context.customRandomizationRegistrations.find(
+    const registrations = context.customRandomizationRegistrations.filter(
       (entry) => entry.registryRef === customUnit.registryRef && entry.code === customUnit.code,
     );
-    if (!registration) unknown("CUSTOM_RANDOMIZATION_REGISTRATION_REQUIRED", `${customUnit.registryRef}:${customUnit.code}`);
-    else registration.evidenceRefs.forEach((entry) => evidence.add(entry));
+    if (!registrations.length) unknown("CUSTOM_RANDOMIZATION_REGISTRATION_REQUIRED", `${customUnit.registryRef}:${customUnit.code}`);
+    else if (registrations.length > 1) blocked("AMBIGUOUS_CUSTOM_RANDOMIZATION_REGISTRATION");
+    else registrations[0]!.evidenceRefs.forEach((entry) => evidence.add(entry));
   }
 
   const uniqueReasons = [...new Set(reasons)];

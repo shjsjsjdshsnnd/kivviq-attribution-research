@@ -43,6 +43,7 @@ export const actionEligibilitySchema = z
     evaluationBoundary: z.enum(["DECISION_TIME", "TRANSLATION_TIME", "EFFECTIVE_TIME"]),
     status: z.enum(["ELIGIBLE", "INELIGIBLE", "UNKNOWN"]),
     checks: z.array(eligibilityCheckSchema),
+    assessmentFingerprint: z.string().regex(/^fnv1a64:[a-f0-9]{16}$/),
   })
   .strict();
 

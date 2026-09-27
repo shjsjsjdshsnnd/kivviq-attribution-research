@@ -1,5 +1,7 @@
 import { z } from "zod";
 import { actionEligibilitySchema } from "../action_eligibility/schema.js";
+import { hasValidEligibilityAssessmentFingerprint } from "../action_eligibility/integrity.js";
+import { hasCompleteEligibilityCheckManifest } from "../action_eligibility/evaluate.js";
 import type { CanonicalAction } from "../canonical_action/schema.js";
 import { canonicalActionSchema } from "../canonical_action/schema.js";
 import { fingerprintCanonicalAction } from "../canonical_action/serialization.js";
@@ -44,11 +46,15 @@ export function translateExperimentAction(
   if (!parsed.success)
     return failure(action.actionId, "MISSING_CONTEXT", "EXPERIMENT_ELIGIBILITY_REQUIRED", "A valid, bound eligibility result is required before experiment translation.");
   const eligibility = parsed.data;
+  if (!hasValidEligibilityAssessmentFingerprint(eligibility))
+    return failure(action.actionId, "INVALID_ACTION", "INVALID_EXPERIMENT_ELIGIBILITY_INTEGRITY", "Experiment eligibility checks do not match their assessment fingerprint.");
   const fingerprint = fingerprintCanonicalAction(action);
   if (eligibility.actionId !== action.actionId || eligibility.actionFingerprint !== fingerprint)
     return failure(action.actionId, "MISSING_CONTEXT", "EXPERIMENT_ELIGIBILITY_MISMATCH", "Eligibility must bind the exact experiment action and semantic fingerprint.");
   if (eligibility.evaluationBoundary !== "TRANSLATION_TIME")
     return failure(action.actionId, "MISSING_CONTEXT", "EXPERIMENT_ELIGIBILITY_BOUNDARY", "Experiment translation requires TRANSLATION_TIME eligibility.");
+  if (!hasCompleteEligibilityCheckManifest(action, "TRANSLATION_TIME", eligibility.checks))
+    return failure(action.actionId, "INVALID_ACTION", "INCOMPLETE_EXPERIMENT_ELIGIBILITY", "Eligibility must contain the complete deterministic check manifest for this action and boundary.");
   const approvedClock = context.timing && typeof context.timing === "object" && "approvedClock" in context.timing
     ? (context.timing as { approvedClock?: unknown }).approvedClock
     : undefined;
@@ -94,20 +100,6 @@ export function translateExperimentAction(
     return failure(action.actionId, "INELIGIBLE_ACTION", "EXPERIMENT_INELIGIBLE", "The experiment violates one or more eligibility checks.");
   if (eligibility.status === "UNKNOWN")
     return failure(action.actionId, "MISSING_CONTEXT", "EXPERIMENT_ELIGIBILITY_UNKNOWN", "Experiment eligibility remains unresolved.");
-  const applicableConstraintIds = action.constraints
-    .filter((constraint) => constraint.evaluationBoundary === "TRANSLATION_TIME")
-    .map((constraint) => constraint.constraintId);
-  const hardConstraintCheckIds = eligibility.checks
-    .filter((check) => check.kind === "HARD_CONSTRAINT")
-    .map((check) => check.checkId);
-  const expected = new Set(applicableConstraintIds);
-  const complete =
-    expected.size === applicableConstraintIds.length &&
-    hardConstraintCheckIds.length === applicableConstraintIds.length &&
-    hardConstraintCheckIds.every((id) => expected.has(id)) &&
-    new Set(hardConstraintCheckIds).size === hardConstraintCheckIds.length;
-  if (!complete)
-    return failure(action.actionId, "INVALID_ACTION", "INCOMPLETE_EXPERIMENT_ELIGIBILITY", "Eligibility must contain exactly one hard-constraint check for every constraint applicable at TRANSLATION_TIME.");
   if (!action.population)
     return failure(action.actionId, "INVALID_ACTION", "EXPERIMENT_POPULATION_REQUIRED", "The experiment requires an envelope population.");
   return {

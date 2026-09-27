@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { assessHardConstraints, constraintEvidenceReceiptSchema } from "../action_constraints/index.js";
-import { constraintThresholdSchema, hardConstraintsSchema, type ConstraintThreshold, type HardConstraint } from "../action_constraints/schema.js";
+import { constraintThresholdSchema, hardConstraintsSchema, type ConstraintThreshold } from "../action_constraints/schema.js";
 import { ACTION_CATEGORIES, type ActionTarget, type ConstraintExpression, type ScalarValue } from "../action_ontology/types.js";
 import { canonicalActionSchema, type CanonicalAction } from "../canonical_action/schema.js";
 import { fingerprintCanonicalAction } from "../canonical_action/serialization.js";
@@ -9,6 +9,7 @@ import { experimentWhatSchema } from "../experiment/index.js";
 import { lifecycleWhatSchema } from "../lifecycle/canonical.js";
 import { actionEligibilitySchema, type ActionEligibility, type EligibilityCheck, type EligibilityFailure } from "./schema.js";
 import { domainEligibilityFactSchema, evaluateDomainEligibility } from "./adapters.js";
+import { fingerprintEligibilityAssessment } from "./integrity.js";
 
 const utcZSchema = z.string().datetime().regex(/Z$/);
 const evaluationBoundarySchema = z.enum(["DECISION_TIME", "TRANSLATION_TIME", "EFFECTIVE_TIME"]);
@@ -227,11 +228,52 @@ function legacyChecks(action: CanonicalAction, observations: readonly Eligibilit
   return checks;
 }
 
-function nativeChecks(action: CanonicalAction, native: { constraints: HardConstraint[]; resourceRequirements: { resourceRequirementId: string; value: ConstraintThreshold }[] } | undefined, context: z.infer<typeof contextSchema>): EligibilityCheck[] | undefined {
-  if (!native) return [];
-  const applicableConstraints = native.constraints.filter((constraint) => constraint.evaluationBoundary === context.evaluationBoundary);
+export function expectedEligibilityCheckManifest(
+  action: CanonicalAction,
+  boundary: "DECISION_TIME" | "TRANSLATION_TIME" | "EFFECTIVE_TIME",
+): readonly { kind: EligibilityCheck["kind"]; checkId: string }[] {
+  const expected: { kind: EligibilityCheck["kind"]; checkId: string }[] = [];
+  if ("kind" in action.what && action.what.kind === "legacy_business") {
+    for (const precondition of action.what.preconditions)
+      expected.push({ kind: "PRECONDITION", checkId: precondition.preconditionId });
+    for (const constraint of action.what.constraints)
+      if (constraint.constraintClass === "hard")
+        expected.push({ kind: "HARD_CONSTRAINT", checkId: constraint.constraintId });
+  }
+  const legacyHardIds = new Set<string>("kind" in action.what && action.what.kind === "legacy_business"
+    ? action.what.constraints.filter((constraint) => constraint.constraintClass === "hard").map((constraint) => constraint.constraintId)
+    : []);
+  for (const constraint of action.constraints)
+    if (constraint.evaluationBoundary === boundary && !legacyHardIds.has(constraint.constraintId))
+      expected.push({ kind: "HARD_CONSTRAINT", checkId: constraint.constraintId });
+  for (const check of evaluateDomainEligibility({
+    action,
+    targetRef: canonicalEligibilityTargetRef(action),
+    evaluatedAt: "2000-01-01T00:00:00Z",
+    evaluationBoundary: boundary,
+    facts: [],
+  })) expected.push({ kind: check.kind, checkId: check.checkId });
+  return expected.sort((left, right) => `${left.kind}:${left.checkId}`.localeCompare(`${right.kind}:${right.checkId}`));
+}
+
+export function hasCompleteEligibilityCheckManifest(
+  action: CanonicalAction,
+  boundary: "DECISION_TIME" | "TRANSLATION_TIME" | "EFFECTIVE_TIME",
+  checks: readonly EligibilityCheck[],
+): boolean {
+  const identity = (check: { kind: string; checkId: string }) => `${check.kind}:${check.checkId}`;
+  const expected = expectedEligibilityCheckManifest(action, boundary).map(identity);
+  const actual = checks.map(identity).sort();
+  return expected.length === actual.length && expected.every((value, index) => value === actual[index]);
+}
+
+function nativeChecks(action: CanonicalAction, resourceRequirements: { resourceRequirementId: string; value: ConstraintThreshold }[], context: z.infer<typeof contextSchema>): EligibilityCheck[] | undefined {
+  const legacyHardIds = new Set<string>("kind" in action.what && action.what.kind === "legacy_business"
+    ? action.what.constraints.filter((constraint) => constraint.constraintClass === "hard").map((constraint) => constraint.constraintId)
+    : []);
+  const applicableConstraints = action.constraints.filter((constraint) => constraint.evaluationBoundary === context.evaluationBoundary && !legacyHardIds.has(constraint.constraintId));
   const report = assessHardConstraints(
-    { actionId: action.actionId, actionFingerprint: fingerprintCanonicalAction(action), constraints: applicableConstraints, resourceRequirements: native.resourceRequirements },
+    { actionId: action.actionId, actionFingerprint: fingerprintCanonicalAction(action), constraints: applicableConstraints, resourceRequirements },
     { evaluatedAt: context.evaluatedAt, ...(context.maximumAgeSeconds === undefined ? {} : { maximumAgeSeconds: context.maximumAgeSeconds }), receipts: context.constraintReceipts ?? [] },
   );
   if (!report.valid) return undefined;
@@ -277,8 +319,14 @@ export function evaluateActionEligibility(inputValue: unknown, contextValue: unk
     : nativeConstraintsSchema.safeParse(input.data.nativeConstraints);
   if (nativeConstraints !== undefined && !nativeConstraints.success)
     return failure("INVALID_NATIVE_CONSTRAINTS", nativeConstraints.error.issues.map((issue) => issue.message));
+  if (nativeConstraints?.success) {
+    const canonical = [...action.data.constraints].sort((a, b) => a.constraintId.localeCompare(b.constraintId));
+    const supplied = [...nativeConstraints.data.constraints].sort((a, b) => a.constraintId.localeCompare(b.constraintId));
+    if (stable(canonical) !== stable(supplied))
+      return failure("INVALID_NATIVE_CONSTRAINTS", ["Supplied constraint definitions must exactly match canonical Action constraints"]);
+  }
   const checks = legacyChecks(action.data, context.data.observations, context.data.evaluatedAt, context.data.evaluationBoundary, context.data.maximumAgeSeconds);
-  const native = nativeChecks(action.data, nativeConstraints?.data, context.data);
+  const native = nativeChecks(action.data, nativeConstraints?.success ? nativeConstraints.data.resourceRequirements : [], context.data);
   if (native === undefined) return failure("INVALID_NATIVE_CONSTRAINTS", ["Native constraint assessment input or evidence is invalid"]);
   checks.push(...native);
   checks.push(...evaluateDomainEligibility({
@@ -289,6 +337,7 @@ export function evaluateActionEligibility(inputValue: unknown, contextValue: unk
     ...(context.data.maximumAgeSeconds === undefined ? {} : { maximumAgeSeconds: context.data.maximumAgeSeconds }),
     facts: context.data.domainFacts,
   }));
-  const status = checks.some((check) => check.status === "VIOLATED") ? "INELIGIBLE" : checks.some((check) => check.status === "UNKNOWN") ? "UNKNOWN" : "ELIGIBLE";
-  return { ok: true, result: actionEligibilitySchema.parse({ actionId: action.data.actionId, actionFingerprint: fingerprintCanonicalAction(action.data), evaluatedAt: context.data.evaluatedAt, evaluationBoundary: context.data.evaluationBoundary, status, checks }) };
+  const status: ActionEligibility["status"] = checks.some((check) => check.status === "VIOLATED") ? "INELIGIBLE" : checks.some((check) => check.status === "UNKNOWN") ? "UNKNOWN" : "ELIGIBLE";
+  const assessment = { actionId: action.data.actionId, actionFingerprint: fingerprintCanonicalAction(action.data), evaluatedAt: context.data.evaluatedAt, evaluationBoundary: context.data.evaluationBoundary, status, checks };
+  return { ok: true, result: actionEligibilitySchema.parse({ ...assessment, assessmentFingerprint: fingerprintEligibilityAssessment(assessment) }) };
 }

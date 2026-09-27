@@ -262,6 +262,22 @@ describe("experiment readiness", () => {
     })).status).toBe("READY");
   });
 
+  it("blocks duplicate custom randomization registrations independent of order", () => {
+    const action = experiment({ randomizationUnit: { kind: "CUSTOM", registryRef: "registry_units", code: "HOUSEHOLD" } });
+    const first = { registryRef: "registry_units", code: "HOUSEHOLD", evidenceRefs: ["evidence_registry_a"] };
+    const second = { registryRef: "registry_units", code: "HOUSEHOLD", evidenceRefs: ["evidence_registry_b"] };
+    for (const registrations of [[first, second], [second, first]]) {
+      const result = assessExperimentReadiness(action, context({
+        customRandomizationRegistrations: registrations,
+        engineCapability: { status: "AVAILABLE", randomizationUnits: ["CUSTOM"], evidenceRefs: ["evidence_engine"] },
+      }));
+      expect(result.status).toBe("BLOCKED");
+      expect(result.reasonCodes).toContain("AMBIGUOUS_CUSTOM_RANDOMIZATION_REGISTRATION");
+      expect(result.evidenceRefs).not.toContain("evidence_registry_a");
+      expect(result.evidenceRefs).not.toContain("evidence_registry_b");
+    }
+  });
+
   it("blocks a measurement window outside the fixed execution horizon", () => {
     const action = experiment({
       measurementWindow: { start: "2026-09-25T04:00:00Z", end: "2026-10-03T04:00:00Z" },

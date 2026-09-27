@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { adaptLegacyAction } from "../../src/canonical_action/legacy.js";
 import { fingerprintCanonicalAction } from "../../src/canonical_action/serialization.js";
+import { canonicalActionSchema } from "../../src/canonical_action/schema.js";
 import { increaseGoogleShoppingBudget20 } from "../../src/action_ontology/fixtures.js";
 import type { Action, ActionConstraint, ActionPrecondition } from "../../src/action_ontology/types.js";
 import { constraintId } from "../../src/action_ontology/identity.js";
@@ -339,13 +340,15 @@ describe("evaluateActionEligibility", () => {
   });
 
   it("maps fingerprint-bound native hard constraint assessments", () => {
-    const candidate = action({ constraints: [], preconditions: [] });
+    const baseCandidate = action({ constraints: [], preconditions: [] });
+    const margin = { constraintId: "margin", kind: "MINIMUM_MARGIN" as const, evaluationBoundary: "DECISION_TIME" as const, whenUnknown: "INELIGIBLE" as const, target: { kind: "GLOBAL" as const }, valueBasis: "CURRENT_STATE" as const, comparator: "GTE" as const, threshold: { valueType: "PERCENTAGE" as const, basisPoints: 3000 }, observedValue: { kind: "METRIC" as const, ref: "margin" } };
+    const candidate = canonicalActionSchema.parse({ ...baseCandidate, constraints: [margin] });
     const fingerprint = fingerprintCanonicalAction(candidate);
     const result = evaluateActionEligibility(
       {
         action: candidate,
         nativeConstraints: {
-          constraints: [{ constraintId: "margin", kind: "MINIMUM_MARGIN", evaluationBoundary: "DECISION_TIME", whenUnknown: "INELIGIBLE", target: { kind: "GLOBAL" }, valueBasis: "CURRENT_STATE", comparator: "GTE", threshold: { valueType: "PERCENTAGE", basisPoints: 3000 }, observedValue: { kind: "METRIC", ref: "margin" } }],
+          constraints: [margin],
           resourceRequirements: [],
         },
       },
@@ -359,6 +362,17 @@ describe("evaluateActionEligibility", () => {
     if (!result.ok) return;
     expect(result.result).toMatchObject({ status: "INELIGIBLE" });
     expect(result.result.checks.filter((check) => check.kind !== "DOMAIN_RULE")).toMatchObject([{ kind: "HARD_CONSTRAINT", checkId: "margin", status: "VIOLATED", reasonCodes: ["CONSTRAINT_VIOLATED"] }]);
+  });
+
+  it("cannot bypass a canonical price floor by omitting or replacing compatibility constraints", () => {
+    const candidate = action({ constraints: [], preconditions: [] });
+    const floor = { constraintId: "canonical.floor", kind: "PRICE_FLOOR" as const, target: { kind: "SKU" as const, ref: "sku:A" }, evaluationBoundary: "DECISION_TIME" as const, whenUnknown: "UNKNOWN" as const, valueBasis: "PROJECTED_AFTER_ACTION" as const, comparator: "GTE" as const, threshold: { valueType: "MONEY" as const, amountMinor: 8_000, currency: "CAD" }, observedValue: { kind: "FACT" as const, ref: "resulting.price" } };
+    const constrained = canonicalActionSchema.parse({ ...candidate, constraints: [floor] });
+    const receipt = { evidenceRef: "price.floor", actionId: constrained.actionId, actionFingerprint: fingerprintCanonicalAction(constrained), constraintId: floor.constraintId, target: floor.target, evaluationBoundary: floor.evaluationBoundary, observedAt: "2026-09-21T13:05:00Z", sourceRef: "merchant_state", provenance: ["snapshot:1"], fact: { kind: "VALUE" as const, valueRef: floor.observedValue, valueBasis: floor.valueBasis, value: { valueType: "MONEY" as const, amountMinor: 7_999, currency: "CAD" } } };
+    const omitted = evaluateActionEligibility({ action: constrained }, { evaluatedAt, observations: [], constraintReceipts: [receipt] });
+    expect(omitted.ok && omitted.result).toMatchObject({ status: "INELIGIBLE", checks: expect.arrayContaining([expect.objectContaining({ checkId: floor.constraintId, status: "VIOLATED" })]) });
+    const replaced = evaluateActionEligibility({ action: constrained, nativeConstraints: { constraints: [{ ...floor, threshold: { ...floor.threshold, amountMinor: 7_000 } }], resourceRequirements: [] } }, { evaluatedAt, observations: [], constraintReceipts: [receipt] });
+    expect(replaced).toMatchObject({ ok: false, failure: { code: "INVALID_NATIVE_CONSTRAINTS" } });
   });
 
   it("returns separate failures for invalid actions, unsupported families and invalid context", () => {
@@ -414,12 +428,15 @@ describe("evaluateActionEligibility", () => {
       evaluationBoundary,
       fact: { kind: "VALUE" as const, valueRef: { kind: "FACT" as const, ref: "resulting.price" }, valueBasis: "PROJECTED_AFTER_ACTION" as const, value: { valueType: "MONEY" as const, amountMinor, currency: "CAD" } },
     });
-    const input = { action: candidate, nativeConstraints: { constraints: [constraint("decision.floor", "DECISION_TIME"), constraint("translation.floor", "TRANSLATION_TIME")], resourceRequirements: [] } };
-    const context = { evaluatedAt, observations: [], constraintReceipts: [receipt("decision.floor", "DECISION_TIME", 8_000), receipt("translation.floor", "TRANSLATION_TIME", 7_000)] };
-    const decision = evaluateActionEligibilityRaw(input, { ...context, evaluationBoundary: "DECISION_TIME", domainFacts: domainFacts(candidate) });
+    const constraints = [constraint("decision.floor", "DECISION_TIME"), constraint("translation.floor", "TRANSLATION_TIME")];
+    const constrained = canonicalActionSchema.parse({ ...candidate, constraints });
+    const boundReceipt = (constraintId: string, evaluationBoundary: "DECISION_TIME" | "TRANSLATION_TIME", amountMinor: number) => ({ ...receipt(constraintId, evaluationBoundary, amountMinor), actionFingerprint: fingerprintCanonicalAction(constrained) });
+    const input = { action: constrained, nativeConstraints: { constraints, resourceRequirements: [] } };
+    const context = { evaluatedAt, observations: [], constraintReceipts: [boundReceipt("decision.floor", "DECISION_TIME", 8_000), boundReceipt("translation.floor", "TRANSLATION_TIME", 7_000)] };
+    const decision = evaluateActionEligibilityRaw(input, { ...context, evaluationBoundary: "DECISION_TIME", domainFacts: domainFacts(constrained) });
     expect(decision.ok && decision.result).toMatchObject({ evaluationBoundary: "DECISION_TIME", status: "ELIGIBLE" });
     expect(decision.ok && decision.result.checks.some((check) => check.checkId === "translation.floor")).toBe(false);
-    const translation = evaluateActionEligibilityRaw(input, { ...context, evaluationBoundary: "TRANSLATION_TIME", domainFacts: domainFacts(candidate).map((fact) => ({ ...fact, evaluationBoundary: "TRANSLATION_TIME" as const })) });
+    const translation = evaluateActionEligibilityRaw(input, { ...context, evaluationBoundary: "TRANSLATION_TIME", domainFacts: domainFacts(constrained).map((fact) => ({ ...fact, evaluationBoundary: "TRANSLATION_TIME" as const })) });
     expect(translation.ok && translation.result).toMatchObject({ evaluationBoundary: "TRANSLATION_TIME", status: "INELIGIBLE" });
     expect(translation.ok && translation.result.checks.some((check) => check.checkId === "decision.floor")).toBe(false);
   });

@@ -22,6 +22,9 @@ import type { CanonicalAction } from "../canonical_action/schema.js";
 import type { TimingResolution } from "../action_timing/types.js";
 import { experimentWhatSchema } from "../experiment/index.js";
 import { translateExperimentAction } from "./experiment.js";
+import { actionEligibilitySchema } from "../action_eligibility/schema.js";
+import { hasValidEligibilityAssessmentFingerprint } from "../action_eligibility/integrity.js";
+import { hasCompleteEligibilityCheckManifest } from "../action_eligibility/evaluate.js";
 
 const timestamp = z.string().datetime({ offset: true });
 export const canonicalTranslationContextSchema = z
@@ -110,9 +113,16 @@ export function resolveCanonicalTranslationContext(
     );
   if (action.population) {
     const ref = action.population;
-    const definition = context.populations?.find(
+    const definitions = context.populations?.filter(
       (p) => p.populationId === ref.populationId && p.version === ref.version,
-    );
+    ) ?? [];
+    if (definitions.length > 1)
+      return fail(
+        "MISSING_CONTEXT",
+        "AMBIGUOUS_POPULATION_DEFINITION",
+        "More than one population definition matches the referenced identity.",
+      );
+    const definition = definitions[0];
     if (
       !definition ||
       fingerprintPopulationDefinition(definition) !==
@@ -145,13 +155,20 @@ export function resolveCanonicalTranslationContext(
         "An explicit timestamp for the population binding is required.",
       );
     if (ref.membershipMode === "FROZEN_MEMBERSHIP") {
-      const snapshot = context.snapshots?.find(
+      const snapshots = context.snapshots?.filter(
         (s) =>
           ref.snapshotRef !== undefined &&
           s.snapshotId === ref.snapshotRef &&
           matches(s) &&
           Date.parse(s.evaluatedAt) === Date.parse(at),
-      );
+      ) ?? [];
+      if (snapshots.length > 1)
+        return fail(
+          "MISSING_CONTEXT",
+          "AMBIGUOUS_FROZEN_MEMBERSHIP",
+          "More than one frozen population snapshot matches the exact reference.",
+        );
+      const snapshot = snapshots[0];
       if (!snapshot || snapshot.unknownCustomerIds.length)
         return fail(
           "MISSING_CONTEXT",
@@ -159,9 +176,16 @@ export function resolveCanonicalTranslationContext(
           "A matching frozen snapshot with resolved membership is required.",
         );
     } else {
-      const evaluation = context.evaluations?.find(
+      const evaluations = context.evaluations?.filter(
         (e) => matches(e) && Date.parse(e.evaluatedAt) === Date.parse(at),
-      );
+      ) ?? [];
+      if (evaluations.length > 1)
+        return fail(
+          "MISSING_CONTEXT",
+          "AMBIGUOUS_DYNAMIC_MEMBERSHIP",
+          "More than one dynamic population evaluation matches the exact reference and boundary.",
+        );
+      const evaluation = evaluations[0];
       if (!evaluation || evaluation.unknownCount)
         return fail(
           "MISSING_CONTEXT",
@@ -183,6 +207,35 @@ export function translateCanonicalAction(
   const { action, context, resolution } = gate;
   const decision = decisionWhatSchema.safeParse(action.what);
   const experiment = experimentWhatSchema.safeParse(action.what);
+  if (!experiment.success) {
+    const parsedEligibility = actionEligibilitySchema.safeParse(context.eligibility);
+    if (!parsedEligibility.success)
+      return { status: "MISSING_CONTEXT", actionId: action.actionId, code: "ACTION_ELIGIBILITY_REQUIRED", message: "A valid eligibility result is required before canonical translation." };
+    const eligibility = parsedEligibility.data;
+    if (!hasValidEligibilityAssessmentFingerprint(eligibility))
+      return { status: "INVALID_ACTION", actionId: action.actionId, code: "INVALID_ACTION_ELIGIBILITY_INTEGRITY", message: "Eligibility checks do not match their assessment fingerprint." };
+    if (eligibility.actionId !== action.actionId || eligibility.actionFingerprint !== fingerprintCanonicalAction(action))
+      return { status: "MISSING_CONTEXT", actionId: action.actionId, code: "ACTION_ELIGIBILITY_MISMATCH", message: "Eligibility must bind the exact canonical action." };
+    if (eligibility.evaluationBoundary !== "TRANSLATION_TIME")
+      return { status: "MISSING_CONTEXT", actionId: action.actionId, code: "ACTION_ELIGIBILITY_BOUNDARY", message: "Canonical translation requires TRANSLATION_TIME eligibility." };
+    if (!hasCompleteEligibilityCheckManifest(action, "TRANSLATION_TIME", eligibility.checks))
+      return { status: "INVALID_ACTION", actionId: action.actionId, code: "INCOMPLETE_ACTION_ELIGIBILITY", message: "Eligibility must contain the complete deterministic check manifest." };
+    const approvedClock = context.timing && typeof context.timing === "object" && "approvedClock" in context.timing ? (context.timing as { approvedClock?: unknown }).approvedClock : undefined;
+    if (typeof approvedClock !== "string" || context.eligibilityMaximumAgeSeconds === undefined)
+      return { status: "MISSING_CONTEXT", actionId: action.actionId, code: "ACTION_ELIGIBILITY_FRESHNESS_REQUIRED", message: "An approved clock and maximum eligibility age are required." };
+    const evaluated = Date.parse(eligibility.evaluatedAt), approved = Date.parse(approvedClock);
+    if (evaluated > approved)
+      return { status: "MISSING_CONTEXT", actionId: action.actionId, code: "ACTION_ELIGIBILITY_FUTURE", message: "Eligibility cannot be evaluated in the future." };
+    if (approved - evaluated > context.eligibilityMaximumAgeSeconds * 1000)
+      return { status: "MISSING_CONTEXT", actionId: action.actionId, code: "ACTION_ELIGIBILITY_STALE", message: "Eligibility is stale." };
+    const derived = eligibility.checks.some((check) => check.status === "VIOLATED") ? "INELIGIBLE" : eligibility.checks.some((check) => check.status === "UNKNOWN") ? "UNKNOWN" : "ELIGIBLE";
+    if (derived !== eligibility.status)
+      return { status: "INVALID_ACTION", actionId: action.actionId, code: "INVALID_ACTION_ELIGIBILITY", message: "Eligibility status does not match its checks." };
+    if (eligibility.status === "INELIGIBLE")
+      return { status: "INELIGIBLE_ACTION", actionId: action.actionId, code: "ACTION_INELIGIBLE", message: "The action violates one or more eligibility checks." };
+    if (eligibility.status === "UNKNOWN")
+      return { status: "MISSING_CONTEXT", actionId: action.actionId, code: "ACTION_ELIGIBILITY_UNKNOWN", message: "Action eligibility remains unresolved." };
+  }
   const common = {
     status: "TRANSLATED" as const,
     originatingBusinessActionId:

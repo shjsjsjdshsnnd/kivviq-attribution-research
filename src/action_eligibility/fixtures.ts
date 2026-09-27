@@ -190,10 +190,11 @@ function hardScenario(
   receiptFact: ConstraintEvidenceReceipt["fact"],
   resourceRequirements: readonly { resourceRequirementId: string; value: ConstraintThreshold }[] = [],
 ) {
-  const fingerprint = fingerprintCanonicalAction(constraintAction);
+  const action = canonicalActionSchema.parse({ ...constraintAction, constraints: [constraint] });
+  const fingerprint = fingerprintCanonicalAction(action);
   const receipt: ConstraintEvidenceReceipt = {
     evidenceRef: `evidence.${constraint.constraintId}`,
-    actionId: constraintAction.actionId,
+    actionId: action.actionId,
     actionFingerprint: fingerprint,
     constraintId: constraint.constraintId,
     target: constraint.target,
@@ -205,9 +206,9 @@ function hardScenario(
   } as ConstraintEvidenceReceipt;
   return {
     kind: constraint.kind,
-    action: constraintAction,
+    action,
     nativeConstraints: { constraints: [constraint], resourceRequirements: [...resourceRequirements] },
-    domainFacts: constraintDomainFacts,
+    domainFacts: facts(action, ["ACTION_FAMILY_CAPABILITY", "TARGET_ACTIVE"]),
     receipts: [receipt],
   };
 }

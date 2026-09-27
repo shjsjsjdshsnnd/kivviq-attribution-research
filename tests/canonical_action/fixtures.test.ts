@@ -7,6 +7,7 @@ import {
 import { resolveActionTiming } from "../../src/action_timing/index.js";
 import { utcTimestamp } from "../../src/core/units.js";
 import { translateBusinessAction } from "../../src/action_translation/index.js";
+import { withTranslationEligibility } from "../action_translation/eligibility-helper.js";
 describe("Steps 10–12 freeze fixtures", () => {
   it("provides all thirty numbered cases with valid contracts", () => {
     const fixtures = createCanonicalFixtures();
@@ -78,8 +79,9 @@ describe("Steps 10–12 freeze fixtures", () => {
   });
   it("public translator refuses complete unsupported semantics and unresolved events", () => {
     const f = createCanonicalFixtures();
+    const unsupported = f[29]!.action!;
     expect(
-      translateBusinessAction(f[29]!.action, f[29]!.translationContext).status,
+      translateBusinessAction(unsupported, withTranslationEligibility(unsupported, f[29]!.translationContext as Record<string, unknown>)).status,
     ).toBe("UNSUPPORTED_SIMULATOR_CAPABILITY");
     expect(
       translateBusinessAction(f[28]!.action, f[28]!.translationContext).status,

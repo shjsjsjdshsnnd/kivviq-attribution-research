@@ -10,6 +10,8 @@ import { canonicalActionSchema } from "../../src/canonical_action/schema.js";
 import { fingerprintCanonicalAction } from "../../src/canonical_action/serialization.js";
 import { fingerprintCompoundAction } from "../../src/compound_action/schema.js";
 import { evaluatePopulation, fingerprintPopulationDefinition } from "../../src/population/index.js";
+import { fingerprintEligibilityAssessment } from "../../src/action_eligibility/integrity.js";
+import { expectedEligibilityCheckManifest } from "../../src/action_eligibility/evaluate.js";
 
 const timing = { approvedClock: "2026-09-27T00:00:00Z" };
 function fixture() {
@@ -50,14 +52,24 @@ function context(action = fixture()) {
     components: { component_0: {}, component_1: {} },
     readiness: {
       eligibilityMaximumAgeSeconds: 3600,
-      eligibilityResults: Object.fromEntries(action.components.map((component) => [component.componentId, {
+      eligibilityResults: Object.fromEntries(action.components.map((component) => {
+        const checks = expectedEligibilityCheckManifest(component.action, "TRANSLATION_TIME").map((check) => ({
+          ...check,
+          status: "SATISFIED" as const,
+          reasonCodes: ["CHECK_SATISFIED"],
+          evidenceRefs: ["eligibility.evidence"],
+          missingInformation: [],
+        }));
+        const assessment = {
         actionId: component.action.actionId,
         actionFingerprint: fingerprintCanonicalAction(component.action),
         evaluatedAt: "2026-09-27T00:00:00Z",
         evaluationBoundary: "TRANSLATION_TIME",
         status: "ELIGIBLE",
-        checks: [],
-      }])),
+          checks,
+        } as const;
+        return [component.componentId, { ...assessment, assessmentFingerprint: fingerprintEligibilityAssessment(assessment) }];
+      })),
       components: {
         component_0: { status: "READY", evidenceRefs: ["evidence_ready"] },
         component_1: { status: "READY", evidenceRefs: ["evidence_ready"] },
@@ -148,13 +160,19 @@ describe("canonical compound translation", () => {
   it("returns explicit ineligible action status for an eligibility-denied component", () => {
     const action = fixture();
     action.atomicity = "ALL_OR_NOTHING";
+    action.components[0]!.action = canonicalActionSchema.parse({
+      ...action.components[0]!.action,
+      constraints: [{ constraintId: "translation.policy", kind: "CUSTOM", target: { kind: "GLOBAL" }, evaluationBoundary: "TRANSLATION_TIME", whenUnknown: "UNKNOWN", registryRef: "translation.policy", code: "ALLOWED" }],
+    });
     const ctx = context(action);
     const results = ctx.readiness.eligibilityResults as Record<string, unknown>;
-    results["component_0"] = {
-      ...(results["component_0"] as Record<string, unknown>),
+    const { assessmentFingerprint: _old, ...eligibleProjection } = results["component_0"] as Record<string, unknown>;
+    const denied = {
+      ...eligibleProjection,
       status: "INELIGIBLE",
-      checks: [{ kind: "DOMAIN_RULE", checkId: "policy", status: "VIOLATED", reasonCodes: ["POLICY_DENIED"], evidenceRefs: ["policy.evidence"], missingInformation: [] }],
+      checks: [{ kind: "HARD_CONSTRAINT", checkId: "translation.policy", status: "VIOLATED", reasonCodes: ["POLICY_DENIED"], evidenceRefs: ["policy.evidence"], missingInformation: [] }],
     };
+    results["component_0"] = { ...denied, assessmentFingerprint: fingerprintEligibilityAssessment(denied as never) };
     expect(translateCanonicalCompoundAction(action, ctx)).toMatchObject({ status: "INELIGIBLE_ACTION", code: "COMPONENT_NOT_READY" });
   });
   it.each(["BEST_EFFORT", "DEPENDENCY_GATED"] as const)(

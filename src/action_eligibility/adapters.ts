@@ -121,6 +121,32 @@ function familyOf(action: CanonicalAction): DomainFamily | undefined {
   return undefined;
 }
 
+function requirementsFor(action: CanonicalAction): Requirement[] {
+  const family = familyOf(action);
+  if (!family) return [];
+  const actionType = actionTypeOf(action);
+  const requirements = [...registry[family], ...(actionTypeRequirements[actionType ?? ""] ?? [])];
+  const lifecycle = lifecycleWhatSchema.safeParse(action.what);
+  if (actionType === "lifecycle.start_flow" && lifecycle.success && lifecycle.data.actionType === "lifecycle.start_flow") {
+    const firstStep = lifecycle.data.flow.steps[0];
+    requirements.push({ factId: "AUDIENCE_AVAILABLE", suffix: "audience_available", trueReason: "AUDIENCE_AVAILABLE", falseReason: "AUDIENCE_UNAVAILABLE" });
+    if (firstStep) {
+      requirements.push({ factId: "CHANNEL_AVAILABLE", suffix: "channel_available", trueReason: "CHANNEL_AVAILABLE", falseReason: "CHANNEL_UNAVAILABLE" });
+      for (const ruleRef of firstStep.eligibility)
+        requirements.push({ factId: "LIFECYCLE_ELIGIBILITY_RULE_ALLOWS", ruleRef, suffix: `eligibility_rule.${ruleRef}`, trueReason: "LIFECYCLE_ELIGIBILITY_RULE_ALLOWS", falseReason: "LIFECYCLE_ELIGIBILITY_RULE_BLOCKS" });
+      for (const ruleRef of firstStep.suppression)
+        requirements.push({ factId: "LIFECYCLE_SUPPRESSION_RULE_CLEAR", ruleRef, suffix: `suppression_rule.${ruleRef}`, trueReason: "LIFECYCLE_SUPPRESSION_RULE_CLEAR", falseReason: "LIFECYCLE_SUPPRESSION_RULE_BLOCKS" });
+    }
+  }
+  return requirements;
+}
+
+export function expectedDomainEligibilityCheckIds(action: CanonicalAction): readonly string[] {
+  const family = familyOf(action);
+  if (!family) return [];
+  return requirementsFor(action).map((requirement) => `domain.${family}.${requirement.suffix}`).sort();
+}
+
 function unknown(checkId: string, reasonCodes: string[], evidenceRefs: string[] = []): EligibilityCheck {
   return { kind: "DOMAIN_RULE", checkId, status: "UNKNOWN", reasonCodes, evidenceRefs, missingInformation: [`domain_fact:${checkId}`] };
 }
@@ -137,20 +163,7 @@ export function evaluateDomainEligibility(input: {
   if (!family) return [];
   const fingerprint = fingerprintCanonicalAction(input.action);
   const bound = input.facts.filter((fact) => fact.actionId === input.action.actionId && fact.actionFingerprint === fingerprint && fact.targetRef === input.targetRef && fact.evaluationBoundary === input.evaluationBoundary);
-  const actionType = actionTypeOf(input.action);
-  const requirements = [...registry[family], ...(actionTypeRequirements[actionType ?? ""] ?? [])];
-  const lifecycle = lifecycleWhatSchema.safeParse(input.action.what);
-  if (actionType === "lifecycle.start_flow" && lifecycle.success && lifecycle.data.actionType === "lifecycle.start_flow") {
-    const firstStep = lifecycle.data.flow.steps[0];
-    requirements.push({ factId: "AUDIENCE_AVAILABLE", suffix: "audience_available", trueReason: "AUDIENCE_AVAILABLE", falseReason: "AUDIENCE_UNAVAILABLE" });
-    if (firstStep) {
-      requirements.push({ factId: "CHANNEL_AVAILABLE", suffix: "channel_available", trueReason: "CHANNEL_AVAILABLE", falseReason: "CHANNEL_UNAVAILABLE" });
-      for (const ruleRef of firstStep.eligibility)
-        requirements.push({ factId: "LIFECYCLE_ELIGIBILITY_RULE_ALLOWS", ruleRef, suffix: `eligibility_rule.${ruleRef}`, trueReason: "LIFECYCLE_ELIGIBILITY_RULE_ALLOWS", falseReason: "LIFECYCLE_ELIGIBILITY_RULE_BLOCKS" });
-      for (const ruleRef of firstStep.suppression)
-        requirements.push({ factId: "LIFECYCLE_SUPPRESSION_RULE_CLEAR", ruleRef, suffix: `suppression_rule.${ruleRef}`, trueReason: "LIFECYCLE_SUPPRESSION_RULE_CLEAR", falseReason: "LIFECYCLE_SUPPRESSION_RULE_BLOCKS" });
-    }
-  }
+  const requirements = requirementsFor(input.action);
   return requirements.map((requirement): EligibilityCheck => {
     const checkId = `domain.${family}.${requirement.suffix}`;
     const matches = bound.filter((fact) => fact.factId === requirement.factId && fact.ruleRef === requirement.ruleRef);
