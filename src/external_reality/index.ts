@@ -463,19 +463,12 @@ function temporalWeight(
   );
 }
 
-export function resolveExternalEffect(
+function resolveValidatedExternalEffect(
   environment: ExternalEnvironment,
   target: ExternalTarget,
   timestampMs: number,
-  context: ExternalContext = {},
+  context: ExternalContext,
 ): ResolvedExternalEffect {
-  validateExternalEnvironment(environment);
-  if (!Number.isFinite(timestampMs)) {
-    throw new RangeError(
-      "external effect timestamp must be finite",
-    );
-  }
-
   const contributions: ExternalEffectContribution[] = [];
   for (const event of environment.events) {
     for (const effect of event.effects) {
@@ -528,6 +521,26 @@ export function resolveExternalEffect(
     ),
     contributions,
   };
+}
+
+export function resolveExternalEffect(
+  environment: ExternalEnvironment,
+  target: ExternalTarget,
+  timestampMs: number,
+  context: ExternalContext = {},
+): ResolvedExternalEffect {
+  validateExternalEnvironment(environment);
+  if (!Number.isFinite(timestampMs)) {
+    throw new RangeError(
+      "external effect timestamp must be finite",
+    );
+  }
+  return resolveValidatedExternalEffect(
+    environment,
+    target,
+    timestampMs,
+    context,
+  );
 }
 
 export function projectExternalObservations(
@@ -600,16 +613,45 @@ export class ExternalRealityRuntime {
     return this.streams.fork(domain).uniform(key);
   }
 
+  public resolveAt(
+    target: ExternalTarget,
+    timestampMs: number,
+    context: ExternalContext = {},
+  ): ResolvedExternalEffect {
+    if (!Number.isFinite(timestampMs)) {
+      throw new RangeError(
+        "external effect timestamp must be finite",
+      );
+    }
+    return resolveValidatedExternalEffect(
+      this.environment,
+      target,
+      timestampMs,
+      context,
+    );
+  }
+
   public resolve(
     target: ExternalTarget,
     context: ExternalContext = {},
   ): ResolvedExternalEffect {
-    return resolveExternalEffect(
-      this.environment,
+    return this.resolveAt(
       target,
       this.clock.nowMs,
       context,
     );
+  }
+
+  public multiplierAt(
+    target: ExternalTarget,
+    timestampMs: number,
+    context: ExternalContext = {},
+  ): number {
+    return this.resolveAt(
+      target,
+      timestampMs,
+      context,
+    ).multiplier;
   }
 
   public multiplier(
