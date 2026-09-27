@@ -88,6 +88,20 @@ describe("assessHardConstraints", () => {
     expect(stale.assessments[0]?.reasonCode).toBe("STALE_EVIDENCE");
   });
 
+  it("uses the stricter freshness limit when context and receipt both define one", () => {
+    const observedAt = "2026-09-27T11:58:30Z";
+    const contextStricter = assessHardConstraints(
+      { ...identity, constraints: [floor], resourceRequirements: [] },
+      { evaluatedAt: at, maximumAgeSeconds: 60, receipts: [receipt({ observedAt, maximumAgeSeconds: 120 })] },
+    );
+    const receiptStricter = assessHardConstraints(
+      { ...identity, constraints: [floor], resourceRequirements: [] },
+      { evaluatedAt: at, maximumAgeSeconds: 120, receipts: [receipt({ observedAt, maximumAgeSeconds: 60 })] },
+    );
+    expect(contextStricter.assessments[0]).toMatchObject({ status: "UNKNOWN", reasonCode: "STALE_EVIDENCE" });
+    expect(receiptStricter.assessments[0]).toMatchObject({ status: "UNKNOWN", reasonCode: "STALE_EVIDENCE" });
+  });
+
   it("fails closed for duplicate exact bindings regardless of receipt order", () => {
     const satisfied = receipt({ evidenceRef: "evidence.high" });
     const violated = receipt({
@@ -199,6 +213,47 @@ describe("assessHardConstraints", () => {
     );
     expect(report.assessments.map(({ status }) => status)).toEqual(["SATISFIED", "VIOLATED", "VIOLATED", "SATISFIED", "VIOLATED"]);
   });
+
+  it.each(["MERCHANT_POLICY", "CONTRACTUAL_RESTRICTION"] as const)(
+    "requires %s evidence observation and evaluation inside the rule interval",
+    (kind) => {
+      const rule = {
+        registryRef: kind === "MERCHANT_POLICY" ? "rules.main" : "contracts.main",
+        ruleId: "allow",
+        version: "v1",
+        effectiveFrom: "2026-09-27T11:00:00Z",
+        effectiveUntil: "2026-09-27T13:00:00Z",
+      };
+      const constraint: HardConstraint = {
+        ...common,
+        constraintId: "rule-check",
+        kind,
+        target,
+        rule,
+        expectedDecision: "ALLOW",
+      };
+      const decisionReceipt = (observedAt: string) => receipt({
+        constraintId: "rule-check",
+        observedAt,
+        fact: { kind: "RULE_DECISION", rule, decision: "ALLOW" },
+      });
+      const before = assessHardConstraints(
+        { ...identity, constraints: [constraint], resourceRequirements: [] },
+        { evaluatedAt: at, receipts: [decisionReceipt("2026-09-27T10:59:59Z")] },
+      );
+      const atStart = assessHardConstraints(
+        { ...identity, constraints: [constraint], resourceRequirements: [] },
+        { evaluatedAt: "2026-09-27T11:00:00Z", receipts: [decisionReceipt("2026-09-27T11:00:00Z")] },
+      );
+      const atEnd = assessHardConstraints(
+        { ...identity, constraints: [constraint], resourceRequirements: [] },
+        { evaluatedAt: "2026-09-27T13:00:00Z", receipts: [decisionReceipt("2026-09-27T13:00:00Z")] },
+      );
+      expect(before.assessments[0]).toMatchObject({ status: "UNKNOWN", reasonCode: "EVIDENCE_OUTSIDE_RULE_INTERVAL" });
+      expect(atStart.assessments[0]?.status).toBe("SATISFIED");
+      expect(atEnd.assessments[0]).toMatchObject({ status: "UNKNOWN", reasonCode: "RULE_NOT_EFFECTIVE" });
+    },
+  );
 
   it("binds risk evidence to its metric, basis, typed threshold and exact horizon", () => {
     const risk: HardConstraint = { ...common, constraintId: "risk", kind: "RISK_LIMIT", target, valueBasis: "PROJECTED_AFTER_ACTION", metricRef: "return.rate", comparator: "LTE", threshold: { valueType: "SCALAR", value: 0.1, unit: "ratio" }, horizon: { amount: 30, unit: "DAY" } };

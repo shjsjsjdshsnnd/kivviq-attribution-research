@@ -174,7 +174,10 @@ function receiptFreshness(receipt: ConstraintEvidenceReceipt, context: Constrain
   const evaluated = Date.parse(context.evaluatedAt);
   const observed = Date.parse(receipt.observedAt);
   if (observed > evaluated) return "FUTURE_EVIDENCE";
-  const maximum = receipt.maximumAgeSeconds ?? context.maximumAgeSeconds;
+  const freshnessLimits = [receipt.maximumAgeSeconds, context.maximumAgeSeconds].filter(
+    (value): value is number => value !== undefined,
+  );
+  const maximum = freshnessLimits.length > 0 ? Math.min(...freshnessLimits) : undefined;
   if (maximum !== undefined && evaluated - observed > maximum * 1000) return "STALE_EVIDENCE";
   return undefined;
 }
@@ -215,8 +218,12 @@ function assessOne(input: HardConstraintAssessmentInput, constraint: HardConstra
   }
   if (constraint.kind === "MERCHANT_POLICY" || constraint.kind === "CONTRACTUAL_RESTRICTION") {
     if (receipt.fact.kind !== "RULE_DECISION" || !sameRule(receipt.fact.rule, constraint.rule)) return missingComparable();
-    const time = Date.parse(context.evaluatedAt);
-    if (time < Date.parse(constraint.rule.effectiveFrom) || (constraint.rule.effectiveUntil !== undefined && time >= Date.parse(constraint.rule.effectiveUntil))) return { ...assessment, reasonCode: "RULE_NOT_EFFECTIVE" };
+    const startsAt = Date.parse(constraint.rule.effectiveFrom);
+    const endsAt = constraint.rule.effectiveUntil === undefined ? undefined : Date.parse(constraint.rule.effectiveUntil);
+    const evaluationTime = Date.parse(context.evaluatedAt);
+    if (evaluationTime < startsAt || (endsAt !== undefined && evaluationTime >= endsAt)) return { ...assessment, reasonCode: "RULE_NOT_EFFECTIVE" };
+    const observationTime = Date.parse(receipt.observedAt);
+    if (observationTime < startsAt || (endsAt !== undefined && observationTime >= endsAt)) return { ...assessment, reasonCode: "EVIDENCE_OUTSIDE_RULE_INTERVAL" };
     return derived(receipt.fact.decision === constraint.expectedDecision);
   }
   if (constraint.kind === "RISK_LIMIT") {
