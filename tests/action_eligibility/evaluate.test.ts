@@ -214,6 +214,32 @@ describe("evaluateActionEligibility", () => {
     expect(left.ok && left.result.checks[0]?.reasonCodes).toEqual(["AMBIGUOUS_BOUND_EVIDENCE"]);
   });
 
+  it("returns INVALID_CONTEXT instead of throwing for duplicate evidence references", () => {
+    const legacy = structuredClone(increaseGoogleShoppingBudget20) as MutableLegacy;
+    legacy.preconditions = [];
+    legacy.constraints = [legacy.constraints[0]!];
+    const candidate = action(legacy);
+    const observation = {
+      ...bound(candidate),
+      kind: "PROPERTY" as const,
+      evidenceRef: "same-receipt",
+      propertyId: "budget.available_minor",
+      value: { kind: "money" as const, amountMinor: 100, currency: "CAD" },
+    };
+    expect(() =>
+      evaluateActionEligibility(
+        { action: candidate },
+        { evaluatedAt, observations: [observation, structuredClone(observation)] },
+      ),
+    ).not.toThrow();
+    expect(
+      evaluateActionEligibility(
+        { action: candidate },
+        { evaluatedAt, observations: [observation, structuredClone(observation)] },
+      ),
+    ).toMatchObject({ ok: false, failure: { code: "INVALID_CONTEXT" } });
+  });
+
   it("requires exact action, fingerprint, target and observation binding", () => {
     const candidate = action();
     const unrelated = {

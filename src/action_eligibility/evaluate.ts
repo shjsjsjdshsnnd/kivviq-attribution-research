@@ -51,7 +51,14 @@ const nativeConstraintsSchema = z.object({
 const contextSchema = z.object({
   evaluatedAt: utcZSchema,
   maximumAgeSeconds: z.number().int().nonnegative().safe().optional(),
-  observations: z.array(eligibilityEvidenceObservationSchema),
+  observations: z.array(eligibilityEvidenceObservationSchema).superRefine((observations, context) => {
+    const seen = new Set<string>();
+    observations.forEach((observation, index) => {
+      if (seen.has(observation.evidenceRef))
+        context.addIssue({ code: "custom", path: [index, "evidenceRef"], message: `Duplicate evidenceRef: ${observation.evidenceRef}` });
+      seen.add(observation.evidenceRef);
+    });
+  }),
   constraintReceipts: z.array(constraintEvidenceReceiptSchema).optional(),
 }).strict();
 
@@ -69,6 +76,10 @@ function stable(value: unknown): string {
   if (value !== null && typeof value === "object")
     return `{${Object.entries(value).sort(([a], [b]) => a.localeCompare(b)).map(([key, nested]) => `${JSON.stringify(key)}:${stable(nested)}`).join(",")}}`;
   return JSON.stringify(value);
+}
+
+function uniqueSorted(values: readonly string[]): string[] {
+  return [...new Set(values)].sort();
 }
 
 function fnv1a64(value: string): string {
@@ -168,7 +179,7 @@ function checkExpression(
   maximumAgeSeconds: number | undefined,
 ): Omit<EligibilityCheck, "kind" | "checkId"> {
   if (observations.length === 0) return { status: "UNKNOWN", reasonCodes: ["MISSING_BOUND_EVIDENCE"], evidenceRefs: [], missingInformation: [observationKey(expression)] };
-  if (observations.length > 1) return { status: "UNKNOWN", reasonCodes: ["AMBIGUOUS_BOUND_EVIDENCE"], evidenceRefs: observations.map((value) => value.evidenceRef).sort(), missingInformation: [observationKey(expression)] };
+  if (observations.length > 1) return { status: "UNKNOWN", reasonCodes: ["AMBIGUOUS_BOUND_EVIDENCE"], evidenceRefs: uniqueSorted(observations.map((value) => value.evidenceRef)), missingInformation: [observationKey(expression)] };
   const observation = observations[0]!;
   const evidenceRefs = [observation.evidenceRef];
   const observed = Date.parse(observation.observedAt), evaluated = Date.parse(evaluatedAt);
@@ -227,7 +238,7 @@ function nativeChecks(action: CanonicalAction, native: { constraints: HardConstr
       checkId: assessment.constraintId,
       status: failClosed ? "VIOLATED" : assessment.status,
       reasonCodes: [failClosed ? "MISSING_INFORMATION_FAIL_CLOSED" : assessment.reasonCode],
-      evidenceRefs: [...assessment.evidenceRefs].sort(),
+      evidenceRefs: uniqueSorted(assessment.evidenceRefs),
       missingInformation: assessment.status === "UNKNOWN" ? [`constraint:${assessment.constraintId}`] : [],
     };
   });
