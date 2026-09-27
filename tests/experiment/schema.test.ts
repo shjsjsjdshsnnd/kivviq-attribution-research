@@ -163,6 +163,15 @@ describe("canonical experiment intent", () => {
     expect(
       experimentWhatSchema.safeParse({
         ...what(),
+        measurementWindow: {
+          start: "2026-10-01T02:00:00+02:00",
+          end: "2026-10-15T02:00:00+02:00",
+        },
+      }).success,
+    ).toBe(false);
+    expect(
+      experimentWhatSchema.safeParse({
+        ...what(),
         guardrailMetricRefs: ["metric_margin", "metric_margin"],
       }).success,
     ).toBe(false);

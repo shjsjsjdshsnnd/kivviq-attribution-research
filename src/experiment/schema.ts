@@ -4,7 +4,10 @@ const stableRef = z.string().regex(/^[A-Za-z][A-Za-z0-9._:-]{1,159}$/);
 const armId = z.string().regex(/^arm_[A-Za-z0-9._:-]+$/);
 const actionId = z.string().regex(/^action_[A-Za-z0-9._:-]+$/);
 const fingerprint = z.string().regex(/^fnv1a64:[a-f0-9]{16}$/);
-const utcTimestamp = z.string().datetime({ offset: true });
+const utcTimestamp = z
+  .string()
+  .datetime({ offset: true })
+  .refine((value) => value.endsWith("Z"), "Timestamp must be UTC and end in Z");
 
 export const experimentArmSchema = z
   .object({
