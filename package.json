@@ -20,7 +20,8 @@
     "test:step9": "vitest run tests/inventory_dynamics --reporter=verbose",
     "test:step10": "vitest run tests/pricing_promotions --reporter=verbose",
     "test:step11": "vitest run tests/retention_ltv --reporter=verbose",
-    "test:step12": "vitest run tests/website_cro --reporter=verbose"
+    "test:step12": "vitest run tests/website_cro --reporter=verbose",
+    "test:step14": "vitest run tests/external_reality --reporter=verbose"
   },
   "exports": {
     ".": "./dist/index.js",
@@ -36,7 +37,8 @@
     "./inventory-dynamics": "./dist/inventory_dynamics/index.js",
     "./pricing-promotions": "./dist/pricing_promotions/index.js",
     "./retention-ltv": "./dist/retention_ltv/index.js",
-    "./website-cro": "./dist/website_cro/index.js"
+    "./website-cro": "./dist/website_cro/index.js",
+    "./external-reality": "./dist/external_reality/index.js"
   },
   "devDependencies": {
     "typescript": "^5.9.2",
