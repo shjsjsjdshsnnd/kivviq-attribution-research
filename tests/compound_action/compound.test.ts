@@ -1,11 +1,17 @@
 import { describe, expect, it } from "vitest";
 import { adaptLegacyAction } from "../../src/canonical_action/legacy.js";
+import { canonicalActionSchema } from "../../src/canonical_action/schema.js";
+import { fingerprintCanonicalAction } from "../../src/canonical_action/serialization.js";
 import { increaseGoogleShoppingBudget20 } from "../../src/action_ontology/fixtures.js";
 import { createCanonicalFixtures } from "../../src/canonical_action/fixtures.js";
 import { utcTimestamp, currencyCode } from "../../src/core/units.js";
+import { evaluateActionEligibility, type ActionEligibility } from "../../src/action_eligibility/index.js";
+import { fingerprintEligibilityAssessment } from "../../src/action_eligibility/integrity.js";
+import { expectedEligibilityCheckManifest } from "../../src/action_eligibility/evaluate.js";
+import { evaluateEligibilityForTest } from "../action_translation/eligibility-helper.js";
 import {
   compoundActionSchema,
-  assessCompoundActionReadiness,
+  assessCompoundActionReadiness as assessCompoundActionReadinessRaw,
   resolveCompoundTiming,
   fingerprintCompoundAction,
   serializeCompoundAction,
@@ -41,7 +47,153 @@ const ready = {
   a: { status: "READY" as const, evidenceRefs: ["evidence_a"] },
   b: { status: "READY" as const, evidenceRefs: ["evidence_b"] },
 };
+let latestEvaluationContexts: Record<string, unknown> = {};
+let latestResourceRequirements: Record<string, readonly unknown[]> = {};
+function eligibility(action: CompoundAction, statuses: Partial<Record<string, "ELIGIBLE" | "INELIGIBLE" | "UNKNOWN">> = {}, evaluatedAt = "2026-01-01T00:00:00Z") {
+  latestEvaluationContexts = {};
+  latestResourceRequirements = {};
+  return Object.fromEntries(action.components.map((component) => {
+    const status = statuses[component.componentId] ?? "ELIGIBLE";
+    const evaluated = evaluateEligibilityForTest(component.action, "DECISION_TIME", evaluatedAt, status);
+    latestEvaluationContexts[component.componentId] = evaluated.evaluationContext;
+    latestResourceRequirements[component.componentId] = evaluated.resourceRequirements;
+    return [component.componentId, evaluated.eligibility];
+    /*
+    const expectedChecks = expectedEligibilityCheckManifest(component.action, "DECISION_TIME")
+      .map((check, index) => ({
+        kind: check.kind,
+        checkId: check.checkId,
+        status: status !== "ELIGIBLE" && index === 0 ? (status === "INELIGIBLE" ? "VIOLATED" as const : "UNKNOWN" as const) : "SATISFIED" as const,
+        reasonCodes: [status !== "ELIGIBLE" && index === 0 ? (status === "INELIGIBLE" ? "POLICY_DENIED" : "MISSING_EVIDENCE") : "CONSTRAINT_SATISFIED"],
+        evidenceRefs: status === "UNKNOWN" && index === 0 ? [] : ["constraint.evidence"],
+        missingInformation: status === "UNKNOWN" && index === 0 ? ["policy.evidence"] : [],
+      }));
+    const checks = status === "ELIGIBLE" ? expectedChecks : expectedChecks.length ? expectedChecks : [{
+        kind: "DOMAIN_RULE" as const,
+        checkId: `eligibility.${component.componentId}`,
+        status: "SATISFIED" as const,
+        reasonCodes: ["CONSTRAINT_SATISFIED"], evidenceRefs: ["constraint.evidence"],
+        missingInformation: [],
+      }];
+    const assessment = {
+      actionId: component.action.actionId,
+      actionFingerprint: fingerprintCanonicalAction(component.action),
+      evaluatedAt,
+      evaluationBoundary: "DECISION_TIME",
+      status,
+      checks,
+    } satisfies Omit<ActionEligibility, "assessmentFingerprint">;
+    return [component.componentId, { ...assessment, assessmentFingerprint: fingerprintEligibilityAssessment(assessment) }]; */
+  }));
+}
+function assessCompoundActionReadiness(
+  action: CompoundAction,
+  context: Parameters<typeof assessCompoundActionReadinessRaw>[1],
+) {
+  return assessCompoundActionReadinessRaw(action, {
+    ...context,
+    eligibilityResults: context.eligibilityResults ?? eligibility(action, {}, context.timing.approvedClock),
+    eligibilityEvaluationContexts: context.eligibilityEvaluationContexts ?? latestEvaluationContexts,
+    eligibilityResourceRequirements: context.eligibilityResourceRequirements ?? latestResourceRequirements,
+    eligibilityMaximumAgeSeconds: context.eligibilityMaximumAgeSeconds ?? 3600,
+  });
+}
 describe("compound definition and runtime boundaries", () => {
+  it("maps exact unified eligibility into component readiness and retains every check", () => {
+    const action = base();
+    action.dependencies = [{ componentId: "b", dependsOn: "a", kind: "START_AFTER" }];
+    const eligibilityResults = eligibility(action, { a: "INELIGIBLE" });
+    const result = assessCompoundActionReadiness(action, { timing, components: ready, eligibilityResults });
+    expect(result.components[0]).toMatchObject({ status: "INELIGIBLE", codes: ["COMPONENT_INELIGIBLE"], eligibility: eligibilityResults["a"] });
+    expect(result.components[1]).toMatchObject({ status: "INELIGIBLE", codes: ["DEPENDENCY_NOT_READY"], eligibility: eligibilityResults["b"] });
+    expect(result.status).toBe("BLOCKED");
+  });
+
+  it("fails closed for missing, mismatched, or unknown unified eligibility without replacing capability checks", () => {
+    const action = base();
+    const exact = eligibility(action);
+    const missing = assessCompoundActionReadiness(action, { timing, components: ready, eligibilityResults: { a: exact["a"] } });
+    expect(missing.components[1]).toMatchObject({ status: "MISSING_CONTEXT", codes: ["COMPONENT_ELIGIBILITY_REQUIRED"] });
+    const mismatched = assessCompoundActionReadiness(action, { timing, components: ready, eligibilityResults: { ...exact, b: { ...exact["b"]!, actionId: "action_wrong" } } });
+    expect(mismatched.components[1]).toMatchObject({ status: "MISSING_CONTEXT", codes: ["COMPONENT_ELIGIBILITY_MISMATCH"] });
+    expect(mismatched.components[1]).not.toHaveProperty("eligibility");
+    const unknown = assessCompoundActionReadiness(action, { timing, components: { ...ready, b: { status: "UNSUPPORTED_SIMULATOR_CAPABILITY", evidenceRefs: ["capability"] } }, eligibilityResults: eligibility(action, { b: "UNKNOWN" }) });
+    expect(unknown.components[1]).toMatchObject({ status: "UNKNOWN", readinessEvidenceStatus: "UNSUPPORTED_SIMULATOR_CAPABILITY", codes: ["COMPONENT_ELIGIBILITY_UNKNOWN"] });
+    const denied = assessCompoundActionReadiness(action, { timing, components: { ...ready, b: { status: "UNSUPPORTED_SIMULATOR_CAPABILITY", evidenceRefs: ["capability"] } }, eligibilityResults: eligibility(action, { b: "INELIGIBLE" }) });
+    expect(denied.components[1]).toMatchObject({ status: "INELIGIBLE", readinessEvidenceStatus: "UNSUPPORTED_SIMULATOR_CAPABILITY", codes: ["COMPONENT_INELIGIBLE"] });
+  });
+
+  it("fails closed when unified eligibility is omitted", () => {
+    const action = base();
+    const result = assessCompoundActionReadinessRaw(action, { timing, components: ready });
+    expect(result.status).toBe("UNKNOWN");
+    expect(result.components.every((component) => component.codes.includes("COMPONENT_ELIGIBILITY_REQUIRED"))).toBe(true);
+  });
+
+  it("rejects an eligible result that omits an applicable component constraint", () => {
+    const action = base();
+    action.components[0]!.action = canonicalActionSchema.parse({
+      ...action.components[0]!.action,
+      constraints: [{ constraintId: "component.policy", kind: "CUSTOM", target: { kind: "GLOBAL" }, evaluationBoundary: "DECISION_TIME", whenUnknown: "UNKNOWN", registryRef: "component.policy", code: "ALLOWED" }],
+    });
+    const generated = eligibility(action);
+    const incomplete = { ...generated, a: { ...generated["a"]!, checks: [] } };
+    expect(assessCompoundActionReadiness(action, { timing, components: ready, eligibilityResults: incomplete }).components[0]).toMatchObject({ status: "MISSING_CONTEXT", codes: ["COMPONENT_ELIGIBILITY_MISMATCH"] });
+    const complete = generated;
+    const accepted = assessCompoundActionReadiness(action, { timing, components: ready, eligibilityResults: complete }).components[0]!;
+    expect(accepted.codes).not.toContain("COMPONENT_ELIGIBILITY_MISMATCH");
+    expect(accepted).toHaveProperty("eligibility");
+  });
+
+  it.each(["INELIGIBLE", "UNKNOWN"] as const)("requires complete constraint checks for %s eligibility", (status) => {
+    const action = base();
+    action.components[0]!.action = canonicalActionSchema.parse({ ...action.components[0]!.action, constraints: [{ constraintId: "component.policy", kind: "CUSTOM", target: { kind: "GLOBAL" }, evaluationBoundary: "DECISION_TIME", whenUnknown: "UNKNOWN", registryRef: "component.policy", code: "ALLOWED" }] });
+    const results = eligibility(action, { a: status });
+    results["a"] = { ...results["a"]!, checks: results["a"]!.checks.filter((check) => check.kind !== "HARD_CONSTRAINT") };
+    const component = assessCompoundActionReadiness(action, { timing, components: ready, eligibilityResults: results }).components[0]!;
+    expect(component).toMatchObject({ status: "MISSING_CONTEXT", codes: ["COMPONENT_ELIGIBILITY_MISMATCH"] });
+    expect(component).not.toHaveProperty("eligibility");
+  });
+
+  it("rejects future, stale, and freshness-unbounded eligibility without retaining it", () => {
+    const action = base();
+    const evaluate = (evaluatedAt: string, maximumAge?: number) => assessCompoundActionReadinessRaw(action, {
+      timing,
+      components: ready,
+      eligibilityResults: eligibility(action, {}, evaluatedAt),
+      eligibilityEvaluationContexts: latestEvaluationContexts,
+      eligibilityResourceRequirements: latestResourceRequirements,
+      ...(maximumAge === undefined ? {} : { eligibilityMaximumAgeSeconds: maximumAge }),
+    }).components[0]!;
+    expect(evaluate("2026-01-01T00:00:01Z", 3600)).toMatchObject({ status: "MISSING_CONTEXT", codes: ["COMPONENT_ELIGIBILITY_FUTURE"] });
+    expect(evaluate("2025-12-31T22:59:59Z", 3600)).toMatchObject({ status: "MISSING_CONTEXT", codes: ["COMPONENT_ELIGIBILITY_STALE"] });
+    expect(evaluate("2026-01-01T00:00:00Z")).toMatchObject({ status: "MISSING_CONTEXT", codes: ["COMPONENT_ELIGIBILITY_FRESHNESS_REQUIRED"] });
+    expect(evaluate("2026-01-01T00:00:01Z", 3600)).not.toHaveProperty("eligibility");
+  });
+
+  it("accepts one authoritative hard-constraint check from an adapted legacy component", () => {
+    const action = base();
+    const component = action.components[0]!;
+    const rawEvaluationContext = { evaluatedAt: timing.approvedClock, evaluationBoundary: "DECISION_TIME" as const, maximumAgeSeconds: 3600, observations: [], domainFacts: [] };
+    const evaluated = evaluateActionEligibility(
+      { action: component.action, nativeConstraints: { constraints: component.action.constraints, resourceRequirements: [] } },
+      rawEvaluationContext,
+    );
+    expect(evaluated.ok).toBe(true);
+    if (!evaluated.ok) return;
+    const hardChecks = evaluated.result.checks.filter((check) => check.kind === "HARD_CONSTRAINT");
+    expect(hardChecks.map((check) => check.checkId)).toEqual(component.action.constraints.map((constraint) => constraint.constraintId));
+    const result = assessCompoundActionReadinessRaw(action, {
+      timing,
+      components: ready,
+      eligibilityResults: { ...eligibility(action), a: evaluated.result },
+      eligibilityEvaluationContexts: { ...latestEvaluationContexts, a: rawEvaluationContext },
+      eligibilityResourceRequirements: latestResourceRequirements,
+      eligibilityMaximumAgeSeconds: 3600,
+    });
+    expect(result.components[0]).toHaveProperty("eligibility");
+    expect(result.components[0]!.codes).not.toContain("COMPONENT_ELIGIBILITY_MISMATCH");
+  });
   it("retains identities and rejects outcome leakage", () => {
     const action = base();
     expect(compoundActionSchema.parse(action).components).toHaveLength(2);
@@ -331,7 +483,6 @@ it("covers twelve canonical cross-family scenarios with native lifecycle identit
   ).toBe("CONFLICT");
 });
 import { investigationExamples } from "../../src/decision_forms/fixtures.js";
-import { fingerprintCanonicalAction } from "../../src/canonical_action/serialization.js";
 import type { InvestigationResult } from "../../src/investigation/index.js";
 it("gates investigations on bound validated results, never status claims", () => {
   const action = base();
@@ -663,9 +814,10 @@ it("keeps a neutral budget group gated when a source cannot run", () => {
   const result = assessCompoundActionReadiness(action, {
     timing,
     components: {
-      component_0: { status: "INELIGIBLE", evidenceRefs: ["denied"] },
+      component_0: { status: "READY", evidenceRefs: ["supported"] },
       component_1: { status: "READY", evidenceRefs: ["eligible"] },
     },
+    eligibilityResults: eligibility(action, { component_0: "INELIGIBLE" }),
   });
   expect(result.constraintResults[0]!.status).toBe("SATISFIED");
   expect(result.components[1]!.status).toBe("INELIGIBLE");

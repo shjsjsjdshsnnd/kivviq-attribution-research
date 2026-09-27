@@ -29,7 +29,8 @@
     "test:lifecycle": "vitest run tests/lifecycle --reporter=verbose",
     "test:action-timing": "vitest run tests/action_timing --reporter=verbose",
     "test:canonical": "vitest run tests/canonical_action tests/population tests/action_timing tests/lifecycle --maxWorkers=1",
-    "test:decision-forms": "vitest run tests/compound_action tests/decision_forms tests/investigation tests/decision_evolution tests/canonical_action tests/action_translation --maxWorkers=1"
+    "test:decision-forms": "vitest run tests/compound_action tests/decision_forms tests/investigation tests/decision_evolution tests/canonical_action tests/action_translation --maxWorkers=1",
+    "test:experiment-eligibility-constraints": "vitest run tests/action_constraints tests/action_eligibility tests/experiment tests/canonical_action/constraints.test.ts tests/action_translation/experiment-canonical.test.ts tests/action_translation/compound-canonical.test.ts tests/compound_action/compound.test.ts tests/architecture --maxWorkers=1"
   },
   "exports": {
     ".": "./dist/index.js",
@@ -58,7 +59,10 @@
     "./population": "./dist/population/index.js",
     "./compound-action": "./dist/compound_action/index.js",
     "./decision-forms": "./dist/decision_forms/index.js",
-    "./investigation": "./dist/investigation/index.js"
+    "./investigation": "./dist/investigation/index.js",
+    "./action-constraints": "./dist/action_constraints/index.js",
+    "./experiment": "./dist/experiment/index.js",
+    "./action-eligibility": "./dist/action_eligibility/index.js"
   },
   "devDependencies": {
     "dependency-cruiser": "^16.10.4",

@@ -7,6 +7,7 @@ import type {
   TimingRecurrence,
 } from "../action_timing/types.js";
 import { canonicalActionSchema, type CanonicalAction } from "./schema.js";
+import { mapLegacyHardConstraints } from "../action_constraints/legacy.js";
 
 const specified = <T>(value: T): TimingValue<T> => ({
   state: "SPECIFIED",
@@ -156,6 +157,7 @@ export function adaptLegacyAction(input: Action): CanonicalAction {
       ...business,
     },
     timing,
+    constraints: mapLegacyHardConstraints(action),
     provenance: provenance.evidenceRefs.length
       ? provenance.evidenceRefs
       : ["legacy_migration"],

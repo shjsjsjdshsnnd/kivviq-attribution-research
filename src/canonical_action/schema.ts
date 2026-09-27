@@ -10,6 +10,8 @@ import { validateActionTiming } from "../action_timing/validation.js";
 import { lifecycleWhatSchema } from "../lifecycle/canonical.js";
 import { populationReferenceSchema } from "../population/index.js";
 import { decisionWhatSchema } from "../decision_forms/index.js";
+import { experimentWhatSchema } from "../experiment/schema.js";
+import { hardConstraintsSchema } from "../action_constraints/schema.js";
 
 export const CANONICAL_ACTION_SCHEMA_VERSION = "2.0.0" as const;
 export type LegacyBusiness = Omit<
@@ -147,6 +149,15 @@ const forbidden = new Set([
   "predictedBestAction",
   "predictedInvestigationValue",
   "bestCandidate",
+  "winner",
+  "lift",
+  "significance",
+  "posterior",
+  "recommendation",
+  "best",
+  "adaptive",
+  "sequential",
+  "results",
   "email",
   "phone",
   "name",
@@ -176,16 +187,37 @@ export const canonicalActionSchema = z
     what: z.union([
       lifecycleWhatSchema,
       decisionWhatSchema,
+      experimentWhatSchema,
       legacyBusinessSchema,
     ]),
     population: populationReferenceSchema.optional(),
     timing: universalTimingSchema,
+    constraints: hardConstraintsSchema.default([]),
     provenance: z.array(z.string().regex(/^[A-Za-z][A-Za-z0-9_.:-]*$/)).min(1),
   })
   .strict()
   .superRefine((action, ctx) => {
     guard(action, ctx);
     const decision = decisionWhatSchema.safeParse(action.what);
+    const experiment = experimentWhatSchema.safeParse(action.what);
+    if (experiment.success) {
+      if (!action.population)
+        ctx.addIssue({
+          code: "custom",
+          path: ["population"],
+          message: "Experiments require the canonical envelope population",
+        });
+      if (
+        experiment.data.stopping.timingHorizon === "ENVELOPE_TIMING" &&
+        !hasFiniteTimingHorizon(action.timing)
+      )
+        ctx.addIssue({
+          code: "custom",
+          path: ["timing"],
+          message:
+            "Experiment envelope timing must define a finite stopping horizon",
+        });
+    }
     if (
       decision.success &&
       decision.data.actionType === "investigation.inspect" &&
@@ -247,6 +279,29 @@ export const canonicalActionSchema = z
         message: "A send is an instantaneous communication event",
       });
   });
+
+function hasFiniteTimingHorizon(timing: ActionTiming): boolean {
+  if (timing.recurrence.state === "UNKNOWN") return false;
+  if (timing.recurrence.state === "SPECIFIED") {
+    const boundary = timing.recurrence.value.boundary;
+    if (boundary.kind === "OPEN_ENDED") return false;
+    if (
+      boundary.maxOccurrences === undefined &&
+      boundary.recurrenceEnd === undefined
+    )
+      return false;
+  }
+  if (
+    timing.end.state === "SPECIFIED" &&
+    (timing.end.value.kind === "ABSOLUTE" ||
+      timing.end.value.kind === "DERIVE_FROM_DURATION")
+  )
+    return true;
+  return (
+    timing.duration.state === "SPECIFIED" &&
+    timing.duration.value.kind !== "PERSISTENT"
+  );
+}
 export type CanonicalAction = z.infer<typeof canonicalActionSchema>;
 export function assertCanonicalAction(input: unknown): CanonicalAction {
   return canonicalActionSchema.parse(input);

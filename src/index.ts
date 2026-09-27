@@ -19,6 +19,9 @@ export type {
 } from "./action_timing/types.js";
 export * from "./decision_forms/index.js";
 export * from "./investigation/index.js";
+export * from "./action_constraints/index.js";
+export * from "./experiment/index.js";
+export * from "./action_eligibility/index.js";
 export {
   compoundActionSchema,
   assertCompoundAction,

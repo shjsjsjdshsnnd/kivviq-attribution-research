@@ -6,6 +6,8 @@ import { generateMerchantWorldRecord } from "../../src/generation/generator.js";
 import { validateGroundTruthManifest } from "../../src/ground_truth/manifest.js";
 import { simulateWorld } from "../../src/simulation/simulator.js";
 import { populationFor } from "../simulation/fixture.js";
+import { canonicalActionSchema } from "../../src/canonical_action/schema.js";
+import { withTranslationEligibility } from "../action_translation/eligibility-helper.js";
 
 const start = "2026-09-22T14:00:00.000Z";
 const noOp = {
@@ -23,9 +25,10 @@ const noOp = {
 };
 
 function translatedNoNewInterventions(): [] {
-  const result = translateBusinessAction(noOp, {
+  const action = canonicalActionSchema.parse(noOp);
+  const result = translateBusinessAction(action, withTranslationEligibility(action, {
     timing: { approvedClock: utcTimestamp(start) },
-  });
+  }));
   expect(result.status).toBe("TRANSLATED");
   if (result.status !== "TRANSLATED") throw new Error(result.status);
   expect(result.interventions).toEqual([]);

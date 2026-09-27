@@ -27,7 +27,12 @@ export const compoundTranslationContextSchema = z
   .object({
     timing: compoundReadinessContextSchema.shape.timing,
     components: z.record(z.unknown()),
-    readiness: compoundReadinessContextSchema.omit({ timing: true }),
+    readiness: compoundReadinessContextSchema
+      .omit({ timing: true })
+      .extend({
+        eligibilityResults: z.record(z.unknown()),
+        eligibilityMaximumAgeSeconds: z.number().int().nonnegative().safe(),
+      }),
   })
   .strict();
 export interface CompoundTranslationMetadata {
@@ -63,7 +68,7 @@ function failureReadiness(result: TranslationResult): ComponentReadinessStatus {
     result.status === "AMBIGUOUS_TRANSLATION"
   )
     return "MISSING_CONTEXT";
-  if (result.status === "INVALID_ACTION") return "INELIGIBLE";
+  if (result.status === "INVALID_ACTION" || result.status === "INELIGIBLE_ACTION") return "INELIGIBLE";
   return "UNSUPPORTED_SIMULATOR_CAPABILITY";
 }
 
@@ -95,6 +100,7 @@ export function translateCanonicalCompoundAction(
     readiness = assessCompoundActionReadiness(action, {
       ...context.readiness,
       timing,
+      eligibilityBoundary: "TRANSLATION_TIME",
     } as CompoundReadinessContext);
   } catch {
     return fail(
@@ -127,7 +133,7 @@ export function translateCanonicalCompoundAction(
         initial.status === "UNSUPPORTED_SIMULATOR_CAPABILITY"
           ? initial.status
           : initial.status === "INELIGIBLE"
-            ? "INVALID_ACTION"
+            ? "INELIGIBLE_ACTION"
             : "MISSING_CONTEXT",
         "COMPONENT_NOT_READY",
         initial.codes.join(", ") || initial.status,
@@ -164,6 +170,14 @@ export function translateCanonicalCompoundAction(
             component.action,
             {
               ...checkedComponent.data,
+              eligibility:
+                context.readiness.eligibilityResults[component.componentId],
+              eligibilityEvaluationContext:
+                context.readiness.eligibilityEvaluationContexts?.[component.componentId],
+              eligibilityResourceRequirements:
+                context.readiness.eligibilityResourceRequirements?.[component.componentId],
+              eligibilityMaximumAgeSeconds:
+                context.readiness.eligibilityMaximumAgeSeconds,
               timing: {
                 ...(componentTiming as object),
                 ...timing,
@@ -293,7 +307,8 @@ export function translateCanonicalCompoundAction(
     >[number][] = [],
     observationRequests: NonNullable<
       TranslatedResult["observationRequests"]
-    >[number][] = [];
+    >[number][] = [],
+    experimentTasks: NonNullable<TranslatedResult["experimentTasks"]>[number][] = [];
   for (const component of emitted) {
     if (component.result.status !== "TRANSLATED") continue;
     interventions.push(...component.result.interventions);
@@ -311,6 +326,13 @@ export function translateCanonicalCompoundAction(
         componentId: component.componentId,
       })),
     );
+    experimentTasks.push(
+      ...(component.result.experimentTasks ?? []).map((task) => ({
+        ...task,
+        compoundActionId: action.compoundActionId,
+        componentId: component.componentId,
+      })),
+    );
   }
   return {
     status: "TRANSLATED",
@@ -320,5 +342,6 @@ export function translateCanonicalCompoundAction(
     compound,
     ...(informationTasks.length ? { informationTasks } : {}),
     ...(observationRequests.length ? { observationRequests } : {}),
+    ...(experimentTasks.length ? { experimentTasks } : {}),
   };
 }

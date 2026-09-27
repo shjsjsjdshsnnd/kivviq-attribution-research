@@ -11,6 +11,12 @@ provider-neutral lifecycle flows and timezone-aware recurrence. See the
 [contract and migration guide](docs/steps10-12-canonical-boundary.md).
 Run `npm run test:canonical` for the focused suite or `npm run check` for all checks.
 
+### Experiments, eligibility, and hard constraints
+
+Canonical Actions can define fixed-allocation experiments and typed hard constraints. Runtime modules assess constraint evidence, evaluate Action eligibility, resolve experiment readiness, and translate eligible experiments into structured engine tasks. These contracts do not select experiments, rank actions, evaluate outcomes, or execute provider operations.
+
+See the [experiment, eligibility, and constraint boundary guide](docs/experiment-eligibility-constraints.md). Run `npm run test:experiment-eligibility-constraints` for the focused suite.
+
 ### Frozen research references
 
 **Step 1 — GroundTruth**
@@ -171,3 +177,4 @@ No private Kivviq, Maison Olive data, real merchant/customer data, production sy
 - `docs/step8-product-economics.md`
 - `docs/step8-product-economics-acceptance.md`
 - [Steps 13–15: compound actions, NO_OP, WAIT, and investigations](docs/decision-forms.md)
+- [Steps 16–18: experiments, eligibility, and hard constraints](docs/experiment-eligibility-constraints.md)

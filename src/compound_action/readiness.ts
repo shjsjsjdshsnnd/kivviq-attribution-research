@@ -1,4 +1,7 @@
 import { z } from "zod";
+import { actionEligibilitySchema, type ActionEligibility } from "../action_eligibility/schema.js";
+import { hasValidEligibilityAssessmentFingerprint } from "../action_eligibility/integrity.js";
+import { hasCompleteEligibilityCheckManifest, hasMatchingRecomputedActionEligibility } from "../action_eligibility/evaluate.js";
 import {
   checkInvestigationDependency,
   type InvestigationResult,
@@ -149,6 +152,11 @@ export interface ComponentReadinessEvidence {
 export interface CompoundReadinessContext {
   timing: ActionTimingResolutionContext;
   components: Readonly<Record<string, ComponentReadinessEvidence>>;
+  eligibilityResults?: Readonly<Record<string, unknown>>;
+  eligibilityEvaluationContexts?: Readonly<Record<string, unknown>>;
+  eligibilityResourceRequirements?: Readonly<Record<string, readonly unknown[]>>;
+  eligibilityBoundary?: "DECISION_TIME" | "TRANSLATION_TIME" | "EFFECTIVE_TIME";
+  eligibilityMaximumAgeSeconds?: number;
   constraintEvidence?: Readonly<
     Record<
       string,
@@ -167,7 +175,9 @@ export interface CompoundActionReadiness {
     componentId: string;
     actionId: string;
     status: ComponentReadinessStatus;
+    readinessEvidenceStatus?: ComponentReadinessStatus;
     codes: string[];
+    eligibility?: ActionEligibility;
   }[];
   constraintResults: {
     constraintId: string;
@@ -203,9 +213,68 @@ export function assessCompoundActionReadiness(
     const codes: string[] = [];
     let status: ComponentReadinessStatus =
       evidence?.status ?? "MISSING_CONTEXT";
+    let eligibility: ActionEligibility | undefined;
     if (!evidence?.evidenceRefs.length) {
       status = "MISSING_CONTEXT";
       codes.push("MISSING_READINESS_EVIDENCE");
+    }
+    if (context.eligibilityResults === undefined) {
+      codes.push("COMPONENT_ELIGIBILITY_REQUIRED");
+      if (status === "READY") status = "MISSING_CONTEXT";
+    } else {
+      const parsedEligibility = actionEligibilitySchema.safeParse(
+        context.eligibilityResults[c.componentId],
+      );
+      if (!parsedEligibility.success) {
+        codes.push("COMPONENT_ELIGIBILITY_REQUIRED");
+        if (status === "READY") status = "MISSING_CONTEXT";
+      } else {
+        const candidate = parsedEligibility.data;
+        const derived = candidate.checks.some((check) => check.status === "VIOLATED")
+          ? "INELIGIBLE"
+          : candidate.checks.some((check) => check.status === "UNKNOWN")
+            ? "UNKNOWN"
+            : "ELIGIBLE";
+        const manifestComplete = hasCompleteEligibilityCheckManifest(c.action, candidate.evaluationBoundary, candidate.checks);
+        const recomputationMatches = context.eligibilityMaximumAgeSeconds === undefined || hasMatchingRecomputedActionEligibility(
+          c.action, candidate, context.eligibilityEvaluationContexts?.[c.componentId],
+          context.eligibilityResourceRequirements?.[c.componentId], context.eligibilityMaximumAgeSeconds,
+        );
+        const identityMismatch =
+          candidate.actionId !== c.action.actionId ||
+          candidate.actionFingerprint !== fingerprintCanonicalAction(c.action) ||
+          (context.eligibilityBoundary !== undefined &&
+            candidate.evaluationBoundary !== context.eligibilityBoundary) ||
+          candidate.status !== derived ||
+          !hasValidEligibilityAssessmentFingerprint(candidate) ||
+          !manifestComplete ||
+          !recomputationMatches;
+        const approvedAt = Date.parse(context.timing.approvedClock);
+        const evaluatedAt = Date.parse(candidate.evaluatedAt);
+        if (identityMismatch) {
+          codes.push("COMPONENT_ELIGIBILITY_MISMATCH");
+          status = "MISSING_CONTEXT";
+        } else if (context.eligibilityMaximumAgeSeconds === undefined) {
+          codes.push("COMPONENT_ELIGIBILITY_FRESHNESS_REQUIRED");
+          status = "MISSING_CONTEXT";
+        } else if (evaluatedAt > approvedAt) {
+          codes.push("COMPONENT_ELIGIBILITY_FUTURE");
+          status = "MISSING_CONTEXT";
+        } else if (approvedAt - evaluatedAt > context.eligibilityMaximumAgeSeconds * 1000) {
+          codes.push("COMPONENT_ELIGIBILITY_STALE");
+          status = "MISSING_CONTEXT";
+        } else if (candidate.status === "INELIGIBLE") {
+          eligibility = candidate;
+          codes.push("COMPONENT_INELIGIBLE");
+          status = "INELIGIBLE";
+        } else if (candidate.status === "UNKNOWN") {
+          eligibility = candidate;
+          codes.push("COMPONENT_ELIGIBILITY_UNKNOWN");
+          status = "UNKNOWN";
+        } else {
+          eligibility = candidate;
+        }
+      }
     }
     for (const issue of timing.issues.filter(
       (i) => i.componentId === c.componentId,
@@ -252,7 +321,9 @@ export function assessCompoundActionReadiness(
       componentId: c.componentId,
       actionId: c.action.actionId,
       status,
+      ...(evidence ? { readinessEvidenceStatus: evidence.status } : {}),
       codes,
+      ...(eligibility ? { eligibility } : {}),
     };
   });
   const constraintResults = action.constraints.map((c) => {
@@ -374,6 +445,11 @@ export const compoundReadinessContextSchema = z
         })
         .strict(),
     ),
+    eligibilityResults: z.record(z.unknown()).optional(),
+    eligibilityEvaluationContexts: z.record(z.unknown()).optional(),
+    eligibilityResourceRequirements: z.record(z.array(z.unknown())).optional(),
+    eligibilityBoundary: z.enum(["DECISION_TIME", "TRANSLATION_TIME", "EFFECTIVE_TIME"]).optional(),
+    eligibilityMaximumAgeSeconds: z.number().int().nonnegative().safe().optional(),
     constraintEvidence: z
       .record(
         z

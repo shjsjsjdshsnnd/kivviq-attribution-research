@@ -8,6 +8,7 @@ import {
 } from "../../src/canonical_action/index.js";
 import { immediatePersistentBudgetTiming } from "../../src/action_timing/fixtures.js";
 import { translateBusinessAction } from "../../src/action_translation/index.js";
+import { withTranslationEligibility } from "../action_translation/eligibility-helper.js";
 import {
   metaBudgetDown2000,
   fullTranslationContext,
@@ -27,7 +28,7 @@ describe("first-class decision forms", () => {
     expect(readCanonicalAction(serializeCanonicalAction(action))).toEqual(
       action,
     );
-    expect(translateBusinessAction(action, context)).toMatchObject({
+    expect(translateBusinessAction(action, withTranslationEligibility(action, context))).toMatchObject({
       status: "TRANSLATED",
       decisionType: "NO_OP",
       interventions: [],
@@ -71,10 +72,10 @@ describe("first-class decision forms", () => {
   });
   it("reuses a supported paid-media translator only after preserving canonical timing", () => {
     const action = adaptLegacyAction(metaBudgetDown2000);
-    const translated = translateBusinessAction(action, {
+    const translated = translateBusinessAction(action, withTranslationEligibility(action, {
       ...context,
       simulator: fullTranslationContext,
-    });
+    }));
     expect(translated.status).toBe("TRANSLATED");
     if (translated.status === "TRANSLATED") {
       expect(translated.interventions).toHaveLength(1);
@@ -104,7 +105,7 @@ it("preserves investigation intent separately from commercial interventions", ()
       },
     },
   });
-  const result = translateBusinessAction(action, context);
+  const result = translateBusinessAction(action, withTranslationEligibility(action, context));
   expect(result).toMatchObject({
     status: "TRANSLATED",
     decisionType: "INVESTIGATE",
@@ -145,7 +146,7 @@ it("preserves WAIT identity and population for reassessment", () => {
     population: undefined,
     what: { ...action.what, scope: { kind: "GLOBAL" } },
   });
-  expect(translateBusinessAction(global, context)).toMatchObject({
+  expect(translateBusinessAction(global, withTranslationEligibility(global, context))).toMatchObject({
     status: "TRANSLATED",
     decisionType: "WAIT_OBSERVE",
     observationRequests: [
@@ -162,7 +163,7 @@ it("rejects investigations that cannot finish within their maximum horizon", () 
     ...noop(),
     what: investigationExamples.missingCogs,
   });
-  expect(translateBusinessAction(persistent, context)).toMatchObject({
+  expect(translateBusinessAction(persistent, withTranslationEligibility(persistent, context))).toMatchObject({
     status: "INVALID_ACTION",
     code: "INVESTIGATION_EXECUTION_MUST_BE_FINITE",
   });
@@ -181,7 +182,7 @@ it("rejects investigations that cannot finish within their maximum horizon", () 
       },
     },
   });
-  expect(translateBusinessAction(tooLong, context)).toMatchObject({
+  expect(translateBusinessAction(tooLong, withTranslationEligibility(tooLong, context))).toMatchObject({
     status: "INVALID_ACTION",
     code: "INVESTIGATION_MAXIMUM_HORIZON_EXCEEDED",
   });

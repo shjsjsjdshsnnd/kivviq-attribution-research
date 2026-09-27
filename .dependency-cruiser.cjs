@@ -1,12 +1,24 @@
 module.exports = {
   forbidden: [
     {
+      name: "experiment-eligibility-cannot-import-decision-or-execution-internals",
+      comment:
+        "Experiment definitions, hard constraints, and eligibility may use operator evidence contracts but cannot import hidden state, evaluation, ranking, optimization, simulator internals, or provider execution.",
+      severity: "error",
+      from: {
+        path: "^src/(experiment|action_constraints|action_eligibility)(/|$)",
+      },
+      to: {
+        path: "^src/(simulation|ground_truth|evaluation|ranking|optimizer|optimization|provider_execution|provider-execution|oracle|god_mode)(/|$)",
+      },
+    },
+    {
       name: "operator-facing-code-cannot-import-god-mode",
       comment:
         "Operator-facing modules must never depend on GroundTruth, generation, latent customers, simulation, advertising economics, cross-channel interactions, ecommerce economics, product economics, evaluator/oracle, or other God-mode internals.",
       severity: "error",
       from: {
-        path: "^(src/(observation|operator|operator_safe|action_ontology|canonical_action|compound_action|decision_forms|investigation|population|action_timing|action_translation|simulator_intervention|paid_media|pricing|promotion|shipping|merchandising|inventory|cro|lifecycle)(/|$)|src/index\\.ts$)",
+        path: "^(src/(observation|operator|operator_safe|action_ontology|canonical_action|compound_action|decision_forms|investigation|population|action_timing|action_translation|simulator_intervention|paid_media|pricing|promotion|shipping|merchandising|inventory|cro|lifecycle|experiment|action_constraints|action_eligibility)(/|$)|src/index\\.ts$)",
       },
       to: {
         path: "^src/(ground_truth|generation|customer_population|simulation|advertising_economics|cross_channel|ecommerce_economics|product_economics|evaluation|oracle|god_mode)(/|$)",

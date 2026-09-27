@@ -1,12 +1,18 @@
 import { describe, expect, it } from "vitest";
 import { translateCanonicalCompoundAction } from "../../src/action_translation/compound.js";
-import { immediatePersistentBudgetTiming } from "../../src/action_timing/fixtures.js";
+import { fridaySevenDayBudgetTiming, immediatePersistentBudgetTiming } from "../../src/action_timing/fixtures.js";
 import { createCompoundFixtures } from "../../src/compound_action/fixtures.js";
 import {
   investigationExamples,
   noOpExamples,
 } from "../../src/decision_forms/fixtures.js";
 import { canonicalActionSchema } from "../../src/canonical_action/schema.js";
+import { fingerprintCanonicalAction } from "../../src/canonical_action/serialization.js";
+import { fingerprintCompoundAction } from "../../src/compound_action/schema.js";
+import { evaluatePopulation, fingerprintPopulationDefinition } from "../../src/population/index.js";
+import { fingerprintEligibilityAssessment } from "../../src/action_eligibility/integrity.js";
+import { expectedEligibilityCheckManifest } from "../../src/action_eligibility/evaluate.js";
+import { evaluateEligibilityForTest } from "./eligibility-helper.js";
 
 const timing = { approvedClock: "2026-09-27T00:00:00Z" };
 function fixture() {
@@ -41,11 +47,16 @@ function fixture() {
   }));
   return action;
 }
-function context() {
+function context(action = fixture()) {
+  const evaluations = Object.fromEntries(action.components.map((component) => [component.componentId, evaluateEligibilityForTest(component.action, "TRANSLATION_TIME", "2026-09-27T00:00:00Z")]));
   return {
     timing,
     components: { component_0: {}, component_1: {} },
     readiness: {
+      eligibilityMaximumAgeSeconds: 3600,
+      eligibilityResults: Object.fromEntries(Object.entries(evaluations).map(([id, value]) => [id, value.eligibility])),
+      eligibilityEvaluationContexts: Object.fromEntries(Object.entries(evaluations).map(([id, value]) => [id, value.evaluationContext])),
+      eligibilityResourceRequirements: Object.fromEntries(Object.entries(evaluations).map(([id, value]) => [id, value.resourceRequirements])),
       components: {
         component_0: { status: "READY", evidenceRefs: ["evidence_ready"] },
         component_1: { status: "READY", evidenceRefs: ["evidence_ready"] },
@@ -54,9 +65,60 @@ function context() {
   };
 }
 describe("canonical compound translation", () => {
+  it("preserves an experiment component and a compound arm as an exact engine task", () => {
+    const action = fixture();
+    const armCompound = createCompoundFixtures()[0]!.action;
+    const control = action.components[0]!.action;
+    const definition = {
+      schemaVersion: 1 as const,
+      populationId: "population_compound_experiment",
+      version: 1,
+      universe: "ALL_CUSTOMERS" as const,
+      inclusion: { kind: "COMPLETED_ORDER_COUNT" as const, operator: "GTE" as const, value: 0 },
+      exclusions: [],
+      membershipMode: "DYNAMIC_MEMBERSHIP" as const,
+      binding: "DECISION_TIME" as const,
+      provenance: ["evidence_population"],
+    };
+    const population = { populationId: definition.populationId, version: 1, definitionFingerprint: fingerprintPopulationDefinition(definition), binding: definition.binding, membershipMode: definition.membershipMode };
+    const experiment = canonicalActionSchema.parse({
+      schemaVersion: "2.0.0",
+      actionId: "action_compound_experiment_component",
+      population,
+      timing: fridaySevenDayBudgetTiming,
+      provenance: ["evidence_experiment"],
+      what: {
+        actionType: "experiment.run",
+        hypothesisRef: "hypothesis.compound",
+        primaryMetricRef: "metric.conversion",
+        randomizationUnit: "CUSTOMER",
+        assignmentBoundary: { kind: "USE_ENVELOPE_POPULATION_BINDING" },
+        arms: [
+          { armId: "arm_control", role: "CONTROL", actionId: control.actionId, actionFingerprint: fingerprintCanonicalAction(control), allocationBasisPoints: 5000 },
+          { entityKind: "COMPOUND", armId: "arm_compound", role: "TREATMENT", compoundActionId: armCompound.compoundActionId, actionFingerprint: fingerprintCompoundAction(armCompound), allocationBasisPoints: 5000 },
+        ],
+        stopping: { kind: "FIXED", sampleTarget: 10, timingHorizon: "ENVELOPE_TIMING" },
+        measurementWindow: { start: "2026-09-25T04:00:00Z", end: "2026-10-02T04:00:00Z" },
+      },
+    });
+    action.components[1]!.action = experiment;
+    const ctx = context(action);
+    ctx.components.component_1 = {
+      populations: [definition],
+      evaluations: [evaluatePopulation(definition, { evaluatedAt: "2026-09-27T00:00:00Z", customers: [{ customerId: "customer_one", completedOrderCount: 1 }] })],
+      bindingTimes: { DECISION_TIME: "2026-09-27T00:00:00Z" },
+      experimentArmRegistry: [{ entityKind: "ACTION", action: control }, { entityKind: "COMPOUND", action: armCompound }],
+    };
+    const result = translateCanonicalCompoundAction(action, ctx);
+    expect(result.status).toBe("TRANSLATED");
+    if (result.status !== "TRANSLATED") throw new Error(JSON.stringify(result));
+    expect(result.experimentTasks).toMatchObject([{ actionId: experiment.actionId, actionFingerprint: fingerprintCanonicalAction(experiment), compoundActionId: action.compoundActionId, componentId: "component_1" }]);
+    expect(result.compound?.components).toHaveLength(2);
+  });
+
   it("retains every zero-intervention component and information task identity", () => {
     const action = fixture(),
-      result = translateCanonicalCompoundAction(action, context());
+      result = translateCanonicalCompoundAction(action, context(action));
     expect(result.status).toBe("TRANSLATED");
     expect(result.compound?.components).toHaveLength(2);
     expect(result.compound?.partial).toBe(false);
@@ -73,7 +135,7 @@ describe("canonical compound translation", () => {
   it("blocks all-or-nothing rather than emitting a partial information task", () => {
     const action = fixture();
     action.atomicity = "ALL_OR_NOTHING";
-    const ctx = context();
+    const ctx = context(action);
     ctx.readiness.components.component_0.status =
       "UNSUPPORTED_SIMULATOR_CAPABILITY";
     const result = translateCanonicalCompoundAction(action, ctx);
@@ -81,6 +143,20 @@ describe("canonical compound translation", () => {
     expect(result).not.toHaveProperty("informationTasks");
     expect(result.compound?.components).toHaveLength(2);
     expect(result.compound?.emittedComponentIds).toEqual([]);
+  });
+  it("returns explicit ineligible action status for an eligibility-denied component", () => {
+    const action = fixture();
+    action.atomicity = "ALL_OR_NOTHING";
+    action.components[0]!.action = canonicalActionSchema.parse({
+      ...action.components[0]!.action,
+      constraints: [{ constraintId: "translation.policy", kind: "CUSTOM", target: { kind: "GLOBAL" }, evaluationBoundary: "TRANSLATION_TIME", whenUnknown: "UNKNOWN", registryRef: "translation.policy", code: "ALLOWED" }],
+    });
+    const ctx = context(action);
+    const deniedEvaluation = evaluateEligibilityForTest(action.components[0]!.action, "TRANSLATION_TIME", "2026-09-27T00:00:00Z", "INELIGIBLE");
+    const results = ctx.readiness.eligibilityResults as Record<string, unknown>;
+    results["component_0"] = deniedEvaluation.eligibility;
+    ctx.readiness.eligibilityEvaluationContexts["component_0"] = deniedEvaluation.evaluationContext;
+    expect(translateCanonicalCompoundAction(action, ctx)).toMatchObject({ status: "INELIGIBLE_ACTION", code: "COMPONENT_NOT_READY" });
   });
   it.each(["BEST_EFFORT", "DEPENDENCY_GATED"] as const)(
     "%s reports unsupported components and gates dependents",
@@ -177,7 +253,7 @@ describe("compound commercial provenance and discovered failures", () => {
   it("preserves compound and atomic identity on a real budget intervention alongside investigation", () => {
     const action = activeFixture();
     const result = translateCanonicalCompoundAction(action, {
-      ...context(),
+      ...context(action),
       components: { component_0: { simulator }, component_1: {} },
     });
     expect(result.status).toBe("TRANSLATED");
@@ -205,7 +281,7 @@ describe("compound commercial provenance and discovered failures", () => {
         },
       ];
       const result = translateCanonicalCompoundAction(action, {
-        ...context(),
+        ...context(action),
         components: {
           component_0: { simulator: { ...simulator, capabilities: [] } },
           component_1: {},
@@ -221,7 +297,6 @@ describe("compound commercial provenance and discovered failures", () => {
   );
 });
 
-import { fingerprintCompoundAction } from "../../src/compound_action/schema.js";
 it("accepts constraint evidence bound to the exact compound and rejects stale evidence", () => {
   const action = fixture();
   action.constraints = [
@@ -233,9 +308,9 @@ it("accepts constraint evidence bound to the exact compound and rejects stale ev
     },
   ];
   const ctx = {
-    ...context(),
+    ...context(action),
     readiness: {
-      ...context().readiness,
+      ...context(action).readiness,
       constraintEvidence: {
         constraint_evidence: {
           status: "SATISFIED",
@@ -284,7 +359,7 @@ it.each(["requestedStart", "effectiveStart"] as const)(
     };
     expect(action.dependencies).toEqual([]);
     const result = translateCanonicalCompoundAction(action, {
-      ...context(),
+      ...context(action),
       components: {
         component_0: { simulator: { ...simulator, capabilities: [] } },
         component_1: {},
@@ -338,7 +413,7 @@ it("gates a component whose nested termination condition refers to an unsupporte
     },
   });
   const result = translateCanonicalCompoundAction(action, {
-    ...context(),
+    ...context(action),
     timing: {
       ...timing,
       eventTimes: { event_later: "2026-09-27T00:00:00Z" },
@@ -379,7 +454,7 @@ it("does not emit only the budget increase when its neutralizing decrease fails 
     referenceBindings: [],
   };
   const result = translateCanonicalCompoundAction(action, {
-    ...context(),
+    ...context(action),
     components: {
       component_0: { simulator: { ...channelSimulator, capabilities: [] } },
       component_1: { simulator: channelSimulator },
