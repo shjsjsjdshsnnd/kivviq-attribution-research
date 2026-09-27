@@ -1820,39 +1820,40 @@ export function simulateWorld(
       }
 
       for (const channel of request.merchantWorld.summary.activeChannels) {
+        const retentionOpportunityMultiplier =
+          request.commercePolicy?.retentionScenario ===
+          undefined
+            ? 1
+            : lifecycleMarketingMultipliers(
+                request.commercePolicy.retentionScenario,
+                retentionCustomerContext(customer),
+                event.timestampMs,
+                channel,
+              ).opportunity;
+        const paidOpportunityMultiplier =
+          (paidExposureOpportunityMultiplier(
+            interactionNetwork,
+            customer,
+            channel,
+            interactionContext,
+          ) *
+            retentionOpportunityMultiplier *
+            externalPaidDeliveryMultiplier(
+              externalReality,
+              event.timestampMs,
+              channel,
+            )) /
+          marketingCompetitionMultiplier(
+            request.commercePolicy?.pricingPromotionScenario,
+            event.timestampMs,
+          );
         const exposureProbability =
           paidExposureProbability(
             request.merchantWorld,
             customer,
             channel,
             interventionState,
-            (paidExposureOpportunityMultiplier(
-              interactionNetwork,
-              customer,
-              channel,
-              interactionContext,
-            ) *
-              (request.commercePolicy
-                ?.retentionScenario === undefined
-                ? 1
-                : lifecycleMarketingMultipliers(
-                    request.commercePolicy
-                      .retentionScenario,
-                    retentionCustomerContext(
-                      customer,
-                    ),
-                    event.timestampMs,
-                    channel,
-                  ).opportunity)) /
-              marketingCompetitionMultiplier(
-                request.commercePolicy?.pricingPromotionScenario,
-                event.timestampMs,
-              )) *
-            externalPaidDeliveryMultiplier(
-              externalReality,
-              event.timestampMs,
-              channel,
-            ),
+            paidOpportunityMultiplier,
           );
 
         const exposureKey = `${customer.customerId}:exposure:${payload.cycle}:${payload.ordinal}:${channel}`;
