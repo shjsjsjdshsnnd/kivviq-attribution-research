@@ -1,5 +1,6 @@
 import type { GeneratedMerchantWorld } from "../generation/config.js";
 import type { SharedRandomness } from "./kernel.js";
+import type { ExternalRealityRuntime } from "../external_reality/index.js";
 import type { SimulationInterventionState } from "./interventions.js";
 import { websiteProductDiscoveryMultiplier } from "../website_cro/runtime.js";
 import type {
@@ -367,6 +368,7 @@ export function chooseProduct(
     readonly surface: "collection" | "search_results" | "pdp";
     readonly device: "mobile" | "desktop" | "tablet";
   },
+  externalReality?: ExternalRealityRuntime,
 ): ProductOffer | undefined {
   const preferred = customer.source.productPreferences.map(
     (preference) => preference.productId,
@@ -402,13 +404,51 @@ export function chooseProduct(
         runtime.merchantWorld.manifest.inventoryMechanisms.find(
           (item) => item.productId === productId,
         );
+      const categoryId = demand?.categoryId;
+      const externalInventoryAvailability =
+        externalReality?.applyAt(
+          `${key}:inventory-availability:${productId}`,
+          "inventory_availability",
+          timestampMs,
+          {
+            product: productId,
+            ...(categoryId === undefined
+              ? {}
+              : { category: categoryId }),
+          },
+        ) ?? 1;
+      const externalCategoryPreference =
+        externalReality?.applyAt(
+          `${key}:category-preference:${productId}`,
+          "category_preference",
+          timestampMs,
+          {
+            product: productId,
+            ...(categoryId === undefined
+              ? {}
+              : { category: categoryId }),
+          },
+        ) ?? 1;
+      const externalPriceSensitivity =
+        externalReality?.applyAt(
+          `${key}:price-sensitivity:${productId}`,
+          "price_sensitivity",
+          timestampMs,
+          {
+            product: productId,
+            ...(categoryId === undefined
+              ? {}
+              : { category: categoryId }),
+          },
+        ) ?? 1;
       const inventoryMultiplier =
-        offer.availableUnits > 0
+        (offer.availableUnits > 0
           ? 1
           : commercePolicy?.executeInventoryLifecycle === true &&
               inventoryMechanism?.allowBackorders
             ? 0.35
-            : 0.04;
+            : 0.04) *
+        externalInventoryAvailability;
       const cartProductIds = new Set(
         customer.cart?.lines.map((line) => line.productId) ?? [],
       );
@@ -457,8 +497,12 @@ export function chooseProduct(
           Number(demand?.baseLatentDemandUnits ?? 1),
         ) **
           0.25 *
-        offer.priceUtilityMultiplier *
+        Math.pow(
+          Math.max(1e-9, offer.priceUtilityMultiplier),
+          externalPriceSensitivity,
+        ) *
         offer.promotionUtilityMultiplier *
+        externalCategoryPreference *
         relationshipMultiplier *
         retentionChoiceMultiplier *
         (1 + memory.productPreference);
@@ -987,6 +1031,8 @@ export function checkoutPurchaseProbability(
   interactionLift = 0,
   commercePolicy?: SimulationCommercePolicy,
   source?: RealizedPurchase["source"],
+  shippingChargeOverrideMinor?: number,
+  externalPriceSensitivityMultiplier = 1,
 ): number {
   refreshLatentCustomerState(customer, timestampMs);
   const memory = totalMemoryLift(customer);
@@ -1051,6 +1097,7 @@ export function checkoutPurchaseProbability(
   const valueFriction = clamp(
     (cartValue / expectedAov - 1) *
       customer.source.priceSensitivityMultiplier *
+      externalPriceSensitivityMultiplier *
       0.12,
     -0.3,
     0.35,
@@ -1064,7 +1111,9 @@ export function checkoutPurchaseProbability(
       commercePolicy?.freeShippingThresholdMinor,
     );
   const shippingCharge =
-    commercePolicy?.customerShippingChargeMinor ?? 0;
+    shippingChargeOverrideMinor ??
+    commercePolicy?.customerShippingChargeMinor ??
+    0;
   const shippingTerms = resolveCartShippingTerms(
     commercePolicy?.pricingPromotionScenario,
     pricingCustomerContext(customer),
@@ -1082,6 +1131,7 @@ export function checkoutPurchaseProbability(
         ? clamp(
             (shippingCharge / expectedAov) *
               customer.source.priceSensitivityMultiplier *
+              externalPriceSensitivityMultiplier *
               0.9,
             0,
             0.45,
@@ -1091,6 +1141,7 @@ export function checkoutPurchaseProbability(
           ? clamp(
               (shippingCharge / expectedAov) *
                 customer.source.priceSensitivityMultiplier *
+                externalPriceSensitivityMultiplier *
                 0.55,
               0,
               0.32,
@@ -1148,6 +1199,7 @@ export function completePurchase(
   intervention: SimulationInterventionState,
   randomness: SharedRandomness,
   commercePolicy?: SimulationCommercePolicy,
+  externalReality?: ExternalRealityRuntime,
 ): RealizedPurchase | undefined {
   if (!customer.cart || customer.cart.lines.length === 0) return undefined;
 
@@ -1173,7 +1225,7 @@ export function completePurchase(
         );
 
   for (const cartLine of customer.cart.lines) {
-    const available =
+    const baseAvailable =
       commercePolicy?.enableInventoryDynamics === true
         ? step9AvailableToSellUnits(
             runtime.inventoryEconomy,
@@ -1185,6 +1237,26 @@ export function completePurchase(
             cartLine.productId,
           )
         : runtime.inventory.get(cartLine.productId) ?? 0;
+    const productDemand =
+      runtime.merchantWorld.manifest.productDemandMechanisms.find(
+        (item) => item.productId === cartLine.productId,
+      );
+    const inventoryAvailabilityMultiplier =
+      externalReality?.applyAt(
+        `${orderId}:inventory-availability:${cartLine.productId}`,
+        "inventory_availability",
+        timestampMs,
+        {
+          product: cartLine.productId,
+          ...(productDemand?.categoryId === undefined
+            ? {}
+            : { category: productDemand.categoryId }),
+        },
+      ) ?? 1;
+    const available = Math.floor(
+      baseAvailable *
+        clamp(inventoryAvailabilityMultiplier, 0, 1),
+    );
     const inventoryMechanism =
       runtime.merchantWorld.manifest.inventoryMechanisms.find(
         (item) => item.productId === cartLine.productId,
@@ -1227,6 +1299,19 @@ export function completePurchase(
     );
     const revenue = Math.max(0, gross - discount);
 
+    const landedCostMultiplier =
+      externalReality?.applyAt(
+        `${orderId}:landed-cost:${cartLine.productId}`,
+        "landed_cost",
+        timestampMs,
+        {
+          product: cartLine.productId,
+          ...(productDemand?.categoryId === undefined
+            ? {}
+            : { category: productDemand.categoryId }),
+        },
+      ) ?? 1;
+
     lines.push({
       productId: cartLine.productId,
       quantity,
@@ -1234,7 +1319,9 @@ export function completePurchase(
       discountMinor: discount,
       revenueMinor: revenue,
       estimatedCogsMinor: Math.round(
-        revenue * runtime.merchantWorld.summary.expectedCogsRate,
+        revenue *
+          runtime.merchantWorld.summary.expectedCogsRate *
+          landedCostMultiplier,
       ),
       fulfillmentMinor: Math.round(
         revenue * runtime.merchantWorld.summary.fulfillmentRate,
@@ -1275,9 +1362,56 @@ export function completePurchase(
     netRevenueMinor *
       runtime.merchantWorld.summary.paymentFeeRate,
   );
+  const shippingTerms = resolveCartShippingTerms(
+    commercePolicy?.pricingPromotionScenario,
+    pricingCustomerContext(customer),
+    timestampMs,
+    netRevenueMinor,
+    commercePolicy?.freeShippingThresholdMinor,
+  );
+  const shippingCostMultiplier =
+    externalReality?.applyAt(
+      `${orderId}:shipping-cost`,
+      "shipping_cost",
+      timestampMs,
+      { channel: source },
+    ) ?? 1;
+  const deliveryTimeMultiplier =
+    externalReality?.applyAt(
+      `${orderId}:delivery-time`,
+      "delivery_time",
+      timestampMs,
+      { channel: source },
+    ) ?? 1;
+  const returnPropensityMultiplier =
+    externalReality?.applyAt(
+      `${orderId}:return-propensity`,
+      "return_propensity",
+      timestampMs,
+      { channel: source },
+    ) ?? 1;
   const shippingSubsidyMinor = Math.round(
     netRevenueMinor *
-      runtime.merchantWorld.summary.shippingSubsidyRate,
+      runtime.merchantWorld.summary.shippingSubsidyRate *
+      shippingCostMultiplier,
+  );
+  const baseCustomerShippingChargeMinor =
+    shippingTerms.freeShipping
+      ? 0
+      : shippingTerms.customerShippingChargeOverrideMinor ??
+        commercePolicy?.customerShippingChargeMinor ??
+        0;
+  const realizedCustomerShippingChargeMinor =
+    Math.max(
+      0,
+      Math.round(
+        baseCustomerShippingChargeMinor *
+          shippingCostMultiplier,
+      ),
+    );
+  const estimatedDeliveryDays = Math.max(
+    1,
+    Math.ceil(3 * deliveryTimeMultiplier),
   );
   const allocatedMarketing = allocatedMarketingSpendMinor(
     runtime.merchantWorld,
@@ -1404,13 +1538,6 @@ export function completePurchase(
   }
 
   const repeatPurchase = customer.purchaseCount > 0;
-  const shippingTerms = resolveCartShippingTerms(
-    commercePolicy?.pricingPromotionScenario,
-    pricingCustomerContext(customer),
-    timestampMs,
-    netRevenueMinor,
-    commercePolicy?.freeShippingThresholdMinor,
-  );
   const timingDeferral =
     promotionTimingDeferralMultiplier(
       runtime.merchantWorld,
@@ -1452,16 +1579,19 @@ export function completePurchase(
               (promotion.returnProbabilityMultiplier ?? 1),
             1,
           );
+  const combinedReturnProbabilityMultiplier =
+    realizedShippingPromotionReturnMultiplier *
+    returnPropensityMultiplier;
   const realizedLines =
     Math.abs(
-      realizedShippingPromotionReturnMultiplier - 1,
+      combinedReturnProbabilityMultiplier - 1,
     ) < 1e-12
       ? lines
       : lines.map((line) => ({
           ...line,
           returnProbabilityMultiplier: clamp(
             (line.returnProbabilityMultiplier ?? 1) *
-              realizedShippingPromotionReturnMultiplier,
+              combinedReturnProbabilityMultiplier,
             0.2,
             5,
           ),
@@ -1529,6 +1659,8 @@ export function completePurchase(
     allocatedMarketingSpendMinor: allocatedMarketing,
     contributionProfitMinor,
     repeatPurchase,
+    realizedCustomerShippingChargeMinor,
+    estimatedDeliveryDays,
     ...(shippingTerms.customerShippingChargeOverrideMinor === undefined
       ? {}
       : {
