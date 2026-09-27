@@ -279,6 +279,16 @@ export const canonicalActionSchema = z
   });
 
 function hasFiniteTimingHorizon(timing: ActionTiming): boolean {
+  if (timing.recurrence.state === "UNKNOWN") return false;
+  if (timing.recurrence.state === "SPECIFIED") {
+    const boundary = timing.recurrence.value.boundary;
+    if (boundary.kind === "OPEN_ENDED") return false;
+    if (
+      boundary.maxOccurrences === undefined &&
+      boundary.recurrenceEnd === undefined
+    )
+      return false;
+  }
   if (
     timing.end.state === "SPECIFIED" &&
     (timing.end.value.kind === "ABSOLUTE" ||

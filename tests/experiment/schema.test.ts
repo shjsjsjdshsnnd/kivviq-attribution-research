@@ -5,7 +5,11 @@ import {
   readCanonicalAction,
   serializeCanonicalAction,
 } from "../../src/canonical_action/index.js";
-import { fridaySevenDayBudgetTiming, immediatePersistentBudgetTiming } from "../../src/action_timing/fixtures.js";
+import {
+  fridaySevenDayBudgetTiming,
+  immediatePersistentBudgetTiming,
+  weeklyEightWeekLifecycleTiming,
+} from "../../src/action_timing/fixtures.js";
 import { experimentWhatSchema } from "../../src/experiment/index.js";
 import { experimentWhatSchema as publicExperimentWhatSchema } from "../../src/index.js";
 
@@ -99,6 +103,7 @@ describe("canonical experiment intent", () => {
     ["allocation total", { ...what(), arms: [{ ...control, allocationBasisPoints: 4999 }, treatment] }],
     ["duplicate arm", { ...what(), arms: [control, { ...treatment, armId: control.armId }] }],
     ["duplicate action identity", { ...what(), arms: [control, { ...treatment, actionId: control.actionId, actionFingerprint: control.actionFingerprint }] }],
+    ["duplicate action ID with conflicting fingerprints", { ...what(), arms: [control, { ...treatment, actionId: control.actionId }] }],
     ["missing control", { ...what(), arms: [{ ...control, role: "TREATMENT" }, treatment] }],
     ["multiple controls", { ...what(), arms: [control, { ...treatment, role: "CONTROL" }] }],
     ["zero allocation", { ...what(), arms: [control, { ...treatment, allocationBasisPoints: 0 }] }],
@@ -136,6 +141,41 @@ describe("canonical experiment intent", () => {
           stopping: { kind: "FIXED", sampleTarget: 100 },
         },
         timing: immediatePersistentBudgetTiming,
+      }).success,
+    ).toBe(true);
+    const openRecurrenceTiming = {
+      ...weeklyEightWeekLifecycleTiming,
+      recurrence: {
+        state: "SPECIFIED" as const,
+        value: {
+          frequency: {
+            kind: "WEEKLY" as const,
+            interval: 1,
+            daysOfWeek: [2],
+            localTime: "10:00",
+          },
+          boundary: { kind: "OPEN_ENDED" as const, explicitlyOpenEnded: true },
+        },
+      },
+    };
+    expect(
+      canonicalActionSchema.safeParse({
+        ...action(),
+        what: {
+          ...what(),
+          stopping: { kind: "FIXED", timingHorizon: "ENVELOPE_TIMING" },
+        },
+        timing: openRecurrenceTiming,
+      }).success,
+    ).toBe(false);
+    expect(
+      canonicalActionSchema.safeParse({
+        ...action(),
+        what: {
+          ...what(),
+          stopping: { kind: "FIXED", sampleTarget: 100 },
+        },
+        timing: openRecurrenceTiming,
       }).success,
     ).toBe(true);
   });

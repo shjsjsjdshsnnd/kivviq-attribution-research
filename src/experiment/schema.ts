@@ -102,6 +102,14 @@ export const experimentWhatSchema = z
         message: "Referenced action identity and fingerprint pairs must be unique",
       });
     if (
+      new Set(value.arms.map((arm) => arm.actionId)).size !== value.arms.length
+    )
+      ctx.addIssue({
+        code: "custom",
+        path: ["arms"],
+        message: "Each canonical action ID may appear in only one arm",
+      });
+    if (
       value.guardrailMetricRefs &&
       new Set(value.guardrailMetricRefs).size !== value.guardrailMetricRefs.length
     )
