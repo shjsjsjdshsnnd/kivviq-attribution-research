@@ -8,8 +8,9 @@ import { currencyCode } from "../../src/core/units.js";
 import {
   actionEligibilitySchema,
   canonicalEligibilityTargetRef,
-  evaluateActionEligibility,
+  evaluateActionEligibility as evaluateActionEligibilityRaw,
   legacyEntityTargetRef,
+  type DomainEligibilityFact,
 } from "../../src/action_eligibility/index.js";
 
 const evaluatedAt = "2026-09-21T13:10:00Z";
@@ -35,6 +36,29 @@ function bound(actionValue: ReturnType<typeof action>) {
     sourceRef: "merchant_state",
     provenance: ["snapshot:1"],
   };
+}
+
+function domainFacts(actionValue: ReturnType<typeof action>): DomainEligibilityFact[] {
+  const common = bound(actionValue);
+  return ["ACTION_FAMILY_CAPABILITY", "CHANNEL_MERCHANT_ENABLED"].map((factId) => ({
+    ...common,
+    kind: "DOMAIN_FACT" as const,
+    factId: factId as DomainEligibilityFact["factId"],
+    value: true,
+    evidenceRef: `domain:${factId.toLowerCase()}`,
+  }));
+}
+
+function evaluateActionEligibility(input: unknown, context: unknown) {
+  if (input && typeof input === "object" && "action" in input && context && typeof context === "object") {
+    try {
+      const candidate = (input as { action: ReturnType<typeof action> }).action;
+      return evaluateActionEligibilityRaw(input, { ...context, domainFacts: domainFacts(candidate) });
+    } catch {
+      return evaluateActionEligibilityRaw(input, context);
+    }
+  }
+  return evaluateActionEligibilityRaw(input, context);
 }
 
 describe("evaluateActionEligibility", () => {
@@ -67,11 +91,11 @@ describe("evaluateActionEligibility", () => {
     expect(result.ok).toBe(true);
     if (!result.ok) return;
     expect(result.result.status).toBe("INELIGIBLE");
-    expect(result.result.checks.map(({ checkId, status }) => [checkId, status])).toEqual([
+    expect(result.result.checks.filter((check) => check.kind !== "DOMAIN_RULE").map(({ checkId, status }) => [checkId, status])).toEqual([
       ["campaign_exists", "VIOLATED"],
       ["budget_available", "VIOLATED"],
     ]);
-    expect(result.result.checks.flatMap((check) => check.reasonCodes)).toEqual([
+    expect(result.result.checks.filter((check) => check.kind !== "DOMAIN_RULE").flatMap((check) => check.reasonCodes)).toEqual([
       "ENTITY_DOES_NOT_EXIST",
       "COMPARISON_FALSE",
     ]);
@@ -101,7 +125,7 @@ describe("evaluateActionEligibility", () => {
     expect(result.ok).toBe(true);
     if (!result.ok) return;
     expect(result.result.status).toBe("INELIGIBLE");
-    expect(result.result.checks).toMatchObject([
+    expect(result.result.checks.filter((check) => check.kind !== "DOMAIN_RULE")).toMatchObject([
       { checkId: "required_capability", status: "VIOLATED", reasonCodes: ["MISSING_INFORMATION_FAIL_CLOSED"] },
       { checkId: "optional_evidence", status: "UNKNOWN", reasonCodes: ["MISSING_BOUND_EVIDENCE"] },
     ]);
@@ -156,7 +180,7 @@ describe("evaluateActionEligibility", () => {
     );
     expect(result.ok).toBe(true);
     if (!result.ok) return;
-    expect(result.result.checks.map(({ status, reasonCodes }) => [status, reasonCodes[0]])).toEqual([
+    expect(result.result.checks.filter((check) => check.kind !== "DOMAIN_RULE").map(({ status, reasonCodes }) => [status, reasonCodes[0]])).toEqual([
       ["SATISFIED", "COMPARISON_TRUE"],
       ["SATISFIED", "COMPARISON_TRUE"],
       ["SATISFIED", "COMPARISON_TRUE"],
@@ -175,7 +199,7 @@ describe("evaluateActionEligibility", () => {
         }],
       },
     );
-    expect(incompatible.ok && incompatible.result.checks.every(
+    expect(incompatible.ok && incompatible.result.checks.filter((check) => check.kind !== "DOMAIN_RULE").every(
       (check) => check.status === "VIOLATED" && check.reasonCodes[0] === "INCOMPATIBLE_VALUE",
     )).toBe(true);
   });
@@ -296,7 +320,7 @@ describe("evaluateActionEligibility", () => {
         ],
       },
     );
-    expect(result.ok && result.result.checks.map((check) => [check.status, check.reasonCodes[0]])).toEqual([
+    expect(result.ok && result.result.checks.filter((check) => check.kind !== "DOMAIN_RULE").map((check) => [check.status, check.reasonCodes[0]])).toEqual([
       ["UNKNOWN", "MISSING_BOUND_EVIDENCE"],
       ["UNKNOWN", "MISSING_BOUND_EVIDENCE"],
       ["UNKNOWN", "MISSING_BOUND_EVIDENCE"],
@@ -333,7 +357,8 @@ describe("evaluateActionEligibility", () => {
     );
     expect(result.ok).toBe(true);
     if (!result.ok) return;
-    expect(result.result).toMatchObject({ status: "INELIGIBLE", checks: [{ kind: "HARD_CONSTRAINT", checkId: "margin", status: "VIOLATED", reasonCodes: ["CONSTRAINT_VIOLATED"] }] });
+    expect(result.result).toMatchObject({ status: "INELIGIBLE" });
+    expect(result.result.checks.filter((check) => check.kind !== "DOMAIN_RULE")).toMatchObject([{ kind: "HARD_CONSTRAINT", checkId: "margin", status: "VIOLATED", reasonCodes: ["CONSTRAINT_VIOLATED"] }]);
   });
 
   it("returns separate failures for invalid actions, unsupported families and invalid context", () => {
@@ -351,7 +376,7 @@ describe("evaluateActionEligibility", () => {
     const input = { action: candidate };
     const context = { evaluatedAt, observations: [] };
     const before = JSON.stringify({ input, context });
-    expect(evaluateActionEligibility(input, context)).toMatchObject({ ok: true, result: { status: "ELIGIBLE", checks: [] } });
+    expect(evaluateActionEligibility(input, context)).toMatchObject({ ok: true, result: { status: "ELIGIBLE" } });
     expect(JSON.stringify({ input, context })).toBe(before);
   });
 

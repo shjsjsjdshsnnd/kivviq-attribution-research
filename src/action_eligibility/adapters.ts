@@ -1,0 +1,125 @@
+import { z } from "zod";
+import type { CanonicalAction } from "../canonical_action/schema.js";
+import { fingerprintCanonicalAction } from "../canonical_action/serialization.js";
+import type { EligibilityCheck } from "./schema.js";
+
+const ref = z.string().min(1);
+const utcZ = z.string().datetime().regex(/Z$/);
+
+export const domainFactIdSchema = z.enum([
+  "TARGET_ACTIVE",
+  "CHANNEL_MERCHANT_ENABLED",
+  "ACTION_FAMILY_CAPABILITY",
+  "SUPPLIER_AVAILABLE",
+  "WAREHOUSE_AVAILABLE",
+  "SURFACE_AVAILABLE",
+  "AUDIENCE_AVAILABLE",
+  "CONSENT_AVAILABLE",
+]);
+
+export const domainEligibilityFactSchema = z.object({
+  kind: z.literal("DOMAIN_FACT"),
+  factId: domainFactIdSchema,
+  value: z.boolean(),
+  evidenceRef: ref,
+  actionId: ref,
+  actionFingerprint: ref,
+  targetRef: z.string().regex(/^eligibility-target:fnv1a64:[0-9a-f]{16}$/),
+  evaluationBoundary: z.literal("DECISION_TIME"),
+  observedAt: utcZ,
+  sourceRef: ref,
+  provenance: z.array(ref).min(1),
+}).strict();
+
+export type DomainEligibilityFact = z.infer<typeof domainEligibilityFactSchema>;
+
+type DomainFamily = "paid_media" | "pricing" | "promotion" | "shipping" | "merchandising" | "inventory" | "cro" | "lifecycle";
+type Requirement = Readonly<{ factId: DomainEligibilityFact["factId"]; suffix: string; trueReason: string; falseReason: string }>;
+
+const capability = (family: DomainFamily): Requirement => ({
+  factId: "ACTION_FAMILY_CAPABILITY",
+  suffix: "capability",
+  trueReason: "ACTION_FAMILY_CAPABILITY_AVAILABLE",
+  falseReason: "ACTION_FAMILY_CAPABILITY_UNAVAILABLE",
+});
+const targetActive: Requirement = { factId: "TARGET_ACTIVE", suffix: "target_active", trueReason: "TARGET_ACTIVE", falseReason: "TARGET_INACTIVE" };
+
+const registry: Readonly<Record<DomainFamily, readonly Requirement[]>> = Object.freeze({
+  paid_media: [capability("paid_media"), { factId: "CHANNEL_MERCHANT_ENABLED", suffix: "channel_enabled", trueReason: "CHANNEL_MERCHANT_ENABLED", falseReason: "CHANNEL_NOT_MERCHANT_ENABLED" }],
+  pricing: [capability("pricing"), targetActive],
+  promotion: [capability("promotion"), targetActive],
+  shipping: [capability("shipping")],
+  merchandising: [capability("merchandising"), { factId: "SURFACE_AVAILABLE", suffix: "surface_available", trueReason: "SURFACE_AVAILABLE", falseReason: "SURFACE_UNAVAILABLE" }, targetActive],
+  inventory: [capability("inventory"), targetActive],
+  cro: [capability("cro"), { factId: "SURFACE_AVAILABLE", suffix: "surface_available", trueReason: "SURFACE_AVAILABLE", falseReason: "SURFACE_UNAVAILABLE" }],
+  lifecycle: [capability("lifecycle")],
+});
+
+const actionTypeRequirements: Readonly<Record<string, readonly Requirement[]>> = Object.freeze({
+  "inventory.reorder": [
+    { factId: "SUPPLIER_AVAILABLE", suffix: "supplier_available", trueReason: "SUPPLIER_AVAILABLE", falseReason: "SUPPLIER_UNAVAILABLE" },
+    { factId: "WAREHOUSE_AVAILABLE", suffix: "warehouse_available", trueReason: "WAREHOUSE_AVAILABLE", falseReason: "WAREHOUSE_UNAVAILABLE" },
+  ],
+  "lifecycle.send": [
+    { factId: "AUDIENCE_AVAILABLE", suffix: "audience_available", trueReason: "AUDIENCE_AVAILABLE", falseReason: "AUDIENCE_UNAVAILABLE" },
+    { factId: "CONSENT_AVAILABLE", suffix: "consent_available", trueReason: "CONSENT_AVAILABLE", falseReason: "CONSENT_UNAVAILABLE" },
+  ],
+  "lifecycle.start_flow": [
+    { factId: "AUDIENCE_AVAILABLE", suffix: "audience_available", trueReason: "AUDIENCE_AVAILABLE", falseReason: "AUDIENCE_UNAVAILABLE" },
+    { factId: "CONSENT_AVAILABLE", suffix: "consent_available", trueReason: "CONSENT_AVAILABLE", falseReason: "CONSENT_UNAVAILABLE" },
+  ],
+});
+
+function actionTypeOf(action: CanonicalAction): string | undefined {
+  if ("kind" in action.what && action.what.kind === "legacy_business") return action.what.actionType;
+  if ("actionType" in action.what && typeof action.what.actionType === "string") return action.what.actionType;
+  return undefined;
+}
+
+function familyOf(action: CanonicalAction): DomainFamily | undefined {
+  if ("kind" in action.what && action.what.kind === "legacy_business") {
+    const family = action.what.actionCategory;
+    if (family === "advertising") return "paid_media";
+    return family in registry ? family as DomainFamily : undefined;
+  }
+  if ("actionType" in action.what && typeof action.what.actionType === "string" && action.what.actionType.startsWith("lifecycle.")) return "lifecycle";
+  return undefined;
+}
+
+function unknown(checkId: string, reasonCodes: string[], evidenceRefs: string[] = []): EligibilityCheck {
+  return { kind: "DOMAIN_RULE", checkId, status: "UNKNOWN", reasonCodes, evidenceRefs, missingInformation: [`domain_fact:${checkId}`] };
+}
+
+export function evaluateDomainEligibility(input: {
+  action: CanonicalAction;
+  targetRef: string;
+  evaluatedAt: string;
+  maximumAgeSeconds?: number;
+  facts: readonly DomainEligibilityFact[];
+}): EligibilityCheck[] {
+  const family = familyOf(input.action);
+  if (!family) return [];
+  const fingerprint = fingerprintCanonicalAction(input.action);
+  const bound = input.facts.filter((fact) => fact.actionId === input.action.actionId && fact.actionFingerprint === fingerprint && fact.targetRef === input.targetRef && fact.evaluationBoundary === "DECISION_TIME");
+  const requirements = [...registry[family], ...(actionTypeRequirements[actionTypeOf(input.action) ?? ""] ?? [])];
+  return requirements.map((requirement): EligibilityCheck => {
+    const checkId = `domain.${family}.${requirement.suffix}`;
+    const matches = bound.filter((fact) => fact.factId === requirement.factId);
+    if (matches.length === 0) return unknown(checkId, ["MISSING_BOUND_DOMAIN_FACT"]);
+    if (matches.length > 1) return unknown(checkId, ["AMBIGUOUS_BOUND_DOMAIN_FACT"], matches.map((fact) => fact.evidenceRef).sort());
+    const fact = matches[0]!;
+    const observed = Date.parse(fact.observedAt);
+    const evaluated = Date.parse(input.evaluatedAt);
+    if (observed > evaluated) return unknown(checkId, ["FUTURE_DOMAIN_FACT"], [fact.evidenceRef]);
+    if (input.maximumAgeSeconds !== undefined && evaluated - observed > input.maximumAgeSeconds * 1000)
+      return unknown(checkId, ["STALE_DOMAIN_FACT"], [fact.evidenceRef]);
+    return {
+      kind: "DOMAIN_RULE",
+      checkId,
+      status: fact.value ? "SATISFIED" : "VIOLATED",
+      reasonCodes: [fact.value ? requirement.trueReason : requirement.falseReason],
+      evidenceRefs: [fact.evidenceRef],
+      missingInformation: [],
+    };
+  }).sort((left, right) => left.checkId.localeCompare(right.checkId));
+}

@@ -8,6 +8,7 @@ import { decisionWhatSchema } from "../decision_forms/index.js";
 import { experimentWhatSchema } from "../experiment/index.js";
 import { lifecycleWhatSchema } from "../lifecycle/canonical.js";
 import { actionEligibilitySchema, type ActionEligibility, type EligibilityCheck, type EligibilityFailure } from "./schema.js";
+import { domainEligibilityFactSchema, evaluateDomainEligibility } from "./adapters.js";
 
 const utcZSchema = z.string().datetime().regex(/Z$/);
 const scalarValueSchema = z.discriminatedUnion("kind", [
@@ -60,6 +61,14 @@ const contextSchema = z.object({
     });
   }),
   constraintReceipts: z.array(constraintEvidenceReceiptSchema).optional(),
+  domainFacts: z.array(domainEligibilityFactSchema).default([]).superRefine((facts, context) => {
+    const seen = new Set<string>();
+    facts.forEach((fact, index) => {
+      const key = `${fact.actionId}|${fact.actionFingerprint}|${fact.targetRef}|${fact.evaluationBoundary}|${fact.factId}`;
+      if (seen.has(key)) context.addIssue({ code: "custom", path: [index], message: `Duplicate bound domain fact: ${fact.factId}` });
+      seen.add(key);
+    });
+  }),
 }).strict();
 
 export type EligibilityEvidenceObservation = z.infer<typeof eligibilityEvidenceObservationSchema>;
@@ -276,6 +285,13 @@ export function evaluateActionEligibility(inputValue: unknown, contextValue: unk
   const native = nativeChecks(action.data, nativeConstraints?.data, context.data);
   if (native === undefined) return failure("INVALID_NATIVE_CONSTRAINTS", ["Native constraint assessment input or evidence is invalid"]);
   checks.push(...native);
+  checks.push(...evaluateDomainEligibility({
+    action: action.data,
+    targetRef: canonicalEligibilityTargetRef(action.data),
+    evaluatedAt: context.data.evaluatedAt,
+    ...(context.data.maximumAgeSeconds === undefined ? {} : { maximumAgeSeconds: context.data.maximumAgeSeconds }),
+    facts: context.data.domainFacts,
+  }));
   const status = checks.some((check) => check.status === "VIOLATED") ? "INELIGIBLE" : checks.some((check) => check.status === "UNKNOWN") ? "UNKNOWN" : "ELIGIBLE";
   return { ok: true, result: actionEligibilitySchema.parse({ actionId: action.data.actionId, actionFingerprint: fingerprintCanonicalAction(action.data), evaluatedAt: context.data.evaluatedAt, status, checks }) };
 }
