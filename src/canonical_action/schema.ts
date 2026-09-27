@@ -10,7 +10,7 @@ import { validateActionTiming } from "../action_timing/validation.js";
 import { lifecycleWhatSchema } from "../lifecycle/canonical.js";
 import { populationReferenceSchema } from "../population/index.js";
 import { decisionWhatSchema } from "../decision_forms/index.js";
-import { experimentWhatSchema } from "../experiment/index.js";
+import { experimentWhatSchema } from "../experiment/schema.js";
 
 export const CANONICAL_ACTION_SCHEMA_VERSION = "2.0.0" as const;
 export type LegacyBusiness = Omit<

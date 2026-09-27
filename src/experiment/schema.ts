@@ -9,8 +9,9 @@ const utcTimestamp = z
   .datetime({ offset: true })
   .refine((value) => value.endsWith("Z"), "Timestamp must be UTC and end in Z");
 
-export const experimentArmSchema = z
+const actionArmSchema = z
   .object({
+    entityKind: z.literal("ACTION").optional(),
     armId,
     role: z.enum(["CONTROL", "TREATMENT"]),
     actionId,
@@ -18,6 +19,22 @@ export const experimentArmSchema = z
     allocationBasisPoints: z.number().int().positive().max(10_000),
   })
   .strict();
+
+const compoundArmSchema = z
+  .object({
+    entityKind: z.literal("COMPOUND"),
+    armId,
+    role: z.enum(["CONTROL", "TREATMENT"]),
+    compoundActionId: z.string().regex(/^compound_[A-Za-z0-9._:-]+$/),
+    actionFingerprint: fingerprint,
+    allocationBasisPoints: z.number().int().positive().max(10_000),
+  })
+  .strict();
+
+export const experimentArmSchema = z.union([
+  actionArmSchema,
+  compoundArmSchema,
+]);
 
 export const experimentRandomizationUnitSchema = z.union([
   z.enum(["CUSTOMER", "SESSION", "ORDER"]),
@@ -93,7 +110,7 @@ export const experimentWhatSchema = z
         message: "Arm IDs must be unique",
       });
     const actionIdentities = value.arms.map(
-      (arm) => `${arm.actionId}\u0000${arm.actionFingerprint}`,
+      (arm) => `${arm.entityKind === "COMPOUND" ? arm.compoundActionId : arm.actionId}\u0000${arm.actionFingerprint}`,
     );
     if (new Set(actionIdentities).size !== actionIdentities.length)
       ctx.addIssue({
@@ -102,7 +119,9 @@ export const experimentWhatSchema = z
         message: "Referenced action identity and fingerprint pairs must be unique",
       });
     if (
-      new Set(value.arms.map((arm) => arm.actionId)).size !== value.arms.length
+      new Set(value.arms.map((arm) =>
+        arm.entityKind === "COMPOUND" ? arm.compoundActionId : arm.actionId,
+      )).size !== value.arms.length
     )
       ctx.addIssue({
         code: "custom",
