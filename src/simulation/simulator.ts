@@ -100,7 +100,6 @@ import {
 import {
   EXTERNAL_REALITY_MODEL_VERSION,
   ExternalRealityRuntime,
-  externalRealityGodModeTruth,
   projectExternalObservations,
 } from "../external_reality/index.js";
 import type {
@@ -304,7 +303,8 @@ function needStrength(
   const seasonal = seasonalityMultiplier(request, timestampMs);
   const shock = shockDemandMultiplier(request, timestampMs);
   const externalDemand =
-    externalReality?.multiplierAt(
+    externalReality?.applyAt(
+      `need:${customer.customerId}:${cycle}:demand`,
       "demand",
       timestampMs,
     ) ?? 1;
@@ -730,7 +730,8 @@ function realizedSupplierLeadMs(
   }
 
   factor *=
-    externalReality?.multiplierAt(
+    externalReality?.applyAt(
+      `supplier-lead:${productId}:${placedAtMs}`,
       "supplier_lead_time",
       placedAtMs,
       { product: productId },
@@ -746,25 +747,30 @@ function externalPaidDeliveryMultiplier(
   externalReality: ExternalRealityRuntime | undefined,
   timestampMs: number,
   channel: MarketingChannel,
+  applicationPrefix: string,
 ): number {
   if (externalReality === undefined) return 1;
   const context = { channel };
-  const cpm = externalReality.multiplierAt(
+  const cpm = externalReality.applyAt(
+    `${applicationPrefix}:cpm`,
     "cpm",
     timestampMs,
     context,
   );
-  const cpc = externalReality.multiplierAt(
+  const cpc = externalReality.applyAt(
+    `${applicationPrefix}:cpc`,
     "cpc",
     timestampMs,
     context,
   );
-  const ctr = externalReality.multiplierAt(
+  const ctr = externalReality.applyAt(
+    `${applicationPrefix}:ctr`,
     "ctr",
     timestampMs,
     context,
   );
-  const quality = externalReality.multiplierAt(
+  const quality = externalReality.applyAt(
+    `${applicationPrefix}:traffic-quality`,
     "traffic_quality",
     timestampMs,
     context,
@@ -1728,15 +1734,19 @@ export function simulateWorld(
             opportunity.channel ??
             opportunity.source,
         };
+        const externalApplicationPrefix =
+          `opportunity:${customer.customerId}:${payload.cycle}:${payload.ordinal}:${opportunity.source}`;
         const storeTrafficMultiplier =
-          externalReality?.multiplierAt(
+          externalReality?.applyAt(
+            `${externalApplicationPrefix}:store-traffic`,
             "store_traffic",
             event.timestampMs,
             channelContext,
           ) ?? 1;
         const organicTrafficMultiplier =
           opportunity.source === "organic_search"
-            ? externalReality?.multiplierAt(
+            ? externalReality?.applyAt(
+                `${externalApplicationPrefix}:organic-traffic`,
                 "organic_traffic",
                 event.timestampMs,
                 channelContext,
@@ -1842,6 +1852,7 @@ export function simulateWorld(
               externalReality,
               event.timestampMs,
               channel,
+              `paid-delivery:${customer.customerId}:${payload.cycle}:${payload.ordinal}:${channel}`,
             )) /
           marketingCompetitionMultiplier(
             request.commercePolicy?.pricingPromotionScenario,
@@ -2503,7 +2514,8 @@ export function simulateWorld(
           baselinePurchaseProbability *
             (checkoutExperience
               ?.completionMultiplier ?? 1) *
-            (externalReality?.multiplierAt(
+            (externalReality?.applyAt(
+              `${session.sessionId}:checkout:${session.step}:purchase-propensity`,
               "purchase_propensity",
               event.timestampMs,
               {
@@ -2997,10 +3009,7 @@ export function simulateWorld(
         ? {}
         : {
             externalReality:
-              externalRealityGodModeTruth(
-                request.commercePolicy
-                  .externalRealityEnvironment,
-              ),
+              externalReality?.godModeTruth(),
           }),
       ...(request.commercePolicy
         ?.websiteScenario === undefined
