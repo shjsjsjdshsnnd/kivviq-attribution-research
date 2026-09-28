@@ -27,7 +27,10 @@ function uniqueBy<T>(
 
 export function knownRangeUnknownOrNASchema<T extends z.ZodTypeAny>(
   valueSchema: T,
-  sameRangeType?: (minimum: z.infer<T>, maximum: z.infer<T>) => boolean,
+  isOrderedCompatibleRange: (
+    minimum: z.infer<T>,
+    maximum: z.infer<T>,
+  ) => boolean,
 ): z.ZodType<
   | { state: "KNOWN"; value: z.infer<T> }
   | { state: "RANGE"; minimum: z.infer<T>; maximum: z.infer<T> }
@@ -44,7 +47,7 @@ export function knownRangeUnknownOrNASchema<T extends z.ZodTypeAny>(
       })
       .strict()
       .superRefine(({ minimum, maximum }, context) => {
-        if (sameRangeType !== undefined && !sameRangeType(minimum, maximum)) {
+        if (!isOrderedCompatibleRange(minimum, maximum)) {
           context.addIssue({
             code: z.ZodIssueCode.custom,
             message: "Range endpoints must use the same type, unit, and resource",
@@ -104,7 +107,7 @@ export const operationalResourceSchema = z.discriminatedUnion("kind", [
 
 export const operationalQuantityValueSchema = z
   .object({
-    quantity: z.number().finite().nonnegative(),
+    quantity: z.number().finite().nonnegative().max(Number.MAX_SAFE_INTEGER),
     unit: operationalUnitSchema,
     resource: operationalResourceSchema,
   })
@@ -128,6 +131,19 @@ export const operationalQuantitySchema = knownRangeUnknownOrNASchema(
     stableShape(minimum.resource) === stableShape(maximum.resource) &&
     minimum.quantity <= maximum.quantity,
 );
+
+export const operationalBurdenLineItemSchema = z
+  .object({
+    burdenId: stableReferenceSchema,
+    amount: operationalQuantitySchema,
+  })
+  .strict();
+
+const operationalBurdenLineItemsSchema = z
+  .array(operationalBurdenLineItemSchema)
+  .superRefine((items, context) =>
+    uniqueBy(items, ({ burdenId }) => burdenId, context, "operational burden ID"),
+  );
 
 export const reversalReferenceSchema = z.discriminatedUnion("kind", [
   z
@@ -220,6 +236,7 @@ const costLineItemsSchema = z
 export const cancellationStageSchema = z.enum([
   "BEFORE_START",
   "IMPLEMENTING",
+  "COMMITTED",
   "EFFECTIVE",
   "COMPLETED",
 ]);
@@ -230,7 +247,7 @@ export const stageCancellationCostSchema = z
     cancellationAvailable: z.boolean(),
     cancellationCost: costLineItemsSchema,
     compensationCost: costLineItemsSchema,
-    operationalBurden: z.array(operationalQuantitySchema),
+    operationalBurden: operationalBurdenLineItemsSchema,
   })
   .strict()
   .superRefine((stage, context) => {
@@ -273,7 +290,7 @@ const actionCharacteristicsObjectSchema = z
     implementationCost: costLineItemsSchema,
     reversibility: reversibilitySchema,
     cancellationCosts: z.array(stageCancellationCostSchema),
-    operationalBurden: z.array(operationalQuantitySchema),
+    operationalBurden: operationalBurdenLineItemsSchema,
   })
   .strict();
 
@@ -337,8 +354,8 @@ export function deriveReachableCancellationStages(
       return ["BEFORE_START", "IMPLEMENTING", "EFFECTIVE", "COMPLETED"];
     case "COMMITTED_INVENTORY_PURCHASE":
       return parsed.hasCompletion
-        ? ["BEFORE_START", "IMPLEMENTING", "EFFECTIVE", "COMPLETED"]
-        : ["BEFORE_START", "IMPLEMENTING", "EFFECTIVE"];
+        ? ["BEFORE_START", "IMPLEMENTING", "COMMITTED", "EFFECTIVE", "COMPLETED"]
+        : ["BEFORE_START", "IMPLEMENTING", "COMMITTED", "EFFECTIVE"];
   }
 }
 
@@ -371,6 +388,9 @@ export type CostLineItem = z.infer<typeof costLineItemSchema>;
 export type IrreversibleEffect = z.infer<typeof irreversibleEffectSchema>;
 export type MoneyValue = z.infer<typeof moneyValueSchema>;
 export type OperationalQuantity = z.infer<typeof operationalQuantityValueSchema>;
+export type OperationalBurdenLineItem = z.infer<
+  typeof operationalBurdenLineItemSchema
+>;
 export type ReversalReference = z.infer<typeof reversalReferenceSchema>;
 export type Reversibility = z.infer<typeof reversibilitySchema>;
 export type StageCancellationCost = z.infer<typeof stageCancellationCostSchema>;

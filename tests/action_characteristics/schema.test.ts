@@ -3,7 +3,7 @@ import {
   actionCharacteristicsSchema,
   assertReachableCancellationStages,
   costLineItemSchema,
-  knownRangeUnknownOrNASchema,
+  operationalQuantitySchema,
   operationalQuantityValueSchema,
   reversibilitySchema,
 } from "../../src/action_characteristics/index.js";
@@ -15,20 +15,28 @@ const cost = (lineItemId: string, amountMinor = 100) => ({
   amount: { state: "KNOWN" as const, value: money(amountMinor) },
 });
 const burden = {
-  state: "KNOWN" as const,
-  value: {
+  burdenId: "burden.growth_team",
+  amount: {
+    state: "KNOWN" as const,
+    value: {
+      quantity: 2,
+      unit: "hours" as const,
+      resource: { kind: "STAFF" as const, resourceRef: "team.growth" },
+    },
+  },
+};
+const burdenValue = {
     quantity: 2,
     unit: "hours" as const,
     resource: { kind: "STAFF" as const, resourceRef: "team.growth" },
-  },
 };
-const stage = (name: "BEFORE_START" | "IMPLEMENTING" | "EFFECTIVE" | "COMPLETED") => ({
+const stage = (name: "BEFORE_START" | "IMPLEMENTING" | "COMMITTED" | "EFFECTIVE" | "COMPLETED") => ({
   stage: name,
   cancellationAvailable: name === "BEFORE_START" || name === "IMPLEMENTING",
   cancellationCost:
     name === "BEFORE_START" || name === "IMPLEMENTING" ? [cost(`cancel.${name}`)] : [],
   compensationCost:
-    name === "EFFECTIVE" || name === "COMPLETED" ? [cost(`compensate.${name}`)] : [],
+    name === "COMMITTED" || name === "EFFECTIVE" || name === "COMPLETED" ? [cost(`compensate.${name}`)] : [],
   operationalBurden: [burden],
 });
 
@@ -69,17 +77,16 @@ const reachabilityFixtures = {
       commitmentOccursDuringImplementation: true as const,
       hasCompletion: true,
     },
-    stages: ["BEFORE_START", "IMPLEMENTING", "EFFECTIVE", "COMPLETED"] as const,
+    stages: ["BEFORE_START", "IMPLEMENTING", "COMMITTED", "EFFECTIVE", "COMPLETED"] as const,
   },
 };
 
 describe("action characteristic value contracts", () => {
   it("keeps known, range, unknown, and not-applicable states distinct", () => {
-    const schema = knownRangeUnknownOrNASchema(operationalQuantityValueSchema);
-    expect(schema.parse(burden).state).toBe("KNOWN");
-    expect(schema.parse({ state: "UNKNOWN", reason: "staffing not scheduled" }).state).toBe("UNKNOWN");
-    expect(schema.parse({ state: "NOT_APPLICABLE", reason: "no operational work" }).state).toBe("NOT_APPLICABLE");
-    expect(schema.safeParse({ state: "UNKNOWN", reason: "" }).success).toBe(false);
+    expect(operationalQuantitySchema.parse(burden.amount).state).toBe("KNOWN");
+    expect(operationalQuantitySchema.parse({ state: "UNKNOWN", reason: "staffing not scheduled" }).state).toBe("UNKNOWN");
+    expect(operationalQuantitySchema.parse({ state: "NOT_APPLICABLE", reason: "no operational work" }).state).toBe("NOT_APPLICABLE");
+    expect(operationalQuantitySchema.safeParse({ state: "UNKNOWN", reason: "" }).success).toBe(false);
   });
 
   it("requires integer minor-unit money and currency-consistent ordered ranges", () => {
@@ -97,34 +104,46 @@ describe("action characteristic value contracts", () => {
   });
 
   it("requires finite non-negative quantities with controlled units and exact resources", () => {
-    expect(operationalQuantityValueSchema.safeParse(burden.value).success).toBe(true);
-    expect(operationalQuantityValueSchema.safeParse({ ...burden.value, quantity: -1 }).success).toBe(false);
-    expect(operationalQuantityValueSchema.safeParse({ ...burden.value, unit: "clicks" }).success).toBe(false);
+    expect(operationalQuantityValueSchema.safeParse(burdenValue).success).toBe(true);
+    expect(operationalQuantityValueSchema.safeParse({ ...burdenValue, quantity: Number.MAX_SAFE_INTEGER }).success).toBe(true);
+    expect(operationalQuantityValueSchema.safeParse({ ...burdenValue, quantity: -1 }).success).toBe(false);
+    expect(operationalQuantityValueSchema.safeParse({ ...burdenValue, quantity: Number.MAX_SAFE_INTEGER + 1 }).success).toBe(false);
+    expect(operationalQuantityValueSchema.safeParse({ ...burdenValue, unit: "clicks" }).success).toBe(false);
     expect(operationalQuantityValueSchema.safeParse({
       quantity: 1,
       unit: { registryRef: "units.ops", code: "pallet", version: "2" },
       resource: { kind: "CUSTOM", registryRef: "resources.ops", code: "dock", version: "4" },
     }).success).toBe(true);
-    expect(knownRangeUnknownOrNASchema(operationalQuantityValueSchema).safeParse({
+    expect(operationalQuantitySchema.safeParse({
       state: "RANGE",
-      minimum: burden.value,
-      maximum: { ...burden.value, quantity: 1 },
-    }).success).toBe(true);
-    expect(actionCharacteristicsSchema.safeParse({
-      ...base,
-      operationalBurden: [{
-        state: "RANGE",
-        minimum: burden.value,
-        maximum: { ...burden.value, quantity: 1 },
-      }],
+      minimum: burdenValue,
+      maximum: { ...burdenValue, quantity: 1 },
+    }).success).toBe(false);
+    expect(operationalQuantitySchema.safeParse({
+      state: "RANGE",
+      minimum: burdenValue,
+      maximum: { ...burdenValue, quantity: Number.MAX_SAFE_INTEGER + 1 },
     }).success).toBe(false);
     expect(actionCharacteristicsSchema.safeParse({
       ...base,
-      operationalBurden: [{
-        state: "RANGE",
-        minimum: burden.value,
-        maximum: { ...burden.value, resource: { kind: "STAFF", resourceRef: "team.other" } },
-      }],
+      operationalBurden: [{ burdenId: "burden.range", amount: {
+        state: "RANGE", minimum: burdenValue, maximum: { ...burdenValue, quantity: 1 },
+      } }],
+    }).success).toBe(false);
+    expect(actionCharacteristicsSchema.safeParse({
+      ...base,
+      operationalBurden: [{ burdenId: "burden.range", amount: {
+        state: "RANGE", minimum: burdenValue,
+        maximum: { ...burdenValue, resource: { kind: "STAFF", resourceRef: "team.other" } },
+      } }],
+    }).success).toBe(false);
+    expect(actionCharacteristicsSchema.safeParse({
+      ...base,
+      operationalBurden: [burden, burden],
+    }).success).toBe(false);
+    expect(actionCharacteristicsSchema.safeParse({
+      ...base,
+      cancellationCosts: [{ ...stage("BEFORE_START"), operationalBurden: [burden, burden] }],
     }).success).toBe(false);
   });
 });
@@ -177,6 +196,8 @@ describe("stage-sensitive cancellation and compensation", () => {
     expect(send.find(({ stage }) => stage === "EFFECTIVE")?.compensationCost.length).toBeGreaterThan(0);
     const inventory = reachabilityFixtures.COMMITTED_INVENTORY_PURCHASE.stages.map(stage);
     expect(inventory.find(({ stage }) => stage === "IMPLEMENTING")?.cancellationAvailable).toBe(true);
+    expect(inventory.find(({ stage }) => stage === "COMMITTED")?.cancellationAvailable).toBe(false);
+    expect(inventory.find(({ stage }) => stage === "COMMITTED")?.compensationCost.length).toBeGreaterThan(0);
     expect(inventory.find(({ stage }) => stage === "EFFECTIVE")?.cancellationAvailable).toBe(false);
   });
 
@@ -202,7 +223,13 @@ describe("definition purity and delay authority", () => {
     (key) => {
       expect(actionCharacteristicsSchema.safeParse({
         ...base,
-        operationalBurden: [{ ...burden, value: { ...burden.value, [key]: 4 } }],
+        operationalBurden: [{
+          ...burden,
+          amount: {
+            ...burden.amount,
+            value: { ...burden.amount.value, [key]: 4 },
+          },
+        }],
       }).success).toBe(false);
     },
   );
