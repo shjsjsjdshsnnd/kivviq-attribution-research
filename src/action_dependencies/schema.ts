@@ -3,6 +3,12 @@ import { z } from "zod";
 const referenceSchema = z
   .string()
   .regex(/^[A-Za-z][A-Za-z0-9_.:-]*$/);
+export const canonicalActionIdSchema = z
+  .string()
+  .regex(/^action_[A-Za-z0-9._:-]+$/);
+export const compoundActionIdSchema = z
+  .string()
+  .regex(/^compound_[A-Za-z0-9_.:-]+$/);
 const fingerprintSchema = z.string().regex(/^fnv1a64:[a-f0-9]{16}$/);
 const evaluationBoundarySchema = z.enum([
   "DECISION_TIME",
@@ -36,14 +42,14 @@ export const canonicalEntityReferenceSchema = z.discriminatedUnion(
     z
       .object({
         entityKind: z.literal("ACTION"),
-        actionId: referenceSchema,
+        actionId: canonicalActionIdSchema,
         actionFingerprint: fingerprintSchema,
       })
       .strict(),
     z
       .object({
         entityKind: z.literal("COMPOUND"),
-        compoundActionId: referenceSchema,
+        compoundActionId: compoundActionIdSchema,
         compoundFingerprint: fingerprintSchema,
       })
       .strict(),
@@ -103,7 +109,7 @@ export const actionDependenciesSchema = z
 const actionEventSubjectSchema = z
   .object({
     kind: z.literal("ACTION"),
-    actionId: referenceSchema,
+    actionId: canonicalActionIdSchema,
     actionFingerprint: fingerprintSchema,
   })
   .strict();
@@ -155,7 +161,7 @@ const dependencyEvidenceFactSchema = z.discriminatedUnion("kind", [
 export const dependencyEvidenceReceiptSchema = z
   .object({
     receiptId: referenceSchema,
-    dependentActionId: referenceSchema,
+    dependentActionId: canonicalActionIdSchema,
     dependentActionFingerprint: fingerprintSchema,
     dependencyId: referenceSchema,
     evaluationBoundary: evaluationBoundarySchema,

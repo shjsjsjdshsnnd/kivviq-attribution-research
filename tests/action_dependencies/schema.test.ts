@@ -9,13 +9,13 @@ import {
 
 const actionRef = {
   entityKind: "ACTION" as const,
-  actionId: "action.inventory-buy",
+  actionId: "action_inventory-buy",
   actionFingerprint: "fnv1a64:1111111111111111",
 };
 
 const compoundRef = {
   entityKind: "COMPOUND" as const,
-  compoundActionId: "compound.launch",
+  compoundActionId: "compound_launch",
   compoundFingerprint: "fnv1a64:2222222222222222",
 };
 
@@ -39,6 +39,33 @@ describe("action dependency definitions", () => {
       canonicalEntityReferenceSchema.safeParse({
         ...compoundRef,
         actionFingerprint: actionRef.actionFingerprint,
+      }).success,
+    ).toBe(false);
+  });
+
+  it("rejects malformed IDs and fingerprints in both reference branches", () => {
+    expect(
+      canonicalEntityReferenceSchema.safeParse({
+        ...actionRef,
+        actionId: "compound_inventory-buy",
+      }).success,
+    ).toBe(false);
+    expect(
+      canonicalEntityReferenceSchema.safeParse({
+        ...actionRef,
+        actionFingerprint: "sha256:not-a-canonical-fingerprint",
+      }).success,
+    ).toBe(false);
+    expect(
+      canonicalEntityReferenceSchema.safeParse({
+        ...compoundRef,
+        compoundActionId: "action_launch",
+      }).success,
+    ).toBe(false);
+    expect(
+      canonicalEntityReferenceSchema.safeParse({
+        ...compoundRef,
+        compoundFingerprint: "fnv1a64:xyz",
       }).success,
     ).toBe(false);
   });
@@ -117,7 +144,7 @@ describe("action dependency definitions", () => {
       kind: "ENTITY_LIFECYCLE",
       prerequisite: {
         entityKind: "ACTION",
-        actionId: "action.unknown-or-cyclic",
+        actionId: "action_unknown-or-cyclic",
         actionFingerprint: "fnv1a64:3333333333333333",
       },
       requiredState: "COMPLETED",
@@ -142,7 +169,7 @@ describe("dependency evidence inputs", () => {
   };
   const receipt = {
     receiptId: "receipt.inventory",
-    dependentActionId: "action.scale-ads",
+    dependentActionId: "action_scale-ads",
     dependentActionFingerprint: "fnv1a64:4444444444444444",
     dependencyId: common.dependencyId,
     evaluationBoundary: common.evaluationBoundary,
@@ -185,6 +212,42 @@ describe("dependency evidence inputs", () => {
     expect(actionLifecycleEventSchema.safeParse({ ...event, state: "COMPLETED" }).success).toBe(false);
     expect(actionLifecycleEventSchema.safeParse({ ...event, eventKind: "RESOLVED" }).success).toBe(false);
     expect(actionLifecycleEventSchema.safeParse({ ...event, occurredAt: "2026-09-28T08:00:00-04:00" }).success).toBe(false);
+  });
+
+  it("rejects duplicate evidence and provenance references", () => {
+    expect(
+      actionLifecycleEventSchema.safeParse({
+        ...event,
+        provenance: ["provider-event:789", "provider-event:789"],
+      }).success,
+    ).toBe(false);
+    expect(
+      dependencyEvidenceReceiptSchema.safeParse({
+        ...receipt,
+        evidenceRefs: [event.eventId, event.eventId],
+      }).success,
+    ).toBe(false);
+    expect(
+      dependencyEvidenceReceiptSchema.safeParse({
+        ...receipt,
+        provenance: ["dependency-evaluator:v1", "dependency-evaluator:v1"],
+      }).success,
+    ).toBe(false);
+  });
+
+  it("requires receipt observation time in UTC-Z form", () => {
+    expect(
+      dependencyEvidenceReceiptSchema.safeParse({
+        ...receipt,
+        observedAt: "not-a-time",
+      }).success,
+    ).toBe(false);
+    expect(
+      dependencyEvidenceReceiptSchema.safeParse({
+        ...receipt,
+        observedAt: "2026-09-28T08:01:00-04:00",
+      }).success,
+    ).toBe(false);
   });
 
   it("accepts raw gate-input pointers without asserted status", () => {
