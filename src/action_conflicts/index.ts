@@ -24,3 +24,5 @@ export type {
   NormalizedConflictRelationIdentity,
   ScopeIntersectionEvidence,
 } from "./schema.js";
+export * from "./adapters.js";
+export * from "./assessment.js";
