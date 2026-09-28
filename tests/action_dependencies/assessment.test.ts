@@ -102,6 +102,9 @@ describe("action dependency assessment", () => {
     expect(assessActionDependencies(dependent(), { ...context(), registry: [{ entityKind: "ACTION", action: { actionId: prerequisite.actionId } }] })).toMatchObject({ status: "BLOCKED" });
     for (const malformed of [null, 1, "registry"])
       expect(() => assessActionDependencies(dependent(), { ...context(), registry: [malformed] })).not.toThrow();
+    const first = assessActionDependencies(dependent(), {}), second = assessActionDependencies(dependent(), { unexpected: true });
+    expect(first).toMatchObject({ evaluatedAt: "1970-01-01T00:00:00.000Z", evaluationBoundary: "DECISION_TIME", status: "BLOCKED" });
+    expect(second.assessmentFingerprint).toBe(first.assessmentFingerprint);
   });
 
   it("replays Product A inventory availability with exact resource requirements", () => {
@@ -261,6 +264,23 @@ describe("action dependency assessment", () => {
     expect(assessActionDependencies(action, { ...context([event("EFFECTIVE")], action), registry: [{ entityKind: "COMPOUND", action: compound }] }).status).toBe("BLOCKED");
   });
 
+  it("allows same-instant dependency completion but rejects a pre-gate downstream completion", () => {
+    const downstream = canonicalActionSchema.parse({ ...prerequisite, actionId: "action_temporal_downstream" });
+    const compound = compoundActionSchema.parse({ schemaVersion: 1, kind: "compound_action", compoundActionId: "compound_temporal_gate",
+      components: [{ componentId: "root", role: "ROOT", action: prerequisite }, { componentId: "downstream", role: "DOWNSTREAM", action: downstream }], ordering: "UNORDERED", concurrency: "INDEPENDENT_TIMING",
+      dependencies: [{ kind: "REQUIRES", componentId: "downstream", dependsOn: "root", requiredState: "COMPLETED" }], atomicity: "DEPENDENCY_GATED", failurePolicy: "STOP_REMAINING",
+      rollbackPolicy: "NO_AUTOMATIC_ROLLBACK", constraints: [], populationRelationships: [], measurementHorizon: { amount: 1, unit: "DAY" }, provenance: ["compound.plan"] });
+    const action = canonicalActionSchema.parse({ ...dependent(), dependencies: [{ ...dependent().dependencies[0], prerequisite: { entityKind: "COMPOUND", compoundActionId: compound.compoundActionId, compoundFingerprint: fingerprintCompoundAction(compound) } }] });
+    const at = (target: typeof prerequisite, eventId: string, occurredAt: string) => ({ eventId, subject: { kind: "ACTION" as const, actionId: target.actionId, actionFingerprint: fingerprintCanonicalAction(target) },
+      eventKind: "COMPLETED" as const, occurredAt, sourceRef: "execution.ledger", provenance: ["execution.event"] });
+    const sameInstant = [at(prerequisite, "event_root", NOW), at(downstream, "event_downstream", NOW)];
+    const base = { ...context(sameInstant, action), registry: [{ entityKind: "COMPOUND" as const, action: compound }] };
+    expect(assessActionDependencies(action, base).status).toBe("SATISFIED");
+    expect(assessActionDependencies(action, { ...base, dependencyReceipts: context([
+      at(prerequisite, "event_root", NOW), at(downstream, "event_downstream", "2026-09-22T13:59:59.000Z"),
+    ], action).dependencyReceipts }).status).toBe("BLOCKED");
+  });
+
   it("accounts for dependency-gated root failures and skipped downstream work under every failure policy", () => {
     const downstream = canonicalActionSchema.parse({ ...prerequisite, actionId: "action_failure_downstream" });
     for (const failurePolicy of ["STOP_REMAINING", "CONTINUE_INDEPENDENT", "REQUEST_ROLLBACK"] as const) {
@@ -292,6 +312,14 @@ describe("action dependency assessment", () => {
       coverage: [{ evidenceId: "requested-evidence", fraction: 1 }], findings: [], unresolvedEvidenceIds: [], completedAt: NOW, provenance: { sourceRef: "investigation.runner", recordedAt: NOW } };
     expect(assessActionDependencies(action, { ...base, investigationResults: [result] }).status).toBe("SATISFIED");
     expect(assessActionDependencies(action, { ...base, investigationResults: [{ ...result, actionFingerprint: "fnv1a64:aaaaaaaaaaaaaaaa" }] }).status).toBe("BLOCKED");
+    const first = assessActionDependencies(action, { ...base, investigationResults: [result] });
+    const changedResult = { ...result, evidenceCollected: [{ evidenceId: "requested-evidence", artifactRef: "artifact.changed" }] };
+    const changed = assessActionDependencies(action, { ...base, investigationResults: [changedResult] });
+    expect(first.checks[0]!.evidenceRefs).toContain("artifact.inventory");
+    expect(changed.checks[0]!.evidenceRefs).toContain("artifact.changed");
+    expect(changed.assessmentFingerprint).not.toBe(first.assessmentFingerprint);
+    const earlyDownstream = events.map((value, index) => index === 1 ? { ...value, occurredAt: "2026-09-22T13:59:59.000Z" } : value);
+    expect(assessActionDependencies(action, { ...context(earlyDownstream, action), registry: base.registry, investigationResults: [result] }).status).toBe("BLOCKED");
   });
 
   it("uses the exact structured eligible-traffic check at the dependency level", () => {

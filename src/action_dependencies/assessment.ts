@@ -33,7 +33,7 @@ function compoundLifecycleState(entry: Extract<RegistryEntry, { entityKind: "COM
   const required = rank[dependency.requiredState as keyof typeof rank];
   const outcomes = (context.compoundComponentOutcomes ?? []).flatMap((candidate) => { const parsed = compoundComponentOutcomeSchema.safeParse(candidate); return parsed.success ? [parsed.data] : []; });
   const evidence: string[] = [];
-  const states = new Map<string, { reached: boolean; completed: boolean; resolved: boolean; terminal: boolean; failed: boolean }>();
+  const states = new Map<string, { reached: boolean; reachedAt?: number; completed: boolean; completedAt?: number; resolved: boolean; resolvedAt?: number; terminal: boolean; terminalAt?: number; failed: boolean }>();
   for (const component of entry.action.components) {
     const fingerprint = fingerprintCanonicalAction(component.action);
     const componentEvents = events.filter((event) => event.subject.actionId === component.action.actionId && event.subject.actionFingerprint === fingerprint);
@@ -50,14 +50,26 @@ function compoundLifecycleState(entry: Extract<RegistryEntry, { entityKind: "COM
     componentEvents.forEach((event) => evidence.push(event.eventId, event.sourceRef, ...event.provenance));
     if (outcome) evidence.push(outcome.outcomeId, outcome.sourceRef, ...outcome.provenance);
     const matchingResults = context.investigationResults.filter((candidate) => candidate && typeof candidate === "object" && (candidate as Record<string, unknown>)["actionId"] === component.action.actionId && (candidate as Record<string, unknown>)["actionFingerprint"] === fingerprint);
-    let resolved = false;
+    let resolved = false, resolvedAt: number | undefined;
     if (matchingResults.length === 1 && component.action.what.actionType === "investigation.inspect") {
       const result = matchingResults[0] as { status?: string; completedAt?: string };
       resolved = result.status === "RESOLVED" && validateInvestigationResult({ actionId: component.action.actionId, actionFingerprint: fingerprint, what: component.action.what }, result).ok &&
         typeof result.completedAt === "string" && Date.parse(result.completedAt) <= Date.parse(context.evaluatedAt) &&
         (context.maximumAgeSeconds === undefined || Date.parse(context.evaluatedAt) - Date.parse(result.completedAt) <= context.maximumAgeSeconds * 1000);
+      if (resolved) {
+        resolvedAt = Date.parse(result.completedAt!);
+        const exactResult = matchingResults[0] as { actionId: string; actionFingerprint: string; evidenceCollected: Array<{ artifactRef: string }>; provenance: { sourceRef: string; recordedAt: string } };
+        evidence.push(exactResult.actionId, exactResult.actionFingerprint, ...exactResult.evidenceCollected.map((item) => item.artifactRef), exactResult.provenance.sourceRef, exactResult.provenance.recordedAt);
+      }
     }
-    states.set(component.componentId, { reached: highest >= required, completed: highest >= rank.COMPLETED, resolved, terminal: highest >= rank.COMPLETED || !!outcome, failed: !!outcome });
+    const qualifyingTimes = componentEvents.filter((event) => rank[event.eventKind] >= required).map((event) => Date.parse(event.occurredAt));
+    const completionTimes = componentEvents.filter((event) => event.eventKind === "COMPLETED").map((event) => Date.parse(event.occurredAt));
+    const reachedAt = qualifyingTimes.length ? Math.max(...qualifyingTimes) : undefined;
+    const completedAt = completionTimes.length ? Math.max(...completionTimes) : undefined;
+    const terminalAt = completedAt ?? (outcome ? Date.parse(outcome.occurredAt) : undefined);
+    states.set(component.componentId, { reached: highest >= required, ...(reachedAt === undefined ? {} : { reachedAt }), completed: highest >= rank.COMPLETED,
+      ...(completedAt === undefined ? {} : { completedAt }), resolved, ...(resolvedAt === undefined ? {} : { resolvedAt }), terminal: highest >= rank.COMPLETED || !!outcome,
+      ...(terminalAt === undefined ? {} : { terminalAt }), failed: !!outcome });
   }
   const values = [...states.values()];
   if (entry.action.atomicity === "ALL_OR_NOTHING") {
@@ -77,6 +89,15 @@ function compoundLifecycleState(entry: Extract<RegistryEntry, { entityKind: "COM
       ? edge.requiredState === "COMPLETED" ? states.get(edge.dependsOn)!.completed : states.get(edge.dependsOn)!.resolved
       : states.get(edge.dependsOn)!.completed);
     const blockedByFailure = dependencies.some((prerequisite) => prerequisite.failed);
+    const gateTimes = dependencyEdges.flatMap((edge) => {
+      const prerequisite = states.get(edge.dependsOn)!;
+      const at = edge.kind === "REQUIRES" && edge.requiredState === "RESOLVED" ? prerequisite.resolvedAt : prerequisite.completedAt;
+      return at === undefined ? [] : [at];
+    });
+    const gateAt = gateTimes.length ? Math.max(...gateTimes) : undefined;
+    const downstreamAt = dependency.requiredState === "COMPLETED" ? state.terminalAt : state.reachedAt;
+    if (unblocked && gateAt !== undefined && downstreamAt !== undefined && downstreamAt < gateAt)
+      return unknown(dependency, "DOWNSTREAM_EVENT_PRECEDES_PREREQUISITE", [component.componentId]);
     if (dependency.requiredState === "COMPLETED") {
       if ((unblocked || blockedByFailure) && !state.terminal) return unknown(dependency, blockedByFailure ? "SKIPPED_COMPONENT_OUTCOME_REQUIRED" : "UNBLOCKED_COMPONENT_TERMINAL_OUTCOME_REQUIRED", [component.componentId]);
       if (!unblocked && !blockedByFailure) return unknown(dependency, "PREREQUISITE_COMPONENT_NOT_COMPLETED", [component.componentId]);
@@ -189,6 +210,11 @@ export function assessActionDependencies(input: unknown, contextInput: unknown):
     (candidate["compoundComponentOutcomes"] === undefined || Array.isArray(candidate["compoundComponentOutcomes"])) &&
     Object.keys(candidate).every((key) => allowedContextKeys.has(key)) &&
     (maximumAge === undefined || (typeof maximumAge === "number" && Number.isSafeInteger(maximumAge) && maximumAge >= 0));
+  if (!contextShapeValid) {
+    const checks = action.dependencies.map((dependency) => violated(dependency, "INVALID_DEPENDENCY_CONTEXT"));
+    const projection = { actionId: action.actionId, actionFingerprint: fingerprint, evaluatedAt: "1970-01-01T00:00:00.000Z", evaluationBoundary: "DECISION_TIME" as const, status: "BLOCKED" as const, checks };
+    return { ...projection, assessmentFingerprint: fingerprintDependencyAssessment(projection) };
+  }
   const context = candidate as unknown as DependencyAssessmentContext;
   const validClock = typeof context?.evaluatedAt === "string" && context.evaluatedAt.endsWith("Z") && Number.isFinite(Date.parse(context.evaluatedAt));
   const validBoundary = ["DECISION_TIME", "TRANSLATION_TIME", "EFFECTIVE_TIME"].includes(context?.evaluationBoundary);
@@ -205,7 +231,7 @@ export function assessActionDependencies(input: unknown, contextInput: unknown):
   const outcomeIds = outcomeResults.flatMap((result) => result.success ? [result.data.outcomeId] : []);
   const outcomesInvalid = outcomeResults.some((result) => !result.success) || new Set(outcomeIds).size !== outcomeIds.length;
   let checks: DependencyCheck[];
-  if (!contextShapeValid || !validClock || !validBoundary || registryResults.some((result) => !result.valid) || receiptResults.some((result) => !result.success) || outcomesInvalid || hasCycle(action, registry)) checks = action.dependencies.map((dependency) => violated(dependency, !contextShapeValid || !validClock || !validBoundary || registryResults.some((result) => !result.valid) || receiptResults.some((result) => !result.success) || outcomesInvalid ? "INVALID_DEPENDENCY_CONTEXT" : "DEPENDENCY_CYCLE"));
+  if (!validClock || !validBoundary || registryResults.some((result) => !result.valid) || receiptResults.some((result) => !result.success) || outcomesInvalid || hasCycle(action, registry)) checks = action.dependencies.map((dependency) => violated(dependency, !validClock || !validBoundary || registryResults.some((result) => !result.valid) || receiptResults.some((result) => !result.success) || outcomesInvalid ? "INVALID_DEPENDENCY_CONTEXT" : "DEPENDENCY_CYCLE"));
   else checks = action.dependencies.map((dependency) => {
     if (dependency.evaluationBoundary !== context.evaluationBoundary) return unknown(dependency, "DEPENDENCY_BOUNDARY_NOT_SELECTED", [dependency.evaluationBoundary]);
     const exact = receipts.filter((receipt) => receipt.dependentActionId === action.actionId && receipt.dependentActionFingerprint === fingerprint && receipt.dependencyId === dependency.dependencyId && receipt.evaluationBoundary === dependency.evaluationBoundary);
