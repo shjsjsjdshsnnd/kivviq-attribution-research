@@ -120,6 +120,20 @@ export class InteractiveReplayWorld {
   evaluatorSnapshot(): EvaluatorWorldBundle { return structuredClone(this.#bundle); }
 
   observedHandle(): ObservedWorldHandle {
-    return Object.freeze({ observe: () => this.observe(), step: (actionId: string) => this.step(actionId) });
+    const guarded = (operation: () => unknown): CorruptedObservation => {
+      try { return parseOperatorObservation(operation()); }
+      catch (error) {
+        if (error instanceof RangeError && ["unregistered action", "world horizon exhausted"].includes(error.message)) {
+          throw new RangeError(error.message);
+        }
+        // Never attach a cause or serialize simulator exceptions: those may
+        // contain latent identifiers, coefficients, seeds or hidden diagnostics.
+        throw new Error("OBSERVED_WORLD_OPERATION_FAILED");
+      }
+    };
+    return Object.freeze({
+      observe: () => guarded(() => this.observe()),
+      step: (actionId: string) => guarded(() => this.step(actionId)),
+    });
   }
 }
