@@ -276,7 +276,8 @@ export function assessExperimentReadiness(
   const trafficSourceMatches = !!rawTrafficSource && fingerprintExperimentTrafficSource(rawTrafficSource) === traffic.rawSourceFingerprint;
   if (!trafficSourceMatches)
     blocked("ELIGIBLE_TRAFFIC_SOURCE_MISMATCH");
-  if (Date.parse(traffic.evaluatedAt) > Date.parse(context.timing.approvedClock))
+  const trafficEvaluationFuture = Date.parse(traffic.evaluatedAt) > Date.parse(context.timing.approvedClock);
+  if (trafficEvaluationFuture)
     blocked("FUTURE_TRAFFIC_EVIDENCE");
   const trafficFuture = Date.parse(traffic.rawSourceObservedAt) > Date.parse(context.timing.approvedClock);
   if (trafficFuture)
@@ -314,13 +315,16 @@ export function assessExperimentReadiness(
     ...(!trafficPopulationMatches ? ["ELIGIBLE_TRAFFIC_POPULATION_MISMATCH"] : []),
     ...(!trafficExperimentMatches ? ["ELIGIBLE_TRAFFIC_EXPERIMENT_MISMATCH"] : []),
     ...(!trafficSourceMatches ? ["ELIGIBLE_TRAFFIC_SOURCE_MISMATCH"] : []),
+    ...(trafficEvaluationFuture ? ["FUTURE_TRAFFIC_EVIDENCE"] : []),
     ...(trafficFuture ? ["FUTURE_ELIGIBLE_TRAFFIC_SOURCE"] : []),
     ...(trafficStale ? ["STALE_ELIGIBLE_TRAFFIC_SOURCE"] : []),
     ...(trafficInsufficient ? ["INSUFFICIENT_ELIGIBLE_TRAFFIC"] : []),
+    ...(what.stopping.sampleTarget === undefined ? ["ELIGIBLE_TRAFFIC_SAMPLE_TARGET_REQUIRED"] : []),
   ];
   const trafficCheck: ExperimentReadinessCheck = {
     checkId: "SUFFICIENT_ELIGIBLE_TRAFFIC",
-    status: trafficReasonCodes.length ? "BLOCKED" : eligibleCount === undefined || bindingTime === undefined ? "UNKNOWN" : "SATISFIED",
+    status: what.stopping.sampleTarget === undefined || eligibleCount === undefined || bindingTime === undefined
+      ? "UNKNOWN" : trafficReasonCodes.length ? "BLOCKED" : "SATISFIED",
     experimentActionFingerprint: fingerprintCanonicalAction(action), populationId: populationRef.populationId,
     populationVersion: populationRef.version, populationFingerprint: populationRef.definitionFingerprint,
     ...(bindingTime ? { bindingTime } : {}), ...(what.stopping.sampleTarget !== undefined ? { sampleTarget: what.stopping.sampleTarget } : {}),

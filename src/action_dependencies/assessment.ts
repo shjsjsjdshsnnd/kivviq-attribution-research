@@ -33,7 +33,7 @@ function compoundLifecycleState(entry: Extract<RegistryEntry, { entityKind: "COM
   const required = rank[dependency.requiredState as keyof typeof rank];
   const outcomes = (context.compoundComponentOutcomes ?? []).flatMap((candidate) => { const parsed = compoundComponentOutcomeSchema.safeParse(candidate); return parsed.success ? [parsed.data] : []; });
   const evidence: string[] = [];
-  const states = new Map<string, { reached: boolean; completed: boolean; terminal: boolean; failed: boolean }>();
+  const states = new Map<string, { reached: boolean; completed: boolean; resolved: boolean; terminal: boolean; failed: boolean }>();
   for (const component of entry.action.components) {
     const fingerprint = fingerprintCanonicalAction(component.action);
     const componentEvents = events.filter((event) => event.subject.actionId === component.action.actionId && event.subject.actionFingerprint === fingerprint);
@@ -49,7 +49,15 @@ function compoundLifecycleState(entry: Extract<RegistryEntry, { entityKind: "COM
     if (outcome && highest >= rank.COMPLETED) return violated(dependency, "CONFLICTING_COMPONENT_TERMINAL_EVIDENCE", [component.componentId]);
     componentEvents.forEach((event) => evidence.push(event.eventId, event.sourceRef, ...event.provenance));
     if (outcome) evidence.push(outcome.outcomeId, outcome.sourceRef, ...outcome.provenance);
-    states.set(component.componentId, { reached: highest >= required, completed: highest >= rank.COMPLETED, terminal: highest >= rank.COMPLETED || !!outcome, failed: !!outcome });
+    const matchingResults = context.investigationResults.filter((candidate) => candidate && typeof candidate === "object" && (candidate as Record<string, unknown>)["actionId"] === component.action.actionId && (candidate as Record<string, unknown>)["actionFingerprint"] === fingerprint);
+    let resolved = false;
+    if (matchingResults.length === 1 && component.action.what.actionType === "investigation.inspect") {
+      const result = matchingResults[0] as { status?: string; completedAt?: string };
+      resolved = result.status === "RESOLVED" && validateInvestigationResult({ actionId: component.action.actionId, actionFingerprint: fingerprint, what: component.action.what }, result).ok &&
+        typeof result.completedAt === "string" && Date.parse(result.completedAt) <= Date.parse(context.evaluatedAt) &&
+        (context.maximumAgeSeconds === undefined || Date.parse(context.evaluatedAt) - Date.parse(result.completedAt) <= context.maximumAgeSeconds * 1000);
+    }
+    states.set(component.componentId, { reached: highest >= required, completed: highest >= rank.COMPLETED, resolved, terminal: highest >= rank.COMPLETED || !!outcome, failed: !!outcome });
   }
   const values = [...states.values()];
   if (entry.action.atomicity === "ALL_OR_NOTHING") {
@@ -58,12 +66,16 @@ function compoundLifecycleState(entry: Extract<RegistryEntry, { entityKind: "COM
   }
   if (entry.action.atomicity === "BEST_EFFORT") {
     if (dependency.requiredState === "COMPLETED") return values.every((value) => value.terminal) && values.some((value) => value.completed) ? satisfied(dependency, "COMPOUND_TERMINAL_OUTCOMES_ACCOUNTED", evidence) : unknown(dependency, "MISSING_COMPONENT_TERMINAL_OUTCOME", [entry.action.compoundActionId]);
-    return values.some((value) => value.reached) ? satisfied(dependency, "REQUIRED_LIFECYCLE_STATE_OBSERVED", evidence) : unknown(dependency, "MISSING_LIFECYCLE_EVIDENCE", [entry.action.compoundActionId]);
+    if (dependency.requiredState === "STARTED") return values.some((value) => value.reached) ? satisfied(dependency, "REQUIRED_LIFECYCLE_STATE_OBSERVED", evidence) : unknown(dependency, "MISSING_LIFECYCLE_EVIDENCE", [entry.action.compoundActionId]);
+    return values.every((value) => value.reached || value.terminal) && values.some((value) => value.reached) ? satisfied(dependency, "BEST_EFFORT_ATTEMPTS_ACCOUNTED", evidence) : unknown(dependency, "UNACCOUNTED_BEST_EFFORT_COMPONENT", [entry.action.compoundActionId]);
   }
   for (const component of entry.action.components) {
     const state = states.get(component.componentId)!;
-    const dependencies = entry.action.dependencies.filter((edge) => edge.componentId === component.componentId).map((edge) => states.get(edge.dependsOn)!);
-    const unblocked = dependencies.length === 0 || dependencies.every((prerequisite) => prerequisite.completed);
+    const dependencyEdges = entry.action.dependencies.filter((edge) => edge.componentId === component.componentId);
+    const dependencies = dependencyEdges.map((edge) => states.get(edge.dependsOn)!);
+    const unblocked = dependencyEdges.length === 0 || dependencyEdges.every((edge) => edge.kind === "REQUIRES"
+      ? edge.requiredState === "COMPLETED" ? states.get(edge.dependsOn)!.completed : states.get(edge.dependsOn)!.resolved
+      : states.get(edge.dependsOn)!.completed);
     const blockedByFailure = dependencies.some((prerequisite) => prerequisite.failed);
     if (dependency.requiredState === "COMPLETED") {
       if ((unblocked || blockedByFailure) && !state.terminal) return unknown(dependency, blockedByFailure ? "SKIPPED_COMPONENT_OUTCOME_REQUIRED" : "UNBLOCKED_COMPONENT_TERMINAL_OUTCOME_REQUIRED", [component.componentId]);
@@ -180,7 +192,12 @@ export function assessActionDependencies(input: unknown, contextInput: unknown):
   const context = candidate as unknown as DependencyAssessmentContext;
   const validClock = typeof context?.evaluatedAt === "string" && context.evaluatedAt.endsWith("Z") && Number.isFinite(Date.parse(context.evaluatedAt));
   const validBoundary = ["DECISION_TIME", "TRANSLATION_TIME", "EFFECTIVE_TIME"].includes(context?.evaluationBoundary);
-  const registryResults = (context?.registry ?? []).map((entry) => { const parsed = entry.entityKind === "ACTION" ? canonicalActionSchema.safeParse(entry.action) : entry.entityKind === "COMPOUND" ? compoundActionSchema.safeParse(entry.action) : { success: false as const }; return parsed.success ? { valid: true as const, entry: { entityKind: entry.entityKind, action: parsed.data } as RegistryEntry } : { valid: false as const }; });
+  const registryResults = (context?.registry ?? []).map((candidate) => {
+    if (!candidate || typeof candidate !== "object" || Array.isArray(candidate)) return { valid: false as const };
+    const entry = candidate as Record<string, unknown>;
+    const parsed = entry["entityKind"] === "ACTION" ? canonicalActionSchema.safeParse(entry["action"]) : entry["entityKind"] === "COMPOUND" ? compoundActionSchema.safeParse(entry["action"]) : { success: false as const };
+    return parsed.success ? { valid: true as const, entry: { entityKind: entry["entityKind"], action: parsed.data } as RegistryEntry } : { valid: false as const };
+  });
   const registry = registryResults.flatMap((result) => result.valid ? [result.entry] : []);
   const receiptResults = (context?.dependencyReceipts ?? []).map((receipt) => dependencyEvidenceReceiptSchema.safeParse(receipt));
   const receipts = receiptResults.flatMap((result) => result.success ? [result.data] : []);

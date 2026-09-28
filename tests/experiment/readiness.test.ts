@@ -167,6 +167,16 @@ describe("experiment readiness", () => {
     expect(result.checks).toMatchObject([{ checkId: "SUFFICIENT_ELIGIBLE_TRAFFIC", status: "SATISFIED" }]);
   });
 
+  it("does not claim sufficient traffic for future traffic metadata or an absent sample target", () => {
+    expect(assessExperimentReadiness(experiment(), context({ eligibleTraffic: {
+      ...context().eligibleTraffic, evaluatedAt: "2026-09-22T15:00:00.000Z",
+    } })).checks).toMatchObject([{ checkId: "SUFFICIENT_ELIGIBLE_TRAFFIC", status: "BLOCKED", reasonCodes: expect.arrayContaining(["FUTURE_TRAFFIC_EVIDENCE"]) }]);
+    const timingOnly = experiment({ stopping: { kind: "FIXED", timingHorizon: "ENVELOPE_TIMING" } });
+    expect(assessExperimentReadiness(timingOnly, context({}, timingOnly)).checks).toMatchObject([{
+      checkId: "SUFFICIENT_ELIGIBLE_TRAFFIC", status: "UNKNOWN", reasonCodes: expect.arrayContaining(["ELIGIBLE_TRAFFIC_SAMPLE_TARGET_REQUIRED"]),
+    }]);
+  });
+
   it("reports missing arms as UNKNOWN and fingerprint mismatches as BLOCKED", () => {
     expect(assessExperimentReadiness(experiment(), context({ armRegistry: [{ entityKind: "ACTION", action: control }] })).status).toBe("UNKNOWN");
     expect(assessExperimentReadiness(experiment(), context({ armRegistry: [{ entityKind: "ACTION", action: control }] }))).toMatchObject({

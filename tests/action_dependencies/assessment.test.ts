@@ -6,6 +6,8 @@ import { investigationExamples } from "../../src/decision_forms/fixtures.js";
 import { createCanonicalFixtures } from "../../src/canonical_action/fixtures.js";
 import { evaluateEligibilityForTest } from "../action_translation/eligibility-helper.js";
 import { compoundActionSchema, fingerprintCompoundAction } from "../../src/compound_action/index.js";
+import { evaluatePopulation, fingerprintPopulationDefinition } from "../../src/population/index.js";
+import { fingerprintExperimentTrafficSource } from "../../src/experiment/index.js";
 
 const NOW = "2026-09-22T14:00:00.000Z";
 const prerequisite = canonicalActionSchema.parse({
@@ -98,6 +100,8 @@ describe("action dependency assessment", () => {
     expect(assessActionDependencies({}, {})).toMatchObject({ status: "BLOCKED" });
     expect(assessActionDependencies(dependent(), { ...context(), maximumAgeSeconds: Number.POSITIVE_INFINITY })).toMatchObject({ status: "BLOCKED" });
     expect(assessActionDependencies(dependent(), { ...context(), registry: [{ entityKind: "ACTION", action: { actionId: prerequisite.actionId } }] })).toMatchObject({ status: "BLOCKED" });
+    for (const malformed of [null, 1, "registry"])
+      expect(() => assessActionDependencies(dependent(), { ...context(), registry: [malformed] })).not.toThrow();
   });
 
   it("replays Product A inventory availability with exact resource requirements", () => {
@@ -248,6 +252,15 @@ describe("action dependency assessment", () => {
     }
   });
 
+  it("does not mark BEST_EFFORT effective while a permitted component is unaccounted", () => {
+    const second = canonicalActionSchema.parse({ ...prerequisite, actionId: "action_best_effort_unaccounted" });
+    const compound = compoundActionSchema.parse({ schemaVersion: 1, kind: "compound_action", compoundActionId: "compound_best_effort_unaccounted",
+      components: [{ componentId: "first", role: "PRIMARY", action: prerequisite }, { componentId: "second", role: "SECONDARY", action: second }], ordering: "UNORDERED", concurrency: "INDEPENDENT_TIMING", dependencies: [],
+      atomicity: "BEST_EFFORT", failurePolicy: "CONTINUE_INDEPENDENT", rollbackPolicy: "NO_AUTOMATIC_ROLLBACK", constraints: [], populationRelationships: [], measurementHorizon: { amount: 1, unit: "DAY" }, provenance: ["compound.plan"] });
+    const action = canonicalActionSchema.parse({ ...dependent("EFFECTIVE"), dependencies: [{ ...dependent("EFFECTIVE").dependencies[0], prerequisite: { entityKind: "COMPOUND", compoundActionId: compound.compoundActionId, compoundFingerprint: fingerprintCompoundAction(compound) } }] });
+    expect(assessActionDependencies(action, { ...context([event("EFFECTIVE")], action), registry: [{ entityKind: "COMPOUND", action: compound }] }).status).toBe("BLOCKED");
+  });
+
   it("accounts for dependency-gated root failures and skipped downstream work under every failure policy", () => {
     const downstream = canonicalActionSchema.parse({ ...prerequisite, actionId: "action_failure_downstream" });
     for (const failurePolicy of ["STOP_REMAINING", "CONTINUE_INDEPENDENT", "REQUEST_ROLLBACK"] as const) {
@@ -261,5 +274,59 @@ describe("action dependency assessment", () => {
         occurredAt: NOW, sourceRef: "execution.ledger", provenance: ["execution.outcome"] }));
       expect(assessActionDependencies(action, { ...context([event("STARTED")], action), registry: [{ entityKind: "COMPOUND", action: compound }], compoundComponentOutcomes: outcomes }).status).toBe("SATISFIED");
     }
+  });
+
+  it("requires a validated investigation result to unblock a compound RESOLVED edge", () => {
+    const investigation = canonicalActionSchema.parse({ ...prerequisite, actionId: "action_compound_investigation", what: investigationExamples.supplierLeadTime });
+    const downstream = canonicalActionSchema.parse({ ...prerequisite, actionId: "action_after_investigation" });
+    const compound = compoundActionSchema.parse({ schemaVersion: 1, kind: "compound_action", compoundActionId: "compound_resolved_edge",
+      components: [{ componentId: "investigate", role: "PREREQUISITE", action: investigation }, { componentId: "act", role: "PRIMARY", action: downstream }], ordering: "UNORDERED", concurrency: "INDEPENDENT_TIMING",
+      dependencies: [{ kind: "REQUIRES", componentId: "act", dependsOn: "investigate", requiredState: "RESOLVED" }], atomicity: "DEPENDENCY_GATED", failurePolicy: "STOP_REMAINING",
+      rollbackPolicy: "NO_AUTOMATIC_ROLLBACK", constraints: [], populationRelationships: [], measurementHorizon: { amount: 1, unit: "DAY" }, provenance: ["compound.plan"] });
+    const action = canonicalActionSchema.parse({ ...dependent(), dependencies: [{ ...dependent().dependencies[0], prerequisite: { entityKind: "COMPOUND", compoundActionId: compound.compoundActionId, compoundFingerprint: fingerprintCompoundAction(compound) } }] });
+    const events = [investigation, downstream].map((component, index) => ({ eventId: `event_resolved_${index}`, subject: { kind: "ACTION" as const, actionId: component.actionId, actionFingerprint: fingerprintCanonicalAction(component) },
+      eventKind: "COMPLETED" as const, occurredAt: NOW, sourceRef: "execution.ledger", provenance: ["execution.event"] }));
+    const base = { ...context(events, action), registry: [{ entityKind: "COMPOUND" as const, action: compound }] };
+    expect(assessActionDependencies(action, base).status).toBe("BLOCKED");
+    const result = { actionId: investigation.actionId, actionFingerprint: fingerprintCanonicalAction(investigation), status: "RESOLVED", evidenceCollected: [{ evidenceId: "requested-evidence", artifactRef: "artifact.inventory" }],
+      coverage: [{ evidenceId: "requested-evidence", fraction: 1 }], findings: [], unresolvedEvidenceIds: [], completedAt: NOW, provenance: { sourceRef: "investigation.runner", recordedAt: NOW } };
+    expect(assessActionDependencies(action, { ...base, investigationResults: [result] }).status).toBe("SATISFIED");
+    expect(assessActionDependencies(action, { ...base, investigationResults: [{ ...result, actionFingerprint: "fnv1a64:aaaaaaaaaaaaaaaa" }] }).status).toBe("BLOCKED");
+  });
+
+  it("uses the exact structured eligible-traffic check at the dependency level", () => {
+    const definition = { schemaVersion: 1 as const, populationId: "population_dependency_traffic", version: 1, universe: "ALL_CUSTOMERS" as const,
+      inclusion: { kind: "COMPLETED_ORDER_COUNT" as const, operator: "GTE" as const, value: 0 }, exclusions: [], membershipMode: "DYNAMIC_MEMBERSHIP" as const,
+      binding: "DECISION_TIME" as const, provenance: ["evidence_population"] };
+    const evaluation = evaluatePopulation(definition, { evaluatedAt: NOW, customers: [{ customerId: "customer_one", completedOrderCount: 1 }, { customerId: "customer_two", completedOrderCount: 1 }] });
+    const population = { populationId: definition.populationId, version: 1, definitionFingerprint: fingerprintPopulationDefinition(definition), binding: definition.binding, membershipMode: definition.membershipMode };
+    const treatment = canonicalActionSchema.parse({ ...prerequisite, actionId: "action_traffic_treatment", what: { actionType: "no_op.do_nothing", scope: { kind: "FAMILY", family: "PRICING" } } });
+    const makeAction = (sampleTarget?: number) => canonicalActionSchema.parse({ ...dependent(), actionId: "action_traffic_experiment", population,
+      dependencies: [{ dependencyId: "traffic_gate", kind: "EXPERIMENT_READINESS_GATE", requirement: "SUFFICIENT_ELIGIBLE_TRAFFIC", evaluationBoundary: "TRANSLATION_TIME", whenUnknown: "BLOCKED" }],
+      what: { actionType: "experiment.run", hypothesisRef: "hypothesis_traffic", primaryMetricRef: "metric_traffic", randomizationUnit: "CUSTOMER",
+        assignmentBoundary: { kind: "USE_ENVELOPE_POPULATION_BINDING" }, arms: [
+          { armId: "arm_control", role: "CONTROL", actionId: prerequisite.actionId, actionFingerprint: fingerprintCanonicalAction(prerequisite), allocationBasisPoints: 5000 },
+          { armId: "arm_treatment", role: "TREATMENT", actionId: treatment.actionId, actionFingerprint: fingerprintCanonicalAction(treatment), allocationBasisPoints: 5000 }],
+        stopping: sampleTarget === undefined ? { kind: "FIXED", timingHorizon: "ENVELOPE_TIMING" } : { kind: "FIXED", sampleTarget },
+        measurementWindow: { start: "2026-09-25T04:00:00Z", end: "2026-09-26T04:00:00Z" } } });
+    const readiness = (action: ReturnType<typeof makeAction>, overrides: Record<string, unknown> = {}) => ({ armRegistry: [{ entityKind: "ACTION", action: prerequisite }, { entityKind: "ACTION", action: treatment }], graphRegistry: [],
+      timing: { approvedClock: NOW }, populations: [definition], evaluations: [evaluation], bindingTimes: { DECISION_TIME: NOW }, metricDefinitions: [{ metricRef: "metric_traffic", evidenceRefs: ["metric.evidence"] }],
+      eligibleTraffic: { experimentActionFingerprint: fingerprintCanonicalAction(action), ...population, evaluatedAt: NOW, rawSourceObservedAt: NOW,
+        rawSourceFingerprint: fingerprintExperimentTrafficSource(evaluation), maximumAgeSeconds: 3600, evidenceRefs: ["traffic.evidence"] },
+      engineCapability: { status: "AVAILABLE", randomizationUnits: ["CUSTOMER"], evidenceRefs: ["engine.evidence"] }, customRandomizationRegistrations: [], ...overrides });
+    const assess = (action: ReturnType<typeof makeAction>, readinessContext: Record<string, unknown>) => assessActionDependencies(action, {
+      ...context([], action), experimentReadinessContexts: { traffic_gate: readinessContext },
+    });
+    const action = makeAction(2);
+    expect(assess(action, readiness(action)).status).toBe("SATISFIED");
+    expect(assess(action, readiness(action, { engineCapability: { status: "UNAVAILABLE", randomizationUnits: ["CUSTOMER"], evidenceRefs: ["engine.evidence"] } })).status).toBe("SATISFIED");
+    for (const eligibleTraffic of [
+      { ...readiness(action).eligibleTraffic, evaluatedAt: "2026-09-22T15:00:00.000Z" },
+      { ...readiness(action).eligibleTraffic, rawSourceObservedAt: "2026-09-22T12:00:00.000Z", maximumAgeSeconds: 60 },
+      { ...readiness(action).eligibleTraffic, rawSourceFingerprint: "fnv1a64:aaaaaaaaaaaaaaaa" },
+      { ...readiness(action).eligibleTraffic, populationId: "population_other" },
+    ]) expect(assess(action, readiness(action, { eligibleTraffic })).status).toBe("BLOCKED");
+    expect(assess(makeAction(), readiness(makeAction())) .status).toBe("BLOCKED");
+    expect(assess(makeAction(3), readiness(makeAction(3))).status).toBe("BLOCKED");
   });
 });
