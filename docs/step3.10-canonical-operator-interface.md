@@ -254,11 +254,11 @@ For current Steps 3.2–3.9, no such incompatibility was required: the generic a
 
 Validated head:
 
-`a25b0c5683077ac6cfbd6a5000142eed4ddd538f`
+`3fbc5c9396f2471c7c6fdd5fb73b50cb107dcaf3`
 
 GitHub Actions run:
 
-`35995888503`
+`35996307154`
 
 Results:
 
