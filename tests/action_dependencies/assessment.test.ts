@@ -132,6 +132,41 @@ describe("action dependency assessment", () => {
     expect(assessActionDependencies(a, { ...context([], a), registry: [{ entityKind: "ACTION", action: a }, { entityKind: "ACTION", action: b }] })).toMatchObject({
       status: "BLOCKED", checks: [{ reasonCodes: ["DEPENDENCY_CYCLE"] }],
     });
+    const c = canonicalActionSchema.parse({ ...prerequisite, actionId: "action_cycle_c", dependencies: [{ dependencyId: "needs_a", kind: "ENTITY_LIFECYCLE",
+      prerequisite: { entityKind: "ACTION", actionId: "action_cycle_a", actionFingerprint: "fnv1a64:aaaaaaaaaaaaaaaa" }, requiredState: "COMPLETED", evaluationBoundary: "TRANSLATION_TIME", whenUnknown: "BLOCKED" }] });
+    const transitiveB = canonicalActionSchema.parse({ ...b, dependencies: [{ ...b.dependencies[0], prerequisite: { entityKind: "ACTION", actionId: c.actionId, actionFingerprint: "fnv1a64:cccccccccccccccc" } }] });
+    expect(assessActionDependencies(a, { ...context([], a), registry: [{ entityKind: "ACTION", action: a }, { entityKind: "ACTION", action: transitiveB }, { entityKind: "ACTION", action: c }] }).status).toBe("BLOCKED");
+
+    const nested = canonicalActionSchema.parse({ ...prerequisite, actionId: "action_nested_cycle", dependencies: [{ dependencyId: "nested_needs_root", kind: "ENTITY_LIFECYCLE",
+      prerequisite: { entityKind: "ACTION", actionId: a.actionId, actionFingerprint: "fnv1a64:aaaaaaaaaaaaaaaa" }, requiredState: "COMPLETED", evaluationBoundary: "TRANSLATION_TIME", whenUnknown: "BLOCKED" }] });
+    const compound = compoundActionSchema.parse({ schemaVersion: 1, kind: "compound_action", compoundActionId: "compound_action_cycle", components: [
+      { componentId: "nested", role: "PRIMARY", action: nested }, { componentId: "support", role: "SUPPORT", action: prerequisite }], ordering: "UNORDERED", concurrency: "INDEPENDENT_TIMING", dependencies: [],
+      atomicity: "ALL_OR_NOTHING", failurePolicy: "STOP_REMAINING", rollbackPolicy: "NO_AUTOMATIC_ROLLBACK", constraints: [], populationRelationships: [], measurementHorizon: { amount: 1, unit: "DAY" }, provenance: ["compound.plan"] });
+    const rootToCompound = canonicalActionSchema.parse({ ...a, dependencies: [{ ...a.dependencies[0], prerequisite: { entityKind: "COMPOUND", compoundActionId: compound.compoundActionId, compoundFingerprint: fingerprintCompoundAction(compound) } }] });
+    expect(assessActionDependencies(rootToCompound, { ...context([], rootToCompound), registry: [{ entityKind: "COMPOUND", action: compound }] }).status).toBe("BLOCKED");
+  });
+
+  it("distinguishes missing registry references from fingerprint mismatches", () => {
+    const action = dependent();
+    expect(assessActionDependencies(action, { ...context(), registry: [] }).checks[0]).toMatchObject({ reasonCodes: ["MISSING_PREREQUISITE_REGISTRY"] });
+    const changed = canonicalActionSchema.parse({ ...prerequisite, what: { actionType: "no_op.do_nothing", scope: { kind: "FAMILY", family: "PRICING" } } });
+    expect(assessActionDependencies(action, { ...context(), registry: [{ entityKind: "ACTION", action: changed }] }).checks[0]).toMatchObject({ reasonCodes: ["PREREQUISITE_FINGERPRINT_MISMATCH"] });
+  });
+
+  it("detects cycles through experiment arms", () => {
+    const population = canonicalActionSchema.parse(createCanonicalFixtures().find((fixture) => fixture.number === 6)!.action).population!;
+    const experimentWhat = (treatmentId: string, treatmentFingerprint: string) => ({ actionType: "experiment.run" as const, hypothesisRef: "hypothesis_cycle", primaryMetricRef: "metric_cycle",
+      randomizationUnit: "CUSTOMER" as const, assignmentBoundary: { kind: "USE_ENVELOPE_POPULATION_BINDING" as const },
+      arms: [{ armId: "arm_control", role: "CONTROL" as const, actionId: prerequisite.actionId, actionFingerprint: fingerprintCanonicalAction(prerequisite), allocationBasisPoints: 5000 },
+        { armId: "arm_treatment", role: "TREATMENT" as const, actionId: treatmentId, actionFingerprint: treatmentFingerprint, allocationBasisPoints: 5000 }],
+      stopping: { kind: "FIXED" as const, sampleTarget: 10 }, measurementWindow: { start: "2026-09-25T04:00:00Z", end: "2026-09-26T04:00:00Z" } });
+    const experimentB = canonicalActionSchema.parse({ schemaVersion: "2.0.0", actionId: "action_experiment_cycle_b", population, timing: fridaySevenDayBudgetTiming,
+      what: experimentWhat("action_experiment_cycle_a", "fnv1a64:aaaaaaaaaaaaaaaa"), provenance: ["experiment.plan"] });
+    const experimentA = canonicalActionSchema.parse({ ...dependent(), actionId: "action_experiment_cycle_a", population,
+      what: experimentWhat(experimentB.actionId, fingerprintCanonicalAction(experimentB)) });
+    expect(assessActionDependencies(experimentA, { ...context([], experimentA), registry: [
+      { entityKind: "ACTION", action: prerequisite }, { entityKind: "ACTION", action: experimentB }, { entityKind: "ACTION", action: experimentA },
+    ] })).toMatchObject({ status: "BLOCKED", checks: [{ reasonCodes: ["DEPENDENCY_CYCLE"] }] });
   });
 
   it("never accepts a lifecycle wrapper status or compound-level lifecycle event", () => {
@@ -190,6 +225,41 @@ describe("action dependency assessment", () => {
         occurredAt: NOW, sourceRef: "execution.ledger", provenance: ["execution.outcome"] };
       const result = assessActionDependencies(action, { ...context([event()], action), registry: [{ entityKind: "COMPOUND", action: compound }], compoundComponentOutcomes: [outcome] });
       expect(result.status).toBe(atomicity === "ALL_OR_NOTHING" ? "BLOCKED" : "SATISFIED");
+    }
+  });
+
+  it("derives STARTED, EFFECTIVE, and COMPLETED for every compound atomicity mode", () => {
+    const second = canonicalActionSchema.parse({ ...prerequisite, actionId: "action_compound_second" });
+    const eventFor = (action: typeof prerequisite, kind: "STARTED" | "EFFECTIVE" | "COMPLETED", id: string) => ({
+      eventId: id, subject: { kind: "ACTION" as const, actionId: action.actionId, actionFingerprint: fingerprintCanonicalAction(action) },
+      eventKind: kind, occurredAt: NOW, sourceRef: "execution.ledger", provenance: ["execution.event"],
+    });
+    for (const atomicity of ["ALL_OR_NOTHING", "BEST_EFFORT", "DEPENDENCY_GATED"] as const) for (const requiredState of ["STARTED", "EFFECTIVE", "COMPLETED"] as const) {
+      const compound = compoundActionSchema.parse({ schemaVersion: 1, kind: "compound_action", compoundActionId: `compound_matrix_${atomicity.toLowerCase()}_${requiredState.toLowerCase()}`,
+        components: [{ componentId: "root", role: "PRIMARY", action: prerequisite }, { componentId: "downstream", role: "FOLLOWUP", action: second }],
+        ordering: "UNORDERED", concurrency: "INDEPENDENT_TIMING", dependencies: atomicity === "DEPENDENCY_GATED" ? [{ kind: "REQUIRES", componentId: "downstream", dependsOn: "root", requiredState: "COMPLETED" }] : [],
+        atomicity, failurePolicy: "CONTINUE_INDEPENDENT", rollbackPolicy: "NO_AUTOMATIC_ROLLBACK", constraints: [], populationRelationships: [], measurementHorizon: { amount: 1, unit: "DAY" }, provenance: ["compound.plan"] });
+      const action = canonicalActionSchema.parse({ ...dependent(requiredState), dependencies: [{ ...dependent(requiredState).dependencies[0], prerequisite: {
+        entityKind: "COMPOUND", compoundActionId: compound.compoundActionId, compoundFingerprint: fingerprintCompoundAction(compound) } }] });
+      const events = atomicity === "DEPENDENCY_GATED" && requiredState !== "COMPLETED"
+        ? [eventFor(prerequisite, requiredState, "event_root")]
+        : [eventFor(prerequisite, requiredState, "event_root"), eventFor(second, requiredState, "event_downstream")];
+      expect(assessActionDependencies(action, { ...context(events, action), registry: [{ entityKind: "COMPOUND", action: compound }] }).status).toBe("SATISFIED");
+    }
+  });
+
+  it("accounts for dependency-gated root failures and skipped downstream work under every failure policy", () => {
+    const downstream = canonicalActionSchema.parse({ ...prerequisite, actionId: "action_failure_downstream" });
+    for (const failurePolicy of ["STOP_REMAINING", "CONTINUE_INDEPENDENT", "REQUEST_ROLLBACK"] as const) {
+      const compound = compoundActionSchema.parse({ schemaVersion: 1, kind: "compound_action", compoundActionId: `compound_failure_${failurePolicy.toLowerCase()}`,
+        components: [{ componentId: "root", role: "PRIMARY", action: prerequisite }, { componentId: "downstream", role: "FOLLOWUP", action: downstream }], ordering: "UNORDERED", concurrency: "INDEPENDENT_TIMING",
+        dependencies: [{ kind: "REQUIRES", componentId: "downstream", dependsOn: "root", requiredState: "COMPLETED" }], atomicity: "DEPENDENCY_GATED", failurePolicy,
+        rollbackPolicy: "NO_AUTOMATIC_ROLLBACK", constraints: [], populationRelationships: [], measurementHorizon: { amount: 1, unit: "DAY" }, provenance: ["compound.plan"] });
+      const action = canonicalActionSchema.parse({ ...dependent(), dependencies: [{ ...dependent().dependencies[0], prerequisite: { entityKind: "COMPOUND", compoundActionId: compound.compoundActionId, compoundFingerprint: fingerprintCompoundAction(compound) } }] });
+      const outcomes = compound.components.map((component, index) => ({ outcomeId: `outcome_${index}`, compoundActionId: compound.compoundActionId, compoundFingerprint: fingerprintCompoundAction(compound), componentId: component.componentId,
+        actionId: component.action.actionId, actionFingerprint: fingerprintCanonicalAction(component.action), status: index === 0 ? "FAILED" as const : "SKIPPED" as const,
+        occurredAt: NOW, sourceRef: "execution.ledger", provenance: ["execution.outcome"] }));
+      expect(assessActionDependencies(action, { ...context([event("STARTED")], action), registry: [{ entityKind: "COMPOUND", action: compound }], compoundComponentOutcomes: outcomes }).status).toBe("SATISFIED");
     }
   });
 });

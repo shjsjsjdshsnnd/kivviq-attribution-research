@@ -29,6 +29,50 @@ function expectedFingerprint(reference: CanonicalEntityReference): string { retu
 function referenceId(reference: CanonicalEntityReference): string { return reference.entityKind === "ACTION" ? reference.actionId : reference.compoundActionId; }
 const rank = { STARTED: 1, EFFECTIVE: 2, COMPLETED: 3 } as const;
 
+function compoundLifecycleState(entry: Extract<RegistryEntry, { entityKind: "COMPOUND" }>, dependency: Extract<ActionDependency, { kind: "ENTITY_LIFECYCLE" }>, context: DependencyAssessmentContext, events: readonly ActionLifecycleEvent[]): DependencyCheck {
+  const required = rank[dependency.requiredState as keyof typeof rank];
+  const outcomes = (context.compoundComponentOutcomes ?? []).flatMap((candidate) => { const parsed = compoundComponentOutcomeSchema.safeParse(candidate); return parsed.success ? [parsed.data] : []; });
+  const evidence: string[] = [];
+  const states = new Map<string, { reached: boolean; completed: boolean; terminal: boolean; failed: boolean }>();
+  for (const component of entry.action.components) {
+    const fingerprint = fingerprintCanonicalAction(component.action);
+    const componentEvents = events.filter((event) => event.subject.actionId === component.action.actionId && event.subject.actionFingerprint === fingerprint);
+    if (componentEvents.some((candidate, index) => componentEvents.findIndex((other) => other.eventKind === candidate.eventKind) !== index)) return unknown(dependency, "AMBIGUOUS_LIFECYCLE_EVIDENCE", [component.componentId]);
+    const componentOutcomes = outcomes.filter((outcome) => outcome.compoundActionId === entry.action.compoundActionId && outcome.compoundFingerprint === entryFingerprint(entry) && outcome.componentId === component.componentId && outcome.actionId === component.action.actionId && outcome.actionFingerprint === fingerprint);
+    if (componentOutcomes.length > 1) return unknown(dependency, "AMBIGUOUS_COMPONENT_OUTCOME", [component.componentId]);
+    for (const observed of [...componentEvents, ...componentOutcomes]) {
+      const occurred = Date.parse(observed.occurredAt), evaluated = Date.parse(context.evaluatedAt);
+      if (occurred > evaluated) return unknown(dependency, "FUTURE_COMPOUND_EVIDENCE", [component.componentId]);
+      if (context.maximumAgeSeconds !== undefined && evaluated - occurred > context.maximumAgeSeconds * 1000) return unknown(dependency, "STALE_COMPOUND_EVIDENCE", [component.componentId]);
+    }
+    const highest = componentEvents.reduce((value, event) => Math.max(value, rank[event.eventKind]), 0), outcome = componentOutcomes[0];
+    if (outcome && highest >= rank.COMPLETED) return violated(dependency, "CONFLICTING_COMPONENT_TERMINAL_EVIDENCE", [component.componentId]);
+    componentEvents.forEach((event) => evidence.push(event.eventId, event.sourceRef, ...event.provenance));
+    if (outcome) evidence.push(outcome.outcomeId, outcome.sourceRef, ...outcome.provenance);
+    states.set(component.componentId, { reached: highest >= required, completed: highest >= rank.COMPLETED, terminal: highest >= rank.COMPLETED || !!outcome, failed: !!outcome });
+  }
+  const values = [...states.values()];
+  if (entry.action.atomicity === "ALL_OR_NOTHING") {
+    if (values.some((value) => value.failed)) return violated(dependency, "ATOMIC_COMPOUND_COMPONENT_NOT_COMPLETED", evidence);
+    return values.every((value) => value.reached) ? satisfied(dependency, "REQUIRED_LIFECYCLE_STATE_OBSERVED", evidence) : unknown(dependency, "MISSING_LIFECYCLE_EVIDENCE", [entry.action.compoundActionId]);
+  }
+  if (entry.action.atomicity === "BEST_EFFORT") {
+    if (dependency.requiredState === "COMPLETED") return values.every((value) => value.terminal) && values.some((value) => value.completed) ? satisfied(dependency, "COMPOUND_TERMINAL_OUTCOMES_ACCOUNTED", evidence) : unknown(dependency, "MISSING_COMPONENT_TERMINAL_OUTCOME", [entry.action.compoundActionId]);
+    return values.some((value) => value.reached) ? satisfied(dependency, "REQUIRED_LIFECYCLE_STATE_OBSERVED", evidence) : unknown(dependency, "MISSING_LIFECYCLE_EVIDENCE", [entry.action.compoundActionId]);
+  }
+  for (const component of entry.action.components) {
+    const state = states.get(component.componentId)!;
+    const dependencies = entry.action.dependencies.filter((edge) => edge.componentId === component.componentId).map((edge) => states.get(edge.dependsOn)!);
+    const unblocked = dependencies.length === 0 || dependencies.every((prerequisite) => prerequisite.completed);
+    const blockedByFailure = dependencies.some((prerequisite) => prerequisite.failed);
+    if (dependency.requiredState === "COMPLETED") {
+      if ((unblocked || blockedByFailure) && !state.terminal) return unknown(dependency, blockedByFailure ? "SKIPPED_COMPONENT_OUTCOME_REQUIRED" : "UNBLOCKED_COMPONENT_TERMINAL_OUTCOME_REQUIRED", [component.componentId]);
+      if (!unblocked && !blockedByFailure) return unknown(dependency, "PREREQUISITE_COMPONENT_NOT_COMPLETED", [component.componentId]);
+    } else if (unblocked && !state.reached) return unknown(dependency, "UNBLOCKED_COMPONENT_STATE_REQUIRED", [component.componentId]);
+  }
+  return satisfied(dependency, "DEPENDENCY_GATED_COMPONENT_STATES_OBSERVED", evidence);
+}
+
 function lifecycleCheck(dependency: Extract<ActionDependency, { kind: "ENTITY_LIFECYCLE" }>, context: DependencyAssessmentContext, registry: readonly RegistryEntry[], receipt: DependencyEvidenceReceipt): DependencyCheck {
   const matches = registry.filter((entry) => entryKey(entry) === registryKey(dependency.prerequisite));
   if (!matches.length) return unknown(dependency, "MISSING_PREREQUISITE_REGISTRY", [referenceId(dependency.prerequisite)]);
@@ -54,24 +98,13 @@ function lifecycleCheck(dependency: Extract<ActionDependency, { kind: "ENTITY_LI
   if (receipt.fact.kind !== "ENTITY_LIFECYCLE" || registryKey(receipt.fact.prerequisite) !== registryKey(dependency.prerequisite) || expectedFingerprint(receipt.fact.prerequisite) !== expectedFingerprint(dependency.prerequisite))
     return unknown(dependency, "LIFECYCLE_RECEIPT_FACT_MISMATCH", [dependency.dependencyId]);
   const events = receipt.fact.events;
+  if (entry.entityKind === "COMPOUND") return compoundLifecycleState(entry, dependency, context, events);
   const required = rank[dependency.requiredState];
-  const componentActions = entry.entityKind === "ACTION" ? [entry.action] : entry.action.components.map((component) => component.action);
+  const componentActions = [entry.action];
   const evidence: ActionLifecycleEvent[] = [];
   for (const action of componentActions) {
     const exact = events.filter((event) => event.subject.actionId === action.actionId && event.subject.actionFingerprint === fingerprintCanonicalAction(action) && rank[event.eventKind] >= required);
     if (exact.some((candidate, index) => exact.findIndex((other) => other.eventKind === candidate.eventKind) !== index)) return unknown(dependency, "AMBIGUOUS_LIFECYCLE_EVIDENCE", [action.actionId]);
-    if (!exact.length && entry.entityKind === "COMPOUND" && dependency.requiredState === "COMPLETED") {
-      const component = entry.action.components.find((candidate) => candidate.action.actionId === action.actionId)!;
-      const outcomes = (context.compoundComponentOutcomes ?? []).flatMap((candidate) => { const parsed = compoundComponentOutcomeSchema.safeParse(candidate); return parsed.success ? [parsed.data] : []; }).filter((outcome) => outcome.compoundActionId === entry.action.compoundActionId && outcome.compoundFingerprint === entryFingerprint(entry) && outcome.componentId === component.componentId && outcome.actionId === action.actionId && outcome.actionFingerprint === fingerprintCanonicalAction(action));
-      if (outcomes.length > 1) return unknown(dependency, "AMBIGUOUS_COMPONENT_OUTCOME", [component.componentId]);
-      if (outcomes.length === 1) {
-        const outcome = outcomes[0]!, occurred = Date.parse(outcome.occurredAt), evaluated = Date.parse(context.evaluatedAt);
-        if (!outcome.occurredAt.endsWith("Z") || occurred > evaluated) return unknown(dependency, "INVALID_COMPONENT_OUTCOME", [component.componentId]);
-        if (context.maximumAgeSeconds !== undefined && evaluated - occurred > context.maximumAgeSeconds * 1000) return unknown(dependency, "STALE_COMPONENT_OUTCOME", [component.componentId]);
-        if (entry.action.atomicity === "ALL_OR_NOTHING") return violated(dependency, "ATOMIC_COMPOUND_COMPONENT_NOT_COMPLETED", [outcome.outcomeId, outcome.sourceRef, ...outcome.provenance]);
-        continue;
-      }
-    }
     if (!exact.length) return unknown(dependency, "MISSING_LIFECYCLE_EVIDENCE", [action.actionId]);
     const event = [...exact].sort((left, right) => rank[right.eventKind] - rank[left.eventKind])[0]!, occurred = Date.parse(event.occurredAt), evaluated = Date.parse(context.evaluatedAt);
     if (occurred > evaluated) return unknown(dependency, "FUTURE_LIFECYCLE_EVIDENCE", [action.actionId]);
