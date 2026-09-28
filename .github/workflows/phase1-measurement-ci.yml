@@ -29,6 +29,25 @@ jobs:
       - run: npm run typecheck
       - run: npx vitest run tests/measurement_corruption --maxWorkers=1 --reporter=verbose
       - run: npm run build
+      - name: Observed-only CLI and evaluator replay
+        shell: bash
+        run: |
+          set -euo pipefail
+          manifest="$RUNNER_TEMP/kivviq-private-manifest.json"
+          first="$RUNNER_TEMP/kivviq-observed-1.json"
+          second="$RUNNER_TEMP/kivviq-observed-2.json"
+          node dist/evaluation/simulate-cli.js --scenario 9274 --seed 88213 --manifest "$manifest" > "$first"
+          node dist/evaluation/simulate-cli.js --replay "$manifest" > "$second"
+          cmp "$first" "$second"
+          node --input-type=module - "$first" <<'NODE'
+          import { readFileSync } from 'node:fs';
+          import { parseOperatorObservation } from './dist/observation/corrupted-world.js';
+          const value = JSON.parse(readFileSync(process.argv[2], 'utf8'));
+          parseOperatorObservation(value);
+          if ('payload' in value || 'groundTruth' in value || 'audit' in value) throw new Error('evaluator data in observed output');
+          NODE
+          test "$(stat -c '%a' "$manifest")" = "600"
+          rm "$manifest" "$first" "$second"
   regression:
     if: github.event_name == 'pull_request'
     runs-on: ubuntu-latest
