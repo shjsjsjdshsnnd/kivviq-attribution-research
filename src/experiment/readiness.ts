@@ -17,6 +17,7 @@ import { experimentWhatSchema, type ExperimentArm } from "./schema.js";
 const ref = z.string().regex(/^[A-Za-z][A-Za-z0-9._:-]{1,159}$/);
 const evidenceRefs = z.array(ref).min(1);
 const timestamp = z.string().datetime({ offset: true }).refine((value) => value.endsWith("Z"));
+const fingerprint = z.string().regex(/^fnv1a64:[a-f0-9]{16}$/);
 const populationEvidence = {
   populations: z.array(populationDefinitionSchema),
   evaluations: z.array(populationEvaluationSchema),
@@ -72,14 +73,19 @@ const experimentReadinessContextObjectSchema = z
     metricDefinitions: z.array(
       z.object({ metricRef: ref, evidenceRefs }).strict(),
     ),
+    eligibleTrafficMaximumAgeSeconds: z.number().int().nonnegative().safe().optional(),
     eligibleTraffic: z
       .object({
+        experimentActionFingerprint: fingerprint,
         populationId: ref,
         version: z.number().int().positive(),
         definitionFingerprint: z.string().regex(/^fnv1a64:[a-f0-9]{16}$/),
         binding: z.enum(["DECISION_TIME", "EXECUTION_TIME", "SEND_TIME", "TRIGGER_TIME", "EFFECTIVE_TIME"]),
         membershipMode: z.enum(["FROZEN_MEMBERSHIP", "DYNAMIC_MEMBERSHIP"]),
         evaluatedAt: timestamp,
+        rawSourceObservedAt: timestamp,
+        rawSourceFingerprint: fingerprint,
+        maximumAgeSeconds: z.number().int().nonnegative().safe(),
         snapshotRef: ref.optional(),
         evidenceRefs,
       })
@@ -134,6 +140,23 @@ export interface ExperimentReadiness {
   missingRefs: string[];
   evidenceRefs: string[];
   arms: ExperimentArmReadiness[];
+  readinessFingerprint: string;
+}
+
+function stable(value: unknown): string {
+  if (Array.isArray(value)) return `[${value.map(stable).join(",")}]`;
+  if (value && typeof value === "object") return `{${Object.entries(value).filter(([, nested]) => nested !== undefined).sort(([a], [b]) => a.localeCompare(b)).map(([key, nested]) => `${JSON.stringify(key)}:${stable(nested)}`).join(",")}}`;
+  return JSON.stringify(value);
+}
+function fnv(value: string): string {
+  let hash = 0xcbf29ce484222325n;
+  for (const character of value) hash = ((hash ^ BigInt(character.codePointAt(0)!)) * 0x100000001b3n) & 0xffffffffffffffffn;
+  return `fnv1a64:${hash.toString(16).padStart(16, "0")}`;
+}
+export function fingerprintExperimentTrafficSource(value: unknown): string { return fnv(stable(value)); }
+export function fingerprintExperimentReadiness(value: unknown): string {
+  if (value && typeof value === "object") { const { readinessFingerprint: _ignored, ...projection } = value as Record<string, unknown>; return fnv(stable(projection)); }
+  return fnv(stable(value));
 }
 
 type RegistryValue =
@@ -229,8 +252,20 @@ export function assessExperimentReadiness(
       traffic.membershipMode !== populationRef.membershipMode || traffic.snapshotRef !== populationRef.snapshotRef ||
       (bindingTime !== undefined && Date.parse(traffic.evaluatedAt) !== Date.parse(bindingTime)))
     blocked("ELIGIBLE_TRAFFIC_POPULATION_MISMATCH");
+  if (traffic.experimentActionFingerprint !== fingerprintCanonicalAction(action))
+    blocked("ELIGIBLE_TRAFFIC_EXPERIMENT_MISMATCH");
+  const rawTrafficSource = populationRef.membershipMode === "FROZEN_MEMBERSHIP"
+    ? context.snapshots?.find((candidate) => candidate.snapshotId === populationRef.snapshotRef && Date.parse(candidate.evaluatedAt) === Date.parse(traffic.rawSourceObservedAt))
+    : context.evaluations.find((candidate) => candidate.populationId === populationRef.populationId && candidate.version === populationRef.version && Date.parse(candidate.evaluatedAt) === Date.parse(traffic.rawSourceObservedAt));
+  if (!rawTrafficSource || fingerprintExperimentTrafficSource(rawTrafficSource) !== traffic.rawSourceFingerprint)
+    blocked("ELIGIBLE_TRAFFIC_SOURCE_MISMATCH");
   if (Date.parse(traffic.evaluatedAt) > Date.parse(context.timing.approvedClock))
     blocked("FUTURE_TRAFFIC_EVIDENCE");
+  if (Date.parse(traffic.rawSourceObservedAt) > Date.parse(context.timing.approvedClock))
+    blocked("FUTURE_ELIGIBLE_TRAFFIC_SOURCE");
+  const trafficAgeLimits = [traffic.maximumAgeSeconds, context.eligibleTrafficMaximumAgeSeconds].filter((value): value is number => value !== undefined);
+  if (Date.parse(context.timing.approvedClock) - Date.parse(traffic.rawSourceObservedAt) > Math.min(...trafficAgeLimits) * 1000)
+    blocked("STALE_ELIGIBLE_TRAFFIC_SOURCE");
   if (what.stopping.sampleTarget !== undefined && eligibleCount !== undefined && eligibleCount < what.stopping.sampleTarget)
     blocked("INSUFFICIENT_ELIGIBLE_TRAFFIC");
 
@@ -255,7 +290,7 @@ export function assessExperimentReadiness(
     : hasUnknown
       ? "UNKNOWN"
       : "READY";
-  return {
+  const projection = {
     actionId: action.actionId,
     status,
     reasonCodes: uniqueReasons,
@@ -263,6 +298,7 @@ export function assessExperimentReadiness(
     evidenceRefs: [...evidence].sort(),
     arms,
   };
+  return { ...projection, readinessFingerprint: fingerprintExperimentReadiness(projection) };
 }
 
 function parseRegistry(
@@ -401,5 +437,6 @@ function checkPopulation(
 }
 
 function result(actionId: string | undefined, status: ExperimentReadinessStatus, reasonCodes: string[]): ExperimentReadiness {
-  return { ...(actionId ? { actionId } : {}), status, reasonCodes, missingRefs: [], evidenceRefs: [], arms: [] };
+  const projection = { ...(actionId ? { actionId } : {}), status, reasonCodes, missingRefs: [], evidenceRefs: [], arms: [] };
+  return { ...projection, readinessFingerprint: fingerprintExperimentReadiness(projection) };
 }

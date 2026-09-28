@@ -11,6 +11,8 @@ import {
 import {
   assessExperimentReadiness,
   experimentReadinessContextSchema,
+  fingerprintExperimentReadiness,
+  fingerprintExperimentTrafficSource,
 } from "../../src/experiment/index.js";
 import {
   createPopulationSnapshot,
@@ -84,7 +86,7 @@ function experiment(overrides: Record<string, unknown> = {}) {
   });
 }
 
-function context(overrides: Record<string, unknown> = {}) {
+function context(overrides: Record<string, unknown> = {}, experimentAction = experiment()) {
   return {
     armRegistry: [
       { entityKind: "ACTION", action: control },
@@ -100,12 +102,16 @@ function context(overrides: Record<string, unknown> = {}) {
       { metricRef: "metric_margin", evidenceRefs: ["evidence_metric_margin"] },
     ],
     eligibleTraffic: {
+      experimentActionFingerprint: fingerprintCanonicalAction(experimentAction),
       populationId: population.populationId,
       version: population.version,
       definitionFingerprint: population.definitionFingerprint,
       binding: population.binding,
       membershipMode: population.membershipMode,
       evaluatedAt: "2026-09-22T14:00:00.000Z",
+      rawSourceObservedAt: populationEvaluation.evaluatedAt,
+      rawSourceFingerprint: fingerprintExperimentTrafficSource(populationEvaluation),
+      maximumAgeSeconds: 3600,
       evidenceRefs: ["evidence_traffic"],
     },
     engineCapability: {
@@ -126,7 +132,24 @@ describe("experiment readiness", () => {
     expect(result.status).toBe("READY");
     expect(result.arms.map((arm) => arm.status)).toEqual(["READY", "READY"]);
     expect(result.reasonCodes).toEqual([]);
+    expect(result.readinessFingerprint).toBe(fingerprintExperimentReadiness({ ...result, readinessFingerprint: undefined }));
     expect(action).toEqual(before);
+  });
+
+  it("binds traffic to the experiment and raw source and applies the stricter freshness limit", () => {
+    const action = experiment();
+    expect(assessExperimentReadiness(action, context({ eligibleTraffic: {
+      ...context().eligibleTraffic, experimentActionFingerprint: "fnv1a64:aaaaaaaaaaaaaaaa",
+    } }))).toMatchObject({ status: "BLOCKED", reasonCodes: expect.arrayContaining(["ELIGIBLE_TRAFFIC_EXPERIMENT_MISMATCH"]) });
+    expect(assessExperimentReadiness(action, context({ eligibleTraffic: {
+      ...context().eligibleTraffic, rawSourceFingerprint: "fnv1a64:aaaaaaaaaaaaaaaa",
+    } }))).toMatchObject({ status: "BLOCKED", reasonCodes: expect.arrayContaining(["ELIGIBLE_TRAFFIC_SOURCE_MISMATCH"]) });
+    expect(assessExperimentReadiness(action, context({ eligibleTraffic: {
+      ...context().eligibleTraffic, rawSourceObservedAt: "2026-09-22T12:00:00.000Z", maximumAgeSeconds: 60,
+    } }))).toMatchObject({ status: "BLOCKED", reasonCodes: expect.arrayContaining(["STALE_ELIGIBLE_TRAFFIC_SOURCE"]) });
+    expect(assessExperimentReadiness(action, context({ eligibleTrafficMaximumAgeSeconds: 30, eligibleTraffic: {
+      ...context().eligibleTraffic, rawSourceObservedAt: "2026-09-22T13:59:00.000Z",
+    } }))).toMatchObject({ status: "BLOCKED", reasonCodes: expect.arrayContaining(["STALE_ELIGIBLE_TRAFFIC_SOURCE"]) });
   });
 
   it("reports missing arms as UNKNOWN and fingerprint mismatches as BLOCKED", () => {
@@ -224,7 +247,7 @@ describe("experiment readiness", () => {
     ] });
     const result = assessExperimentReadiness(action, context({ armRegistry: [
       { entityKind: "ACTION", action: control }, { entityKind: "COMPOUND", action: compound },
-    ] }));
+    ] }, action));
     expect(result.status).toBe("READY");
     expect(result.arms[1]).toMatchObject({ entityKind: "COMPOUND", status: "READY" });
   });
@@ -255,11 +278,11 @@ describe("experiment readiness", () => {
     const action = experiment({ randomizationUnit: { kind: "CUSTOM", registryRef: "registry_units", code: "HOUSEHOLD" } });
     expect(assessExperimentReadiness(action, context({
       engineCapability: { status: "AVAILABLE", randomizationUnits: ["CUSTOM"], evidenceRefs: ["evidence_engine"] },
-    })).status).toBe("UNKNOWN");
+    }, action)).status).toBe("UNKNOWN");
     expect(assessExperimentReadiness(action, context({
       customRandomizationRegistrations: [{ registryRef: "registry_units", code: "HOUSEHOLD", evidenceRefs: ["evidence_registry"] }],
       engineCapability: { status: "AVAILABLE", randomizationUnits: ["CUSTOM"], evidenceRefs: ["evidence_engine"] },
-    })).status).toBe("READY");
+    }, action)).status).toBe("READY");
   });
 
   it("blocks duplicate custom randomization registrations independent of order", () => {
@@ -282,7 +305,7 @@ describe("experiment readiness", () => {
     const action = experiment({
       measurementWindow: { start: "2026-09-25T04:00:00Z", end: "2026-10-03T04:00:00Z" },
     });
-    expect(assessExperimentReadiness(action, context())).toMatchObject({
+    expect(assessExperimentReadiness(action, context({}, action))).toMatchObject({
       status: "BLOCKED",
       reasonCodes: ["FIXED_TIMING_HORIZON_TOO_SHORT"],
     });
@@ -366,7 +389,11 @@ describe("experiment readiness", () => {
       populations: [frozenDefinition], evaluations: [frozenEvaluation],
       eligibleTraffic: {
         ...frozenPopulation,
+        experimentActionFingerprint: fingerprintCanonicalAction(frozenAction),
         evaluatedAt: snapshot.evaluatedAt,
+        rawSourceObservedAt: snapshot.evaluatedAt,
+        rawSourceFingerprint: fingerprintExperimentTrafficSource(snapshot),
+        maximumAgeSeconds: 3600,
         evidenceRefs: ["evidence_traffic"],
       },
     });

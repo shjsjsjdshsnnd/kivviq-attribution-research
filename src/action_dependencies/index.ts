@@ -13,3 +13,4 @@ export type {
   CanonicalEntityReference,
   DependencyEvidenceReceipt,
 } from "./schema.js";
+export * from "./assessment.js";
