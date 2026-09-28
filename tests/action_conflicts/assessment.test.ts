@@ -17,6 +17,13 @@ describe("portfolio compatibility assessment", () => {
     expect(assessPortfolioCompatibility([], context as any)).toEqual(result);
   });
 
+  it.each([undefined, null, {}, 42, "action"])("returns deterministic invalid output for malformed portfolio container %#", (portfolio) => {
+    const result = assessPortfolioCompatibility(portfolio as any, undefined);
+    expect(result).toMatchObject({ evaluatedAt: "1970-01-01T00:00:00.000Z", validity: "INVALID", status: "UNKNOWN" });
+    expect(() => assessPortfolioCompatibility(portfolio as any, undefined)).not.toThrow();
+    expect(assessPortfolioCompatibility(portfolio as any, undefined)).toEqual(result);
+  });
+
   it("rejects malformed horizons, caps, timing contexts, and evidence instead of throwing or dropping them", () => {
     const action = adaptLegacyAction(setSkuA849Cad), ref = { entityKind: "ACTION" as const, actionId: action.actionId, actionFingerprint: fingerprintCanonicalAction(action) };
     const valid = { evaluatedAt, evaluationBoundary: boundary, registry: [{ entityKind: "ACTION" as const, action }], timingContexts: {}, scopeIntersectionReceipts: [], priceBaselineReceipts: [], partitionReceipts: [] };
@@ -32,6 +39,9 @@ describe("portfolio compatibility assessment", () => {
     expect(assessScopeIntersection({ coordinates: [{ kind: "CHANNEL", channelRef: "email" }] }, { coordinates: [{ kind: "PLACEMENT", channelRef: "email", placementRef: "hero" }] }, [])).toBe("INTERSECTS");
     expect(assessScopeIntersection({ coordinates: [{ kind: "RESOURCE", resourceRef: "budget", unit: "CAD_MINOR" }] }, { coordinates: [{ kind: "RESOURCE", resourceRef: "budget", unit: "USD_MINOR" }] }, [])).toBe("UNKNOWN");
     expect(assessScopeIntersection({ coordinates: [{ kind: "CUSTOM", registryRef: "geo", code: "ca", version: "1" }] }, { coordinates: [{ kind: "CUSTOM", registryRef: "geo", code: "on", version: "1" }] }, [])).toBe("UNKNOWN");
+    const malformedBinding = { pairKey: "ACTION:action_a:fnv1a64:aaaaaaaaaaaaaaaa|ACTION:action_b:fnv1a64:bbbbbbbbbbbbbbbb", evaluationBoundary: boundary, evaluatedAt };
+    expect(() => assessScopeIntersection({ coordinates: [{ kind: "CUSTOM", registryRef: "geo", code: "ca", version: "1" }] }, { coordinates: [{ kind: "CUSTOM", registryRef: "geo", code: "on", version: "1" }] }, [null] as any, malformedBinding)).not.toThrow();
+    expect(assessScopeIntersection({ coordinates: [{ kind: "CUSTOM", registryRef: "geo", code: "ca", version: "1" }] }, { coordinates: [{ kind: "CUSTOM", registryRef: "geo", code: "on", version: "1" }] }, [null] as any, malformedBinding)).toBe("UNKNOWN");
     expect(assessScopeIntersection({ coordinates: [{ kind: "PRODUCT", productRef: "p" }, { kind: "CHANNEL", channelRef: "email" }] }, { coordinates: [{ kind: "VARIANT", productRef: "p", variantRef: "v" }, { kind: "PLACEMENT", channelRef: "sms", placementRef: "hero" }] }, [])).toBe("DISJOINT");
     expect(assessScopeIntersection({ coordinates: [{ kind: "PRODUCT", productRef: "p" }] }, { coordinates: [{ kind: "VARIANT", productRef: "p", variantRef: "v" }, { kind: "CHANNEL", channelRef: "email" }] }, [])).toBe("INTERSECTS");
     expect(assessScopeIntersection({ coordinates: [{ kind: "PRODUCT", productRef: "p" }, { kind: "RESOURCE", resourceRef: "budget", unit: "CAD_MINOR" }] }, { coordinates: [{ kind: "PRODUCT", productRef: "p" }, { kind: "RESOURCE", resourceRef: "budget", unit: "USD_MINOR" }] }, [])).toBe("UNKNOWN");

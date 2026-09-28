@@ -48,4 +48,17 @@ describe("registered conflict adapters", () => {
     const receipt = { receiptId: "receipt.explicit.baseline", ...binding, amountMinor: 89900, currency: "CAD", pairKey, evaluationBoundary: "DECISION_TIME" as const, observedAt: "2026-09-20T12:59:00Z", sourceRef: "catalog.price", provenance: ["catalog.snapshot"] };
     expect(assessPortfolioCompatibility([deltaRef, setRef], { ...context, priceBaselineReceipts: [receipt] }).status).toBe("CONFLICTING");
   });
+
+  it("does not leak evidence from an equal-price candidate into a later explicit conflict", () => {
+    const right = percent("action_equal_price_right", 0.9), rightRef = { entityKind: "ACTION" as const, actionId: right.actionId, actionFingerprint: fingerprintCanonicalAction(right) };
+    const leftBase = percent("action_equal_price_left", 0.9);
+    const left = { ...leftBase, conflicts: [{ conflictId: "explicit.global", kind: "MUTUALLY_EXCLUSIVE_INTENT" as const, target: { kind: "GLOBAL" as const }, scope: { coordinates: [{ kind: "GLOBAL" as const }] }, overlapRule: "EFFECTIVE_OVERLAP" as const, counterparty: rightRef }] };
+    const leftRef = { entityKind: "ACTION" as const, actionId: left.actionId, actionFingerprint: fingerprintCanonicalAction(left) };
+    const reference = (left.what as any).parameters.operation.reference, binding = priceBaselineBinding(reference)!;
+    const key = [`ACTION:${left.actionId}:${leftRef.actionFingerprint}`, `ACTION:${right.actionId}:${rightRef.actionFingerprint}`].sort().join("|");
+    const receipt = { receiptId: "receipt.equal.baseline", ...binding, amountMinor: 10000, currency: "CAD", pairKey: key, evaluationBoundary: "DECISION_TIME" as const, observedAt: "2026-09-20T12:59:00Z", sourceRef: "catalog.price", provenance: ["catalog.snapshot"] };
+    const result = assessPortfolioCompatibility([leftRef, rightRef], { ...base, registry: [{ entityKind: "ACTION" as const, action: left }, { entityKind: "ACTION" as const, action: right }], priceBaselineReceipts: [receipt] });
+    expect(result.status).toBe("CONFLICTING");
+    expect(result.evidenceRefs).toEqual([]);
+  });
 });

@@ -100,8 +100,10 @@ const pairKey = (a: CanonicalEntityReference, b: CanonicalEntityReference) => [c
 export const fingerprintConflictScope = (scope: ConflictScope): string => hash(conflictScopeSchema.parse(scope));
 const fresh = (at: string, context: PortfolioCompatibilityContext) => utc.safeParse(at).success && Date.parse(at) <= Date.parse(context.evaluatedAt) && (context.maximumAgeSeconds === undefined || Date.parse(context.evaluatedAt) - Date.parse(at) <= context.maximumAgeSeconds * 1000);
 
-function invalidAssessment(portfolioInput: readonly unknown[], evaluatedAt = "INVALID", reason = "INVALID_COMPATIBILITY_CONTEXT"): PortfolioCompatibilityAssessment {
-  const references = portfolioInput.flatMap((value) => { const parsed = canonicalEntityReferenceSchema.safeParse(value); return parsed.success ? [parsed.data] : []; }).sort((a, b) => canonicalConflictEntityKey(a).localeCompare(canonicalConflictEntityKey(b)));
+function invalidAssessment(portfolioInput: unknown, reason = "INVALID_COMPATIBILITY_CONTEXT"): PortfolioCompatibilityAssessment {
+  const values = Array.isArray(portfolioInput) ? portfolioInput : [];
+  const references = values.flatMap((value) => { const parsed = canonicalEntityReferenceSchema.safeParse(value); return parsed.success ? [parsed.data] : []; }).sort((a, b) => canonicalConflictEntityKey(a).localeCompare(canonicalConflictEntityKey(b)));
+  const evaluatedAt = "1970-01-01T00:00:00.000Z";
   const projection = { portfolioFingerprint: hash(references), evaluatedAt, validity: "INVALID" as const, status: "UNKNOWN" as const, expandedMembers: [] as CanonicalEntityReference[], memberPaths: [] as string[], pairs: [] as PortfolioPairAssessment[], reasonCodes: [reason], evidenceRefs: [] as string[] };
   return { ...projection, assessmentFingerprint: hash(projection) };
 }
@@ -158,10 +160,10 @@ function structuralCoordinate(left: ConflictCoordinate, right: ConflictCoordinat
 }
 
 /** Structural matrix; non-structural receipts may be supplied with exact scope fingerprints. */
-export function assessScopeIntersection(leftInput: ConflictScope, rightInput: ConflictScope, receipts: readonly ScopeIntersectionEvidence[], binding?: { pairKey: string; evaluationBoundary: EvaluationBoundary; evaluatedAt: string; maximumAgeSeconds?: number }): "INTERSECTS" | "DISJOINT" | "UNKNOWN" {
+export function assessScopeIntersection(leftInput: ConflictScope, rightInput: ConflictScope, receipts: readonly unknown[], binding?: { pairKey: string; evaluationBoundary: EvaluationBoundary; evaluatedAt: string; maximumAgeSeconds?: number }): "INTERSECTS" | "DISJOINT" | "UNKNOWN" {
   return scopeIntersectionDetail(leftInput, rightInput, receipts, binding).status;
 }
-function scopeIntersectionDetail(leftInput: ConflictScope, rightInput: ConflictScope, receipts: readonly ScopeIntersectionEvidence[], binding?: { pairKey: string; evaluationBoundary: EvaluationBoundary; evaluatedAt: string; maximumAgeSeconds?: number }): { status: "INTERSECTS" | "DISJOINT" | "UNKNOWN"; evidenceRefs: string[] } {
+function scopeIntersectionDetail(leftInput: ConflictScope, rightInput: ConflictScope, receipts: readonly unknown[], binding?: { pairKey: string; evaluationBoundary: EvaluationBoundary; evaluatedAt: string; maximumAgeSeconds?: number }): { status: "INTERSECTS" | "DISJOINT" | "UNKNOWN"; evidenceRefs: string[] } {
   const left = conflictScopeSchema.safeParse(leftInput), right = conflictScopeSchema.safeParse(rightInput);
   if (!left.success || !right.success) return { status: "UNKNOWN", evidenceRefs: [] };
   if (left.data.coordinates.some((c) => c.kind === "GLOBAL") || right.data.coordinates.some((c) => c.kind === "GLOBAL")) return { status: "INTERSECTS", evidenceRefs: [] };
@@ -176,8 +178,10 @@ function scopeIntersectionDetail(leftInput: ConflictScope, rightInput: ConflictS
   }
   if (!unresolved) return { status: "INTERSECTS", evidenceRefs: [] };
   if (!binding) return { status: "UNKNOWN", evidenceRefs: [] };
+  const parsedReceipts = z.array(scopeIntersectionEvidenceSchema).safeParse(receipts);
+  if (!parsedReceipts.success) return { status: "UNKNOWN", evidenceRefs: [] };
   const leftFp = hash(left.data), rightFp = hash(right.data);
-  const matches = receipts.filter((receipt) => receipt.pairKey === binding.pairKey && receipt.evaluationBoundary === binding.evaluationBoundary && ((receipt.leftScopeFingerprint === leftFp && receipt.rightScopeFingerprint === rightFp) || (receipt.leftScopeFingerprint === rightFp && receipt.rightScopeFingerprint === leftFp)));
+  const matches = parsedReceipts.data.filter((receipt) => receipt.pairKey === binding.pairKey && receipt.evaluationBoundary === binding.evaluationBoundary && ((receipt.leftScopeFingerprint === leftFp && receipt.rightScopeFingerprint === rightFp) || (receipt.leftScopeFingerprint === rightFp && receipt.rightScopeFingerprint === leftFp)));
   if (matches.length !== 1) return { status: "UNKNOWN", evidenceRefs: [] };
   const receipt = matches[0]!;
   if (Date.parse(receipt.observedAt) > Date.parse(binding.evaluatedAt) || (binding.maximumAgeSeconds !== undefined && Date.parse(binding.evaluatedAt) - Date.parse(receipt.observedAt) > binding.maximumAgeSeconds * 1000)) return { status: "UNKNOWN", evidenceRefs: [] };
@@ -306,12 +310,13 @@ function comparePair(left: PortfolioMember, right: PortfolioMember, context: Por
   const declarations = candidates.filter((c) => c.source.includes("/conflict:"));
   const signatures = new Set(declarations.map((c) => { const scopes = [hash(c.scopeLeft), hash(c.scopeRight)].sort(); return stable({ kind: c.kind, targetFingerprint: c.targetFingerprint, scopes, mode: c.mode, registryIdentity: c.registryIdentity }); }));
   if (signatures.size > 1) return { ...base, status: "UNKNOWN", reasonCodes: ["CONTRADICTORY_CONFLICT_DECLARATIONS"], evidenceRefs: [], relationPaths, relations };
-  let unknown = false; const evidence: string[] = [];
+  let unknown = false; const unknownEvidence: string[] = [], coexistEvidence: string[] = [];
   for (const candidate of candidates) {
+    const candidateEvidence: string[] = [];
     const scope = scopeIntersectionDetail(candidate.scopeLeft, candidate.scopeRight, receipts, { pairKey: key, evaluationBoundary: context.evaluationBoundary, evaluatedAt: context.evaluatedAt, ...(context.maximumAgeSeconds === undefined ? {} : { maximumAgeSeconds: context.maximumAgeSeconds }) });
-    evidence.push(...scope.evidenceRefs);
-    if (scope.status === "DISJOINT") continue;
-    if (scope.status === "UNKNOWN") { unknown = true; continue; }
+    candidateEvidence.push(...scope.evidenceRefs);
+    if (scope.status === "DISJOINT") { coexistEvidence.push(...candidateEvidence); continue; }
+    if (scope.status === "UNKNOWN") { unknown = true; unknownEvidence.push(...candidateEvidence); continue; }
     if (left.experimentId && left.experimentId === right.experimentId && left.armId !== right.armId && candidate.scopeLeft.coordinates.every((c) => c.kind === "POPULATION") && candidate.scopeRight.coordinates.every((c) => c.kind === "POPULATION")) {
       const population = left.experimentPopulation, temporal = temporalDetail(left, right, candidate.mode, context);
       const leftIndexes = temporal?.leftOccurrences.map((item) => item.occurrenceIndex).sort((a, b) => a - b) ?? [], rightIndexes = temporal?.rightOccurrences.map((item) => item.occurrenceIndex).sort((a, b) => a - b) ?? [];
@@ -319,30 +324,31 @@ function comparePair(left: PortfolioMember, right: PortfolioMember, context: Por
         const receiptLeft = r.leftArmId === left.armId ? leftIndexes : rightIndexes, receiptRight = r.rightArmId === right.armId ? rightIndexes : leftIndexes;
         return r.experimentActionId === left.experimentId && r.experimentActionFingerprint === left.experimentFingerprint && population !== undefined && r.populationId === population.populationId && r.populationVersion === population.version && r.populationFingerprint === population.definitionFingerprint && r.populationBinding === population.binding && r.assignmentBoundary === "USE_ENVELOPE_POPULATION_BINDING" && new Set([r.leftArmId, r.rightArmId]).size === 2 && [r.leftArmId, r.rightArmId].includes(left.armId!) && [r.leftArmId, r.rightArmId].includes(right.armId!) && r.pairKey === key && r.evaluationBoundary === context.evaluationBoundary && stable([...r.leftOccurrenceIndexes].sort((a, b) => a - b)) === stable(receiptLeft) && stable([...r.rightOccurrenceIndexes].sort((a, b) => a - b)) === stable(receiptRight) && temporal !== undefined && [...temporal.leftOccurrences, ...temporal.rightOccurrences].every((item) => Date.parse(item.comparisonStart) >= Date.parse(r.windowStart) && Date.parse(item.comparisonEnd ?? item.comparisonStart) <= Date.parse(r.windowEnd)) && fresh(r.observedAt, context);
       });
-      if (partitions.length !== 1) { unknown = true; continue; }
-      evidence.push(partitions[0]!.receiptId, partitions[0]!.sourceRef, ...partitions[0]!.provenance);
-      if (partitions[0]!.disjoint) continue;
+      if (partitions.length !== 1) { unknown = true; unknownEvidence.push(...candidateEvidence); continue; }
+      candidateEvidence.push(partitions[0]!.receiptId, partitions[0]!.sourceRef, ...partitions[0]!.provenance);
+      if (partitions[0]!.disjoint) { coexistEvidence.push(...candidateEvidence); continue; }
     }
     const time = temporalOverlap(left, right, candidate.mode, context);
-    if (time === "UNKNOWN") { unknown = true; continue; }
-    if (time === "DISJOINT") continue;
+    if (time === "UNKNOWN") { unknown = true; unknownEvidence.push(...candidateEvidence); continue; }
+    if (time === "DISJOINT") { coexistEvidence.push(...candidateEvidence); continue; }
     if (candidate.price) {
       const a = priceResult(candidate.price[0], key, context), b = priceResult(candidate.price[1], key, context);
-      if (!a || !b) { unknown = true; continue; }
-      if (a.currency !== b.currency) continue;
-      evidence.push(...a.evidence, ...b.evidence);
-      if (a.amount === b.amount) continue;
+      if (!a || !b) { unknown = true; unknownEvidence.push(...candidateEvidence); continue; }
+      candidateEvidence.push(...a.evidence, ...b.evidence);
+      if (a.currency !== b.currency) { coexistEvidence.push(...candidateEvidence); continue; }
+      if (a.amount === b.amount) { coexistEvidence.push(...candidateEvidence); continue; }
     }
     const temporal = temporalDetail(left, right, candidate.mode, context);
-    return { ...base, status: "CONFLICT", reasonCodes: [candidate.kind], evidenceRefs: [...new Set(evidence)].sort(), relationPaths, relations, ...(temporal ? { temporal } : {}) };
+    return { ...base, status: "CONFLICT", reasonCodes: [candidate.kind], evidenceRefs: [...new Set(candidateEvidence)].sort(), relationPaths, relations, ...(temporal ? { temporal } : {}) };
   }
-  return { ...base, status: unknown ? "UNKNOWN" : "COEXIST", reasonCodes: [unknown ? "CONFLICT_RELATION_UNRESOLVED" : "SCOPES_OR_TIMES_DISJOINT"], evidenceRefs: [...new Set(evidence)].sort(), relationPaths, relations };
+  const selectedEvidence = unknown ? unknownEvidence : coexistEvidence;
+  return { ...base, status: unknown ? "UNKNOWN" : "COEXIST", reasonCodes: [unknown ? "CONFLICT_RELATION_UNRESOLVED" : "SCOPES_OR_TIMES_DISJOINT"], evidenceRefs: [...new Set(selectedEvidence)].sort(), relationPaths, relations };
 }
 
-export function assessPortfolioCompatibility(portfolioInput: readonly unknown[], contextInput: PortfolioCompatibilityContext | unknown): PortfolioCompatibilityAssessment {
+export function assessPortfolioCompatibility(portfolioInput: unknown, contextInput: PortfolioCompatibilityContext | unknown): PortfolioCompatibilityAssessment {
   const runtime = validateRuntimeContext(contextInput);
-  const rawEvaluatedAt = contextInput && typeof contextInput === "object" && "evaluatedAt" in contextInput && typeof contextInput.evaluatedAt === "string" ? contextInput.evaluatedAt : "INVALID";
-  if (!runtime.context) return invalidAssessment(portfolioInput, rawEvaluatedAt, runtime.reasons[0] ?? "INVALID_COMPATIBILITY_CONTEXT");
+  if (!Array.isArray(portfolioInput)) return invalidAssessment(portfolioInput, "INVALID_PORTFOLIO_CONTAINER");
+  if (!runtime.context) return invalidAssessment(portfolioInput, runtime.reasons[0] ?? "INVALID_COMPATIBILITY_CONTEXT");
   const context = runtime.context;
   const parsedRefs = portfolioInput.map((value) => canonicalEntityReferenceSchema.safeParse(value));
   const reasons: string[] = [...runtime.reasons];
