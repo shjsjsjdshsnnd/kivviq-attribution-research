@@ -10,11 +10,12 @@ import { MEASUREMENT_VERSION } from "../measurement_corruption/index.js";
 import { createMeasuredManifest, replayMeasuredManifest, canonicalJson } from "./replay-manifest.js";
 import { operatorPayload, type MeasurementRunOptions } from "./measured-world.js";
 import type { SimulateWorldRequest } from "../simulation/types.js";
+import { buildMeasurementScenario, MEASUREMENT_SCENARIO_IDS, SCENARIO_LIBRARY_VERSION, type MeasurementScenarioId } from "./scenario-library.js";
 
 export type SimulationCliOptions =
   | { readonly mode: "help" }
   | { readonly mode: "replay"; readonly path: string }
-  | { readonly mode: "generate"; readonly scenario: "measurement-control"; readonly seed: number; readonly manifestPath?: string };
+  | { readonly mode: "generate"; readonly scenario: "measurement-control" | MeasurementScenarioId; readonly seed: number; readonly manifestPath?: string };
 
 export function parseSimulationArgs(args: readonly string[]): SimulationCliOptions {
   if (args.length === 1 && args[0] === "--help") return { mode: "help" };
@@ -34,13 +35,13 @@ export function parseSimulationArgs(args: readonly string[]): SimulationCliOptio
   }
   const scenario = options.get("--scenario"), seedText = options.get("--seed");
   // 9274 is an alias for ONE integration-control scenario, not an extra adversarial case.
-  if (scenario !== "measurement-control" && scenario !== "9274") throw new RangeError("only the measurement-control scenario is executable in this initial CLI");
+  if (scenario !== "measurement-control" && scenario !== "9274" && !(MEASUREMENT_SCENARIO_IDS as readonly (string | undefined)[]).includes(scenario)) throw new RangeError("unregistered scenario");
   if (seedText === undefined || !/^\d+$/.test(seedText)) throw new RangeError("--seed requires an integer");
   const seed = Number(seedText);
   if (!Number.isSafeInteger(seed) || seed < 0 || seed > 4294967293) throw new RangeError("seed must be in [0,4294967293]");
   const manifestPath = options.get("--manifest");
   if (manifestPath !== undefined && !manifestPath.trim()) throw new RangeError("empty manifest path");
-  return { mode: "generate", scenario: "measurement-control", seed,
+  return { mode: "generate", scenario: scenario === "9274" || scenario === "measurement-control" ? "measurement-control" : scenario as MeasurementScenarioId, seed,
     ...(manifestPath === undefined ? {} : { manifestPath }) };
 }
 
@@ -81,7 +82,7 @@ function codeRevision(): string {
 export function simulationMain(args: readonly string[]): void {
   const options = parseSimulationArgs(args);
   if (options.mode === "help") {
-    process.stdout.write("Generate: node dist/evaluation/simulate-cli.js --scenario measurement-control --seed 88213 [--manifest PRIVATE_FILE]\nReplay: node dist/evaluation/simulate-cli.js --replay PRIVATE_FILE\nDefault stdout is corrupted observations only. Manifests are evaluator-only and must not be shared with an Operator.\n");
+    process.stdout.write("Generate: node dist/evaluation/simulate-cli.js --scenario measurement-control --seed 88213 [--manifest PRIVATE_FILE]\nReplay: node dist/evaluation/simulate-cli.js --replay PRIVATE_FILE\nMeasurement mechanism scenarios: adv-008, adv-009, adv-010, adv-012, adv-013, adv-014, adv-015, adv-016, identity-001. These are not Phase 1 acceptance certificates.\nDefault stdout is corrupted observations only. Manifests are evaluator-only and must not be shared with an Operator.\n");
     return;
   }
   const revision = codeRevision();
@@ -90,9 +91,9 @@ export function simulationMain(args: readonly string[]): void {
     process.stdout.write(`${operatorPayload(bundle)}\n`);
     return;
   }
-  const input = measurementControl(options.seed);
+  const input = options.scenario === "measurement-control" ? measurementControl(options.seed) : buildMeasurementScenario(options.scenario, options.seed);
   const { manifest, bundle } = createMeasuredManifest({ ...input,
-    scenarioId: options.scenario, scenarioVersion: "control/1", codeRevision: revision });
+    scenarioId: options.scenario, scenarioVersion: options.scenario === "measurement-control" ? "control/1" : SCENARIO_LIBRARY_VERSION, codeRevision: revision });
   if (options.manifestPath !== undefined) {
     // Never overwrite a previous experiment and never print a manifest to stdout.
     writeFileSync(options.manifestPath, `${canonicalJson(manifest)}\n`, { encoding: "utf8", flag: "wx", mode: 0o600 });

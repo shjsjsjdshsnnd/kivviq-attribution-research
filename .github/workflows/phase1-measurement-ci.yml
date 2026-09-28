@@ -27,7 +27,7 @@ jobs:
       - run: npm install --no-audit --no-fund
       - run: npm run architecture
       - run: npm run typecheck
-      - run: npx vitest run tests/measurement_corruption --maxWorkers=1 --reporter=verbose
+      - run: npx vitest run tests/measurement_corruption tests/scenario_library --maxWorkers=1 --reporter=verbose
       - run: npm run build
       - name: Observed-only CLI and evaluator replay
         shell: bash

@@ -1,7 +1,8 @@
 import { z } from "zod";
+import { sha256 } from "./replay-manifest.js";
 import { observationTimeSchema } from "../observation/corrupted-world.js";
 
-export const FINITE_ORACLE_VERSION = "finite-decision-oracle/1.0.0" as const;
+export const FINITE_ORACLE_VERSION = "finite-decision-oracle/1.1.0" as const;
 const cost = z.number().int().nonnegative().max(Number.MAX_SAFE_INTEGER);
 /** Costs are required, including zero. Platform revenue is not a valid outcome field. */
 const economicsSchema = z.object({
@@ -41,6 +42,7 @@ export interface FiniteOracleResult {
   readonly access: "evaluator_only";
   readonly searchDomain: "supplied_finite_feasible_set";
   readonly actionSetVersion: string;
+  readonly candidateSetHash: string;
   readonly scope: string;
   readonly currency: string;
   readonly horizon: { readonly start: string; readonly end: string };
@@ -125,7 +127,7 @@ export async function evaluateFiniteActionSet<Action>(input: {
       contributionBySeed: seeds.map((seed, index) => ({ seed, contributionMinor: values[index]! })) };
   }).sort((a, b) => b.meanContributionMinor - a.meanContributionMinor || (a.actionId < b.actionId ? -1 : a.actionId > b.actionId ? 1 : 0));
   return { version: FINITE_ORACLE_VERSION, access: "evaluator_only", searchDomain: "supplied_finite_feasible_set",
-    actionSetVersion: input.actionSetVersion, scope: input.scope, currency: input.currency,
+    actionSetVersion: input.actionSetVersion, candidateSetHash: finiteCandidateSetHash(candidates), scope: input.scope, currency: input.currency,
     horizon, method: seeds.length === 1 ? "single_seed_realized" : "shared_seed_monte_carlo",
     baselineActionId: input.baselineActionId, evaluatedActions: candidates.length, evaluations,
     seeds, ranking, bestActionId: ranking[0]!.actionId, worstActionId: ranking[ranking.length - 1]!.actionId };
@@ -140,4 +142,9 @@ export function decisionRegret(result: FiniteOracleResult, selectedActionId: str
     reference: result.method === "single_seed_realized" ? "realized_seed_optimum" as const : "in_sample_finite_set_estimate" as const,
     /** Independent held-out seeds are still required before calling this expected regret. */
     expectedRegretVerified: false as const };
+}
+
+/** Binds action payloads as well as IDs; input order does not affect the signature. */
+export function finiteCandidateSetHash<Action>(candidates: readonly OracleCandidate<Action>[]): string {
+  return sha256([...candidates].sort((a, b) => a.actionId < b.actionId ? -1 : a.actionId > b.actionId ? 1 : 0));
 }
