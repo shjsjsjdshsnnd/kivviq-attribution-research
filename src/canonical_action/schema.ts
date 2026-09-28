@@ -16,6 +16,9 @@ import { actionDependenciesSchema } from "../action_dependencies/schema.js";
 import { actionConflictsSchema } from "../action_conflicts/schema.js";
 import { actionCharacteristicsSchema } from "../action_characteristics/schema.js";
 import { actionRiskMeasurementContractsSchema } from "../action_risk/schema.js";
+import { expectedDomainEligibilityCheckIdsForWhat } from "../action_eligibility/definitions.js";
+import type { ActionCharacteristics } from "../action_characteristics/schema.js";
+import type { ActionRiskMeasurementContracts } from "../action_risk/schema.js";
 
 export const CANONICAL_ACTION_SCHEMA_VERSION = "2.0.0" as const;
 export type LegacyBusiness = Omit<
@@ -316,28 +319,9 @@ export const canonicalActionSchema = z
   });
 
 function localEligibilityCheckIds(what: CanonicalAction["what"]): Set<string> {
-  const ids = new Set<string>();
+  const ids = new Set(expectedDomainEligibilityCheckIdsForWhat(what));
   if ("kind" in what && what.kind === "legacy_business") {
     for (const precondition of what.preconditions) ids.add(precondition.preconditionId);
-    return ids;
-  }
-  if (!("actionType" in what) || typeof what.actionType !== "string") return ids;
-  const family = what.actionType.split(".")[0];
-  if (family === "lifecycle") {
-    ids.add("domain.lifecycle.capability");
-    if (what.actionType === "lifecycle.send") {
-      for (const suffix of ["audience_available", "consent_available", "channel_available", "contact_policy"])
-        ids.add(`domain.lifecycle.${suffix}`);
-    }
-    if (what.actionType === "lifecycle.start_flow" && "flow" in what) {
-      ids.add("domain.lifecycle.audience_available");
-      const firstStep = what.flow.steps[0];
-      if (firstStep) {
-        ids.add("domain.lifecycle.channel_available");
-        for (const ruleRef of firstStep.eligibility) ids.add(`domain.lifecycle.eligibility_rule.${ruleRef}`);
-        for (const ruleRef of firstStep.suppression) ids.add(`domain.lifecycle.suppression_rule.${ruleRef}`);
-      }
-    }
   }
   return ids;
 }
@@ -365,6 +349,13 @@ function hasFiniteTimingHorizon(timing: ActionTiming): boolean {
   );
 }
 export type CanonicalAction = z.infer<typeof canonicalActionSchema>;
+export type NewCanonicalAction = Omit<
+  CanonicalAction,
+  "characteristics" | "riskDimensions"
+> & {
+  characteristics: { state: "PRESENT"; value: ActionCharacteristics };
+  riskDimensions: ActionRiskMeasurementContracts;
+};
 export const newCanonicalActionSchema = canonicalActionSchema.superRefine(
   (action, context) => {
     if (action.characteristics.state !== "PRESENT")
@@ -372,8 +363,7 @@ export const newCanonicalActionSchema = canonicalActionSchema.superRefine(
     if ("state" in action.riskDimensions)
       context.addIssue({ code: "custom", path: ["riskDimensions"], message: "New Actions require all six risk measurement dimensions" });
   },
-);
-export type NewCanonicalAction = z.infer<typeof newCanonicalActionSchema>;
+) as unknown as z.ZodType<NewCanonicalAction>;
 export function assertCanonicalAction(input: unknown): CanonicalAction {
   return canonicalActionSchema.parse(input);
 }

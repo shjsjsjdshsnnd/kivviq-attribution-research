@@ -1,10 +1,20 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, expectTypeOf, it } from "vitest";
 import {
   assertNewCanonicalAction,
   canonicalActionSchema,
   createCanonicalFixtures,
   fingerprintCanonicalAction,
+  type NewCanonicalAction,
 } from "../../src/canonical_action/index.js";
+import { adaptLegacyAction } from "../../src/canonical_action/legacy.js";
+import {
+  increaseGoogleShoppingBudget20,
+} from "../../src/action_ontology/fixtures.js";
+import { reduceSkuA10WithGrossMargin35Floor } from "../../src/pricing/fixtures.js";
+import { reorderSkuA100 } from "../../src/inventory/fixtures.js";
+import { freeStandardShippingAllOrders } from "../../src/shipping/fixtures.js";
+import type { ActionCharacteristics } from "../../src/action_characteristics/index.js";
+import type { ActionRiskMeasurementContracts } from "../../src/action_risk/index.js";
 
 const fingerprint = "fnv1a64:0123456789abcdef";
 const base = () => createCanonicalFixtures()[0]!.action!;
@@ -78,6 +88,13 @@ describe("canonical portfolio definition integration", () => {
       expect(action.conflicts).toEqual([]);
       expect(action.characteristics).toEqual({ state: "ABSENT" });
       expect(action.riskDimensions).toEqual({ state: "ABSENT" });
+      expect(fingerprintCanonicalAction(action)).toBe(fingerprintCanonicalAction(canonicalActionSchema.parse({
+        ...action,
+        dependencies: [],
+        conflicts: [],
+        characteristics: { state: "ABSENT" },
+        riskDimensions: { state: "ABSENT" },
+      })));
     }
   });
 
@@ -130,8 +147,23 @@ describe("canonical portfolio definition integration", () => {
     expect(canonicalActionSchema.safeParse({ ...action, constraints: [constraint], dependencies: [dependency()] }).success).toBe(true);
     expect(canonicalActionSchema.safeParse({ ...action, dependencies: [dependency()] }).success).toBe(false);
     expect(canonicalActionSchema.safeParse({ ...action, constraints: [constraint], dependencies: [{ ...dependency(), evaluationBoundary: "TRANSLATION_TIME" }] }).success).toBe(false);
-    expect(canonicalActionSchema.safeParse({ ...action, dependencies: [{ ...dependency(), kind: "ELIGIBILITY_CHECK_GATE", checkId: "missing.check" }] }).success).toBe(false);
+    expect(canonicalActionSchema.safeParse({ ...action, dependencies: [{ dependencyId: "dependency.missing", kind: "ELIGIBILITY_CHECK_GATE", evaluationBoundary: "DECISION_TIME", whenUnknown: "UNKNOWN", checkId: "missing.check", requiredStatus: "SATISFIED" }] }).success).toBe(false);
     expect(canonicalActionSchema.safeParse({ ...action, dependencies: [{ dependencyId: "dependency.audience", kind: "ELIGIBILITY_CHECK_GATE", evaluationBoundary: "EFFECTIVE_TIME", whenUnknown: "BLOCKED", checkId: "domain.lifecycle.audience_available", requiredStatus: "SATISFIED" }] }).success).toBe(true);
+
+    const cases = [
+      [adaptLegacyAction(reorderSkuA100), "domain.inventory.supplier_available"],
+      [adaptLegacyAction(increaseGoogleShoppingBudget20), "domain.paid_media.channel_enabled"],
+      [adaptLegacyAction(reduceSkuA10WithGrossMargin35Floor), "domain.pricing.target_active"],
+      [adaptLegacyAction(freeStandardShippingAllOrders), "domain.shipping.fulfillment_available"],
+    ] as const;
+    for (const [candidate, checkId] of cases) {
+      const parsed = canonicalActionSchema.safeParse({ ...candidate, dependencies: [{ dependencyId: `dependency.${checkId}`, kind: "ELIGIBILITY_CHECK_GATE", evaluationBoundary: "TRANSLATION_TIME", whenUnknown: "BLOCKED", checkId, requiredStatus: "SATISFIED" }] });
+      expect(parsed.success, parsed.success ? checkId : `${checkId}: ${JSON.stringify(parsed.error.issues)}`).toBe(true);
+    }
+    const legacy = adaptLegacyAction(increaseGoogleShoppingBudget20);
+    if (!("kind" in legacy.what) || legacy.what.kind !== "legacy_business") throw new Error("expected legacy business action");
+    const preconditionId = legacy.what.preconditions[0]!.preconditionId;
+    expect(canonicalActionSchema.safeParse({ ...legacy, dependencies: [{ dependencyId: "dependency.legacy-precondition", kind: "ELIGIBILITY_CHECK_GATE", evaluationBoundary: "DECISION_TIME", whenUnknown: "UNKNOWN", checkId: preconditionId, requiredStatus: "SATISFIED" }] }).success).toBe(true);
   });
 
   it("requires complete explicit definition states from the new-author helper", () => {
@@ -139,5 +171,7 @@ describe("canonical portfolio definition integration", () => {
     expect(() => assertNewCanonicalAction({ ...action, characteristics: { state: "PRESENT", value: characteristics }, riskDimensions })).not.toThrow();
     expect(() => assertNewCanonicalAction(action)).toThrow();
     expect(() => assertNewCanonicalAction({ ...action, characteristics: { state: "ABSENT" }, riskDimensions })).toThrow();
+    expectTypeOf<NewCanonicalAction["characteristics"]>().toEqualTypeOf<{ state: "PRESENT"; value: ActionCharacteristics }>();
+    expectTypeOf<NewCanonicalAction["riskDimensions"]>().toEqualTypeOf<ActionRiskMeasurementContracts>();
   });
 });
