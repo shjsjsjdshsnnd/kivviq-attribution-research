@@ -205,9 +205,20 @@ export const normalizedConflictRelationIdentitySchema = z
   })
   .strict()
   .refine(
-    ({ leftEntityKey, rightEntityKey }) =>
-      leftEntityKey.localeCompare(rightEntityKey) <= 0,
-    "Normalized relation endpoints must be lexicographically ordered",
+    ({
+      leftEntityKey,
+      rightEntityKey,
+      leftScopeFingerprint,
+      rightScopeFingerprint,
+    }) => {
+      const endpointOrder = leftEntityKey.localeCompare(rightEntityKey);
+      return (
+        endpointOrder < 0 ||
+        (endpointOrder === 0 &&
+          leftScopeFingerprint.localeCompare(rightScopeFingerprint) <= 0)
+      );
+    },
+    "Normalized relation endpoints and equal-endpoint scopes must be lexicographically ordered",
   );
 
 export type NormalizedConflictRelationIdentity = z.infer<
@@ -234,9 +245,10 @@ export type ConflictRelationIdentityInput = z.infer<
 export function canonicalConflictEntityKey(
   reference: CanonicalEntityReference,
 ): string {
-  return reference.entityKind === "ACTION"
-    ? `ACTION:${reference.actionId}:${reference.actionFingerprint}`
-    : `COMPOUND:${reference.compoundActionId}:${reference.compoundFingerprint}`;
+  const parsed = canonicalEntityReferenceSchema.parse(reference);
+  return parsed.entityKind === "ACTION"
+    ? `ACTION:${parsed.actionId}:${parsed.actionFingerprint}`
+    : `COMPOUND:${parsed.compoundActionId}:${parsed.compoundFingerprint}`;
 }
 
 export function normalizeConflictRelationIdentity(
@@ -281,7 +293,19 @@ export const scopeIntersectionEvidenceSchema = z
     intersection: z.enum(["INTERSECTS", "DISJOINT", "UNKNOWN"]),
   })
   .strict()
-  .superRefine(({ provenance }, context) => {
+  .superRefine(({ pairKey, provenance }, context) => {
+    const [leftEntityKey, rightEntityKey] = pairKey.split("|");
+    if (
+      leftEntityKey !== undefined &&
+      rightEntityKey !== undefined &&
+      leftEntityKey.localeCompare(rightEntityKey) > 0
+    ) {
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["pairKey"],
+        message: "Pair key endpoints must be lexicographically ordered",
+      });
+    }
     const seen = new Set<string>();
     provenance.forEach((reference, index) => {
       if (seen.has(reference)) {

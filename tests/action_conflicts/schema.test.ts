@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   actionConflictDefinitionSchema,
   actionConflictsSchema,
+  canonicalConflictEntityKey,
   conflictScopeSchema,
   conflictRelationIdentityInputSchema,
   normalizeConflictRelationIdentity,
@@ -225,6 +226,17 @@ describe("pure action conflict contracts", () => {
         },
       }).success,
     ).toBe(false);
+    expect(
+      normalizedConflictRelationIdentitySchema.safeParse({
+        leftEntityKey: `ACTION:action_a:${fpA}`,
+        rightEntityKey: `ACTION:action_a:${fpA}`,
+        kind: "CUSTOM",
+        targetFingerprint: fpA,
+        leftScopeFingerprint: scopeFpB,
+        rightScopeFingerprint: scopeFpA,
+        temporalMode: "ANY_OVERLAP",
+      }).success,
+    ).toBe(false);
   });
 
   it("binds scope intersection evidence exactly without accepting status wrappers", () => {
@@ -253,6 +265,22 @@ describe("pure action conflict contracts", () => {
     expect(
       scopeIntersectionEvidenceReceiptsSchema.safeParse([receipt, receipt]).success,
     ).toBe(false);
+    expect(
+      scopeIntersectionEvidenceSchema.safeParse({
+        ...receipt,
+        pairKey: `ACTION:action_b:${fpB}|ACTION:action_a:${fpA}`,
+      }).success,
+    ).toBe(false);
+  });
+
+  it("validates canonical entity references before constructing public keys", () => {
+    expect(() =>
+      canonicalConflictEntityKey({
+        entityKind: "ACTION",
+        actionId: "invalid",
+        actionFingerprint: fpA,
+      } as never),
+    ).toThrow();
   });
 
   it("leaves registry resolution and intersection claims to assessment", () => {
