@@ -9,6 +9,7 @@
     "test": "vitest run --maxWorkers=1",
     "build": "tsc -p tsconfig.build.json",
     "check": "npm run architecture && npm run typecheck && npm test && npm run build",
+    "simulate": "node dist/evaluation/simulate-cli.js",
     "architecture": "depcruise --config .dependency-cruiser.cjs src",
     "benchmark:diversity": "vitest run tests/generation/diversity-benchmark.test.ts --reporter=verbose",
     "benchmark:customers": "vitest run tests/customer_population/benchmark.test.ts --reporter=verbose",
