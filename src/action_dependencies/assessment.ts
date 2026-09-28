@@ -64,8 +64,8 @@ function compoundLifecycleState(entry: Extract<RegistryEntry, { entityKind: "COM
     }
     const qualifyingTimes = componentEvents.filter((event) => rank[event.eventKind] >= required).map((event) => Date.parse(event.occurredAt));
     const completionTimes = componentEvents.filter((event) => event.eventKind === "COMPLETED").map((event) => Date.parse(event.occurredAt));
-    const reachedAt = qualifyingTimes.length ? Math.max(...qualifyingTimes) : undefined;
-    const completedAt = completionTimes.length ? Math.max(...completionTimes) : undefined;
+    const reachedAt = qualifyingTimes.length ? Math.min(...qualifyingTimes) : undefined;
+    const completedAt = completionTimes.length ? Math.min(...completionTimes) : undefined;
     const terminalAt = completedAt ?? (outcome ? Date.parse(outcome.occurredAt) : undefined);
     states.set(component.componentId, { reached: highest >= required, ...(reachedAt === undefined ? {} : { reachedAt }), completed: highest >= rank.COMPLETED,
       ...(completedAt === undefined ? {} : { completedAt }), resolved, ...(resolvedAt === undefined ? {} : { resolvedAt }), terminal: highest >= rank.COMPLETED || !!outcome,
@@ -218,6 +218,11 @@ export function assessActionDependencies(input: unknown, contextInput: unknown):
   const context = candidate as unknown as DependencyAssessmentContext;
   const validClock = typeof context?.evaluatedAt === "string" && context.evaluatedAt.endsWith("Z") && Number.isFinite(Date.parse(context.evaluatedAt));
   const validBoundary = ["DECISION_TIME", "TRANSLATION_TIME", "EFFECTIVE_TIME"].includes(context?.evaluationBoundary);
+  if (!validClock || !validBoundary) {
+    const checks = action.dependencies.map((dependency) => violated(dependency, "INVALID_DEPENDENCY_CONTEXT"));
+    const projection = { actionId: action.actionId, actionFingerprint: fingerprint, evaluatedAt: "1970-01-01T00:00:00.000Z", evaluationBoundary: "DECISION_TIME" as const, status: "BLOCKED" as const, checks };
+    return { ...projection, assessmentFingerprint: fingerprintDependencyAssessment(projection) };
+  }
   const registryResults = (context?.registry ?? []).map((candidate) => {
     if (!candidate || typeof candidate !== "object" || Array.isArray(candidate)) return { valid: false as const };
     const entry = candidate as Record<string, unknown>;
@@ -231,7 +236,7 @@ export function assessActionDependencies(input: unknown, contextInput: unknown):
   const outcomeIds = outcomeResults.flatMap((result) => result.success ? [result.data.outcomeId] : []);
   const outcomesInvalid = outcomeResults.some((result) => !result.success) || new Set(outcomeIds).size !== outcomeIds.length;
   let checks: DependencyCheck[];
-  if (!validClock || !validBoundary || registryResults.some((result) => !result.valid) || receiptResults.some((result) => !result.success) || outcomesInvalid || hasCycle(action, registry)) checks = action.dependencies.map((dependency) => violated(dependency, !validClock || !validBoundary || registryResults.some((result) => !result.valid) || receiptResults.some((result) => !result.success) || outcomesInvalid ? "INVALID_DEPENDENCY_CONTEXT" : "DEPENDENCY_CYCLE"));
+  if (registryResults.some((result) => !result.valid) || receiptResults.some((result) => !result.success) || outcomesInvalid || hasCycle(action, registry)) checks = action.dependencies.map((dependency) => violated(dependency, registryResults.some((result) => !result.valid) || receiptResults.some((result) => !result.success) || outcomesInvalid ? "INVALID_DEPENDENCY_CONTEXT" : "DEPENDENCY_CYCLE"));
   else checks = action.dependencies.map((dependency) => {
     if (dependency.evaluationBoundary !== context.evaluationBoundary) return unknown(dependency, "DEPENDENCY_BOUNDARY_NOT_SELECTED", [dependency.evaluationBoundary]);
     const exact = receipts.filter((receipt) => receipt.dependentActionId === action.actionId && receipt.dependentActionFingerprint === fingerprint && receipt.dependencyId === dependency.dependencyId && receipt.evaluationBoundary === dependency.evaluationBoundary);

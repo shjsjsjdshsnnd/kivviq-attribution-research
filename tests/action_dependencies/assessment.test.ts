@@ -105,6 +105,10 @@ describe("action dependency assessment", () => {
     const first = assessActionDependencies(dependent(), {}), second = assessActionDependencies(dependent(), { unexpected: true });
     expect(first).toMatchObject({ evaluatedAt: "1970-01-01T00:00:00.000Z", evaluationBoundary: "DECISION_TIME", status: "BLOCKED" });
     expect(second.assessmentFingerprint).toBe(first.assessmentFingerprint);
+    const badClock = assessActionDependencies(dependent(), { ...context(), evaluatedAt: "not-a-clock" });
+    const badBoundary = assessActionDependencies(dependent(), { ...context(), evaluationBoundary: "EXECUTION_TIME" });
+    expect(badClock).toMatchObject({ evaluatedAt: "1970-01-01T00:00:00.000Z", evaluationBoundary: "DECISION_TIME", status: "BLOCKED" });
+    expect(badBoundary.assessmentFingerprint).toBe(badClock.assessmentFingerprint);
   });
 
   it("replays Product A inventory availability with exact resource requirements", () => {
@@ -279,6 +283,21 @@ describe("action dependency assessment", () => {
     expect(assessActionDependencies(action, { ...base, dependencyReceipts: context([
       at(prerequisite, "event_root", NOW), at(downstream, "event_downstream", "2026-09-22T13:59:59.000Z"),
     ], action).dependencyReceipts }).status).toBe("BLOCKED");
+  });
+
+  it("uses the earliest qualifying STARTED or EFFECTIVE transition for dependency chronology", () => {
+    const downstream = canonicalActionSchema.parse({ ...prerequisite, actionId: "action_early_transition" });
+    for (const requiredState of ["STARTED", "EFFECTIVE"] as const) {
+      const compound = compoundActionSchema.parse({ schemaVersion: 1, kind: "compound_action", compoundActionId: `compound_early_${requiredState.toLowerCase()}`,
+        components: [{ componentId: "root", role: "ROOT", action: prerequisite }, { componentId: "downstream", role: "DOWNSTREAM", action: downstream }], ordering: "UNORDERED", concurrency: "INDEPENDENT_TIMING",
+        dependencies: [{ kind: "REQUIRES", componentId: "downstream", dependsOn: "root", requiredState: "COMPLETED" }], atomicity: "DEPENDENCY_GATED", failurePolicy: "STOP_REMAINING",
+        rollbackPolicy: "NO_AUTOMATIC_ROLLBACK", constraints: [], populationRelationships: [], measurementHorizon: { amount: 1, unit: "DAY" }, provenance: ["compound.plan"] });
+      const action = canonicalActionSchema.parse({ ...dependent(requiredState), dependencies: [{ ...dependent(requiredState).dependencies[0], prerequisite: { entityKind: "COMPOUND", compoundActionId: compound.compoundActionId, compoundFingerprint: fingerprintCompoundAction(compound) } }] });
+      const make = (target: typeof prerequisite, eventId: string, eventKind: "STARTED" | "EFFECTIVE" | "COMPLETED", occurredAt: string) => ({ eventId, subject: { kind: "ACTION" as const, actionId: target.actionId, actionFingerprint: fingerprintCanonicalAction(target) }, eventKind, occurredAt, sourceRef: "execution.ledger", provenance: ["execution.event"] });
+      const events = [make(prerequisite, "event_root_completed", "COMPLETED", "2026-09-22T13:30:00.000Z"),
+        make(downstream, "event_downstream_early", requiredState, "2026-09-22T13:00:00.000Z"), make(downstream, "event_downstream_completed", "COMPLETED", NOW)];
+      expect(assessActionDependencies(action, { ...context(events, action), registry: [{ entityKind: "COMPOUND", action: compound }] }).status).toBe("BLOCKED");
+    }
   });
 
   it("accounts for dependency-gated root failures and skipped downstream work under every failure policy", () => {
