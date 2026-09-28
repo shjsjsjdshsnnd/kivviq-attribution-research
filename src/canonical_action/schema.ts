@@ -12,6 +12,10 @@ import { populationReferenceSchema } from "../population/index.js";
 import { decisionWhatSchema } from "../decision_forms/index.js";
 import { experimentWhatSchema } from "../experiment/schema.js";
 import { hardConstraintsSchema } from "../action_constraints/schema.js";
+import { actionDependenciesSchema } from "../action_dependencies/schema.js";
+import { actionConflictsSchema } from "../action_conflicts/schema.js";
+import { actionCharacteristicsSchema } from "../action_characteristics/schema.js";
+import { actionRiskMeasurementContractsSchema } from "../action_risk/schema.js";
 
 export const CANONICAL_ACTION_SCHEMA_VERSION = "2.0.0" as const;
 export type LegacyBusiness = Omit<
@@ -121,6 +125,14 @@ export const universalTimingSchema = z.custom<ActionTiming>(
   (value) => validateActionTiming(value).ok,
   "Invalid universal ActionTiming",
 );
+export const actionCharacteristicsStateSchema = z.discriminatedUnion("state", [
+  z.object({ state: z.literal("ABSENT") }).strict(),
+  z.object({ state: z.literal("PRESENT"), value: actionCharacteristicsSchema }).strict(),
+]);
+export const actionRiskDimensionsStateSchema = z.union([
+  z.object({ state: z.literal("ABSENT") }).strict(),
+  actionRiskMeasurementContractsSchema,
+]);
 const forbidden = new Set([
   "expectedOpenRate",
   "expectedClickRate",
@@ -193,11 +205,34 @@ export const canonicalActionSchema = z
     population: populationReferenceSchema.optional(),
     timing: universalTimingSchema,
     constraints: hardConstraintsSchema.default([]),
+    dependencies: actionDependenciesSchema.default([]),
+    conflicts: actionConflictsSchema.default([]),
+    characteristics: actionCharacteristicsStateSchema.default({ state: "ABSENT" }),
+    riskDimensions: actionRiskDimensionsStateSchema.default({ state: "ABSENT" }),
     provenance: z.array(z.string().regex(/^[A-Za-z][A-Za-z0-9_.:-]*$/)).min(1),
   })
   .strict()
   .superRefine((action, ctx) => {
     guard(action, ctx);
+    const constraintsById = new Map(
+      action.constraints.map((constraint) => [constraint.constraintId, constraint]),
+    );
+    const eligibilityCheckIds = localEligibilityCheckIds(action.what);
+    action.dependencies.forEach((dependency, index) => {
+      if (dependency.kind === "HARD_CONSTRAINT_GATE") {
+        const constraint = constraintsById.get(dependency.constraintId);
+        if (!constraint) {
+          ctx.addIssue({ code: "custom", path: ["dependencies", index, "constraintId"], message: "Hard-constraint gate must reference a local constraint" });
+        } else if (constraint.evaluationBoundary !== dependency.evaluationBoundary) {
+          ctx.addIssue({ code: "custom", path: ["dependencies", index, "evaluationBoundary"], message: "Hard-constraint gate boundary must equal its local constraint boundary" });
+        }
+      }
+      if (
+        dependency.kind === "ELIGIBILITY_CHECK_GATE" &&
+        !eligibilityCheckIds.has(dependency.checkId)
+      )
+        ctx.addIssue({ code: "custom", path: ["dependencies", index, "checkId"], message: "Eligibility gate must reference a local eligibility check" });
+    });
     const decision = decisionWhatSchema.safeParse(action.what);
     const experiment = experimentWhatSchema.safeParse(action.what);
     if (experiment.success) {
@@ -280,6 +315,33 @@ export const canonicalActionSchema = z
       });
   });
 
+function localEligibilityCheckIds(what: CanonicalAction["what"]): Set<string> {
+  const ids = new Set<string>();
+  if ("kind" in what && what.kind === "legacy_business") {
+    for (const precondition of what.preconditions) ids.add(precondition.preconditionId);
+    return ids;
+  }
+  if (!("actionType" in what) || typeof what.actionType !== "string") return ids;
+  const family = what.actionType.split(".")[0];
+  if (family === "lifecycle") {
+    ids.add("domain.lifecycle.capability");
+    if (what.actionType === "lifecycle.send") {
+      for (const suffix of ["audience_available", "consent_available", "channel_available", "contact_policy"])
+        ids.add(`domain.lifecycle.${suffix}`);
+    }
+    if (what.actionType === "lifecycle.start_flow" && "flow" in what) {
+      ids.add("domain.lifecycle.audience_available");
+      const firstStep = what.flow.steps[0];
+      if (firstStep) {
+        ids.add("domain.lifecycle.channel_available");
+        for (const ruleRef of firstStep.eligibility) ids.add(`domain.lifecycle.eligibility_rule.${ruleRef}`);
+        for (const ruleRef of firstStep.suppression) ids.add(`domain.lifecycle.suppression_rule.${ruleRef}`);
+      }
+    }
+  }
+  return ids;
+}
+
 function hasFiniteTimingHorizon(timing: ActionTiming): boolean {
   if (timing.recurrence.state === "UNKNOWN") return false;
   if (timing.recurrence.state === "SPECIFIED") {
@@ -303,8 +365,20 @@ function hasFiniteTimingHorizon(timing: ActionTiming): boolean {
   );
 }
 export type CanonicalAction = z.infer<typeof canonicalActionSchema>;
+export const newCanonicalActionSchema = canonicalActionSchema.superRefine(
+  (action, context) => {
+    if (action.characteristics.state !== "PRESENT")
+      context.addIssue({ code: "custom", path: ["characteristics"], message: "New Actions require explicit characteristics" });
+    if ("state" in action.riskDimensions)
+      context.addIssue({ code: "custom", path: ["riskDimensions"], message: "New Actions require all six risk measurement dimensions" });
+  },
+);
+export type NewCanonicalAction = z.infer<typeof newCanonicalActionSchema>;
 export function assertCanonicalAction(input: unknown): CanonicalAction {
   return canonicalActionSchema.parse(input);
+}
+export function assertNewCanonicalAction(input: unknown): NewCanonicalAction {
+  return newCanonicalActionSchema.parse(input);
 }
 export function assertHistoricalAction(input: unknown): Action {
   return assertValidAction(input);

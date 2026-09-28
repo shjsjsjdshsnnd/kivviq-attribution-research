@@ -32,10 +32,14 @@ const populationEvidence = {
     .strict(),
 };
 
+type ExperimentRegistryEntry =
+  | { entityKind: "ACTION"; action: CanonicalAction }
+  | { entityKind: "COMPOUND"; action: CompoundAction };
+
 const registryEntrySchema = z.union([
   z.object({ entityKind: z.literal("ACTION"), action: z.custom<CanonicalAction>((value) => canonicalActionSchema.safeParse(value).success) }).strict(),
   z.object({ entityKind: z.literal("COMPOUND"), action: z.lazy(() => compoundActionSchema) }).strict(),
-]);
+]) as unknown as z.ZodType<ExperimentRegistryEntry>;
 const timingContextSchema = z
   .object({
     approvedClock: timestamp,
