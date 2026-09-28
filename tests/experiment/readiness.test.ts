@@ -132,6 +132,13 @@ describe("experiment readiness", () => {
     expect(result.status).toBe("READY");
     expect(result.arms.map((arm) => arm.status)).toEqual(["READY", "READY"]);
     expect(result.reasonCodes).toEqual([]);
+    expect(result.checks).toEqual([expect.objectContaining({
+      checkId: "SUFFICIENT_ELIGIBLE_TRAFFIC", status: "SATISFIED",
+      experimentActionFingerprint: fingerprintCanonicalAction(action), populationId: population.populationId,
+      populationVersion: population.version, populationFingerprint: population.definitionFingerprint,
+      bindingTime: "2026-09-22T14:00:00.000Z", sampleTarget: 2, eligibleCount: 2,
+      evidenceRefs: ["evidence_traffic"],
+    })]);
     expect(result.readinessFingerprint).toBe(fingerprintExperimentReadiness({ ...result, readinessFingerprint: undefined }));
     expect(action).toEqual(before);
   });
@@ -150,6 +157,14 @@ describe("experiment readiness", () => {
     expect(assessExperimentReadiness(action, context({ eligibleTrafficMaximumAgeSeconds: 30, eligibleTraffic: {
       ...context().eligibleTraffic, rawSourceObservedAt: "2026-09-22T13:59:00.000Z",
     } }))).toMatchObject({ status: "BLOCKED", reasonCodes: expect.arrayContaining(["STALE_ELIGIBLE_TRAFFIC_SOURCE"]) });
+  });
+
+  it("keeps positive traffic structured when an unrelated readiness gate blocks", () => {
+    const result = assessExperimentReadiness(experiment(), context({
+      engineCapability: { status: "UNAVAILABLE", randomizationUnits: ["CUSTOMER"], evidenceRefs: ["evidence_engine"] },
+    }));
+    expect(result.status).toBe("BLOCKED");
+    expect(result.checks).toMatchObject([{ checkId: "SUFFICIENT_ELIGIBLE_TRAFFIC", status: "SATISFIED" }]);
   });
 
   it("reports missing arms as UNKNOWN and fingerprint mismatches as BLOCKED", () => {

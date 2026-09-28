@@ -140,7 +140,21 @@ export interface ExperimentReadiness {
   missingRefs: string[];
   evidenceRefs: string[];
   arms: ExperimentArmReadiness[];
+  checks: ExperimentReadinessCheck[];
   readinessFingerprint: string;
+}
+export interface ExperimentReadinessCheck {
+  checkId: "SUFFICIENT_ELIGIBLE_TRAFFIC";
+  status: "SATISFIED" | "BLOCKED" | "UNKNOWN";
+  experimentActionFingerprint: string;
+  populationId: string;
+  populationVersion: number;
+  populationFingerprint: string;
+  bindingTime?: string;
+  sampleTarget?: number;
+  eligibleCount?: number;
+  reasonCodes: string[];
+  evidenceRefs: string[];
 }
 
 function stable(value: unknown): string {
@@ -247,26 +261,32 @@ export function assessExperimentReadiness(
   const traffic = context.eligibleTraffic;
   const populationRef = action.population!;
   const bindingTime = context.bindingTimes[populationRef.binding];
-  if (traffic.populationId !== populationRef.populationId || traffic.version !== populationRef.version ||
-      traffic.definitionFingerprint !== populationRef.definitionFingerprint || traffic.binding !== populationRef.binding ||
-      traffic.membershipMode !== populationRef.membershipMode || traffic.snapshotRef !== populationRef.snapshotRef ||
-      (bindingTime !== undefined && Date.parse(traffic.evaluatedAt) !== Date.parse(bindingTime)))
+  const trafficPopulationMatches = traffic.populationId === populationRef.populationId && traffic.version === populationRef.version &&
+      traffic.definitionFingerprint === populationRef.definitionFingerprint && traffic.binding === populationRef.binding &&
+      traffic.membershipMode === populationRef.membershipMode && traffic.snapshotRef === populationRef.snapshotRef &&
+      (bindingTime === undefined || Date.parse(traffic.evaluatedAt) === Date.parse(bindingTime));
+  if (!trafficPopulationMatches)
     blocked("ELIGIBLE_TRAFFIC_POPULATION_MISMATCH");
-  if (traffic.experimentActionFingerprint !== fingerprintCanonicalAction(action))
+  const trafficExperimentMatches = traffic.experimentActionFingerprint === fingerprintCanonicalAction(action);
+  if (!trafficExperimentMatches)
     blocked("ELIGIBLE_TRAFFIC_EXPERIMENT_MISMATCH");
   const rawTrafficSource = populationRef.membershipMode === "FROZEN_MEMBERSHIP"
     ? context.snapshots?.find((candidate) => candidate.snapshotId === populationRef.snapshotRef && Date.parse(candidate.evaluatedAt) === Date.parse(traffic.rawSourceObservedAt))
     : context.evaluations.find((candidate) => candidate.populationId === populationRef.populationId && candidate.version === populationRef.version && Date.parse(candidate.evaluatedAt) === Date.parse(traffic.rawSourceObservedAt));
-  if (!rawTrafficSource || fingerprintExperimentTrafficSource(rawTrafficSource) !== traffic.rawSourceFingerprint)
+  const trafficSourceMatches = !!rawTrafficSource && fingerprintExperimentTrafficSource(rawTrafficSource) === traffic.rawSourceFingerprint;
+  if (!trafficSourceMatches)
     blocked("ELIGIBLE_TRAFFIC_SOURCE_MISMATCH");
   if (Date.parse(traffic.evaluatedAt) > Date.parse(context.timing.approvedClock))
     blocked("FUTURE_TRAFFIC_EVIDENCE");
-  if (Date.parse(traffic.rawSourceObservedAt) > Date.parse(context.timing.approvedClock))
+  const trafficFuture = Date.parse(traffic.rawSourceObservedAt) > Date.parse(context.timing.approvedClock);
+  if (trafficFuture)
     blocked("FUTURE_ELIGIBLE_TRAFFIC_SOURCE");
   const trafficAgeLimits = [traffic.maximumAgeSeconds, context.eligibleTrafficMaximumAgeSeconds].filter((value): value is number => value !== undefined);
-  if (Date.parse(context.timing.approvedClock) - Date.parse(traffic.rawSourceObservedAt) > Math.min(...trafficAgeLimits) * 1000)
+  const trafficStale = Date.parse(context.timing.approvedClock) - Date.parse(traffic.rawSourceObservedAt) > Math.min(...trafficAgeLimits) * 1000;
+  if (trafficStale)
     blocked("STALE_ELIGIBLE_TRAFFIC_SOURCE");
-  if (what.stopping.sampleTarget !== undefined && eligibleCount !== undefined && eligibleCount < what.stopping.sampleTarget)
+  const trafficInsufficient = what.stopping.sampleTarget !== undefined && eligibleCount !== undefined && eligibleCount < what.stopping.sampleTarget;
+  if (trafficInsufficient)
     blocked("INSUFFICIENT_ELIGIBLE_TRAFFIC");
 
   context.engineCapability.evidenceRefs.forEach((entry) => evidence.add(entry));
@@ -290,6 +310,23 @@ export function assessExperimentReadiness(
     : hasUnknown
       ? "UNKNOWN"
       : "READY";
+  const trafficReasonCodes = [
+    ...(!trafficPopulationMatches ? ["ELIGIBLE_TRAFFIC_POPULATION_MISMATCH"] : []),
+    ...(!trafficExperimentMatches ? ["ELIGIBLE_TRAFFIC_EXPERIMENT_MISMATCH"] : []),
+    ...(!trafficSourceMatches ? ["ELIGIBLE_TRAFFIC_SOURCE_MISMATCH"] : []),
+    ...(trafficFuture ? ["FUTURE_ELIGIBLE_TRAFFIC_SOURCE"] : []),
+    ...(trafficStale ? ["STALE_ELIGIBLE_TRAFFIC_SOURCE"] : []),
+    ...(trafficInsufficient ? ["INSUFFICIENT_ELIGIBLE_TRAFFIC"] : []),
+  ];
+  const trafficCheck: ExperimentReadinessCheck = {
+    checkId: "SUFFICIENT_ELIGIBLE_TRAFFIC",
+    status: trafficReasonCodes.length ? "BLOCKED" : eligibleCount === undefined || bindingTime === undefined ? "UNKNOWN" : "SATISFIED",
+    experimentActionFingerprint: fingerprintCanonicalAction(action), populationId: populationRef.populationId,
+    populationVersion: populationRef.version, populationFingerprint: populationRef.definitionFingerprint,
+    ...(bindingTime ? { bindingTime } : {}), ...(what.stopping.sampleTarget !== undefined ? { sampleTarget: what.stopping.sampleTarget } : {}),
+    ...(eligibleCount !== undefined ? { eligibleCount } : {}), reasonCodes: trafficReasonCodes,
+    evidenceRefs: [...traffic.evidenceRefs].sort(),
+  };
   const projection = {
     actionId: action.actionId,
     status,
@@ -297,6 +334,7 @@ export function assessExperimentReadiness(
     missingRefs: [...missing].sort(),
     evidenceRefs: [...evidence].sort(),
     arms,
+    checks: [trafficCheck],
   };
   return { ...projection, readinessFingerprint: fingerprintExperimentReadiness(projection) };
 }
@@ -437,6 +475,6 @@ function checkPopulation(
 }
 
 function result(actionId: string | undefined, status: ExperimentReadinessStatus, reasonCodes: string[]): ExperimentReadiness {
-  const projection = { ...(actionId ? { actionId } : {}), status, reasonCodes, missingRefs: [], evidenceRefs: [], arms: [] };
+  const projection = { ...(actionId ? { actionId } : {}), status, reasonCodes, missingRefs: [], evidenceRefs: [], arms: [], checks: [] };
   return { ...projection, readinessFingerprint: fingerprintExperimentReadiness(projection) };
 }

@@ -33,14 +33,16 @@ function event(kind: "STARTED" | "EFFECTIVE" | "COMPLETED" = "COMPLETED") {
 function context(events = [event()], action = dependent()) {
   const dependency = action.dependencies[0]!;
   const fact = dependency.kind === "ENTITY_LIFECYCLE"
-    ? { kind: "ENTITY_LIFECYCLE" as const, prerequisite: dependency.prerequisite, events }
+    ? dependency.requiredState === "RESOLVED"
+      ? { kind: "INVESTIGATION_RESULT_INPUT" as const, prerequisite: dependency.prerequisite }
+      : { kind: "ENTITY_LIFECYCLE" as const, prerequisite: dependency.prerequisite, events }
     : dependency.kind === "ELIGIBILITY_CHECK_GATE"
       ? { kind: "ELIGIBILITY_INPUT" as const, checkId: dependency.checkId }
       : dependency.kind === "HARD_CONSTRAINT_GATE"
         ? { kind: "CONSTRAINT_INPUT" as const, constraintId: dependency.constraintId }
         : { kind: "EXPERIMENT_READINESS_INPUT" as const, requirement: dependency.requirement };
   return { evaluatedAt: NOW, evaluationBoundary: "TRANSLATION_TIME" as const, maximumAgeSeconds: 3600,
-    registry: [{ entityKind: "ACTION" as const, action: prerequisite }], dependencyReceipts: events.length || dependency.kind !== "ENTITY_LIFECYCLE" ? [{
+    registry: [{ entityKind: "ACTION" as const, action: prerequisite }], dependencyReceipts: events.length || dependency.kind !== "ENTITY_LIFECYCLE" || dependency.requiredState === "RESOLVED" ? [{
       receiptId: "dependency.receipt", dependentActionId: action.actionId, dependentActionFingerprint: fingerprintCanonicalAction(action),
       dependencyId: dependency.dependencyId, evaluationBoundary: dependency.evaluationBoundary, observedAt: NOW,
       evidenceRefs: ["dependency.evidence"], provenance: ["dependency.provenance"], fact,
@@ -53,7 +55,7 @@ describe("action dependency assessment", () => {
   it("derives lifecycle state only from an exact raw event and fingerprints the sorted report", () => {
     const action = dependent();
     const report = assessActionDependencies(action, context());
-    expect(report.status).toBe("READY");
+    expect(report.status).toBe("SATISFIED");
     expect(report.checks).toMatchObject([{ dependencyId: "inventory_ready", status: "SATISFIED", reasonCodes: ["REQUIRED_LIFECYCLE_STATE_OBSERVED"] }]);
     expect(report.assessmentFingerprint).toBe(fingerprintDependencyAssessment({ ...report, assessmentFingerprint: undefined }));
   });
@@ -66,6 +68,12 @@ describe("action dependency assessment", () => {
       expect(assessActionDependencies(action, context(events)).checks[0]).toMatchObject({ status: "UNKNOWN", reasonCodes: ["AMBIGUOUS_LIFECYCLE_EVIDENCE"] });
     expect(assessActionDependencies(action, context([{ ...event(), occurredAt: "2026-09-22T15:00:00.000Z" }])).status).toBe("BLOCKED");
     expect(assessActionDependencies(action, context([{ ...event(), occurredAt: "2026-09-22T12:00:00.000Z" }])).status).toBe("BLOCKED");
+  });
+
+  it("accepts monotonic lifecycle history without treating later states as ambiguity", () => {
+    const action = dependent("STARTED");
+    const report = assessActionDependencies(action, context([event("STARTED"), event("EFFECTIVE"), event("COMPLETED")], action));
+    expect(report.status).toBe("SATISFIED");
   });
 
   it("requires one fresh receipt bound to dependent identity, dependency, and boundary", () => {
@@ -85,6 +93,28 @@ describe("action dependency assessment", () => {
     expect(assessActionDependencies(action, { ...context(), maximumAgeSeconds: 60, dependencyReceipts: [{ ...receipt, observedAt: "2026-09-22T12:00:00.000Z" }] }).status).toBe("BLOCKED");
   });
 
+  it("returns a blocked report instead of throwing for malformed public input or context", () => {
+    expect(() => assessActionDependencies({}, {})).not.toThrow();
+    expect(assessActionDependencies({}, {})).toMatchObject({ status: "BLOCKED" });
+    expect(assessActionDependencies(dependent(), { ...context(), maximumAgeSeconds: Number.POSITIVE_INFINITY })).toMatchObject({ status: "BLOCKED" });
+    expect(assessActionDependencies(dependent(), { ...context(), registry: [{ entityKind: "ACTION", action: { actionId: prerequisite.actionId } }] })).toMatchObject({ status: "BLOCKED" });
+  });
+
+  it("replays Product A inventory availability with exact resource requirements", () => {
+    const constraint = { constraintId: "inventory_product_a", kind: "INVENTORY_AVAILABILITY", target: { kind: "PRODUCT", ref: "product_a" },
+      evaluationBoundary: "TRANSLATION_TIME", whenUnknown: "INELIGIBLE", resourceRequirementId: "units_product_a", availableValue: { kind: "FACT", ref: "inventory.available" } } as const;
+    const action = canonicalActionSchema.parse({ ...dependent(), constraints: [constraint], dependencies: [{ dependencyId: "inventory_gate", kind: "HARD_CONSTRAINT_GATE",
+      constraintId: constraint.constraintId, requiredStatus: "SATISFIED", evaluationBoundary: "TRANSLATION_TIME", whenUnknown: "BLOCKED" }] });
+    const base = context([], action);
+    const evidence = { evidenceRef: "inventory.evidence", actionId: action.actionId, actionFingerprint: fingerprintCanonicalAction(action), constraintId: constraint.constraintId,
+      target: constraint.target, evaluationBoundary: "TRANSLATION_TIME", observedAt: NOW, sourceRef: "inventory.snapshot", provenance: ["inventory.source"],
+      fact: { kind: "VALUE", valueRef: constraint.availableValue, value: { valueType: "QUANTITY", value: 20, unit: "units" } } };
+    const requirements = { inventory_gate: [{ resourceRequirementId: "units_product_a", value: { valueType: "QUANTITY", value: 10, unit: "units" } }] };
+    expect(assessActionDependencies(action, { ...base, constraintReceipts: [evidence], constraintResourceRequirements: requirements }).status).toBe("SATISFIED");
+    expect(assessActionDependencies(action, { ...base, constraintReceipts: [{ ...evidence, fact: { ...evidence.fact, value: { valueType: "QUANTITY", value: 5, unit: "units" } } }], constraintResourceRequirements: requirements }).status).toBe("BLOCKED");
+    expect(assessActionDependencies(action, { ...base, constraintReceipts: [{ ...evidence, target: { kind: "PRODUCT", ref: "product_b" } }], constraintResourceRequirements: requirements }).status).toBe("BLOCKED");
+  });
+
   it("rejects ambiguous registry entries and direct or transitive cycles", () => {
     const action = dependent();
     expect(assessActionDependencies(action, { ...context(), registry: [
@@ -93,6 +123,15 @@ describe("action dependency assessment", () => {
     const self = canonicalActionSchema.parse({ ...action, dependencies: [{ ...action.dependencies[0], prerequisite: {
       entityKind: "ACTION", actionId: action.actionId, actionFingerprint: fingerprintCanonicalAction(action) } }] });
     expect(assessActionDependencies(self, { ...context(), registry: [{ entityKind: "ACTION", action: self }] }).status).toBe("BLOCKED");
+    const a = canonicalActionSchema.parse({ ...prerequisite, actionId: "action_cycle_a", dependencies: [{ dependencyId: "needs_b", kind: "ENTITY_LIFECYCLE",
+      prerequisite: { entityKind: "ACTION", actionId: "action_cycle_b", actionFingerprint: "fnv1a64:bbbbbbbbbbbbbbbb" }, requiredState: "COMPLETED",
+      evaluationBoundary: "TRANSLATION_TIME", whenUnknown: "BLOCKED" }] });
+    const b = canonicalActionSchema.parse({ ...prerequisite, actionId: "action_cycle_b", dependencies: [{ dependencyId: "needs_a", kind: "ENTITY_LIFECYCLE",
+      prerequisite: { entityKind: "ACTION", actionId: "action_cycle_a", actionFingerprint: "fnv1a64:aaaaaaaaaaaaaaaa" }, requiredState: "COMPLETED",
+      evaluationBoundary: "TRANSLATION_TIME", whenUnknown: "BLOCKED" }] });
+    expect(assessActionDependencies(a, { ...context([], a), registry: [{ entityKind: "ACTION", action: a }, { entityKind: "ACTION", action: b }] })).toMatchObject({
+      status: "BLOCKED", checks: [{ reasonCodes: ["DEPENDENCY_CYCLE"] }],
+    });
   });
 
   it("never accepts a lifecycle wrapper status or compound-level lifecycle event", () => {
@@ -112,7 +151,7 @@ describe("action dependency assessment", () => {
     const result = { actionId: investigation.actionId, actionFingerprint: fingerprintCanonicalAction(investigation), status: "RESOLVED",
       evidenceCollected: [{ evidenceId: "requested-evidence", artifactRef: "artifact.inventory" }], coverage: [{ evidenceId: "requested-evidence", fraction: 1 }],
       findings: [], unresolvedEvidenceIds: [], completedAt: NOW, provenance: { sourceRef: "investigation.runner", recordedAt: NOW } };
-    expect(assessActionDependencies(action, { ...context([event()], action), registry: [{ entityKind: "ACTION", action: investigation }], investigationResults: [result] }).status).toBe("READY");
+    expect(assessActionDependencies(action, { ...context([], action), registry: [{ entityKind: "ACTION", action: investigation }], investigationResults: [result] }).status).toBe("SATISFIED");
     expect(assessActionDependencies(action, { ...context([event()], action), registry: [{ entityKind: "ACTION", action: investigation }], investigationResults: [{ ...result, actionFingerprint: "fnv1a64:aaaaaaaaaaaaaaaa" }] }).status).toBe("BLOCKED");
   });
 
@@ -124,7 +163,7 @@ describe("action dependency assessment", () => {
     }] });
     const raw = evaluateEligibilityForTest(action, "TRANSLATION_TIME", NOW).evaluationContext;
     const base = { ...context([], action), registry: [], eligibilityContexts: { winback_audience: raw } };
-    expect(assessActionDependencies(action, base).status).toBe("READY");
+    expect(assessActionDependencies(action, base).status).toBe("SATISFIED");
     const audience = raw.domainFacts.find((fact) => fact.factId === "AUDIENCE_AVAILABLE")!;
     expect(assessActionDependencies(action, { ...base, eligibilityContexts: { winback_audience: {
       ...raw, domainFacts: raw.domainFacts.map((fact) => fact === audience ? { ...fact, actionFingerprint: "fnv1a64:aaaaaaaaaaaaaaaa" } : fact),
@@ -150,7 +189,7 @@ describe("action dependency assessment", () => {
         componentId: "followup", actionId: second.actionId, actionFingerprint: fingerprintCanonicalAction(second), status: "SKIPPED" as const,
         occurredAt: NOW, sourceRef: "execution.ledger", provenance: ["execution.outcome"] };
       const result = assessActionDependencies(action, { ...context([event()], action), registry: [{ entityKind: "COMPOUND", action: compound }], compoundComponentOutcomes: [outcome] });
-      expect(result.status).toBe(atomicity === "ALL_OR_NOTHING" ? "BLOCKED" : "READY");
+      expect(result.status).toBe(atomicity === "ALL_OR_NOTHING" ? "BLOCKED" : "SATISFIED");
     }
   });
 });

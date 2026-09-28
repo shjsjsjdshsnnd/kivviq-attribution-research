@@ -133,6 +133,12 @@ export const actionLifecycleEventSchema = z
 const dependencyEvidenceFactSchema = z.discriminatedUnion("kind", [
   z
     .object({
+      kind: z.literal("INVESTIGATION_RESULT_INPUT"),
+      prerequisite: canonicalEntityReferenceSchema,
+    })
+    .strict(),
+  z
+    .object({
       kind: z.literal("ENTITY_LIFECYCLE"),
       prerequisite: canonicalEntityReferenceSchema,
       events: z.array(actionLifecycleEventSchema).min(1),
@@ -181,6 +187,21 @@ export const dependencyEvidenceReceiptSchema = z
   })
   .strict();
 
+export const compoundComponentOutcomeSchema = z
+  .object({
+    outcomeId: referenceSchema,
+    compoundActionId: compoundActionIdSchema,
+    compoundFingerprint: fingerprintSchema,
+    componentId: referenceSchema,
+    actionId: canonicalActionIdSchema,
+    actionFingerprint: fingerprintSchema,
+    status: z.enum(["FAILED", "SKIPPED"]),
+    occurredAt: utcZSchema,
+    sourceRef: referenceSchema,
+    provenance: z.array(referenceSchema).min(1).superRefine((values, context) => uniqueReferences(values, context, "provenance reference")),
+  })
+  .strict();
+
 export type CanonicalEntityReference = z.infer<
   typeof canonicalEntityReferenceSchema
 >;
@@ -189,3 +210,4 @@ export type ActionLifecycleEvent = z.infer<typeof actionLifecycleEventSchema>;
 export type DependencyEvidenceReceipt = z.infer<
   typeof dependencyEvidenceReceiptSchema
 >;
+export type CompoundComponentOutcome = z.infer<typeof compoundComponentOutcomeSchema>;

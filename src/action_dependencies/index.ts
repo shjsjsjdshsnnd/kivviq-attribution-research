@@ -5,6 +5,7 @@ export {
   canonicalActionIdSchema,
   canonicalEntityReferenceSchema,
   compoundActionIdSchema,
+  compoundComponentOutcomeSchema,
   dependencyEvidenceReceiptSchema,
 } from "./schema.js";
 export type {
@@ -12,5 +13,6 @@ export type {
   ActionLifecycleEvent,
   CanonicalEntityReference,
   DependencyEvidenceReceipt,
+  CompoundComponentOutcome,
 } from "./schema.js";
 export * from "./assessment.js";
