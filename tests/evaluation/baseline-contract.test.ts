@@ -12,6 +12,7 @@ import { generateMerchantWorldRecord } from "../../src/generation/generator.js";
 import {
   BASELINE_METRIC_SET_VERSION,
   CANONICAL_BASELINE_EVALUATION_CONTRACT_V1,
+  CONSTRAINT_ISSUE_KINDS,
   assertEquivalentComparisonBindings,
   assertValidBaselineEvaluationContract,
   buildActionAvailabilitySnapshot,
@@ -22,6 +23,7 @@ import {
   createFixedIntervalDecisionOpportunity,
   deriveEvaluationHorizonTimestamps,
   evaluationFingerprint,
+  stableEvaluationJson,
   resolveActionConstraintAssessment,
   validateActionAtDecision,
   validateActionBatchAtDecision,
@@ -35,6 +37,30 @@ const contract = CANONICAL_BASELINE_EVALUATION_CONTRACT_V1;
 const decisionAnchor = String(
   increaseGoogleShoppingBudget20.timing.decisionTime,
 );
+
+describe("evaluation canonical serialization", () => {
+  it("exports the frozen authoritative constraint issue kinds", () => {
+    expect(CONSTRAINT_ISSUE_KINDS).toEqual([
+      "INVALID_ACTION",
+      "INFEASIBLE",
+      "PARTIALLY_FEASIBLE",
+      "CONFLICT",
+    ]);
+    expect(Object.isFrozen(CONSTRAINT_ISSUE_KINDS)).toBe(true);
+  });
+
+  it("preserves the frozen Step 3.1 locale ordering and mixed-case fingerprint", () => {
+    const forward = { a: 1, A: 2 };
+    const reverse = { A: 2, a: 1 };
+
+    expect(stableEvaluationJson(forward)).toBe('{"a":1,"A":2}');
+    expect(stableEvaluationJson(reverse)).toBe(stableEvaluationJson(forward));
+    expect(evaluationFingerprint(forward)).toBe(
+      "fnv1a64:1c94267720f43cf6",
+    );
+    expect(evaluationFingerprint(reverse)).toBe(evaluationFingerprint(forward));
+  });
+});
 
 function clone<T>(value: T): any {
   return JSON.parse(JSON.stringify(value));

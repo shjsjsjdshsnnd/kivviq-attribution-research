@@ -8,7 +8,7 @@ import {
   actionFingerprint,
   actionSemanticKey,
 } from "../action_ontology/semantics.js";
-import { assertValidAction } from "../action_ontology/validation.js";
+import { assertValidAction, assertValidActionTarget } from "../action_ontology/validation.js";
 import {
   deepFreezeOperator,
   operatorFingerprint,
@@ -21,6 +21,7 @@ import type {
   OperatorDecisionOutput,
   OperatorJson,
 } from "./types.js";
+import { OPERATOR_INTERFACE_VERSION } from "./types.js";
 
 export const CANONICAL_OPERATOR_INTERFACE_VERSION = "2.0.0" as const;
 export const CANONICAL_OPERATOR_INPUT_SCHEMA_VERSION = "1.0.0" as const;
@@ -36,16 +37,19 @@ export const CANONICAL_OPERATOR_FROZEN_STEP_3_9_COMMIT =
 export const CANONICAL_OPERATOR_SUPPORTED_CONTRACT_FINGERPRINT =
   "fnv1a64:b1cc22917a3e566b" as const;
 
-export type CanonicalOperatorFamily =
-  | "do_nothing"
-  | "status_quo"
-  | "advertising_heuristic"
-  | "inventory_heuristic"
-  | "pricing_promotion_heuristic"
-  | "merchandising_heuristic"
-  | "greedy"
-  | "flawed_optimizer"
-  | "advanced_decision_system";
+export const CANONICAL_OPERATOR_FAMILIES = deepFreezeOperator([
+  "do_nothing",
+  "status_quo",
+  "advertising_heuristic",
+  "inventory_heuristic",
+  "pricing_promotion_heuristic",
+  "merchandising_heuristic",
+  "greedy",
+  "flawed_optimizer",
+  "advanced_decision_system",
+] as const);
+
+export type CanonicalOperatorFamily = (typeof CANONICAL_OPERATOR_FAMILIES)[number];
 
 export type OperatorRandomnessSemantics =
   | {
@@ -384,6 +388,12 @@ function semver(value: string): boolean {
   return /^\d+\.\d+\.\d+$/.test(value);
 }
 
+function densePlainArray(value: unknown): value is unknown[] {
+  if (!Array.isArray(value) || Object.getPrototypeOf(value) !== Array.prototype) return false;
+  const keys = Object.keys(value);
+  return keys.length === value.length && keys.every((key, index) => key === String(index));
+}
+
 function finiteJson(value: unknown, path = "$"): void {
   if (typeof value === "number" && !Number.isFinite(value)) {
     throw new TypeError(
@@ -400,6 +410,121 @@ function finiteJson(value: unknown, path = "$"): void {
   for (const [key, entry] of Object.entries(value)) {
     finiteJson(entry, path + "." + key);
   }
+}
+
+const CANONICAL_INPUT_KEYS = ["schemaVersion", "opportunityId", "decisionTime", "observation", "legalActionSpace", "decisionContext", "constraints", "provenance"] as const;
+const CANONICAL_INPUT_OBSERVATION_KEYS = ["records"] as const;
+const CANONICAL_INPUT_OBSERVATION_RECORD_KEYS = ["observationKey", "informationClass", "sourceMinOccurredAt", "sourceMaxOccurredAt", "availableAt", "sourceRef", "value"] as const;
+const CANONICAL_INPUT_ACTION_SPACE_KEYS = ["rules", "mutualExclusionGroups"] as const;
+const CANONICAL_INPUT_ACTION_RULE_KEYS = ["actionType", "eligibleTargets", "parameterBounds", "requiredPreconditionIds"] as const;
+const CANONICAL_INPUT_BOUND_KEYS = ["path", "minInclusive", "maxInclusive"] as const;
+const CANONICAL_INPUT_GROUP_KEYS = ["groupId", "actionTypes"] as const;
+const CANONICAL_INPUT_CONTEXT_KEYS = ["sequence", "trigger"] as const;
+const CANONICAL_INPUT_CONSTRAINT_KEYS = ["dimensions", "evaluationBoundary", "invalidActionHandling", "infeasibleActionHandling", "partialFeasibilityHandling", "conflictHandling", "silentModificationForbidden"] as const;
+const CANONICAL_INPUT_PROVENANCE_KEYS = ["schemaVersion", "evaluationContractFingerprint", "evaluationContractVersion", "observationFingerprint", "legalActionSpaceFingerprint", "actionOntologyVersion", "source"] as const;
+
+function exactKeys(value: Record<string, unknown>, expected: readonly string[]): boolean {
+  const actual = Reflect.ownKeys(value);
+  const sortedExpected = [...expected].sort();
+  return actual.every((key) => typeof key === "string") && actual.length === expected.length &&
+    (actual as string[]).sort().every((key, index) => key === sortedExpected[index]);
+}
+
+function allowedKeys(value: Record<string, unknown>, allowed: readonly string[], required: readonly string[]): boolean {
+  const actual = Reflect.ownKeys(value);
+  return actual.every((key) => typeof key === "string" && allowed.includes(key)) &&
+    required.every((key) => Object.prototype.hasOwnProperty.call(value, key));
+}
+
+function validActionTarget(value: unknown): boolean {
+  try {
+    assertValidActionTarget(value);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+function exactCanonicalInputStructure(value: Record<string, unknown>): boolean {
+  if (!exactKeys(value, CANONICAL_INPUT_KEYS) ||
+    !record(value["observation"]) || !exactKeys(value["observation"], CANONICAL_INPUT_OBSERVATION_KEYS) ||
+    !Array.isArray(value["observation"]["records"]) ||
+    !value["observation"]["records"].every((entry) => record(entry) && exactKeys(entry, CANONICAL_INPUT_OBSERVATION_RECORD_KEYS)) ||
+    !record(value["legalActionSpace"]) || !exactKeys(value["legalActionSpace"], CANONICAL_INPUT_ACTION_SPACE_KEYS) ||
+    !Array.isArray(value["legalActionSpace"]["rules"]) ||
+    !value["legalActionSpace"]["rules"].every((entry) => record(entry) && exactKeys(entry, CANONICAL_INPUT_ACTION_RULE_KEYS) &&
+      Array.isArray(entry["eligibleTargets"]) && Array.isArray(entry["parameterBounds"]) &&
+      entry["eligibleTargets"].every(validActionTarget) &&
+      entry["parameterBounds"].every((bound) => record(bound) && allowedKeys(bound, CANONICAL_INPUT_BOUND_KEYS, ["path"])) &&
+      Array.isArray(entry["requiredPreconditionIds"])) ||
+    !Array.isArray(value["legalActionSpace"]["mutualExclusionGroups"]) ||
+    !value["legalActionSpace"]["mutualExclusionGroups"].every((entry) => record(entry) && exactKeys(entry, CANONICAL_INPUT_GROUP_KEYS) && Array.isArray(entry["actionTypes"])) ||
+    !record(value["decisionContext"]) || !exactKeys(value["decisionContext"], CANONICAL_INPUT_CONTEXT_KEYS) ||
+    !record(value["decisionContext"]["trigger"]) ||
+    !record(value["constraints"]) || !exactKeys(value["constraints"], CANONICAL_INPUT_CONSTRAINT_KEYS) ||
+    !record(value["provenance"]) || !exactKeys(value["provenance"], CANONICAL_INPUT_PROVENANCE_KEYS)) return false;
+  const trigger = value["decisionContext"]["trigger"];
+  return (trigger["kind"] === "fixed_interval" && exactKeys(trigger, ["kind", "intervalIndex"])) ||
+    (trigger["kind"] === "simulation_tick" && exactKeys(trigger, ["kind", "tick"])) ||
+    (trigger["kind"] === "event" && exactKeys(trigger, ["kind", "eventType", "eventId"]));
+}
+
+export interface CanonicalOperatorInputV2Bindings {
+  readonly opportunityId: string;
+  readonly decisionTime: string;
+  readonly decisionContext: CanonicalOperatorInputV2["decisionContext"];
+  readonly observationRecords: CanonicalOperatorInputV2["observation"]["records"];
+  readonly legalActionSpace: CanonicalOperatorInputV2["legalActionSpace"];
+  readonly constraints: CanonicalOperatorInputV2["constraints"];
+  readonly evaluationContractFingerprint: string;
+  readonly evaluationContractVersion: string;
+  readonly observationFingerprint: string;
+  readonly legalActionSpaceFingerprint: string;
+  readonly actionOntologyVersion: string;
+}
+
+export function assertCanonicalOperatorInputV2(
+  value: unknown,
+  bindings: CanonicalOperatorInputV2Bindings,
+): CanonicalOperatorInputV2 {
+  if (!record(value) || !exactCanonicalInputStructure(value)) {
+    throw new TypeError("canonical operator input fields are malformed");
+  }
+  finiteJson(value);
+  const input = value as unknown as CanonicalOperatorInputV2;
+  if (input.schemaVersion !== CANONICAL_OPERATOR_INPUT_SCHEMA_VERSION ||
+    input.provenance.schemaVersion !== CANONICAL_OPERATOR_PROVENANCE_SCHEMA_VERSION ||
+    input.provenance.source !== "step3.1-governed-evaluator-adapter") {
+    throw new TypeError("canonical operator input schema or provenance version is unsupported");
+  }
+  const expectedProvenance = {
+    schemaVersion: CANONICAL_OPERATOR_PROVENANCE_SCHEMA_VERSION,
+    evaluationContractFingerprint: bindings.evaluationContractFingerprint,
+    evaluationContractVersion: bindings.evaluationContractVersion,
+    observationFingerprint: bindings.observationFingerprint,
+    legalActionSpaceFingerprint: bindings.legalActionSpaceFingerprint,
+    actionOntologyVersion: bindings.actionOntologyVersion,
+    source: "step3.1-governed-evaluator-adapter" as const,
+  };
+  if (input.opportunityId !== bindings.opportunityId || input.decisionTime !== bindings.decisionTime ||
+    stableOperatorJson(input.decisionContext) !== stableOperatorJson(bindings.decisionContext)) {
+    throw new TypeError("canonical operator input opportunity binding mismatch");
+  }
+  if (stableOperatorJson(input.observation.records) !== stableOperatorJson(bindings.observationRecords) ||
+    input.provenance.observationFingerprint !== bindings.observationFingerprint) {
+    throw new TypeError("canonical operator input observation binding mismatch");
+  }
+  if (stableOperatorJson(input.legalActionSpace) !== stableOperatorJson(bindings.legalActionSpace) ||
+    input.provenance.legalActionSpaceFingerprint !== bindings.legalActionSpaceFingerprint) {
+    throw new TypeError("canonical operator input legal Action-space binding mismatch");
+  }
+  if (stableOperatorJson(input.constraints) !== stableOperatorJson(bindings.constraints)) {
+    throw new TypeError("canonical operator input constraint binding mismatch");
+  }
+  if (stableOperatorJson(input.provenance) !== stableOperatorJson(expectedProvenance)) {
+    throw new TypeError("canonical operator input provenance binding mismatch");
+  }
+  return deepFreezeOperator(JSON.parse(stableOperatorJson(input)) as CanonicalOperatorInputV2);
 }
 
 function configurationFingerprint(
@@ -518,12 +643,59 @@ function assertCapabilityConformance(
 export function assertCanonicalOperatorMetadataV2(
   metadata: CanonicalOperatorMetadataV2,
 ): void {
+  if (!record(metadata) || !exactKeys(metadata, [
+    "schemaVersion", "interfaceVersion", "operatorId", "operatorVersion",
+    "operatorFamily", "description", "implementationFingerprint",
+    "configurationFingerprint", "legacyInterfaceVersion",
+    "supportedEvaluationContract", "supportedActionOntologyVersion",
+    "capabilities", "adapterFingerprint",
+  ]) || !record(metadata.supportedEvaluationContract) ||
+    !exactKeys(metadata.supportedEvaluationContract, ["contractId", "contractVersion", "contractFingerprint", "frozenCommit"]) ||
+    !record(metadata.capabilities) || !exactKeys(metadata.capabilities, [
+      "schemaVersion", "actionDomains", "supportsZeroActions", "supportsOneAction",
+      "supportsMultipleActions", "maximumActionsPerDecision", "randomness",
+    ]) || !record(metadata.capabilities.randomness) ||
+    (metadata.capabilities.randomness.kind === "deterministic"
+      ? !exactKeys(metadata.capabilities.randomness, ["kind"])
+      : metadata.capabilities.randomness.kind === "seeded_stochastic"
+        ? !exactKeys(metadata.capabilities.randomness, ["kind", "seedNamespace", "seedRequired"])
+        : true)) {
+    throw new TypeError("canonical operator metadata fields are malformed");
+  }
   if (
     metadata.schemaVersion !==
       CANONICAL_OPERATOR_METADATA_SCHEMA_VERSION ||
     metadata.interfaceVersion !== CANONICAL_OPERATOR_INTERFACE_VERSION
   ) {
     throw new TypeError("unsupported canonical operator metadata schema");
+  }
+  const fingerprintPattern = /^fnv1a64:[0-9a-f]{16}$/;
+  const identifierPattern = /^[A-Za-z0-9][A-Za-z0-9._:-]*$/;
+  const commitPattern = /^[0-9a-f]{40}$/;
+  if (!identifierPattern.test(metadata.operatorId) ||
+    typeof metadata.operatorVersion !== "string" || !semver(metadata.operatorVersion) ||
+    !CANONICAL_OPERATOR_FAMILIES.includes(metadata.operatorFamily) ||
+    typeof metadata.description !== "string" || metadata.description.trim().length === 0 ||
+    !fingerprintPattern.test(metadata.implementationFingerprint) ||
+    !fingerprintPattern.test(metadata.configurationFingerprint) ||
+    !fingerprintPattern.test(metadata.adapterFingerprint) ||
+    (metadata.legacyInterfaceVersion !== null && metadata.legacyInterfaceVersion !== OPERATOR_INTERFACE_VERSION) ||
+    typeof metadata.supportedEvaluationContract.contractId !== "string" ||
+    !identifierPattern.test(metadata.supportedEvaluationContract.contractId) ||
+    typeof metadata.supportedEvaluationContract.contractVersion !== "string" ||
+    !semver(metadata.supportedEvaluationContract.contractVersion) ||
+    typeof metadata.supportedEvaluationContract.contractFingerprint !== "string" ||
+    !fingerprintPattern.test(metadata.supportedEvaluationContract.contractFingerprint) ||
+    typeof metadata.supportedEvaluationContract.frozenCommit !== "string" ||
+    !commitPattern.test(metadata.supportedEvaluationContract.frozenCommit) ||
+    metadata.supportedEvaluationContract.contractId !== "kivviq.baseline-evaluation" ||
+    metadata.supportedEvaluationContract.contractVersion !== "1.0.0" ||
+    metadata.supportedEvaluationContract.contractFingerprint !== CANONICAL_OPERATOR_SUPPORTED_CONTRACT_FINGERPRINT ||
+    metadata.supportedEvaluationContract.frozenCommit !== CANONICAL_OPERATOR_FROZEN_STEP_3_1_COMMIT ||
+    typeof metadata.supportedActionOntologyVersion !== "string" ||
+    !semver(metadata.supportedActionOntologyVersion) ||
+    metadata.supportedActionOntologyVersion !== ACTION_SCHEMA_VERSION) {
+    throw new TypeError("canonical operator metadata identity, contract, or ontology support is invalid");
   }
   if (
     metadata.operatorId.trim().length === 0 ||
@@ -537,6 +709,10 @@ export function assertCanonicalOperatorMetadataV2(
   if (
     metadata.capabilities.schemaVersion !==
       CANONICAL_OPERATOR_CAPABILITY_SCHEMA_VERSION ||
+    metadata.capabilities.supportsZeroActions !== true ||
+    metadata.capabilities.supportsOneAction !== true ||
+    metadata.capabilities.supportsMultipleActions !== true ||
+    !densePlainArray(metadata.capabilities.actionDomains) ||
     !Number.isInteger(
       metadata.capabilities.maximumActionsPerDecision,
     ) ||
@@ -559,7 +735,8 @@ export function assertCanonicalOperatorMetadataV2(
   }
   if (
     metadata.capabilities.randomness.kind === "seeded_stochastic" &&
-    metadata.capabilities.randomness.seedNamespace !== "operator_internal"
+    (metadata.capabilities.randomness.seedNamespace !== "operator_internal" ||
+      metadata.capabilities.randomness.seedRequired !== true)
   ) {
     throw new TypeError(
       "stochastic operator randomness must bind operator_internal seed",

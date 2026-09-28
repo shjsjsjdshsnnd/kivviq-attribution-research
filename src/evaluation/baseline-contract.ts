@@ -1686,11 +1686,14 @@ export function validateActionBatchAtDecision(
   return results;
 }
 
-export type ConstraintIssueKind =
-  | "INVALID_ACTION"
-  | "INFEASIBLE"
-  | "PARTIALLY_FEASIBLE"
-  | "CONFLICT";
+export const CONSTRAINT_ISSUE_KINDS = deepFreezeEvaluation([
+  "INVALID_ACTION",
+  "INFEASIBLE",
+  "PARTIALLY_FEASIBLE",
+  "CONFLICT",
+] as const);
+
+export type ConstraintIssueKind = (typeof CONSTRAINT_ISSUE_KINDS)[number];
 
 export interface ConstraintIssue {
   readonly kind: ConstraintIssueKind;

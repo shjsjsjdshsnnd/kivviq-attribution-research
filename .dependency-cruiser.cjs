@@ -1,6 +1,18 @@
 module.exports = {
   forbidden: [
     {
+      name: "operator-facing-code-cannot-import-validation",
+      comment:
+        "Evaluator-owned validation may depend on canonical operators, but operator-facing modules must never depend on validation internals.",
+      severity: "error",
+      from: {
+        path: "^(src/(observation|operator|operator_safe|action_ontology|action_translation|simulator_intervention|paid_media|pricing|promotion|shipping|merchandising|inventory)(/|$)|src/index\\.ts$)",
+      },
+      to: {
+        path: "^src/validation(/|$)",
+      },
+    },
+    {
       name: "operator-facing-code-cannot-import-god-mode",
       comment:
         "Operator-facing modules must never depend on GroundTruth, generation, latent customers, simulation, advertising economics, cross-channel interactions, ecommerce economics, product economics, evaluator/oracle, or other God-mode internals.",

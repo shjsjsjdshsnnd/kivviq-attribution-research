@@ -32,6 +32,8 @@ import {
   canonicalOperatorDecisionFingerprint,
   conformLegacyOperator,
   ensureCanonicalOperatorV2,
+  assertCanonicalOperatorInputV2,
+  assertCanonicalOperatorMetadataV2,
   validateCanonicalDecisionEnvelope,
   type CanonicalOperatorDecisionMetadata,
   type CanonicalOperatorMetadataV2,
@@ -144,6 +146,186 @@ function decisionMetadata(
 }
 
 describe("Step 3.10 canonical operator interface", () => {
+  function inputBindings(input = canonicalInput()) {
+    return {
+      opportunityId: input.opportunityId,
+      decisionTime: input.decisionTime,
+      decisionContext: input.decisionContext,
+      observationRecords: input.observation.records,
+      legalActionSpace: input.legalActionSpace,
+      constraints: input.constraints,
+      evaluationContractFingerprint: input.provenance.evaluationContractFingerprint,
+      evaluationContractVersion: input.provenance.evaluationContractVersion,
+      observationFingerprint: input.provenance.observationFingerprint,
+      legalActionSpaceFingerprint: input.provenance.legalActionSpaceFingerprint,
+      actionOntologyVersion: input.provenance.actionOntologyVersion,
+    };
+  }
+
+  it("authoritatively validates and freezes an exact canonical input", () => {
+    const input = canonicalInput();
+    const validated = assertCanonicalOperatorInputV2(input, inputBindings(input));
+    expect(validated).toEqual(input);
+    expect(Object.isFrozen(validated)).toBe(true);
+    expect(Object.isFrozen(validated.legalActionSpace.rules)).toBe(true);
+  });
+
+  it.each([
+    ["top-level", (input: any) => { input.extra = true; }],
+    ["observation", (input: any) => { input.observation.extra = true; }],
+    ["Action rule", (input: any) => { input.legalActionSpace.rules = [{ extra: true }]; }],
+    ["constraints", (input: any) => { input.constraints.extra = true; }],
+    ["provenance", (input: any) => { input.provenance.extra = true; }],
+  ])("rejects unknown or malformed %s canonical-input fields", (_label, mutate) => {
+    const input: any = structuredClone(canonicalInput());
+    mutate(input);
+    expect(() => assertCanonicalOperatorInputV2(input, inputBindings())).toThrow(/canonical operator input/i);
+  });
+
+  it("rejects nested binding tampering and provenance fingerprint mismatch", () => {
+    const legal = structuredClone(canonicalInput());
+    (legal.legalActionSpace as any).rules = [{
+      actionType: "advertising.adjust_budget",
+      eligibleTargets: [{ kind: "campaign", channelId: "google_ads", campaignId: "tampered" }],
+      parameterBounds: [],
+      requiredPreconditionIds: [],
+    }];
+    expect(() => assertCanonicalOperatorInputV2(legal, inputBindings())).toThrow(/binding/i);
+
+    const provenance = structuredClone(canonicalInput());
+    (provenance.provenance as any).observationFingerprint = "fnv1a64:0000000000000000";
+    expect(() => assertCanonicalOperatorInputV2(provenance, inputBindings())).toThrow(/binding/i);
+  });
+
+  it("rejects unknown metadata, capability, and randomness fields", () => {
+    const metadata = ensureCanonicalOperatorV2(DO_NOTHING_OPERATOR).metadata;
+    for (const mutate of [
+      (value: any) => { value.extra = true; },
+      (value: any) => { value.capabilities.extra = true; },
+      (value: any) => { value.capabilities.randomness.extra = true; },
+    ]) {
+      const candidate = structuredClone(metadata);
+      mutate(candidate);
+      expect(() => assertCanonicalOperatorMetadataV2(candidate)).toThrow(/metadata|capabilit|randomness/i);
+    }
+    expect(() => assertCanonicalOperatorMetadataV2(metadata)).not.toThrow();
+  });
+
+  it("preserves the frozen Step 3.10 metadata shape and fingerprint", () => {
+    const originalShape: any = structuredClone(ensureCanonicalOperatorV2(DO_NOTHING_OPERATOR).metadata);
+    expect("supportedActionOntologyVersions" in originalShape).toBe(false);
+    expect(() => assertCanonicalOperatorMetadataV2(originalShape)).not.toThrow();
+    expect(CANONICAL_OPERATOR_METADATA_SCHEMA_FINGERPRINT).toBe("fnv1a64:b199f4d287d99937");
+
+    expect(() => assertCanonicalOperatorMetadataV2({
+      ...originalShape,
+      supportedActionOntologyVersions: [originalShape.supportedActionOntologyVersion],
+    })).toThrow(/metadata fields/i);
+  });
+
+  it.each([
+    ["schemaVersion", (v: any) => { v.schemaVersion = "2.0.0"; }],
+    ["interfaceVersion", (v: any) => { v.interfaceVersion = "1.0.0"; }],
+    ["operatorId", (v: any) => { v.operatorId = ""; }],
+    ["operatorVersion", (v: any) => { v.operatorVersion = 1; }],
+    ["operatorFamily", (v: any) => { v.operatorFamily = "invented_family"; }],
+    ["description", (v: any) => { v.description = " "; }],
+    ["implementationFingerprint", (v: any) => { v.implementationFingerprint = "not-a-fingerprint"; }],
+    ["configurationFingerprint", (v: any) => { v.configurationFingerprint = 3; }],
+    ["legacyInterfaceVersion", (v: any) => { v.legacyInterfaceVersion = "legacy"; }],
+    ["legacyInterfaceVersion unsupported", (v: any) => { v.legacyInterfaceVersion = "2.0.0"; }],
+    ["contractId", (v: any) => { v.supportedEvaluationContract.contractId = ""; }],
+    ["contractId value", (v: any) => { v.supportedEvaluationContract.contractId = "other.contract"; }],
+    ["contractVersion", (v: any) => { v.supportedEvaluationContract.contractVersion = false; }],
+    ["contractVersion value", (v: any) => { v.supportedEvaluationContract.contractVersion = "2.0.0"; }],
+    ["contractFingerprint", (v: any) => { v.supportedEvaluationContract.contractFingerprint = "bad"; }],
+    ["contractFingerprint value", (v: any) => { v.supportedEvaluationContract.contractFingerprint = "fnv1a64:0000000000000000"; }],
+    ["frozenCommit", (v: any) => { v.supportedEvaluationContract.frozenCommit = "short"; }],
+    ["frozenCommit value", (v: any) => { v.supportedEvaluationContract.frozenCommit = "0000000000000000000000000000000000000000"; }],
+    ["supportedActionOntologyVersion", (v: any) => { v.supportedActionOntologyVersion = []; }],
+    ["supportedActionOntologyVersion value", (v: any) => { v.supportedActionOntologyVersion = "1.5.0"; }],
+    ["capability schema", (v: any) => { v.capabilities.schemaVersion = 1; }],
+    ["actionDomains", (v: any) => { v.capabilities.actionDomains = "advertising"; }],
+    ["actionDomains extra key", (v: any) => { v.capabilities.actionDomains.extra = true; }],
+    ["supportsZeroActions", (v: any) => { v.capabilities.supportsZeroActions = false; }],
+    ["supportsOneAction", (v: any) => { v.capabilities.supportsOneAction = 1; }],
+    ["supportsMultipleActions", (v: any) => { v.capabilities.supportsMultipleActions = null; }],
+    ["maximumActionsPerDecision", (v: any) => { v.capabilities.maximumActionsPerDecision = 1.5; }],
+    ["randomness", (v: any) => { v.capabilities.randomness = { kind: "random" }; }],
+    ["seed namespace", (v: any) => { v.capabilities.randomness = { kind: "seeded_stochastic", seedNamespace: "global", seedRequired: true }; }],
+    ["seed required", (v: any) => { v.capabilities.randomness = { kind: "seeded_stochastic", seedNamespace: "operator_internal", seedRequired: false }; }],
+    ["adapterFingerprint", (v: any) => { v.adapterFingerprint = ""; }],
+  ])("rejects malformed metadata field %s", (_field, mutate) => {
+    const candidate: any = structuredClone(ensureCanonicalOperatorV2(DO_NOTHING_OPERATOR).metadata);
+    mutate(candidate);
+    expect(() => assertCanonicalOperatorMetadataV2(candidate)).toThrow();
+  });
+
+  it("accepts null only for native-v2 legacy interface provenance", () => {
+    const candidate: any = structuredClone(ensureCanonicalOperatorV2(DO_NOTHING_OPERATOR).metadata);
+    candidate.legacyInterfaceVersion = null;
+    expect(() => assertCanonicalOperatorMetadataV2(candidate)).not.toThrow();
+  });
+
+  it.each([
+    { kind: "advertising_channel", channelId: "google_ads" },
+    { kind: "advertising_account", channelId: "google_ads", accountId: "acct" },
+    { kind: "campaign", channelId: "google_ads", campaignId: "campaign" },
+    { kind: "campaign_group", channelId: "google_ads", campaignGroupId: "group", accountId: "acct" },
+    { kind: "ad_set", channelId: "meta_ads", campaignId: "campaign", adSetId: "set" },
+    { kind: "ad_group", channelId: "google_ads", campaignId: "campaign", adGroupId: "group" },
+    { kind: "ad", channelId: "meta_ads", campaignId: "campaign", adSetId: "set", adId: "ad" },
+    { kind: "creative", channelId: "meta_ads", creativeId: "creative", campaignId: "campaign" },
+    { kind: "audience", audienceId: "audience" },
+    { kind: "product", productId: "product" },
+    { kind: "sku", productId: "product", skuId: "sku" },
+    { kind: "category", categoryId: "category" },
+    { kind: "collection", collectionId: "collection" },
+    { kind: "brand", brandId: "brand" },
+    { kind: "product_set", productSetId: "set" },
+    { kind: "product_group", productGroupId: "group", collectionId: "collection", categoryId: "category" },
+    { kind: "customer_segment", segmentId: "segment" },
+    { kind: "funnel_stage", funnelId: "funnel", stageId: "stage" },
+    { kind: "page", pageId: "page" },
+    { kind: "lifecycle_program", programId: "program" },
+    { kind: "shipping_policy", shippingPolicyId: "policy" },
+    { kind: "shipping_offer", shippingOfferId: "offer" },
+    { kind: "inventory_policy", inventoryPolicyId: "policy" },
+    { kind: "inventory_location", inventoryLocationId: "location" },
+    { kind: "supplier_relationship", supplierRelationshipId: "supplier" },
+    { kind: "inventory_set", inventorySetId: "set" },
+    { kind: "experiment", experimentId: "experiment" },
+    { kind: "promotion", promotionId: "promotion" },
+    { kind: "merchandising_placement", placementId: "placement" },
+    { kind: "merchandising_relationship", relationshipId: "relationship" },
+    { kind: "merchant", merchantId: "merchant" },
+  ])("accepts canonical eligible target $kind", (target) => {
+    const input: any = structuredClone(canonicalInput());
+    input.legalActionSpace.rules = [{
+      actionType: "test.action",
+      eligibleTargets: [target],
+      parameterBounds: [],
+      requiredPreconditionIds: [],
+    }];
+    expect(() => assertCanonicalOperatorInputV2(input, inputBindings(input as any))).not.toThrow();
+  });
+
+  it.each([
+    { kind: "campaign", channelId: "google_ads", campaignId: "campaign", extra: true },
+    { kind: "campaign", channelId: "google_ads" },
+    { kind: "product", productId: 42 },
+    { kind: "unknown", targetId: "target" },
+  ])("rejects malformed eligible target %#", (target) => {
+    const input: any = structuredClone(canonicalInput());
+    input.legalActionSpace.rules = [{
+      actionType: "test.action",
+      eligibleTargets: [target],
+      parameterBounds: [],
+      requiredPreconditionIds: [],
+    }];
+    expect(() => assertCanonicalOperatorInputV2(input, inputBindings(input as any))).toThrow(/target|fields/i);
+  });
+
   it("freezes explicit v2 interface and schema fingerprints", () => {
     expect(CANONICAL_OPERATOR_INTERFACE_VERSION).toBe("2.0.0");
     for (const fingerprint of [
