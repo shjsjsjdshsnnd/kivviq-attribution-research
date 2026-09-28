@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { assertValidAction } from "../../src/action_ontology/validation.js";
 import { adaptLegacyAction } from "../../src/canonical_action/legacy.js";
 import { fingerprintCanonicalAction } from "../../src/canonical_action/serialization.js";
-import { reduceSkuA10Percent } from "../../src/pricing/fixtures.js";
+import { increaseSkuA50Cad, reduceSkuA10Percent, setSkuA849Cad } from "../../src/pricing/fixtures.js";
 import { assessPortfolioCompatibility, priceBaselineBinding } from "../../src/action_conflicts/index.js";
 
 function percent(id: string, factor: number) {
@@ -32,5 +32,20 @@ describe("registered conflict adapters", () => {
     expect(conflict.pairs[0]?.reasonCodes).toContain("CONTRADICTORY_VALUE_CHANGE");
     const duplicate = assessPortfolioCompatibility([leftRef, rightRef], { ...base, maximumAgeSeconds: 300, priceBaselineReceipts: [receipt, { ...receipt, receiptId: "receipt.price.duplicate" }] });
     expect(duplicate.status).toBe("UNKNOWN");
+    expect(assessPortfolioCompatibility([leftRef, rightRef], { ...base, maximumAgeSeconds: 30, priceBaselineReceipts: [receipt] }).status).toBe("UNKNOWN");
+    expect(assessPortfolioCompatibility([leftRef, rightRef], { ...base, maximumAgeSeconds: 300, priceBaselineReceipts: [{ ...receipt, pairKey: pairKey.replace("|", "|ACTION:action_wrong:fnv1a64:aaaaaaaaaaaaaaaa|") }] }).status).toBe("UNKNOWN");
+  });
+
+  it("requires evidence even for an explicit DELTA baseline", () => {
+    const delta = adaptLegacyAction(increaseSkuA50Cad), set = adaptLegacyAction(setSkuA849Cad);
+    const deltaRef = { entityKind: "ACTION" as const, actionId: delta.actionId, actionFingerprint: fingerprintCanonicalAction(delta) };
+    const setRef = { entityKind: "ACTION" as const, actionId: set.actionId, actionFingerprint: fingerprintCanonicalAction(set) };
+    const context = { ...base, registry: [{ entityKind: "ACTION" as const, action: delta }, { entityKind: "ACTION" as const, action: set }], priceBaselineReceipts: [] };
+    expect(assessPortfolioCompatibility([deltaRef, setRef], context).status).toBe("UNKNOWN");
+    const operation = (delta.what as any).parameters.operation;
+    const binding = priceBaselineBinding(operation.reference)!;
+    const pairKey = [`ACTION:${delta.actionId}:${deltaRef.actionFingerprint}`, `ACTION:${set.actionId}:${setRef.actionFingerprint}`].sort().join("|");
+    const receipt = { receiptId: "receipt.explicit.baseline", ...binding, amountMinor: 89900, currency: "CAD", pairKey, evaluationBoundary: "DECISION_TIME" as const, observedAt: "2026-09-20T12:59:00Z", sourceRef: "catalog.price", provenance: ["catalog.snapshot"] };
+    expect(assessPortfolioCompatibility([deltaRef, setRef], { ...context, priceBaselineReceipts: [receipt] }).status).toBe("CONFLICTING");
   });
 });
