@@ -2,333 +2,91 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Add canonical prerequisite gates, symmetric pre-optimizer portfolio conflicts, typed implementation characteristics, and six value-free risk measurement contracts while preserving existing v2 identities.
+**Goal:** Add canonical prerequisite gates, symmetric pre-optimizer portfolio conflicts, typed implementation characteristics, and six value-free risk measurement dimensions while preserving existing v2 identities.
 
-**Architecture:** Extend the canonical envelope with definition-only contracts and backward-compatible empty defaults. Put evidence-bound dependency and portfolio assessment in separate modules that reuse the existing hard-constraint, eligibility, experiment-readiness, timing, and compound-expansion boundaries. Keep characteristics and risk as typed vectors; no layer introduced here may rank, predict, optimize, or execute Actions.
+**Architecture:** Build pure schemas first, integrate their empty defaults into the canonical envelope second, and only then build registry- and evidence-aware assessors. Definition modules import core types but never assessment, translation, simulator, prediction, or optimization code. Assessment modules reuse public timing, eligibility, constraint, experiment-readiness, compound, and domain contracts; translation replays them from raw evidence.
 
 **Tech Stack:** TypeScript, Zod, Temporal, Vitest, dependency-cruiser
 
 ---
 
+## Required execution order and review rule
+
+Tasks must run in order: pure schemas (1–4), minimal canonical integration (5), assessment and aggregation (6–9), translation and compatibility adapters (10), then public surface and final audit (11–12). Every task starts with a failing test, ends with focused verification and a commit, then receives a fresh specification review and a separate code-quality review. Valid review findings require a regression test before a fix.
+
 ## File map
 
-- `src/action_dependencies/schema.ts`: strict dependency definitions and exact entity references.
-- `src/action_dependencies/assessment.ts`: evidence-bound dependency graph expansion and deterministic assessment.
-- `src/action_dependencies/index.ts`: public dependency API.
-- `src/action_conflicts/schema.ts`: conflict definitions, target/scope, and normalized pair contracts.
-- `src/action_conflicts/adapters.ts`: typed domain contradiction adapters.
-- `src/action_conflicts/assessment.ts`: portfolio expansion, timing overlap, and symmetric pair assessment.
-- `src/action_conflicts/index.ts`: public conflict API.
-- `src/action_characteristics/schema.ts`: typed costs, ranges, burden, cancellation stages, and reversibility.
-- `src/action_characteristics/validation.ts`: cross-field and domain rollback consistency checks.
-- `src/action_characteristics/aggregate.ts`: compound and portfolio vector aggregation.
-- `src/action_characteristics/index.ts`: public characteristics API.
-- `src/action_risk/schema.ts`: exactly six measurement-contract dimensions and leakage guards.
-- `src/action_risk/aggregate.ts`: six-dimensional compound and portfolio contract vectors.
-- `src/action_risk/index.ts`: public risk-contract API.
-- `src/canonical_action/schema.ts`: envelope defaults and cross-definition validation.
-- `src/canonical_action/serialization.ts`: stable semantic projection and order-independent fingerprints.
-- `src/compound_action/schema.ts`: exact expansion integration and cross-graph cycle validation.
-- `src/compound_action/readiness.ts`: dependency and compatibility gates from raw evidence.
-- `src/experiment/readiness.ts`: expose exact arm expansion needed by dependency/conflict traversal.
-- `src/action_translation/context.ts`: raw dependency and portfolio evidence contexts.
-- `src/action_translation/canonical.ts`: replay gates before emitting interventions or experiment tasks.
-- `src/action_translation/compound.ts`: replay expanded portfolio gates.
-- `.dependency-cruiser.cjs`: definition and assessment layer import boundaries.
-- `src/index.ts` and `package.json`: root and package subpath exports.
-- `docs/action-dependencies-conflicts-characteristics-risk.md`: public contract guide.
-- `.github/workflows/action-dependencies-conflicts-risk-ci.yml`: focused CI entry.
+- `src/action_dependencies/schema.ts`: pure dependency definitions and exact entity references.
+- `src/action_conflicts/schema.ts`: pure conflict, coordinate, scope, and pair definition types.
+- `src/action_characteristics/schema.ts`: pure cost line items, ranges, burdens, stages, and reversibility.
+- `src/action_risk/schema.ts`: pure six-dimension measurement-contract union.
+- `src/canonical_action/schema.ts`, `serialization.ts`: empty defaults, cross-field checks, and stable fingerprints.
+- `src/action_dependencies/assessment.ts`: registry graph and raw-evidence dependency assessment.
+- `src/action_conflicts/assessment.ts`, `adapters.ts`: expansion, scope/time intersection, and typed domain contradictions.
+- `src/action_characteristics/validation.ts`, `aggregate.ts`: domain consistency and vectors/critical path.
+- `src/action_risk/aggregate.ts`: member- and arm-stratified measurement-contract views.
+- `src/action_translation/*`, `src/compound_action/readiness.ts`, `src/experiment/readiness.ts`: raw replay and readiness integration.
+- `src/*/legacy.ts`: explicit one-way legacy adapters.
 
-### Task 1: Exact dependency definitions
+### Task 1: Pure dependency schema
 
 **Files:**
 - Create: `src/action_dependencies/schema.ts`
 - Create: `src/action_dependencies/index.ts`
 - Create: `tests/action_dependencies/schema.test.ts`
 
-- [ ] **Step 1: Write failing schema tests**
+- [ ] Write failing tests for exact `ACTION` and `COMPOUND` ID/fingerprint references; all four dependency kinds; required `evaluationBoundary`; `whenUnknown`; unique IDs; closed objects; and rejection of lifecycle state `ELIGIBLE`.
+- [ ] Assert the pure schema accepts unresolved registry references and graph cycles. Those require runtime registries and belong to assessment.
+- [ ] Run `npx vitest run tests/action_dependencies/schema.test.ts --maxWorkers=1`; expect missing-module failures.
+- [ ] Implement the strict discriminated union with lifecycle states `STARTED | EFFECTIVE | COMPLETED | RESOLVED` and no imports from assessors or translation.
+- [ ] Run the focused test and `npm run typecheck`; expect PASS.
+- [ ] Commit `feat: define action dependency contracts`.
+- [ ] Complete fresh specification and code-quality reviews before Task 2.
 
-Cover exact `ACTION` and `COMPOUND` references with fingerprints; `ENTITY_LIFECYCLE`, `HARD_CONSTRAINT_GATE`, `ELIGIBILITY_CHECK_GATE`, and `EXPERIMENT_READINESS_GATE`; unique IDs; closed objects; and `whenUnknown`. Add an explicit regression that `requiredState: "ELIGIBLE"` is rejected.
-
-- [ ] **Step 2: Run the red test**
-
-Run `npx vitest run tests/action_dependencies/schema.test.ts --maxWorkers=1`.
-Expected: FAIL because the dependency module does not exist.
-
-- [ ] **Step 3: Implement the strict union**
-
-Export `canonicalEntityReferenceSchema`, `actionDependencySchema`, `actionDependenciesSchema`, and inferred types. Lifecycle state must be exactly `STARTED | EFFECTIVE | COMPLETED | RESOLVED`; do not include eligibility as an entity state.
-
-- [ ] **Step 4: Verify and commit**
-
-Run the focused test and `npm run typecheck`.
-Expected: PASS.
-
-Commit: `feat: define canonical action dependencies`
-
-- [ ] **Step 5: Specification review checkpoint**
-
-Dispatch a fresh reviewer against the Step 19 definition section. Fix any gap with a failing regression test before continuing.
-
-- [ ] **Step 6: Code-quality review checkpoint**
-
-Dispatch a different fresh reviewer for strictness, naming, duplicate handling, and dependency direction. Resolve all important findings.
-
-### Task 2: Evidence-bound dependency assessment
-
-**Files:**
-- Create: `src/action_dependencies/assessment.ts`
-- Create: `tests/action_dependencies/assessment.test.ts`
-- Modify: `src/action_dependencies/index.ts`
-
-- [ ] **Step 1: Write failing evidence tests**
-
-Test exact dependent ID/fingerprint/dependency binding, prerequisite ID/fingerprint, evaluation boundary, UTC-Z timestamps, freshness, source provenance, missing evidence, duplicate exact receipts, and order independence. Require complete deterministic check output.
-
-- [ ] **Step 2: Write failing replay tests**
-
-Use raw evidence bundles for a hard constraint, an eligibility check, and experiment traffic. Assert that a forged `SATISFIED`, `ELIGIBLE`, or `READY` object cannot satisfy a gate. Assert that the existing assessor is invoked and that its assessment fingerprint and complete manifest are verified.
-
-- [ ] **Step 3: Write failing graph tests**
-
-Cover self-reference, direct cycle, transitive cycle, exact Action and CompoundAction registry ambiguity, missing references, and fingerprint mismatches.
-
-- [ ] **Step 4: Run the red tests**
-
-Run `npx vitest run tests/action_dependencies --maxWorkers=1`.
-Expected: FAIL on missing assessment behavior.
-
-- [ ] **Step 5: Implement `assessActionDependencies`**
-
-Return a discriminated success/failure result with `SATISFIED | BLOCKED | UNKNOWN`, all sorted checks, evidence references, missing information, evaluation boundary, evaluated time, and a deterministic assessment fingerprint. Aggregate `BLOCKED > UNKNOWN > SATISFIED`.
-
-- [ ] **Step 6: Implement raw-evidence replay**
-
-Route local gate definitions to `assessHardConstraints`, `evaluateActionEligibility`, and `assessExperimentReadiness`. Verify exact local IDs and never evaluate an Action-state `ELIGIBLE` edge.
-
-- [ ] **Step 7: Verify and commit**
-
-Run `npx vitest run tests/action_dependencies tests/action_constraints tests/action_eligibility tests/experiment --maxWorkers=1` and `npm run typecheck`.
-Expected: PASS.
-
-Commit: `feat: assess action dependencies from evidence`
-
-- [ ] **Step 8: Specification and quality reviews**
-
-Use separate fresh reviewers. Add regression tests for every accepted finding, rerun the focused suite, and obtain approval from both reviewers.
-
-### Task 3: Symmetric conflict definitions
+### Task 2: Pure conflict and scope schema
 
 **Files:**
 - Create: `src/action_conflicts/schema.ts`
 - Create: `src/action_conflicts/index.ts`
 - Create: `tests/action_conflicts/schema.test.ts`
 
-- [ ] **Step 1: Write failing schema tests**
+- [ ] Write failing tests for the closed `GLOBAL | PRODUCT | VARIANT | CHANNEL | PLACEMENT | POPULATION | RESOURCE | CUSTOM` coordinate union, intersection scopes, conflict kinds, overlap rules, exact/registered counterparties, normalized unordered pair keys, unique IDs, and closed objects.
+- [ ] Add leakage tests rejecting winner, priority, utility, rank, score, recommendation, selected action, and repair fields.
+- [ ] Assert registry ambiguity and time/scope intersection are absent from pure schema validation.
+- [ ] Run the focused test; expect missing-module failures.
+- [ ] Implement pure definitions and deterministic pair-key normalization without importing timing resolution, registries, domains, or translation.
+- [ ] Run the focused test and type checker; commit `feat: define symmetric conflict contracts`.
+- [ ] Complete fresh specification and code-quality reviews.
 
-Cover every conflict kind, exact and registry counterparties, shared constraint targets, typed scopes, overlap rules, duplicate IDs, self-reference, strict unknown-key rejection, and forbidden preference fields such as winner, priority, utility, score, rank, and recommendation.
-
-- [ ] **Step 2: Run the red test**
-
-Run `npx vitest run tests/action_conflicts/schema.test.ts --maxWorkers=1`.
-Expected: FAIL because schemas do not exist.
-
-- [ ] **Step 3: Implement definitions and normalized pair identity**
-
-Export a pair-key helper that sorts exact entity keys before hashing. Make the relation symmetric by construction and keep target, scope, and overlap rule in its semantic projection.
-
-- [ ] **Step 4: Verify and commit**
-
-Run the focused test and type checker.
-Expected: PASS.
-
-Commit: `feat: define symmetric action conflicts`
-
-- [ ] **Step 5: Specification and quality reviews**
-
-Have independent reviewers confirm that conflict definitions describe incompatibility only and cannot encode selection.
-
-### Task 4: Portfolio compatibility and typed domain adapters
-
-**Files:**
-- Create: `src/action_conflicts/adapters.ts`
-- Create: `src/action_conflicts/assessment.ts`
-- Create: `tests/action_conflicts/assessment.test.ts`
-- Create: `tests/action_conflicts/domains.test.ts`
-- Modify: `src/action_conflicts/index.ts`
-
-- [ ] **Step 1: Write failing symmetry and timing tests**
-
-Assert identical result fingerprints and normalized pair keys when portfolio order, declaration order, or evidence order is reversed. Cover `ANY_OVERLAP`, `EFFECTIVE_OVERLAP`, and `FULL_CONTAINMENT`, plus unresolved timing returning `UNKNOWN`.
-
-- [ ] **Step 2: Write failing target and scope tests**
-
-Prove that different products, populations, channels, placements, currencies, or non-overlapping intervals do not conflict. Prove that ambiguous scope evidence cannot establish compatibility.
-
-- [ ] **Step 3: Write the pricing example first**
-
-Create a +10% and -15% Product A price pair in the same currency and overlapping period. Expect one `CONTRADICTORY_VALUE_CHANGE` pair. Add negative controls for Product B and disjoint windows.
-
-- [ ] **Step 4: Add domain adapter tests**
-
-Cover existing promotion, shipping, merchandising, CRO, and lifecycle typed conflict rules, plus exclusive resources and policy prohibitions. Reject substring and label inference.
-
-- [ ] **Step 5: Add compound and experiment expansion tests**
-
-Expand CompoundActions and experiment arms to exact members, deduplicate shared exact identities, detect cycles/ambiguity, and retain parent-to-member paths in diagnostics.
-
-- [ ] **Step 6: Run the red tests**
-
-Run `npx vitest run tests/action_conflicts --maxWorkers=1`.
-Expected: FAIL on unimplemented assessment and adapters.
-
-- [ ] **Step 7: Implement `assessPortfolioCompatibility`**
-
-Parse exact registry entries, expand members, resolve ActionTiming, evaluate all unordered pairs, and aggregate `CONFLICTING > UNKNOWN > COMPATIBLE`. Return every applicable pair and an assessment fingerprint. Do not emit a selected subset or repair proposal.
-
-- [ ] **Step 8: Verify and commit**
-
-Run conflict, timing, compound, experiment, and domain conflict tests plus type checking.
-Expected: PASS.
-
-Commit: `feat: reject incompatible action portfolios`
-
-- [ ] **Step 9: Specification and quality reviews**
-
-Require one reviewer to focus on the price example and symmetry, and another on evidence ambiguity, expansion, and accidental optimizer behavior.
-
-### Task 5: Typed implementation characteristics
+### Task 3: Pure characteristics schema
 
 **Files:**
 - Create: `src/action_characteristics/schema.ts`
-- Create: `src/action_characteristics/validation.ts`
 - Create: `src/action_characteristics/index.ts`
 - Create: `tests/action_characteristics/schema.test.ts`
-- Create: `tests/action_characteristics/validation.test.ts`
 
-- [ ] **Step 1: Write failing money and range tests**
+- [ ] Write failing tests for `KNOWN | RANGE | UNKNOWN | NOT_APPLICABLE`; integer minor-unit money; consistent range currency/unit; cost line-item ID/category/currency; operational resource quantities; and no evidence `sourceRefs` in definitions.
+- [ ] Test stage semantics for `BEFORE_START | IMPLEMENTING | EFFECTIVE | COMPLETED`, `cancellationAvailable`, separate cancellation and compensation cost vectors, duplicate stages, and coverage of every reachable stage.
+- [ ] Test exact Action ID/fingerprint and versioned registered reversal references, typed irreversible effects, and strict `FULLY_REVERSIBLE | PARTIALLY_REVERSIBLE | IRREVERSIBLE | UNKNOWN | NOT_APPLICABLE` shapes.
+- [ ] Recursively reject `delay`, `leadTime`, `implementationDelaySeconds`, and equivalent fields so `timing.implementationDelay` remains the sole declared delay.
+- [ ] Run the focused test; implement pure schemas; rerun with type checking; commit `feat: define action characteristic contracts`.
+- [ ] Complete fresh specification and code-quality reviews.
 
-Cover integer minor units, ISO-style currencies, known/range/unknown states, equal range currencies, finite values, `minimum <= maximum`, source references, and strict unknown-key rejection.
-
-- [ ] **Step 2: Write failing operational burden tests**
-
-Cover non-negative finite quantities, exact resource references, registered units, incompatible units, and duplicate resource/unit entries.
-
-- [ ] **Step 3: Write failing delay-authority tests**
-
-Reject `delay`, `leadTime`, `implementationDelaySeconds`, and equivalent nested characteristics fields. Assert that the only implementation delay read by later aggregation is `action.timing.implementationDelay`.
-
-- [ ] **Step 4: Write failing cancellation tests**
-
-Require one entry for every reachable stage, reject duplicate stages, and preserve stage-specific money and burden ranges.
-
-- [ ] **Step 5: Write failing reversibility tests**
-
-Test the exact invariants for fully reversible, partially reversible, and irreversible forms. Add domain regressions for reversible ad budget, staged inventory commitment, sent lifecycle messages, and existing pricing/shipping/merchandising/CRO rollback contracts.
-
-- [ ] **Step 6: Run the red tests**
-
-Run `npx vitest run tests/action_characteristics --maxWorkers=1`.
-Expected: FAIL because the module is absent.
-
-- [ ] **Step 7: Implement schemas and strict validation**
-
-Keep descriptive characteristics separate from evidence and optimizer preferences. Use registered adapters for known rollback invariants and fail on contradictions.
-
-- [ ] **Step 8: Verify and commit**
-
-Run the focused tests, all domain rollback tests, compound rollback tests, and type checking.
-Expected: PASS.
-
-Commit: `feat: define action implementation characteristics`
-
-- [ ] **Step 9: Specification and quality reviews**
-
-Require explicit reviewer approval for the single delay authority, typed ranges, stage-sensitive cancellation, and reversibility strictness.
-
-### Task 6: Characteristics vector aggregation
-
-**Files:**
-- Create: `src/action_characteristics/aggregate.ts`
-- Create: `tests/action_characteristics/aggregate.test.ts`
-- Modify: `src/action_characteristics/index.ts`
-
-- [ ] **Step 1: Write failing atomic vector tests**
-
-Assert costs grouped by currency, burden grouped by resource and unit, cancellation costs grouped by stage and currency, and the ActionTiming delay retained by exact member identity.
-
-- [ ] **Step 2: Write failing range and unknown tests**
-
-Verify range addition, explicit unknown propagation, currency/unit non-coercion, and deterministic member ordering.
-
-- [ ] **Step 3: Write failing compound/experiment tests**
-
-Expand nested compounds and experiment arms, deduplicate exact shared members, reject identity ambiguity and cycles, and calculate the strictest reversibility while retaining member details.
-
-- [ ] **Step 4: Run the red tests**
-
-Run `npx vitest run tests/action_characteristics/aggregate.test.ts --maxWorkers=1`.
-Expected: FAIL on missing aggregator.
-
-- [ ] **Step 5: Implement `describeActionCharacteristics`**
-
-Return a typed vector and diagnostics. Never collapse currencies, units, stages, delays, or reversibility into a score.
-
-- [ ] **Step 6: Verify, commit, and review**
-
-Run focused, compound, experiment, timing, and type-check suites.
-Expected: PASS.
-
-Commit: `feat: aggregate action characteristic vectors`
-
-Complete separate specification and code-quality reviews.
-
-### Task 7: Six risk measurement contracts
+### Task 4: Pure six-dimension risk schema
 
 **Files:**
 - Create: `src/action_risk/schema.ts`
-- Create: `src/action_risk/aggregate.ts`
 - Create: `src/action_risk/index.ts`
 - Create: `tests/action_risk/schema.test.ts`
-- Create: `tests/action_risk/aggregate.test.ts`
 
-- [ ] **Step 1: Write failing dimension-completeness tests**
+- [ ] Write failing tests requiring exactly six top-level keys: `FINANCIAL_DOWNSIDE`, `IRREVERSIBILITY`, `UNCERTAINTY`, `INVENTORY_EXPOSURE`, `CUSTOMER_IMPACT`, and `TIME_TO_RECOVERY`.
+- [ ] Require one or more measurements under every key, unique measurement IDs, and the strict value-type branch allowed for each dimension.
+- [ ] Test typed target, positive horizon, aggregation, metric/evidence-policy references, money currency, inventory unit, customer unit/percentage, and recovery duration.
+- [ ] Recursively reject values, scores, ratings, grades, probabilities, predictions, expected losses, confidence, weights, ranks, recommendations, and composite-risk fields.
+- [ ] Run the red test; implement the strict discriminated union; run tests/typecheck; commit `feat: define risk measurement contracts`.
+- [ ] Complete fresh specification and code-quality reviews.
 
-Require exactly one each of `FINANCIAL_DOWNSIDE`, `IRREVERSIBILITY`, `UNCERTAINTY`, `INVENTORY_EXPOSURE`, `CUSTOMER_IMPACT`, and `TIME_TO_RECOVERY` for new authoring. Reject missing, duplicate, and seventh dimensions.
-
-- [ ] **Step 2: Write failing contract-shape tests**
-
-Cover metric reference, exact target, positive typed horizon, value type, aggregation, evidence-policy reference, money currency, quantity unit, and duration unit.
-
-- [ ] **Step 3: Write leakage tests**
-
-Recursively reject value, score, rating, grade, probability, prediction, expected loss, confidence, weight, rank, recommendation, winner, and composite risk fields.
-
-- [ ] **Step 4: Write failing aggregation tests**
-
-Expand compounds and experiment arms into six-dimensional member vectors. Preserve contracts by member, target, horizon, unit, and currency; do not fabricate values or scalarize dimensions.
-
-- [ ] **Step 5: Run the red tests**
-
-Run `npx vitest run tests/action_risk --maxWorkers=1`.
-Expected: FAIL because the module does not exist.
-
-- [ ] **Step 6: Implement contracts and aggregation**
-
-Keep the existing `RISK_LIMIT` hard constraint independent. Export validation for reader compatibility and strict new authoring.
-
-- [ ] **Step 7: Verify and commit**
-
-Run risk, hard-constraint, compound, experiment, and type-check suites.
-Expected: PASS.
-
-Commit: `feat: define action risk measurement contracts`
-
-- [ ] **Step 8: Specification and quality reviews**
-
-Require reviewers to confirm that exactly six dimensions exist and no values, scores, forecasts, or policy thresholds leaked into the definitions.
-
-### Task 8: Canonical envelope, serialization, and compatibility
+### Task 5: Minimal canonical envelope and fingerprint integration
 
 **Files:**
 - Modify: `src/canonical_action/schema.ts`
@@ -337,128 +95,116 @@ Require reviewers to confirm that exactly six dimensions exist and no values, sc
 - Create: `tests/canonical_action/dependencies-conflicts-characteristics-risk.test.ts`
 - Modify: `tests/canonical_action/serialization.test.ts`
 
-- [ ] **Step 1: Lock historical fingerprints before implementation**
+- [ ] First lock current fingerprints for representative stored v2 Actions from Steps 10–18.
+- [ ] Write failing tests that omitted new fields parse to empty dependencies/conflicts, absent characteristics, and absent risk contracts while retaining byte-for-byte historical fingerprints.
+- [ ] Write failing tests that every non-empty semantic definition changes the fingerprint and that dependency/conflict/risk measurement input order does not.
+- [ ] Test changed boundary, reference fingerprint, scope coordinate, cost category/currency/range, cancellation stage, reversal reference, risk target/horizon/type, and measurement ID.
+- [ ] Add cross-field validation for unique IDs, local constraint/check existence, and exact equality between a local gate's `evaluationBoundary` and the referenced definition boundary. Do not resolve registries or detect graph cycles here.
+- [ ] Add a strict new-author helper requiring explicit characteristics plus all six risk dimensions, while the reader continues accepting old v2 payloads.
+- [ ] Keep imports one-way: canonical schema may import the four schema modules; those modules may not import canonical schema, assessors, or translation.
+- [ ] Run canonical and four schema suites plus type checking; commit `feat: integrate action portfolio definitions`.
+- [ ] Complete fresh reviews focused on layering and fingerprint compatibility.
 
-Add fixture assertions for representative stored v2 Actions from Steps 10–18. Record their current fingerprints and prove that omitted fields and parsed empty defaults retain those values.
-
-- [ ] **Step 2: Write failing new-semantic tests**
-
-Assert each non-empty dependency, conflict, characteristics, or risk definition changes the fingerprint. Assert set-like array order does not. Assert a changed range, cancellation stage, target, horizon, or exact reference does.
-
-- [ ] **Step 3: Write failing cross-reference tests**
-
-Reject unknown local constraint/check IDs, duplicate definitions, self-references, impossible reversibility, a second delay field, and risk leakage. Detect cycles available within the supplied canonical registry.
-
-- [ ] **Step 4: Run the red tests**
-
-Run canonical serialization and new integration tests.
-Expected: FAIL on missing envelope fields.
-
-- [ ] **Step 5: Add backward-compatible defaults and semantic projection**
-
-Default collections to `[]` and characteristics to the absent reader state. Omit all empty defaults from the semantic fingerprint projection and canonical-sort non-empty set-like collections by stable IDs.
-
-- [ ] **Step 6: Add strict authoring validation**
-
-Expose a new-writer helper that requires characteristics plus all six risk contracts without making historical readers reject old payloads.
-
-- [ ] **Step 7: Verify and commit**
-
-Run all canonical, dependency, conflict, characteristics, risk, experiment, and constraint tests plus type checking.
-Expected: PASS with historical fingerprint fixtures unchanged.
-
-Commit: `feat: integrate action portfolio definitions`
-
-- [ ] **Step 8: Specification and quality reviews**
-
-Review compatibility and fingerprint behavior independently before translation integration.
-
-### Task 9: Compound readiness and vector integration
+### Task 6: Dependency assessment and authoritative lifecycle evidence
 
 **Files:**
-- Modify: `src/compound_action/schema.ts`
+- Create: `src/action_dependencies/assessment.ts`
+- Create: `tests/action_dependencies/assessment.test.ts`
+- Modify: `src/action_dependencies/index.ts`
+- Modify: `src/experiment/readiness.ts`
+- Modify: `tests/experiment/readiness.test.ts`
+
+- [ ] Write failing binding tests for dependent ID/fingerprint, dependency ID, boundary equality, UTC-Z time, freshness, evidence refs, provenance, missing evidence, duplicate exact receipts, and order independence.
+- [ ] Define authoritative events: immutable execution start proves `STARTED`; effect start proves `EFFECTIVE`; completion proves `COMPLETED`; the existing bound investigation result proves `RESOLVED`. Assert planned/resolved timing and caller status flags prove none of them.
+- [ ] Test CompoundAction state derivation from exact component events plus atomicity/dependency policy. No component event, omitted required component, or ambiguous registry entry may produce a positive compound state.
+- [ ] Test self-reference, direct/transitive cycles, and cycles through components or experiment arms in assessment, not schema.
+- [ ] Extend experiment readiness tests with a deterministic `SUFFICIENT_ELIGIBLE_TRAFFIC` check bound to experiment fingerprint, population identity/fingerprint, binding time, sample target, evidence-derived eligible count, and readiness assessment fingerprint.
+- [ ] Test hard-constraint, eligibility-check, and traffic gates by supplying raw evidence. Forged `SATISFIED`, `ELIGIBLE`, `READY`, or caller-provided traffic counts must fail.
+- [ ] Require local gate boundary equality during assessment as defense in depth. Replay hard constraints, complete eligibility manifests, and complete experiment readiness before consuming their positive gate check.
+- [ ] Aggregate `BLOCKED > UNKNOWN > SATISFIED`, retain every sorted check, and fingerprint the assessment.
+- [ ] Run dependency, experiment, eligibility, constraint, compound, and timing tests plus type checking; commit `feat: assess action dependencies from evidence`.
+- [ ] Complete fresh reviews focused on cycles, lifecycle facts, boundary equality, traffic replay, freshness, and ambiguity.
+
+### Task 7: Symmetric portfolio compatibility assessment
+
+**Files:**
+- Create: `src/action_conflicts/assessment.ts`
+- Create: `src/action_conflicts/adapters.ts`
+- Create: `tests/action_conflicts/assessment.test.ts`
+- Create: `tests/action_conflicts/domains.test.ts`
+- Modify: `src/action_conflicts/index.ts`
+
+- [ ] Write failing tests for normalized declarations: identical duplicates normalize with all source paths; contradictory definitions for one relation fail; duplicate registry matches are ambiguous; unknown/self counterparties do not disappear.
+- [ ] Write closed-coordinate intersection tests. Structural equality may prove overlap; population/custom or otherwise non-structural intersections require exact `ScopeIntersectionEvidence` bound to pair, both scope fingerprints, boundary, time, freshness, provenance, and unique receipt identity.
+- [ ] Test symmetric half-open intervals `[start,end)`, adjacent intervals, instantaneous-versus-interval rules, equal/different instants, and input reversal.
+- [ ] Test recurrence expansion with occurrence indexes inside an explicit finite horizon. Open-ended/unbounded recurrence without a horizon must return `UNKNOWN`.
+- [ ] Build the price matrix first: exact `SET`, `DELTA`, and `MULTIPLY`; matching product/variant and currency; fresh unique baseline reference/fingerprint for delta/multiply; different results conflict; different targets/currencies or equal results do not. Missing/duplicate baselines return `UNKNOWN`.
+- [ ] Add typed adapters for existing promotion, shipping, merchandising, CRO, lifecycle, exclusive-resource, and policy conflicts. Reject label, substring, and free-text inference.
+- [ ] Expand compounds and experiment arms without silent deduplication. Preserve every parent/component/arm path; only consolidate a repeated identity after exact semantic equality, and report conflicting payloads as ambiguous.
+- [ ] Test experiment arm semantics: global/shared-state and resource writes can conflict across arms; population-scoped Actions coexist only with exact assignment/partition evidence proving disjointness; missing/duplicate partition evidence yields `UNKNOWN`; diagnostics retain arm and nested component paths.
+- [ ] Return every unordered pair and aggregate `CONFLICTING > UNKNOWN > COMPATIBLE`; never return a winner, subset, rank, utility, or repair.
+- [ ] Run conflict, timing, compound, experiment, and domain suites plus type checking; commit `feat: assess portfolio compatibility`.
+- [ ] Complete fresh specification and quality reviews focused on symmetry, time, scope, price baselines, arm partitions, and expansion paths.
+
+### Task 8: Characteristics validation and compound vectors
+
+**Files:**
+- Create: `src/action_characteristics/validation.ts`
+- Create: `src/action_characteristics/aggregate.ts`
+- Create: `tests/action_characteristics/validation.test.ts`
+- Create: `tests/action_characteristics/aggregate.test.ts`
+- Modify: `src/action_characteristics/index.ts`
+
+- [ ] Test known domain invariants: reversible ad-budget changes, stage-sensitive inventory commitments, delivered lifecycle messages, and existing pricing/shipping/merchandising/CRO rollback contracts.
+- [ ] Prove an exact compensating Action is not full reversal when typed irreversible effects remain. Reject missing/mismatched Action fingerprints and ambiguous registered reversals.
+- [ ] Test cost buckets by line-item category and currency, burden buckets by resource/unit, and cancellation versus compensation by lifecycle stage. Preserve `UNKNOWN` and `NOT_APPLICABLE` separately.
+- [ ] Test compound aggregation by execution policy: ordered/dependent branches expose a derived critical-path delay; parallel branches retain branch buckets. Declared delay remains per member from `timing.implementationDelay`; derived critical path is separate and never mutates it.
+- [ ] Expand nested compounds without silent deduplication, retaining all paths and consolidating only exact equal identities.
+- [ ] Test experiment output as arm-stratified vectors with arm ID, role, and allocation basis points. Keep shared setup separate and never naively sum alternative-arm costs, burdens, delays, reversibility, or cancellation costs.
+- [ ] Run characteristics, timing, rollback, compound, and experiment suites plus type checking; commit `feat: validate and aggregate action characteristics`.
+- [ ] Complete fresh reviews focused on stage meaning, reversal identity, vector buckets, and critical-path separation.
+
+### Task 9: Risk contract views for compounds and experiments
+
+**Files:**
+- Create: `src/action_risk/aggregate.ts`
+- Create: `tests/action_risk/aggregate.test.ts`
+- Modify: `src/action_risk/index.ts`
+
+- [ ] Test atomic views retaining all six dimensions, multiple measurements, exact target, horizon, type, and member identity without any value.
+- [ ] Test compound views grouped by dimension and exact member/component path. Do not add heterogeneous measurements or create a composite risk contract.
+- [ ] Test experiment views stratified by arm with role and allocation basis points; keep shared setup separate; do not combine alternative-arm risks.
+- [ ] Test repeated identities, ambiguous payloads, nested compounds, cycles, and deterministic order.
+- [ ] Recursively assert no aggregate output gains score, weight, probability, estimate, expected loss, prediction, rank, or recommendation fields.
+- [ ] Run risk, compound, and experiment suites plus type checking; commit `feat: expose action risk contract views`.
+- [ ] Complete fresh specification and code-quality reviews.
+
+### Task 10: Legacy adapters, compound readiness, and translation replay
+
+**Files:**
+- Create: `src/action_dependencies/legacy.ts`
+- Create: `src/action_conflicts/legacy.ts`
+- Create: `src/action_characteristics/legacy.ts`
+- Create: `src/action_risk/legacy.ts`
 - Modify: `src/compound_action/readiness.ts`
-- Modify: `src/compound_action/fixtures.ts`
-- Modify: `tests/compound_action/compound.test.ts`
-- Modify: `tests/compound_action/evolution.test.ts`
-
-- [ ] **Step 1: Write failing expanded dependency tests**
-
-Cover component, exact external Action, exact external CompoundAction, and experiment-arm edges in one graph. Reject cycles and ambiguous duplicate identities regardless of registry order.
-
-- [ ] **Step 2: Write failing compatibility tests**
-
-Prove a conflict between any all-or-nothing component and another portfolio member blocks readiness before translation. Preserve all pair diagnostics for best-effort compounds without silently dropping components.
-
-- [ ] **Step 3: Write failing vector tests**
-
-Assert cost, burden, cancellation, reversibility, delay, and six risk dimensions retain per-member identity and correct grouped aggregates.
-
-- [ ] **Step 4: Run the red tests**
-
-Run `npx vitest run tests/compound_action --maxWorkers=1`.
-Expected: FAIL on missing integration.
-
-- [ ] **Step 5: Implement expansion and readiness gates**
-
-Reuse one exact graph traversal across dependency, conflict, characteristics, and risk modules. Preserve atomicity, existing component eligibility, timing, simulator capability, and experiment readiness as separate checks.
-
-- [ ] **Step 6: Verify and commit**
-
-Run compound, experiment, dependency, conflict, characteristics, risk, eligibility, and timing suites plus type checking.
-Expected: PASS.
-
-Commit: `feat: integrate portfolio contracts with compounds`
-
-- [ ] **Step 7: Specification and quality reviews**
-
-Require reviewers to inspect cycle detection, shared-member deduplication, vector aggregation, and atomicity behavior.
-
-### Task 10: Translation raw-evidence enforcement
-
-**Files:**
 - Modify: `src/action_translation/context.ts`
 - Modify: `src/action_translation/types.ts`
 - Modify: `src/action_translation/canonical.ts`
 - Modify: `src/action_translation/compound.ts`
 - Modify: `src/action_translation/experiment.ts`
+- Create: `tests/compatibility/action-portfolio-legacy.test.ts`
 - Create: `tests/action_translation/portfolio-gates.test.ts`
-- Modify: `tests/action_translation/compound-canonical.test.ts`
-- Modify: `tests/action_translation/experiment-canonical.test.ts`
 
-- [ ] **Step 1: Write failing gate-order tests**
+- [ ] Write legacy tests before adapters. Map only exact recognized prerequisite expressions, typed conflicts, unit/currency-complete costs, and exact rollback identities. Unknown legacy semantics remain legacy/absent/unknown and are never guessed.
+- [ ] Prove adapter output does not change historical serialization or fingerprints and native writers never emit legacy shapes.
+- [ ] Test readiness order: exact expansion, eligibility/constraints from raw evidence, dependencies from raw evidence, compatibility from raw evidence/timing, compound/experiment readiness, then simulator capability.
+- [ ] Test forged assessments, incomplete manifests, stale receipts, duplicate evidence, boundary mismatch, fingerprint mismatch, registry ambiguity, and missing recurrence/partition horizons.
+- [ ] Assert a blocked dependency or conflicting portfolio emits no interventions or experiment tasks. Preserve all diagnostic checks/pairs/paths.
+- [ ] Prove satisfied dependencies do not imply eligibility, compatibility does not imply simulator support, characteristics/risk contracts are descriptive unless an existing hard policy gate references a measured metric, and translation does not imply execution.
+- [ ] Run compatibility, translation, readiness, eligibility, constraint, timing, compound, and experiment suites plus type checking; commit `feat: enforce action portfolio gates`.
+- [ ] Complete fresh reviews focused on fail-open adapters and raw-status bypasses.
 
-Assert translation expands identities, recomputes eligibility, dependencies, and compatibility from raw evidence, then evaluates readiness and capability. A blocked dependency or conflicting portfolio emits no interventions or experiment tasks.
-
-- [ ] **Step 2: Write forgery and freshness tests**
-
-Supply valid-looking assessment objects with missing raw inputs, altered fingerprints, stale evidence, duplicate evidence, and incomplete manifests. Expect explicit missing-context or blocked failures.
-
-- [ ] **Step 3: Write separation tests**
-
-Prove dependency satisfaction does not imply eligibility, compatibility does not imply simulator support, characteristics/risk contracts do not block unless referenced by an existing hard policy gate, and translation does not imply execution.
-
-- [ ] **Step 4: Run the red tests**
-
-Run action-translation tests.
-Expected: FAIL until contexts and gates are integrated.
-
-- [ ] **Step 5: Implement raw-context replay**
-
-Add exact raw contexts and deterministic failure codes. Retain full dependency and pair diagnostics. Keep legacy translation behavior unchanged where no new definitions exist.
-
-- [ ] **Step 6: Verify and commit**
-
-Run all translation, eligibility, constraint, experiment, compound, dependency, and conflict tests plus type checking.
-Expected: PASS.
-
-Commit: `feat: enforce portfolio gates before translation`
-
-- [ ] **Step 7: Specification and quality reviews**
-
-Review specifically for trusted caller status, bypass paths, assessment freshness, and accidental execution or optimizer semantics.
-
-### Task 11: Public surface, architecture, documentation, and CI
+### Task 11: Public exports, architecture, documentation, and CI
 
 **Files:**
 - Modify: `src/index.ts`
@@ -467,79 +213,41 @@ Review specifically for trusted caller status, bypass paths, assessment freshnes
 - Modify: `README.md`
 - Create: `docs/action-dependencies-conflicts-characteristics-risk.md`
 - Create: `.github/workflows/action-dependencies-conflicts-risk-ci.yml`
-- Create: `tests/architecture/action-portfolio-boundaries.test.ts` if source-level assertions add coverage beyond dependency-cruiser.
+- Create: `tests/architecture/action-portfolio-boundaries.test.ts` if needed.
 
-- [ ] **Step 1: Add failing package export tests**
+- [ ] Add failing built-package tests for root exports and `./action-dependencies`, `./action-conflicts`, `./action-characteristics`, and `./action-risk` subpaths.
+- [ ] Add one-way architecture rules: pure schema modules cannot import canonical, assessment, translation, simulator, prediction, evaluation, ranking, optimizer, oracle, provider execution, or God-mode modules; canonical may import schemas only; assessment may import public evidence/readiness contracts; translation consumes assessment APIs.
+- [ ] Document definitions versus observations/assessments/readiness/translation/execution, authoritative lifecycle events, boundary equality, time/scope intersection, price baselines, arm partitions, characteristics buckets/critical path, all six risk dimensions, legacy behavior, and non-goals.
+- [ ] Add focused CI covering all new suites plus canonical, timing, constraints, eligibility, experiment, compound, translation, architecture, type checking, and build.
+- [ ] Run focused CI commands locally; commit `docs: publish action portfolio contracts`.
+- [ ] Complete fresh specification and quality reviews.
 
-Verify root exports and `./action-dependencies`, `./action-conflicts`, `./action-characteristics`, and `./action-risk` subpaths from the built package.
-
-- [ ] **Step 2: Add architecture rules**
-
-Forbid the four new definition/assessment areas from importing simulation, ground truth, evaluation, prediction, ranking, optimizer/optimization, oracle, provider execution, and God-mode modules. Forbid canonical schemas from importing assessment or translation implementations.
-
-- [ ] **Step 3: Write public documentation**
-
-Document the four definition families, raw-evidence assessment flow, status precedence, compound/experiment expansion, compatibility behavior, delay authority, vector aggregation, six risk dimensions, migration defaults, and non-goals. Include the inventory, winback, traffic, and contradictory-price examples.
-
-- [ ] **Step 4: Add focused CI**
-
-Add a package script that runs the four new suites plus affected canonical, translation, compound, timing, eligibility, constraint, and experiment suites. The workflow runs install, focused tests, type checking, architecture, and build.
-
-- [ ] **Step 5: Verify and commit**
-
-Run `npm run typecheck`, `npm run architecture`, the focused script, and `npm run build`.
-Expected: PASS.
-
-Commit: `docs: publish action portfolio contracts`
-
-- [ ] **Step 6: Specification and quality reviews**
-
-Require independent approval for exports, public terminology, architecture boundaries, compatibility statements, and CI coverage.
-
-### Task 12: Final audit, full verification, and draft PR
+### Task 12: Final audits, verification, and draft PR
 
 **Files:**
 - Review every file changed from the Steps 16–18 base branch.
 
-- [ ] **Step 1: Run an independent final specification audit**
+- [ ] Dispatch an independent final specification audit with the original Steps 19–22 request, approved design, and full diff.
+- [ ] Dispatch a different final code-quality audit focused on fail-open paths, ambiguity, freshness, boundary equality, cycles, half-open recurrence, price baselines, expansion paths, vector errors, fingerprint drift, and forbidden scoring/selection/prediction.
+- [ ] Fix each accepted finding by first adding a failing regression test; repeat reviews until both approve.
+- [ ] Run `npm run check` and `git diff --check`; expect all tests, type checking, architecture, and build to pass with no whitespace errors.
+- [ ] Confirm the branch contains only Steps 19–22 work above the intended Steps 16–18 base.
+- [ ] Push `action-space/steps19-22-dependencies-conflicts-risk`, open a stacked draft PR against the Steps 16–18 branch, attach it to the task, and wait for every required CI check. Do not merge without explicit user authorization.
 
-Provide the approved design, the original Steps 19–22 request, and the full branch diff. Require explicit coverage findings for all invariants, examples, compatibility behavior, and non-goals.
+## Self-review against reviewer findings
 
-- [ ] **Step 2: Run an independent final code-quality audit**
-
-Focus on fail-open behavior, duplicate evidence, timestamp freshness, unit/currency coercion, cycle detection, ordering, recursion, raw-assessment trust, and forbidden optimizer/prediction semantics.
-
-- [ ] **Step 3: Fix findings with TDD**
-
-For every valid finding, add a failing regression test, make the smallest fix, and rerun the affected suite. Repeat both reviews until approved.
-
-- [ ] **Step 4: Run full verification**
-
-Run `npm run check` and `git diff --check`.
-Expected: all tests, type checking, architecture checks, and build pass; no whitespace errors.
-
-- [ ] **Step 5: Inspect final history and diff**
-
-Confirm the branch contains only Steps 19–22 work above the intended Steps 16–18 base and that generated or unrelated files are absent.
-
-- [ ] **Step 6: Push and open a stacked draft PR**
-
-Push `action-space/steps19-22-dependencies-conflicts-risk` and open a draft PR against the Steps 16–18 branch. The description leads with the behavior change, lists the four boundaries, explains compatibility, and records exact verification evidence.
-
-- [ ] **Step 7: Attach the PR and wait for CI**
-
-Attach the created PR to the task, wait for every required check, and fix failures before reporting completion. Do not merge without explicit user authorization.
-
-## Plan self-review
-
-- Every Step 19 dependency example maps to an existing hard-constraint, eligibility-check, or experiment-readiness definition and is replayed from raw evidence.
-- No Action-state dependency can request `ELIGIBLE`.
-- Conflict evaluation is symmetric, target/scope/time aware, exhaustive, and selection-free.
-- `timing.implementationDelay` remains the sole delay authority.
-- Costs and burdens retain units, currencies, ranges, stages, and member identities.
-- Reversibility is checked against known domain effects.
-- Risk contracts contain exactly the six requested dimensions and no values or scores.
-- Empty defaults preserve old v2 fingerprints; non-empty semantics are order independent.
-- Compounds and experiment arms expand through exact identities with cycle and ambiguity checks.
-- Translation and readiness replay raw evidence rather than trusting assessments.
-- Every implementation task has focused TDD, a commit, and independent specification and quality review checkpoints.
+1. Pure schemas precede minimal canonical integration; assessors follow, with one-way imports stated and tested.
+2. Every dependency has an evaluation boundary; local gate and referenced-definition boundaries must match.
+3. Traffic dependency uses a deterministic positive experiment-readiness check with fingerprint and raw replay.
+4. Cycles and lifecycle semantics live in assessment; authoritative Action events and CompoundAction derivation are explicit.
+5. Conflict scope uses a closed coordinate union plus bound intersection evidence.
+6. Half-open intervals, instants, recurrence expansion, and finite horizons are symmetric and explicit.
+7. Declaration contradictions, registry ambiguity, and repeated expansion paths cannot disappear through deduplication.
+8. Price `SET | DELTA | MULTIPLY` has exact currency and baseline semantics.
+9. Experiment global/shared writes can conflict; population arms need exact disjoint partition evidence; arm paths remain visible.
+10. Characteristics include `UNKNOWN` and `NOT_APPLICABLE`, category/currency line items, cancellation versus compensation, exact reversal references, typed irreversible effects, and no definition evidence refs.
+11. Risk is a strict discriminated union with exactly six top-level dimensions and one or more measurements per dimension.
+12. Legacy adapters and historical serialization/fingerprint tests are explicit.
+13. Compounds use execution-policy buckets and a separately derived critical path; experiments remain arm-stratified with allocation metadata and no naive sums.
+14. Declared member delay remains solely in `timing.implementationDelay`; the derived critical path is a separate assessment output.
+15. Compatibility and fingerprint tests cover empty defaults, every non-empty semantic field, order independence, and legacy stability.
