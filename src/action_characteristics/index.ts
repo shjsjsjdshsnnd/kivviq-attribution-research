@@ -30,3 +30,22 @@ export type {
   StageCancellationCost,
   StageReachabilityInput,
 } from "./schema.js";
+export { validateActionCharacteristics } from "./validation.js";
+export type {
+  CharacteristicsValidationContext,
+  CharacteristicsValidationResult,
+  RegisteredReversalContract,
+} from "./validation.js";
+export {
+  aggregateActionCharacteristics,
+  aggregateCompoundCharacteristics,
+  aggregateExperimentCharacteristics,
+} from "./aggregate.js";
+export type {
+  CharacteristicAggregateNode,
+  CharacteristicAggregationContext,
+  CharacteristicsAggregateResult,
+  ExperimentCharacteristicsRegistry,
+  ExperimentCharacteristicsResult,
+  SharedExecutionAlias,
+} from "./aggregate.js";
