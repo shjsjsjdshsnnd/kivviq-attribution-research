@@ -101,7 +101,24 @@ The pure schema requires unique dependency IDs and closed, typed references. Loc
 
 Registry-dependent rules do not belong in the schema. Dependency assessment resolves references, rejects ambiguous identities, rejects self-reference, and detects cycles across Action, CompoundAction, component, and experiment-arm boundaries.
 
-Lifecycle state has an authoritative event meaning. `STARTED` requires an immutable execution-start event, `EFFECTIVE` requires an effect-start event, `COMPLETED` requires a completion event, and `RESOLVED` requires the existing bound investigation result. Planned or resolved timing does not prove any lifecycle state. A CompoundAction derives a state only from component events plus its atomicity and dependency policy: `STARTED` when the first permitted component starts; `EFFECTIVE` when every component required by atomicity is effective; `COMPLETED` when every required component completes; and `RESOLVED` only when every required investigation component has an accepted bound result. No caller-supplied compound status is authoritative.
+Lifecycle state has an authoritative event meaning. The only positive atomic lifecycle input is an immutable raw event:
+
+```ts
+interface ActionLifecycleEvent {
+  eventId: string;
+  subject:
+    | { kind: "ACTION"; actionId: string; actionFingerprint: string }
+    | { kind: "COMPOUND"; compoundActionId: string; compoundFingerprint: string };
+  eventKind: "STARTED" | "EFFECTIVE" | "COMPLETED";
+  occurredAt: string; // UTC-Z
+  sourceRef: string;
+  provenance: readonly string[];
+}
+```
+
+Receipt wrappers bind and carry these events; they cannot contain `state`, `status`, or another asserted lifecycle conclusion. `RESOLVED` is derived only from the existing bound investigation result, not a lifecycle event. Planned or resolved timing proves no lifecycle state.
+
+Compound lifecycle derives from component raw events and the declared policy. `ALL_OR_NOTHING` reaches `STARTED`, `EFFECTIVE`, or `COMPLETED` only when every component reaches that state. `BEST_EFFORT` reaches `STARTED` when any component starts, but reaches `EFFECTIVE` or `COMPLETED` only when every component that was permitted and attempted has reached that state and every skipped/failed component is explicitly accounted for by raw execution events under the failure policy. `DEPENDENCY_GATED` reaches a state only when every root or dependency-unblocked component required by the graph has reached it; downstream components remain required once their gates become satisfied. `RESOLVED` requires every required investigation component to have an accepted bound result. Missing, conflicting, or duplicate exact events yield unknown/blocked according to the dependency policy. No caller-supplied compound status is authoritative.
 
 ### Evidence and assessment
 
@@ -116,7 +133,7 @@ interface DependencyEvidenceReceipt {
   evidenceRefs: string[];
   provenance: string[];
   fact:
-    | { kind: "ENTITY_LIFECYCLE"; prerequisite: CanonicalEntityReference; state: LifecycleState }
+    | { kind: "ENTITY_LIFECYCLE"; prerequisite: CanonicalEntityReference; event: ActionLifecycleEvent }
     | { kind: "ELIGIBILITY_INPUT"; checkId: string }
     | { kind: "CONSTRAINT_INPUT"; constraintId: string }
     | { kind: "EXPERIMENT_READINESS_INPUT"; requirement: "READY" | "SUFFICIENT_ELIGIBLE_TRAFFIC" };
@@ -133,11 +150,15 @@ interface DependencyAssessment {
 }
 ```
 
-Lifecycle receipts are verified directly. Gate receipts are pointers to raw input bundles, not reusable status assertions: assessment replays `assessHardConstraints`, `evaluateActionEligibility`, or `assessExperimentReadiness` and verifies the exact referenced definition. Freshness uses the stricter of the caller maximum age and the receipt or source policy. Multiple exact matches are ambiguous regardless of order.
+Lifecycle receipts are verified directly from their nested raw events. Gate receipts are pointers to raw input bundles, not reusable status assertions: assessment replays `assessHardConstraints`, `evaluateActionEligibility`, or `assessExperimentReadiness` and verifies the exact referenced definition. Freshness uses the stricter of the caller maximum age and the receipt or source policy. Multiple exact matches are ambiguous regardless of order.
 
 The selected assessment boundary must equal the dependency definition boundary. A local constraint or eligibility gate must also equal the referenced definition's boundary. Cross-boundary evidence cannot satisfy a gate.
 
-`SUFFICIENT_ELIGIBLE_TRAFFIC` requires experiment readiness to expose a deterministic traffic check with an exact experiment fingerprint, population identity/fingerprint, binding time, sample target, eligible count derived from raw membership evidence, and assessment fingerprint. Dependency assessment first replays experiment readiness from raw population and engine inputs, validates its complete manifest and fingerprint, and only then reads the positive `SUFFICIENT_ELIGIBLE_TRAFFIC` check. Absence, `UNKNOWN`, duplicate population evidence, or a caller-provided count cannot satisfy the dependency.
+`SUFFICIENT_ELIGIBLE_TRAFFIC` requires experiment readiness to expose a deterministic traffic check with an exact experiment fingerprint, population identity/fingerprint, binding time, sample target, eligible count derived from raw membership evidence, and assessment fingerprint. Its raw source policy declares `maximumAgeSeconds`; readiness uses the stricter of that policy and the caller limit. Dependency assessment first replays experiment readiness from raw population and engine inputs, validates its complete manifest and fingerprint, and only then reads the positive `SUFFICIENT_ELIGIBLE_TRAFFIC` check. Absence, stale raw membership/traffic evidence, `UNKNOWN`, duplicate population evidence, or a caller-provided count cannot satisfy the dependency.
+
+The winback example uses only the existing exact `domain.lifecycle.audience_available` eligibility gate. Its raw domain fact must bind the dependent action ID/fingerprint, the exact population target, dependency evaluation boundary, observation time, source, and provenance. Missing, stale, target-mismatched, or duplicate exact facts fail closed. A caller-provided audience snapshot or audience-available boolean does not satisfy this gate.
+
+Every hard-constraint gate boundary equals its referenced hard-constraint definition. Generated legacy or domain eligibility gates are emitted at the dependency boundary, evaluated at that boundary, and accepted only when the recomputed eligibility result has the exact action identity/fingerprint, boundary, assessment fingerprint, and complete expected check manifest.
 
 Any blocked check makes the dependency assessment `BLOCKED`; otherwise any unresolved check makes it `UNKNOWN`; otherwise it is `SATISFIED`. All checks are retained and sorted by dependency ID.
 
@@ -160,12 +181,19 @@ interface ActionConflictDefinition {
   kind: ConflictKind;
   target: ConstraintTarget;
   scope: ConflictScope;
-  overlapRule: "ANY_OVERLAP" | "EFFECTIVE_OVERLAP" | "FULL_CONTAINMENT";
+  overlapRule: "ANY_OVERLAP" | "EFFECTIVE_OVERLAP";
   counterparty:
     | CanonicalEntityReference
     | { registryRef: string; code: string };
 }
 ```
+
+Temporal modes are exhaustive:
+
+- `ANY_OVERLAP` compares each Action's full active interval `[resolvedRequestedStart, resolvedEnd)`, including implementation before effect. A missing requested start or end required by the Action shape yields `UNKNOWN`.
+- `EFFECTIVE_OVERLAP` compares `[resolvedEffectiveStart, resolvedEnd)` and ignores pre-effect implementation. A missing effective start or required end yields `UNKNOWN`.
+
+No other temporal mode, implicit persistent overlap, or label-derived window is accepted.
 
 `ConflictScope` is a closed coordinate union rather than an arbitrary object:
 
@@ -178,7 +206,7 @@ type ConflictCoordinate =
   | { kind: "PLACEMENT"; channelRef: string; placementRef: string }
   | { kind: "POPULATION"; populationId: string; version: number; definitionFingerprint: string; binding: string; membershipMode: string; snapshotRef?: string }
   | { kind: "RESOURCE"; resourceRef: string; unit: string }
-  | { kind: "CUSTOM"; registryRef: string; code: string };
+  | { kind: "CUSTOM"; registryRef: string; code: string; version: string };
 
 interface ConflictScope {
   coordinates: readonly ConflictCoordinate[];
@@ -186,6 +214,17 @@ interface ConflictScope {
 ```
 
 Coordinates are an intersection: every coordinate dimension declared by both sides must match or have evidence of overlap. A missing coordinate, custom registry interpretation, or population intersection is not guessed. `ScopeIntersectionEvidence` binds the pair key, both exact scope fingerprints, observed time, boundary, provenance, and a positive, negative, or unknown intersection fact. Only exact, fresh, unique evidence may prove a non-structural intersection or disjointness.
+
+The complete coordinate matrix is:
+
+- `GLOBAL` intersects every valid scope. An empty coordinate list is invalid and never aliases `GLOBAL`.
+- Repeating a coordinate kind within one scope is invalid unless that kind is explicitly a set-valued custom registry contract; duplicate identical coordinates are invalid rather than silently deduplicated.
+- `PRODUCT(p)` intersects the same product and any `VARIANT(p, v)`; different products are disjoint. Two variants intersect only when product and variant both match.
+- `CHANNEL(c)` intersects the same channel and any `PLACEMENT(c, p)`; different channels are disjoint. Two placements intersect only when channel and placement both match.
+- `RESOURCE(r, u)` intersects only the same resource and a compatible controlled unit. Different resources are disjoint; incompatible units are invalid/unknown rather than coerced.
+- Two exact population references with equal identity, fingerprint, binding, and membership mode intersect. Different frozen snapshots are disjoint only with exact membership/partition evidence; dynamic or otherwise different populations require intersection evidence.
+- `CUSTOM` coordinates intersect only through one unique versioned registry interpretation and bound intersection evidence.
+- Coordinates of unrelated kinds are disjoint unless one is `GLOBAL` or a versioned registry rule explicitly defines their relationship. No product-to-resource, placement-to-population, or other cross-kind inference is built in.
 
 Exact references support explicitly known conflicts. Registered semantic adapters detect domain contradictions without guessing from labels. Price semantics are closed and exact:
 
@@ -198,7 +237,22 @@ type PriceOperation =
 
 Two price Actions are contradictory only when their exact product/variant scopes and currencies intersect and their resulting prices differ. `SET` compares directly. `DELTA` and `MULTIPLY` require one fresh, unique baseline receipt bound to both the baseline reference/fingerprint and pair boundary; otherwise compatibility is `UNKNOWN`. A percentage-like multiplier is never compared across currencies or inferred from a label.
 
-A conflict declared by either side creates one normalized unordered pair. The result is symmetric: evaluating `[A, B]` or `[B, A]` returns the same pair key, reasons, and status. Semantically identical duplicate declarations normalize to one declared relation while retaining their source paths. Contradictory declarations for the same normalized identity, duplicate registry matches, self-conflicts, and unknown counterpart identities are invalid, ambiguous, or unresolved rather than ignored.
+A conflict declared by either side creates one normalized relation identity:
+
+```ts
+type NormalizedConflictRelationIdentity = {
+  leftEntityKey: string;  // lexicographically smaller exact kind:id:fingerprint
+  rightEntityKey: string;
+  kind: ConflictKind;
+  targetFingerprint: string;
+  leftScopeFingerprint: string;
+  rightScopeFingerprint: string;
+  temporalMode: "ANY_OVERLAP" | "EFFECTIVE_OVERLAP";
+  registryIdentity?: { registryRef: string; code: string; version: string };
+};
+```
+
+The result is symmetric: evaluating `[A, B]` or `[B, A]` returns the same identity, reasons, and status. Semantically identical duplicate declarations normalize to one relation while retaining their source paths. Same endpoints with incompatible kind, target, scope, temporal mode/direction, or registry version are contradictory declarations and make the relation invalid. Duplicate registry matches, self-conflicts, and unknown counterpart identities are ambiguous or unresolved rather than ignored.
 
 ```ts
 interface PortfolioCompatibilityAssessment {
@@ -212,9 +266,9 @@ interface PortfolioCompatibilityAssessment {
 }
 ```
 
-`assessPortfolioCompatibility` validates exact identities, expands CompoundActions and experiment arms, resolves timing, and evaluates every applicable unordered pair. Expansion never silently deduplicates. Repeated exact members retain every parent/component/arm path; conflicting payloads for one exact identity are ambiguous. Shared members are evaluated once only after equality is proven, with all paths attached to the result.
+`assessPortfolioCompatibility` validates exact identities, expands CompoundActions and experiment arms, resolves timing, and evaluates every applicable unordered pair. Expansion never silently deduplicates. The same exact Action reached through two top-level entries or independent component/arm paths is rejected as duplicate execution unless an explicit versioned alias contract declares those paths to represent one execution. Traversal may memoize only repeated visits to the same entity on the same traversal path for cycle handling; it cannot use a global visited set to erase independent execution paths. Conflicting payloads for one exact identity are ambiguous.
 
-Resolved intervals use half-open semantics `[effectiveStart, end)`. Two finite intervals overlap when `max(start) < min(end)`. An instantaneous Action occupies its exact effective instant and conflicts with an interval when `start <= instant < end`; two instants overlap only when equal. Recurrence expands occurrences only within an explicit assessment horizon, retaining occurrence indexes and half-open bounds. Open-ended or unbounded recurrence without a supplied finite horizon is `UNKNOWN`, never compatible. All pair logic is symmetric under input reversal.
+Resolved intervals use half-open semantics `[effectiveStart, end)`. Two finite intervals overlap when `max(start) < min(end)`. An instantaneous Action occupies its exact effective instant and conflicts with an interval when `start <= instant < end`; two instants overlap only when equal. Persistent Actions form `[effectiveStart, horizonEnd)` for assessment and therefore require a finite horizon. Recurrence expands every occurrence whose instant lies in the horizon or whose half-open interval intersects `[horizonStart, horizonEnd)`, then clips only for comparison while retaining the original occurrence bounds and index. Occurrences ending exactly at horizon start or starting exactly at horizon end are excluded. Truncation by `maxOccurrences` is valid only when the declared recurrence boundary is reached; an assessor safety cap before that boundary yields `UNKNOWN`, not a compatible partial answer. Open-ended or unbounded recurrence without a supplied finite horizon is `UNKNOWN`. All pair logic is symmetric under input reversal.
 
 Any proven conflict yields `CONFLICTING`; otherwise unresolved identity, scope, timing, recurrence horizon, or evidence yields `UNKNOWN`; otherwise the portfolio is `COMPATIBLE`. It reports all conflicts. It never drops an Action, chooses a winner, calculates utility, or repairs the portfolio.
 
@@ -244,7 +298,7 @@ interface MoneyValue {
 
 interface OperationalQuantity {
   quantity: number;
-  unit: string;
+  unit: "minutes" | "hours" | "units" | "orders" | "messages" | "placements" | { registryRef: string; code: string; version: string };
   resourceRef: string;
 }
 
@@ -256,8 +310,8 @@ type IrreversibleEffect =
   | { kind: "MESSAGE_DELIVERED"; channelRef: string }
   | { kind: "INVENTORY_COMMITTED"; resourceRef: string; unit: string }
   | { kind: "CUSTOMER_EXPOSED"; populationRef: string }
-  | { kind: "EXTERNAL_COMMITMENT"; contractRef: string }
-  | { kind: "CUSTOM"; registryRef: string; code: string };
+  | { kind: "EXTERNAL_COMMITMENT"; contractRef: string; contractVersion: string }
+  | { kind: "CUSTOM"; registryRef: string; code: string; version: string };
 
 type Reversibility =
   | { kind: "FULLY_REVERSIBLE"; reversal: ReversalReference }
@@ -292,6 +346,8 @@ These are definitions, so they contain no evidence `sourceRefs`; evidence and pr
 
 Stage semantics are explicit. `BEFORE_START` precedes an authoritative start event; `IMPLEMENTING` begins at start and precedes effect; `EFFECTIVE` begins at the effect event and precedes completion; `COMPLETED` begins at completion. Cancellation stops work that has not become effective. Compensation addresses effects after cancellation is no longer possible. Therefore a stage declares `cancellationAvailable`, separate cancellation and compensation line items, and burden. Duplicate stages are invalid, and every reachable stage must be represented.
 
+Reachability is derived, not author asserted. An instantaneous send reaches `BEFORE_START` then atomically reaches `EFFECTIVE` and `COMPLETED`; it has no cancellable `IMPLEMENTING` interval, and post-send entries describe compensation only. A persistent policy reaches `BEFORE_START`, `IMPLEMENTING` when rollout starts, and `EFFECTIVE` until an explicit completion/withdrawal event; it does not require `COMPLETED` unless its timing defines one. A temporary price Action reaches all four stages when implementation, effect, and finite end/completion are distinct; cancellation before effect differs from restoring price after effect. A committed inventory purchase moves from cancellable implementation to an external commitment event; after commitment `cancellationAvailable` is false and any supplier return, resale, or disposal is compensation. Schema/cross-field validation requires exactly the stages reachable from ActionTiming plus typed domain semantics.
+
 Reversibility is strict. A sent message, completed irreversible purchase, or consumed resource cannot be labeled fully reversible merely because a compensating Action exists. `FULLY_REVERSIBLE` requires an exact Action ID/fingerprint or versioned registered reversal contract and no irreversible effects. `PARTIALLY_REVERSIBLE` requires the same exact reversal identity plus at least one typed irreversible effect. `IRREVERSIBLE` requires typed effects and forbids a reversal claim. `UNKNOWN` cannot be treated as reversible; `NOT_APPLICABLE` is reserved for Actions with no implemented state to reverse. Domain adapters enforce known invariants from pricing, inventory, lifecycle, shipping, merchandising, and CRO rollback contracts.
 
 Characteristics are descriptive inputs. The Action Space validates and aggregates them but does not turn them into utility, penalties, preferences, or rankings.
@@ -313,7 +369,7 @@ interface ActionCharacteristicsVector {
 }
 ```
 
-Money is bucketed by category and currency. Quantities are bucketed only for the same registered unit and resource. Compound totals follow the compound execution policy: parallel branches retain branch buckets, while ordered/dependent branches expose a derived critical path computed from ActionTiming. The derived critical path is a separate assessment output and never rewrites any member's declared `timing.implementationDelay`. Unknown and not-applicable members remain explicit. Range addition preserves lower and upper bounds. Aggregate reversibility is the strictest member state, while the member breakdown remains available. Repeated exact members retain all paths and are consolidated only after semantic equality is established.
+Money is bucketed by category and currency. Quantities are bucketed only for the same registered unit and resource. Compound totals follow the compound execution policy: parallel branches retain branch buckets, while ordered/dependent branches expose a derived critical path computed from ActionTiming. The derived critical path is a separate assessment output and never rewrites any member's declared `timing.implementationDelay`. Unknown and not-applicable members remain explicit. Range addition preserves lower and upper bounds. Aggregate reversibility is the strictest member state, while the member breakdown remains available. Repeated exact members retain all paths and are rejected as duplicate executions unless a versioned alias contract authorizes one shared execution; authorized aliases are aggregated once with every path retained.
 
 Experiment characteristics are arm-stratified. Each arm retains allocation basis points and its own characteristic vector. Implementation setup shared by the experiment may be reported in a separate shared bucket, but arm costs, burdens, delays, and cancellation costs are not naively summed because arms are alternative assignments rather than a sequential portfolio.
 
@@ -337,27 +393,58 @@ interface RiskMeasurementBase {
   horizon: { amount: number; unit: "HOUR" | "DAY" | "WEEK" | "MONTH" };
   aggregation: "SUM" | "MAXIMUM" | "DISTRIBUTION" | "INTERVAL";
   evidencePolicyRef: string;
+  sourceDefinitionRef: { registryRef: string; code: string; version: string };
 }
 
-type RiskMeasurementContract =
-  | (RiskMeasurementBase & { dimension: "FINANCIAL_DOWNSIDE"; valueType: { kind: "MONEY"; currency: string } })
-  | (RiskMeasurementBase & { dimension: "IRREVERSIBILITY"; valueType: { kind: "QUANTITY"; unit: string } | { kind: "PERCENTAGE" } })
-  | (RiskMeasurementBase & { dimension: "UNCERTAINTY"; valueType: { kind: "PERCENTAGE" } | { kind: "SCALAR"; unit: string } })
-  | (RiskMeasurementBase & { dimension: "INVENTORY_EXPOSURE"; valueType: { kind: "MONEY"; currency: string } | { kind: "QUANTITY"; unit: string } })
-  | (RiskMeasurementBase & { dimension: "CUSTOMER_IMPACT"; valueType: { kind: "PERCENTAGE" } | { kind: "QUANTITY"; unit: "customers" } })
-  | (RiskMeasurementBase & { dimension: "TIME_TO_RECOVERY"; valueType: { kind: "DURATION"; unit: "SECOND" | "MINUTE" | "HOUR" | "DAY" } });
+type ControlledQuantityUnit =
+  | "units" | "customers" | "orders" | "messages"
+  | { registryRef: string; code: string; version: string };
+
+type FinancialDownsideMeasurement = RiskMeasurementBase & {
+  dimension: "FINANCIAL_DOWNSIDE";
+  valueType: { kind: "MONEY"; currency: string };
+  lossBaselineRef: string;
+};
+type IrreversibilityMeasurement = RiskMeasurementBase & {
+  dimension: "IRREVERSIBILITY";
+  valueType: { kind: "QUANTITY"; unit: ControlledQuantityUnit } | { kind: "PERCENTAGE" };
+  reversibilityContractRef: string;
+  irreversibleEffectKinds: readonly IrreversibleEffect["kind"][];
+};
+type UncertaintyMeasurement = RiskMeasurementBase & {
+  dimension: "UNCERTAINTY";
+  valueType: { kind: "PERCENTAGE" } | { kind: "SCALAR"; unit: { registryRef: string; code: string; version: string } };
+  uncertainQuantityRef: string;
+};
+type InventoryExposureMeasurement = RiskMeasurementBase & {
+  dimension: "INVENTORY_EXPOSURE";
+  inventoryTarget: { productRef: string; variantRef?: string; locationRef?: string };
+  valueType: { kind: "MONEY"; currency: string } | { kind: "QUANTITY"; unit: "units" | { registryRef: string; code: string; version: string } };
+};
+type CustomerImpactMeasurement = RiskMeasurementBase & {
+  dimension: "CUSTOMER_IMPACT";
+  population: PopulationReference;
+  valueType: { kind: "PERCENTAGE" } | { kind: "QUANTITY"; unit: "customers" };
+};
+type TimeToRecoveryMeasurement = RiskMeasurementBase & {
+  dimension: "TIME_TO_RECOVERY";
+  recoveryBaselineRef: string;
+  valueType: { kind: "DURATION"; unit: "SECOND" | "MINUTE" | "HOUR" | "DAY" };
+};
+
+type RiskMeasurementContract = FinancialDownsideMeasurement | IrreversibilityMeasurement | UncertaintyMeasurement | InventoryExposureMeasurement | CustomerImpactMeasurement | TimeToRecoveryMeasurement;
 
 interface ActionRiskMeasurementContracts {
-  FINANCIAL_DOWNSIDE: readonly [RiskMeasurementContract, ...RiskMeasurementContract[]];
-  IRREVERSIBILITY: readonly [RiskMeasurementContract, ...RiskMeasurementContract[]];
-  UNCERTAINTY: readonly [RiskMeasurementContract, ...RiskMeasurementContract[]];
-  INVENTORY_EXPOSURE: readonly [RiskMeasurementContract, ...RiskMeasurementContract[]];
-  CUSTOMER_IMPACT: readonly [RiskMeasurementContract, ...RiskMeasurementContract[]];
-  TIME_TO_RECOVERY: readonly [RiskMeasurementContract, ...RiskMeasurementContract[]];
+  FINANCIAL_DOWNSIDE: readonly [FinancialDownsideMeasurement, ...FinancialDownsideMeasurement[]];
+  IRREVERSIBILITY: readonly [IrreversibilityMeasurement, ...IrreversibilityMeasurement[]];
+  UNCERTAINTY: readonly [UncertaintyMeasurement, ...UncertaintyMeasurement[]];
+  INVENTORY_EXPOSURE: readonly [InventoryExposureMeasurement, ...InventoryExposureMeasurement[]];
+  CUSTOMER_IMPACT: readonly [CustomerImpactMeasurement, ...CustomerImpactMeasurement[]];
+  TIME_TO_RECOVERY: readonly [TimeToRecoveryMeasurement, ...TimeToRecoveryMeasurement[]];
 }
 ```
 
-There are exactly six top-level dimension keys for newly authored Actions and each contains one or more measurements. Each dimension's strict discriminated branch limits legal value types. Measurement IDs are unique across the six vectors. The schema recursively rejects fields such as `value`, `score`, `rating`, `probability`, `prediction`, `expectedLoss`, `confidence`, `weight`, `rank`, and `recommendation`.
+There are exactly six top-level dimension keys for newly authored Actions and each contains one or more measurements of that dimension's concrete type. Every branch is a strict object: financial measurements require only their loss/currency link, irreversibility requires its contract/effect links, uncertainty its uncertain quantity, inventory its inventory target, customer impact its exact population, and recovery its baseline. Fields from another branch are rejected. Measurement IDs are unique across the six vectors. The schema recursively rejects fields such as `value`, `score`, `rating`, `probability`, `prediction`, `expectedLoss`, `confidence`, `weight`, `rank`, and `recommendation`.
 
 The dimensions mean:
 
@@ -407,6 +494,10 @@ A failure at one gate retains the other diagnostic results where safe. No gate i
 - Existing rollback contracts inform strict reversibility validation; they are not rewritten.
 - Legacy adapters are explicit and one-way: recognized legacy prerequisite expressions map only to an exact local constraint/check gate; recognized domain conflicts map only when typed targets and operations are complete; legacy costs map only with currency/unit metadata; rollback declarations map only with exact reversal identity; all other legacy fields remain preserved as legacy data and produce `UNKNOWN`/`ABSENT` rather than guessed native semantics.
 - Adapter output is tested against historical fixtures and cannot change their stored serialization or fingerprint. Native writers never emit legacy shapes.
+
+Legacy characteristic mapping is lossless and limited to seven cost buckets: paid spend → `MEDIA`; measured staff/service time with a money amount → `LABOR`; provider/license fees → `PLATFORM`; inventory acquisition → `PROCUREMENT`; shipping/handling → `FULFILLMENT`; an explicit pre-effect cancellation charge → `CANCELLATION`; and typed monetary cost with none of those exact source kinds → `OTHER`. Each mapped line retains the original legacy field reference, amount, and currency in adapter provenance outside the definition. A value without currency, a currency conversion, a negative/ambiguous amount, or free prose does not map.
+
+Legacy delay maps only into `ActionTiming.implementationDelay`; it never creates a characteristic field. Operational burden maps only from typed finite quantities with exact resource and controlled unit: staff/service time, inventory units handled, orders, messages, or placements. Money-only costs, narrative effort, generic complexity, scores, and unregistered units are excluded. Legacy reversibility maps only from an exact Action ID/fingerprint rollback reference or a versioned registered rollback contract; compensating prose does not map. Legacy cancellation characteristics default to `UNKNOWN` for every reachable stage unless typed stage-specific cancellation and compensation data exists. No legacy prose, risk label, score, or free-form objective is converted into a risk metric or measurement contract.
 
 ## Architecture boundaries
 
@@ -461,23 +552,28 @@ An ad-budget change may declare full reversibility when its exact rollback contr
 Tests cover:
 
 - every dependency kind, exact ACTION and COMPOUND references, unknown references, fingerprint mismatch, self-reference, direct cycles, and cycles through compounds or experiment arms;
-- inventory, audience, and traffic examples using existing raw evidence assessors;
+- raw immutable lifecycle events and rejection of wrapper state claims; exact lifecycle derivation for `ALL_OR_NOTHING`, `BEST_EFFORT`, and `DEPENDENCY_GATED`;
+- inventory and traffic examples using existing raw evidence assessors, including source maximum-age and stale-traffic cases;
+- winback through only `domain.lifecycle.audience_available`, with action/fingerprint/target/boundary/freshness/duplicate checks and rejection of snapshot/boolean claims;
 - explicit rejection of an `ELIGIBLE` entity-lifecycle dependency;
 - missing, stale, duplicate, boundary-mismatched, target-mismatched, and order-reversed evidence;
 - symmetric conflict output under reversed Action and declaration order;
-- target, scope, currency, and time-window distinctions;
+- the full coordinate intersection matrix, controlled resource units, bound population/custom evidence, target, scope, currency, and time-window distinctions;
+- every retained temporal mode, half-open/instant/persistent rules, recurrence horizon truncation, and safety-cap unknown behavior;
+- normalized relation identity, contradictory declarations, registry ambiguity, alias contracts, duplicate top-level/independent paths, and path-local memoization;
 - explicit, domain-derived, resource, policy, and custom conflicts;
 - all conflicts reported and no winner, rank, utility, or repair fields;
 - price increase/decrease overlap and non-overlap cases;
 - implementation cost known/range/unknown, currency mismatch, invalid range, and non-integer minor units;
 - operational quantities by resource and unit;
 - implementation delay appearing only in ActionTiming;
-- cancellation cost at every stage and duplicate/missing stages;
+- cancellation versus compensation and exact reachable stages for instantaneous send, persistent policy, temporary price, and committed inventory;
 - strict full, partial, and irreversible declarations against domain rollback behavior;
 - exactly six top-level risk dimensions, one-or-more measurements per dimension, duplicate measurement IDs, omissions, extra dimensions, and leakage fields;
-- compound and experiment-arm expansion, repeated-member path retention, equality-proven consolidation, vector aggregation, and unknown propagation;
+- compound and experiment-arm expansion, repeated-member path retention, alias-authorized shared execution, duplicate-path rejection, vector aggregation, and unknown propagation;
 - historical fingerprints with omitted and explicit empty/absent defaults, fingerprint sensitivity for every non-empty semantic field, and order independence for every set-like collection;
 - old v2 parse and fingerprint fixtures, new fingerprint sensitivity, and collection order independence;
+- lossless seven-bucket legacy cost mapping, timing-only legacy delay, burden inclusion/exclusion, exact reversal mapping, unknown cancellation defaults, and rejection of prose-to-metric mapping;
 - translation/readiness raw-evidence replay and rejection of forged assessment status;
 - architecture rules and public package exports.
 
