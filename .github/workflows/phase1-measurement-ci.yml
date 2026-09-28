@@ -1,0 +1,45 @@
+name: Phase 1 Measurement and Decision Lab
+
+on:
+  push:
+    branches: [phase1/steps15-23-measurement-decision-lab]
+  pull_request:
+    branches: [step14/external-reality]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: phase1-measurement-${{ github.event_name }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  focused:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: npm install --no-audit --no-fund
+      - run: npm run architecture
+      - run: npm run typecheck
+      - run: npx vitest run tests/measurement_corruption --maxWorkers=1 --reporter=verbose
+      - run: npm run build
+  regression:
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: npm install --no-audit --no-fund
+      # Do not skip or weaken the inherited Step 12 imagery assertion.
+      - run: npm test
