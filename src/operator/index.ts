@@ -15,3 +15,5 @@ export * from "./merchandising-heuristics.js";
 export * from "./greedy-operators.js";
 
 export * from "./flawed-optimizers.js";
+
+export * from "./canonical-interface.js";

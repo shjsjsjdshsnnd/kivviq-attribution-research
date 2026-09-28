@@ -33,7 +33,8 @@
     "test:pricing-promotion-heuristics": "vitest run tests/operator/pricing-promotion-heuristics.test.ts --reporter=verbose",
     "test:merchandising-heuristics": "vitest run tests/operator/merchandising-heuristics.test.ts --reporter=verbose",
     "test:greedy-operators": "vitest run tests/operator/greedy-operators.test.ts --reporter=verbose",
-    "test:flawed-optimizers": "vitest run tests/operator/flawed-optimizers.test.ts --reporter=verbose"
+    "test:flawed-optimizers": "vitest run tests/operator/flawed-optimizers.test.ts --reporter=verbose",
+    "test:canonical-operator-interface": "vitest run tests/operator/canonical-interface.test.ts --reporter=verbose"
   },
   "exports": {
     ".": "./dist/index.js",

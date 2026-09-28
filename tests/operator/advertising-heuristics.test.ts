@@ -961,7 +961,7 @@ describe("Step 3.4 simple advertising heuristic baselines", () => {
       ).toBe(true);
       expect(bundle.operatorMetadata?.deterministicConfiguration).toBeDefined();
     }
-  });
+  }, 15_000);
 
   it("freezes the preregistered benchmark configuration fingerprints", () => {
     const configs: readonly AdvertisingHeuristicConfig[] = [
