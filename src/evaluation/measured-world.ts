@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import { simulateWorld } from "../simulation/simulator.js";
 import type { SimulateWorldRequest, SimulationResult } from "../simulation/types.js";
 import { measurePerfectWorld, validatePerfectWorld,
@@ -62,8 +63,15 @@ export function perfectFactsFromSimulation(
     }
     const source: ObservedSource = event.source ?? event.channel ?? "unknown";
     const origin = nativeKinds.has(event.eventType) ? "platform" as const : "browser" as const;
+    // Legacy repeat-purchase cycles reuse some IDs on different dates. Preserve
+    // every occurrence with a prefix-stable compound identity; do not deduplicate
+    // by legacy ID or use a whole-run array index that could shift on replay.
+    // An exact repeated (ID,time,type,subject) is still rejected by validation.
+    const occurrenceId = createHash("sha256").update(JSON.stringify([
+      event.eventId, event.occurredAt, event.eventType, event.anonymousSubjectId,
+    ])).digest("hex");
     events.push({
-      eventId: `journey:${event.eventId}`, origin, eventType: event.eventType,
+      eventId: `journey:${occurrenceId}`, origin, eventType: event.eventType,
       occurredAt: event.occurredAt, subjectCreatedAt: request.startTime,
       subjectId: event.anonymousSubjectId, source,
       directNavigation: source === "direct",
