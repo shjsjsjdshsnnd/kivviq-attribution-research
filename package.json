@@ -21,7 +21,8 @@
     "test:step10": "vitest run tests/pricing_promotions --reporter=verbose",
     "test:step11": "vitest run tests/retention_ltv --reporter=verbose",
     "test:step12": "vitest run tests/website_cro --reporter=verbose",
-    "test:step14": "vitest run tests/external_reality --reporter=verbose"
+    "test:step14": "vitest run tests/external_reality --reporter=verbose",
+    "test:measurement": "vitest run tests/measurement_corruption --maxWorkers=1 --reporter=verbose"
   },
   "exports": {
     ".": "./dist/index.js",
@@ -38,9 +39,12 @@
     "./pricing-promotions": "./dist/pricing_promotions/index.js",
     "./retention-ltv": "./dist/retention_ltv/index.js",
     "./website-cro": "./dist/website_cro/index.js",
-    "./external-reality": "./dist/external_reality/index.js"
+    "./external-reality": "./dist/external_reality/index.js",
+    "./observed-world": "./dist/observation/corrupted-world.js",
+    "./measurement-evaluator": "./dist/measurement_corruption/index.js"
   },
   "devDependencies": {
+    "@types/node": "22.15.30",
     "typescript": "^5.9.2",
     "vitest": "^5.0.1",
     "dependency-cruiser": "^16.10.4"
