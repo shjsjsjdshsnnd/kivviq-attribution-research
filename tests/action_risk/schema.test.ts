@@ -146,6 +146,14 @@ describe("action risk measurement contracts", () => {
   it("enforces common contract identity, horizon, aggregation and source references", () => {
     const financial = valid.FINANCIAL_DOWNSIDE[0]!;
     expect(() => riskMeasurementContractSchema.parse({ ...financial, horizon: { amount: 0, unit: "DAY" } })).toThrow();
+    expect(() => riskMeasurementContractSchema.parse({ ...financial, horizon: { amount: 1.5, unit: "DAY" } })).toThrow();
+    expect(() => riskMeasurementContractSchema.parse({ ...financial, horizon: { amount: Number.MAX_SAFE_INTEGER + 1, unit: "DAY" } })).toThrow();
+    expect(
+      riskMeasurementContractSchema.parse({
+        ...financial,
+        horizon: { amount: Number.MAX_SAFE_INTEGER, unit: "DAY" },
+      }).horizon.amount,
+    ).toBe(Number.MAX_SAFE_INTEGER);
     expect(() => riskMeasurementContractSchema.parse({ ...financial, aggregation: "AVERAGE" })).toThrow();
     expect(() => riskMeasurementContractSchema.parse({ ...financial, evidencePolicyRef: "free text" })).toThrow();
     expect(() => riskMeasurementContractSchema.parse({ ...financial, sourceDefinitionRef: { registryRef: "risk.registry", code: "ledger" } })).toThrow();
@@ -225,6 +233,58 @@ describe("action risk measurement contracts", () => {
       const { recoveryCriterionRef: _omitted, ...missing } = recovery;
       riskMeasurementContractSchema.parse(missing);
     }).toThrow();
+  });
+
+  it("rejects valid measurements relabeled as another dimension", () => {
+    expect(() =>
+      riskMeasurementContractSchema.parse({
+        ...valid.FINANCIAL_DOWNSIDE[0]!,
+        dimension: "IRREVERSIBILITY",
+      }),
+    ).toThrow();
+    expect(() =>
+      riskMeasurementContractSchema.parse({
+        ...valid.CUSTOMER_IMPACT[0]!,
+        dimension: "INVENTORY_EXPOSURE",
+      }),
+    ).toThrow();
+    expect(() =>
+      riskMeasurementContractSchema.parse({
+        ...valid.TIME_TO_RECOVERY[0]!,
+        dimension: "UNCERTAINTY",
+      }),
+    ).toThrow();
+  });
+
+  it("reports cyclic adversarial input without overflowing", () => {
+    const cyclic: Record<string, unknown> = { ...valid.FINANCIAL_DOWNSIDE[0]! };
+    cyclic["cycle"] = cyclic;
+    expect(() => riskMeasurementContractSchema.parse(cyclic)).toThrow(/cyclic/i);
+  });
+
+  it("reports excessively deep adversarial input without overflowing", () => {
+    const deep: Record<string, unknown> = { leaf: true };
+    let cursor = deep;
+    for (let depth = 0; depth < 80; depth += 1) {
+      const nested: Record<string, unknown> = {};
+      cursor["nested"] = nested;
+      cursor = nested;
+    }
+    expect(() =>
+      riskMeasurementContractSchema.parse({
+        ...valid.FINANCIAL_DOWNSIDE[0]!,
+        adversarial: deep,
+      }),
+    ).toThrow(/depth|complex/i);
+  });
+
+  it("bounds adversarial input breadth", () => {
+    expect(() =>
+      riskMeasurementContractSchema.parse({
+        ...valid.FINANCIAL_DOWNSIDE[0]!,
+        adversarial: Array.from({ length: 10_001 }, () => ({})),
+      }),
+    ).toThrow(/complex/i);
   });
 
   it.each([

@@ -75,7 +75,7 @@ export const irreversibleEffectKindSchema = z.enum([
   "CUSTOM",
 ]);
 
-export const irreversibilityMeasurementSchema = z
+const irreversibilityMeasurementObjectSchema = z
   .object({
     ...common,
     dimension: z.literal("IRREVERSIBILITY"),
@@ -85,16 +85,26 @@ export const irreversibilityMeasurementSchema = z
     irreversibleEffectKinds: z.array(irreversibleEffectKindSchema).min(1),
     restorationCriterionRef: stableReferenceSchema,
   })
-  .strict()
-  .superRefine(({ irreversibleEffectKinds }, context) => {
-    if (new Set(irreversibleEffectKinds).size !== irreversibleEffectKinds.length) {
-      context.addIssue({
-        code: z.ZodIssueCode.custom,
-        path: ["irreversibleEffectKinds"],
-        message: "Duplicate irreversible effect kind",
-      });
-    }
-  });
+  .strict();
+
+function rejectDuplicateIrreversibleEffects(
+  irreversibleEffectKinds: readonly string[],
+  context: z.RefinementCtx,
+): void {
+  if (new Set(irreversibleEffectKinds).size !== irreversibleEffectKinds.length) {
+    context.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ["irreversibleEffectKinds"],
+      message: "Duplicate irreversible effect kind",
+    });
+  }
+}
+
+export const irreversibilityMeasurementSchema =
+  irreversibilityMeasurementObjectSchema.superRefine(
+    ({ irreversibleEffectKinds }, context) =>
+      rejectDuplicateIrreversibleEffects(irreversibleEffectKinds, context),
+  );
 
 export const uncertaintySourceSchema = z.discriminatedUnion("kind", [
   z
@@ -184,14 +194,23 @@ export const timeToRecoveryMeasurementSchema = z
   })
   .strict();
 
-const riskMeasurementObjectSchema = z.union([
+const riskMeasurementObjectSchema = z
+  .discriminatedUnion("dimension", [
   financialDownsideMeasurementSchema,
-  irreversibilityMeasurementSchema,
+  irreversibilityMeasurementObjectSchema,
   uncertaintyMeasurementSchema,
   inventoryExposureMeasurementSchema,
   customerImpactMeasurementSchema,
   timeToRecoveryMeasurementSchema,
-]);
+  ])
+  .superRefine((measurement, context) => {
+    if (measurement.dimension === "IRREVERSIBILITY") {
+      rejectDuplicateIrreversibleEffects(
+        measurement.irreversibleEffectKinds,
+        context,
+      );
+    }
+  });
 
 const forbiddenRiskKeys = new Set([
   "value",
@@ -229,29 +248,69 @@ function normalizedKey(key: string): string {
   return key.replace(/[_-]/g, "").toLowerCase();
 }
 
-function findForbiddenRiskKey(value: unknown): string | undefined {
+type RiskInputScan =
+  | { kind: "VALID" }
+  | { kind: "FORBIDDEN_KEY"; key: string }
+  | { kind: "CYCLIC" }
+  | { kind: "TOO_DEEP" }
+  | { kind: "TOO_COMPLEX" };
+
+const maximumRiskInputDepth = 48;
+const maximumRiskInputNodes = 10_000;
+
+function scanRiskInput(
+  value: unknown,
+  depth = 0,
+  state: { nodes: number; ancestors: WeakSet<object> } = {
+    nodes: 0,
+    ancestors: new WeakSet<object>(),
+  },
+): RiskInputScan {
+  if (depth > maximumRiskInputDepth) return { kind: "TOO_DEEP" };
+  if (value === null || typeof value !== "object") return { kind: "VALID" };
+  state.nodes += 1;
+  if (state.nodes > maximumRiskInputNodes) return { kind: "TOO_COMPLEX" };
+  if (state.ancestors.has(value)) return { kind: "CYCLIC" };
+  state.ancestors.add(value);
+
   if (Array.isArray(value)) {
     for (const entry of value) {
-      const found = findForbiddenRiskKey(entry);
-      if (found !== undefined) return found;
+      const result = scanRiskInput(entry, depth + 1, state);
+      if (result.kind !== "VALID") {
+        state.ancestors.delete(value);
+        return result;
+      }
     }
-  } else if (value !== null && typeof value === "object") {
+  } else {
     for (const [key, nested] of Object.entries(value)) {
-      if (forbiddenRiskKeys.has(normalizedKey(key))) return key;
-      const found = findForbiddenRiskKey(nested);
-      if (found !== undefined) return found;
+      if (forbiddenRiskKeys.has(normalizedKey(key))) {
+        state.ancestors.delete(value);
+        return { kind: "FORBIDDEN_KEY", key };
+      }
+      const result = scanRiskInput(nested, depth + 1, state);
+      if (result.kind !== "VALID") {
+        state.ancestors.delete(value);
+        return result;
+      }
     }
   }
-  return undefined;
+  state.ancestors.delete(value);
+  return { kind: "VALID" };
 }
 
 const noRiskLeakageSchema = z.unknown().superRefine((value, context) => {
-  const forbidden = findForbiddenRiskKey(value);
-  if (forbidden !== undefined) {
+  const result = scanRiskInput(value);
+  if (result.kind === "FORBIDDEN_KEY") {
     context.addIssue({
       code: z.ZodIssueCode.custom,
-      message: `Risk value, score, prediction, or outcome field is forbidden: ${forbidden}`,
+      message: `Risk value, score, prediction, or outcome field is forbidden: ${result.key}`,
     });
+  } else if (result.kind === "CYCLIC") {
+    context.addIssue({ code: z.ZodIssueCode.custom, message: "Cyclic risk input is forbidden" });
+  } else if (result.kind === "TOO_DEEP") {
+    context.addIssue({ code: z.ZodIssueCode.custom, message: "Risk input exceeds maximum depth" });
+  } else if (result.kind === "TOO_COMPLEX") {
+    context.addIssue({ code: z.ZodIssueCode.custom, message: "Risk input is too complex" });
   }
 });
 
