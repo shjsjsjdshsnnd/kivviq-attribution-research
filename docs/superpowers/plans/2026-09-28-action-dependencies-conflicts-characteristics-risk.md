@@ -65,8 +65,8 @@ Tasks must run in order: pure schemas (1–4), minimal canonical integration (5)
 - Create: `src/action_characteristics/index.ts`
 - Create: `tests/action_characteristics/schema.test.ts`
 
-- [ ] Write failing tests for `KNOWN | RANGE | UNKNOWN | NOT_APPLICABLE`; integer minor-unit money; consistent range currency/unit; cost line-item ID/category/currency; operational resource quantities; and no evidence `sourceRefs` in definitions.
-- [ ] Test stage semantics for `BEFORE_START | IMPLEMENTING | EFFECTIVE | COMPLETED`, `cancellationAvailable`, separate cancellation and compensation cost vectors, duplicate stages, and exact reachable-stage derivation for instantaneous send, persistent policy, temporary price, and committed inventory purchase.
+- [ ] Write failing tests for `KNOWN | RANGE | UNKNOWN | NOT_APPLICABLE`; integer minor-unit money; consistent ordered ranges with a mandatory compatibility predicate; cost line-item ID/category/currency; operational quantities from zero through `Number.MAX_SAFE_INTEGER`; rejection above the safe maximum; stable burden line-item IDs and duplicate burden rejection; and no evidence `sourceRefs` in definitions.
+- [ ] Test stage semantics for `BEFORE_START | IMPLEMENTING | COMMITTED | EFFECTIVE | COMPLETED`, `cancellationAvailable`, separate cancellation and compensation cost vectors, duplicate stages, and exact reachable-stage derivation for instantaneous send, persistent policy, temporary price, and committed inventory purchase. Require cancellable `IMPLEMENTING`, then non-cancellable compensable `COMMITTED`, for the inventory case.
 - [ ] Test exact Action ID/fingerprint and versioned registered reversal references, typed irreversible effects, and strict `FULLY_REVERSIBLE | PARTIALLY_REVERSIBLE | IRREVERSIBLE | UNKNOWN | NOT_APPLICABLE` shapes.
 - [ ] Recursively reject `delay`, `leadTime`, `implementationDelaySeconds`, and equivalent fields so `timing.implementationDelay` remains the sole declared delay.
 - [ ] Run the focused test; implement pure schemas; rerun with type checking; commit `feat: define action characteristic contracts`.

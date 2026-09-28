@@ -306,6 +306,11 @@ interface OperationalQuantity {
     | { kind: "CUSTOM"; registryRef: string; code: string; version: string };
 }
 
+interface OperationalBurdenLineItem {
+  burdenId: string;
+  amount: KnownRangeUnknownOrNA<OperationalQuantity>;
+}
+
 type ReversalReference =
   | { kind: "ACTION"; actionId: string; actionFingerprint: string }
   | { kind: "REGISTERED"; registryRef: string; code: string; version: string };
@@ -331,26 +336,26 @@ interface CostLineItem {
 }
 
 interface StageCancellationCost {
-  stage: "BEFORE_START" | "IMPLEMENTING" | "EFFECTIVE" | "COMPLETED";
+  stage: "BEFORE_START" | "IMPLEMENTING" | "COMMITTED" | "EFFECTIVE" | "COMPLETED";
   cancellationAvailable: boolean;
   cancellationCost: readonly CostLineItem[];
   compensationCost: readonly CostLineItem[];
-  operationalBurden: readonly KnownRangeUnknownOrNA<OperationalQuantity>[];
+  operationalBurden: readonly OperationalBurdenLineItem[];
 }
 
 interface ActionCharacteristics {
   implementationCost: readonly CostLineItem[];
   reversibility: Reversibility;
   cancellationCosts: readonly StageCancellationCost[];
-  operationalBurden: readonly KnownRangeUnknownOrNA<OperationalQuantity>[];
+  operationalBurden: readonly OperationalBurdenLineItem[];
 }
 ```
 
-These are definitions, so they contain no evidence `sourceRefs`; evidence and provenance belong to later observations. Money values require integer minor units and ISO-style currencies. Ranges require equal units/currencies and `minimum <= maximum`. Operational quantities require finite non-negative values, registered units, and exact resource references. `UNKNOWN` differs from `NOT_APPLICABLE`: unknown means the dimension applies but is not known, while not applicable asserts that it does not apply and requires a reason. Cost vectors retain line-item category and currency instead of collapsing implementation expense into one number.
+These are definitions, so they contain no evidence `sourceRefs`; evidence and provenance belong to later observations. Money values require integer minor units and ISO-style currencies. Ranges require equal units/currencies and `minimum <= maximum`; the shared range builder always requires an explicit compatibility-and-order predicate. Operational quantities require finite non-negative values no greater than `Number.MAX_SAFE_INTEGER`, registered units, and exact resource references. Every burden has a stable `burdenId`, unique within its vector, so aggregation cannot silently double-count an indistinguishable entry. `UNKNOWN` differs from `NOT_APPLICABLE`: unknown means the dimension applies but is not known, while not applicable asserts that it does not apply and requires a reason. Cost vectors retain line-item category and currency instead of collapsing implementation expense into one number.
 
-Stage semantics are explicit. `BEFORE_START` precedes an authoritative start event; `IMPLEMENTING` begins at start and precedes effect; `EFFECTIVE` begins at the effect event and precedes completion; `COMPLETED` begins at completion. Cancellation stops work that has not become effective. Compensation addresses effects after cancellation is no longer possible. Therefore a stage declares `cancellationAvailable`, separate cancellation and compensation line items, and burden. Duplicate stages are invalid, and every reachable stage must be represented.
+Stage semantics are explicit. `BEFORE_START` precedes an authoritative start event; `IMPLEMENTING` begins at start and remains cancellable before an external commitment; `COMMITTED` begins at the exact external commitment event and precedes effect; `EFFECTIVE` begins at the effect event and precedes completion; `COMPLETED` begins at completion. Cancellation stops work before an irrevocable commitment or effect. Compensation addresses a commitment or effect after cancellation is no longer possible. Therefore a stage declares `cancellationAvailable`, separate cancellation and compensation line items, and identified burden line items. Duplicate stages are invalid, and every reachable stage must be represented.
 
-Reachability is derived, not author asserted. An instantaneous send reaches `BEFORE_START` then atomically reaches `EFFECTIVE` and `COMPLETED`; it has no cancellable `IMPLEMENTING` interval, and post-send entries describe compensation only. A persistent policy reaches `BEFORE_START`, `IMPLEMENTING` when rollout starts, and `EFFECTIVE` until an explicit completion/withdrawal event; it does not require `COMPLETED` unless its timing defines one. A temporary price Action reaches all four stages when implementation, effect, and finite end/completion are distinct; cancellation before effect differs from restoring price after effect. A committed inventory purchase moves from cancellable implementation to an external commitment event; after commitment `cancellationAvailable` is false and any supplier return, resale, or disposal is compensation. Schema/cross-field validation requires exactly the stages reachable from ActionTiming plus typed domain semantics.
+Reachability is derived, not author asserted. An instantaneous send reaches `BEFORE_START` then atomically reaches `EFFECTIVE` and `COMPLETED`; it has no cancellable `IMPLEMENTING` interval, and post-send entries describe compensation only. A persistent policy reaches `BEFORE_START`, `IMPLEMENTING` when rollout starts, and `EFFECTIVE` until an explicit completion/withdrawal event; it does not require `COMPLETED` unless its timing defines one. A temporary price Action reaches `BEFORE_START`, `IMPLEMENTING`, `EFFECTIVE`, and `COMPLETED` when implementation, effect, and finite end/completion are distinct. An inventory purchase reaches `COMMITTED` at the supplier commitment event between `IMPLEMENTING` and `EFFECTIVE`; cancellation is unavailable there, and supplier return, resale, or disposal is compensation. Schema/cross-field validation requires exactly the stages reachable from ActionTiming plus typed domain semantics.
 
 Reversibility is strict. A sent message, completed irreversible purchase, or consumed resource cannot be labeled fully reversible merely because a compensating Action exists. `FULLY_REVERSIBLE` requires an exact Action ID/fingerprint or versioned registered reversal contract and no irreversible effects. `PARTIALLY_REVERSIBLE` requires the same exact reversal identity plus at least one typed irreversible effect. `IRREVERSIBLE` requires typed effects and forbids a reversal claim. `UNKNOWN` cannot be treated as reversible; `NOT_APPLICABLE` is reserved for Actions with no implemented state to reverse. Domain adapters enforce known invariants from pricing, inventory, lifecycle, shipping, merchandising, and CRO rollback contracts.
 
