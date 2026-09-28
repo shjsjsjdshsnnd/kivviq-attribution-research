@@ -81,7 +81,7 @@ Tasks must run in order: pure schemas (1–4), minimal canonical integration (5)
 
 - [ ] Write failing tests requiring exactly six top-level keys: `FINANCIAL_DOWNSIDE`, `IRREVERSIBILITY`, `UNCERTAINTY`, `INVENTORY_EXPOSURE`, `CUSTOMER_IMPACT`, and `TIME_TO_RECOVERY`, with each property typed to its own strict measurement branch.
 - [ ] Require one or more measurements under every key, unique measurement IDs, and the strict value-type branch allowed for each dimension.
-- [ ] Test typed target, positive horizon, aggregation, metric/evidence-policy/source-definition references, loss baseline, irreversibility contract/effects, uncertain quantity, inventory target, exact customer population, recovery baseline, controlled units, and versioned custom resource/unit definitions.
+- [ ] Test typed target where applicable, positive horizon, aggregation, metric/evidence-policy/source-definition references, loss baseline, irreversibility contract/effects, uncertain quantity plus closed parameter/metric or versioned custom source, specialized inventory target without a generic target, exact customer population without a generic target, recovery baseline/criterion/closed start boundary, controlled units, and versioned custom resource/unit definitions.
 - [ ] Recursively reject values, scores, ratings, grades, probabilities, predictions, expected losses, confidence, weights, ranks, recommendations, and composite-risk fields.
 - [ ] Run the red test; implement the strict discriminated union; run tests/typecheck; commit `feat: define risk measurement contracts`.
 - [ ] Complete fresh specification and code-quality reviews.
@@ -99,7 +99,7 @@ Tasks must run in order: pure schemas (1–4), minimal canonical integration (5)
 - [ ] Write failing tests that omitted new fields parse to empty dependencies/conflicts, absent characteristics, and absent risk contracts while retaining byte-for-byte historical fingerprints.
 - [ ] Write failing tests that every non-empty semantic definition changes the fingerprint and that dependency/conflict/risk measurement input order does not.
 - [ ] Test changed boundary, reference fingerprint, scope coordinate, cost category/currency/range, cancellation stage, reversal reference, risk target/horizon/type, and measurement ID.
-- [ ] Add cross-field validation for unique IDs, local constraint/check existence, and exact equality between a local gate's `evaluationBoundary` and the referenced definition boundary. Do not resolve registries or detect graph cycles here.
+- [ ] Add cross-field validation for unique IDs and local constraint/check existence. Require boundary equality with the referenced definition only for `HARD_CONSTRAINT_GATE`; eligibility checks are recomputed at the dependency boundary. Do not resolve registries or detect graph cycles here.
 - [ ] Add a strict new-author helper requiring explicit characteristics plus all six risk dimensions, while the reader continues accepting old v2 payloads.
 - [ ] Keep imports one-way: canonical schema may import the four schema modules; those modules may not import canonical schema, assessors, or translation.
 - [ ] Run canonical and four schema suites plus type checking; commit `feat: integrate action portfolio definitions`.
@@ -115,12 +115,12 @@ Tasks must run in order: pure schemas (1–4), minimal canonical integration (5)
 - Modify: `tests/experiment/readiness.test.ts`
 
 - [ ] Write failing binding tests for dependent ID/fingerprint, dependency ID, boundary equality, UTC-Z time, freshness, evidence refs, provenance, missing evidence, duplicate exact receipts, and order independence.
-- [ ] Define raw immutable events with `eventId`, exact subject kind/ID/fingerprint, `STARTED | EFFECTIVE | COMPLETED` event kind, UTC `occurredAt`, source, and provenance. Wrappers cannot assert state. Only the existing bound investigation result proves `RESOLVED`; planned timing and caller flags prove nothing.
-- [ ] Test CompoundAction derivation separately for `ALL_OR_NOTHING`, `BEST_EFFORT`, and `DEPENDENCY_GATED`, including skipped/failed accounting and newly unblocked downstream components. No omitted required event or ambiguous registry entry may produce a positive state.
+- [ ] Define raw immutable events with `eventId`, ACTION-only exact subject ID/fingerprint, `STARTED | EFFECTIVE | COMPLETED` event kind, UTC `occurredAt`, source, and provenance. Require exact prerequisite/event subject equality; wrappers cannot assert state. Reject compound-level lifecycle events. Only the existing bound investigation result proves `RESOLVED`.
+- [ ] Test CompoundAction derivation from exact component ACTION events separately for `ALL_OR_NOTHING`, `BEST_EFFORT`, and `DEPENDENCY_GATED`, including skipped/failed accounting and newly unblocked downstream components. No omitted event, compound-level event, or ambiguous registry entry may produce a positive state.
 - [ ] Test self-reference, direct/transitive cycles, and cycles through components or experiment arms in assessment, not schema.
 - [ ] Extend experiment readiness tests with a deterministic `SUFFICIENT_ELIGIBLE_TRAFFIC` check bound to experiment fingerprint, population identity/fingerprint, binding time, sample target, evidence-derived eligible count, readiness fingerprint, and explicit raw-source maximum age. Add stale raw traffic and stricter caller-age regressions.
 - [ ] Test hard-constraint, eligibility-check, and traffic gates by supplying raw evidence. Forged `SATISFIED`, `ELIGIBLE`, `READY`, or caller-provided traffic counts must fail.
-- [ ] Require every hard-constraint gate boundary to equal its definition. Generated legacy/domain eligibility gates evaluate at the dependency boundary; accept only a recomputed exact result with matching action ID/fingerprint, boundary, assessment fingerprint, and complete check manifest.
+- [ ] Require definition-boundary equality only for `HARD_CONSTRAINT_GATE`. Generated legacy/domain eligibility gates evaluate at the dependency boundary; accept only a recomputed exact result with matching action ID/fingerprint, dependency boundary, assessment fingerprint, and complete check manifest.
 - [ ] Test winback only through exact `domain.lifecycle.audience_available` raw facts bound to action/fingerprint/population target/boundary/time/source/provenance. Cover stale, mismatched, and duplicate facts; reject snapshots and audience-available booleans as claims.
 - [ ] Aggregate `BLOCKED > UNKNOWN > SATISFIED`, retain every sorted check, and fingerprint the assessment.
 - [ ] Run dependency, experiment, eligibility, constraint, compound, and timing tests plus type checking; commit `feat: assess action dependencies from evidence`.
@@ -136,8 +136,8 @@ Tasks must run in order: pure schemas (1–4), minimal canonical integration (5)
 - Modify: `src/action_conflicts/index.ts`
 
 - [ ] Write failing tests for normalized relation identity: identical duplicates normalize with all paths; endpoint-equal declarations differing in kind, target, scope, temporal mode/direction, or registry version contradict; duplicate registry matches are ambiguous; unknown/self counterparties do not disappear.
-- [ ] Write the full coordinate matrix: `GLOBAL`, invalid empty scopes, repeated coordinates, product↔variant, resource/unit, channel↔placement, population evidence, custom registry evidence, different same-kind values, and unrelated kinds. Bind intersection evidence to pair, both scope fingerprints, boundary, time, freshness, provenance, and receipt identity.
-- [ ] Test both temporal modes under reversal, including their requested/effective start distinction. Cover half-open `[start,end)`, adjacent intervals, instantaneous-versus-interval, equal/different instants, and persistent actions requiring a finite horizon.
+- [ ] Write the full dimension-grouped coordinate matrix: `GLOBAL`, invalid empty scopes, repeated same dimensions, omitted/unconstrained dimensions, multi-coordinate scopes where all overlap, one dimension is disjoint, or none is disjoint and one is unresolved; product↔variant, resource/unit, channel↔placement, population evidence, custom registry evidence, different same-kind values, and unrelated kinds. Bind intersection evidence exactly.
+- [ ] Test both temporal modes under reversal, including an explicit case where requested and effective starts make `ANY_OVERLAP` conflict while `EFFECTIVE_OVERLAP` does not. Persistent intervals begin at `modeSelectedStart`; also cover half-open adjacency, instants, and finite horizons.
 - [ ] Test recurrence inclusion/clipping at both horizon boundaries, retained original bounds/indexes, declared recurrence end/max occurrence, open-ended recurrence, and assessor safety-cap truncation returning `UNKNOWN`.
 - [ ] Build the price matrix first: exact `SET`, `DELTA`, and `MULTIPLY`; matching product/variant and currency; fresh unique baseline reference/fingerprint for delta/multiply; different results conflict; different targets/currencies or equal results do not. Missing/duplicate baselines return `UNKNOWN`.
 - [ ] Add typed adapters for existing promotion, shipping, merchandising, CRO, lifecycle, exclusive-resource, and policy conflicts. Reject label, substring, and free-text inference.
@@ -239,7 +239,7 @@ Tasks must run in order: pure schemas (1–4), minimal canonical integration (5)
 ## Self-review against reviewer findings
 
 1. Pure schemas precede minimal canonical integration; assessors follow, with one-way imports stated and tested.
-2. Every dependency has an evaluation boundary; local gate and referenced-definition boundaries must match.
+2. Every dependency has an evaluation boundary; hard-constraint gates match their definition, while eligibility gates recompute and verify the complete result at the dependency boundary.
 3. Traffic dependency uses a deterministic positive experiment-readiness check with fingerprint and raw replay.
 4. Cycles and lifecycle semantics live in assessment; authoritative Action events and CompoundAction derivation are explicit.
 5. Conflict scope uses a closed coordinate union plus bound intersection evidence.
@@ -253,10 +253,10 @@ Tasks must run in order: pure schemas (1–4), minimal canonical integration (5)
 13. Compounds use execution-policy buckets and a separately derived critical path; experiments remain arm-stratified with allocation metadata and no naive sums.
 14. Declared member delay remains solely in `timing.implementationDelay`; the derived critical path is a separate assessment output.
 15. Compatibility and fingerprint tests cover empty defaults, every non-empty semantic field, order independence, and legacy stability.
-16. Lifecycle evidence is raw and immutable; wrappers cannot assert state, and all three compound atomicity policies have exact derivation tests.
+16. Lifecycle evidence uses ACTION-only raw immutable events; exact prerequisite/component subject matching is required, compound-level events are rejected, and all three compound atomicity policies have derivation tests.
 17. Winback uses only `domain.lifecycle.audience_available` with exact bound raw facts; snapshot/boolean claims are rejected.
 18. Traffic evidence has an explicit source maximum age and stale-source regressions.
-19. Every retained temporal mode, coordinate intersection case, recurrence horizon edge, relation contradiction, and duplicate execution path has explicit semantics and tests.
+19. Every retained temporal mode, mode-selected persistent start, dimension-grouped multi-coordinate intersection case, recurrence horizon edge, relation contradiction, and duplicate execution path has explicit semantics and tests.
 20. Cancellation versus compensation and reachable stages are fixed for instantaneous send, persistent policy, temporary price, and committed inventory.
-21. Risk map properties use dimension-specific strict branches with exact baseline, population, inventory, source, and irreversibility links plus controlled/versioned custom units.
+21. Risk map properties use dimension-specific strict branches with exact loss/recovery baselines, recovery criterion/start boundary, population, inventory, closed uncertainty source, and irreversibility links plus controlled/versioned custom units; specialized inventory/customer branches have no generic target.
 22. The legacy adapter has seven lossless cost buckets, timing-only delay, typed burden inclusion/exclusion, exact reversibility, unknown cancellation defaults, and no prose-to-risk mapping.
