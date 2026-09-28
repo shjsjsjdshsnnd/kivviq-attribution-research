@@ -3,26 +3,20 @@ module.exports = {
     {
       name: "operator-facing-code-cannot-import-god-mode",
       comment:
-        "Operator-facing modules must never depend on GroundTruth, generation, latent customers, simulation, advertising economics, cross-channel interactions, ecommerce economics, product economics, inventory dynamics, pricing/promotions, retention/LTV, website/CRO, external reality, evaluator/oracle, or other God-mode internals.",
+        "Operator-facing and shared-core modules may not depend on latent worlds, perfect feeds, corruption diagnostics, evaluator manifests or oracle answers.",
       severity: "error",
       from: {
-        path: "^(src/(observation|operator|operator_safe)(/|$)|src/index\\.ts$)",
+        path: "^(src/(core|observation|operator|operator_safe)(/|$)|src/index\\.ts$)",
       },
       to: {
-        path: "^src/(ground_truth|generation|customer_population|simulation|advertising_economics|cross_channel|ecommerce_economics|product_economics|inventory_dynamics|pricing_promotions|retention_ltv|website_cro|external_reality|evaluation|oracle|god_mode)(/|$)",
+        path: "^src/(ground_truth|generation|customer_population|simulation|advertising_economics|cross_channel|ecommerce_economics|product_economics|inventory_dynamics|pricing_promotions|retention_ltv|website_cro|external_reality|measurement_corruption|evaluation|oracle|god_mode)(/|$)",
       },
     },
   ],
   options: {
-    doNotFollow: {
-      path: "node_modules",
-    },
+    doNotFollow: { path: "node_modules" },
     tsPreCompilationDeps: true,
-    tsConfig: {
-      fileName: "tsconfig.json",
-    },
-    enhancedResolveOptions: {
-      exportsFields: ["exports"],
-    },
+    tsConfig: { fileName: "tsconfig.json" },
+    enhancedResolveOptions: { exportsFields: ["exports"] },
   },
 };
