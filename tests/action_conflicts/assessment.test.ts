@@ -10,6 +10,21 @@ const evaluatedAt = "2026-09-20T13:00:00Z";
 const boundary = "DECISION_TIME" as const;
 
 describe("portfolio compatibility assessment", () => {
+  it("allows multiple actions to share a registered adapter", () => {
+    const base = adaptLegacyAction(setSkuA849Cad);
+    const first = canonicalActionSchema.parse({ ...base, actionId: "action_adapter_first" });
+    const second = canonicalActionSchema.parse({ ...base, actionId: "action_adapter_second" });
+    const target = canonicalActionSchema.parse({
+      ...base,
+      actionId: "action_adapter_target",
+      conflicts: [{ conflictId: "registered.price", kind: "CONTRADICTORY_VALUE_CHANGE", target: { kind: "GLOBAL" }, scope: { coordinates: [{ kind: "GLOBAL" }] }, overlapRule: "EFFECTIVE_OVERLAP", counterparty: { registryRef: "domain.pricing", code: "adjust_price", version: "1" } }],
+    });
+    const refs = [first, second, target].map((action) => ({ entityKind: "ACTION" as const, actionId: action.actionId, actionFingerprint: fingerprintCanonicalAction(action) }));
+    const result = assessPortfolioCompatibility(refs, { evaluatedAt, evaluationBoundary: boundary, horizonEnd: "2026-10-20T13:00:00Z", registry: [first, second, target].map((action) => ({ entityKind: "ACTION" as const, action })), timingContexts: {}, scopeIntersectionReceipts: [], priceBaselineReceipts: [], partitionReceipts: [] });
+    expect(result.reasonCodes).not.toContain("AMBIGUOUS_CONFLICT_REGISTRY");
+    expect(result.validity).toBe("VALID");
+  });
+
   it.each([undefined, null, {}, { registry: null }])("returns deterministic invalid output for malformed context %#", (context) => {
     const result = assessPortfolioCompatibility([], context as any);
     expect(result).toMatchObject({ validity: "INVALID", status: "UNKNOWN", reasonCodes: ["INVALID_COMPATIBILITY_CONTEXT"] });

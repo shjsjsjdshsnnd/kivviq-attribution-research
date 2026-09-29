@@ -226,14 +226,15 @@ export function translateCanonicalAction(
     if (dependency.status === "UNKNOWN")
       return { status: "MISSING_CONTEXT", actionId: action.actionId, code: "ACTION_DEPENDENCY_UNKNOWN", message: dependency.checks.flatMap((check) => check.reasonCodes).join(", "), dependencyAssessment: dependency };
   }
-  if (!experimentIntent.success && action.conflicts.length > 0 && context.portfolioReferences === undefined)
-    return { status: "MISSING_CONTEXT", actionId: action.actionId, code: "PORTFOLIO_REFERENCES_REQUIRED", message: "A portfolio is required to evaluate this action's conflict declarations." };
   if (!experimentIntent.success && context.portfolioReferences !== undefined) {
     if (context.portfolioCompatibilityContext === undefined)
       return { status: "MISSING_CONTEXT", actionId: action.actionId, code: "PORTFOLIO_COMPATIBILITY_CONTEXT_REQUIRED", message: "Raw compatibility evidence is required before portfolio translation." };
     const rawCompatibility = context.portfolioCompatibilityContext;
     const approvedClock = (context.timing as { approvedClock: string }).approvedClock;
-    if (!rawCompatibility || typeof rawCompatibility !== "object" || Array.isArray(rawCompatibility) || (rawCompatibility as Record<string, unknown>)["evaluationBoundary"] !== "TRANSLATION_TIME" || Date.parse(String((rawCompatibility as Record<string, unknown>)["evaluatedAt"])) !== Date.parse(approvedClock))
+    const compatibilityMaximumAge = rawCompatibility && typeof rawCompatibility === "object" && !Array.isArray(rawCompatibility)
+      ? (rawCompatibility as Record<string, unknown>)["maximumAgeSeconds"]
+      : undefined;
+    if (!rawCompatibility || typeof rawCompatibility !== "object" || Array.isArray(rawCompatibility) || (rawCompatibility as Record<string, unknown>)["evaluationBoundary"] !== "TRANSLATION_TIME" || Date.parse(String((rawCompatibility as Record<string, unknown>)["evaluatedAt"])) !== Date.parse(approvedClock) || typeof compatibilityMaximumAge !== "number" || !Number.isFinite(compatibilityMaximumAge) || compatibilityMaximumAge < 0)
       return { status: "MISSING_CONTEXT", actionId: action.actionId, code: "PORTFOLIO_COMPATIBILITY_MISMATCH", message: "Compatibility must be recomputed at the approved translation boundary and time." };
     const compatibility = assessPortfolioCompatibility(context.portfolioReferences, rawCompatibility);
     const exactExpandedCount = compatibility.expandedMembers.filter((reference) =>
@@ -284,6 +285,8 @@ export function translateCanonicalAction(
       return { status: "INELIGIBLE_ACTION", actionId: action.actionId, code: "ACTION_INELIGIBLE", message: "The action violates one or more eligibility checks." };
     if (eligibility.status === "UNKNOWN")
       return { status: "MISSING_CONTEXT", actionId: action.actionId, code: "ACTION_ELIGIBILITY_UNKNOWN", message: "Action eligibility remains unresolved." };
+    if (context.portfolioReferences === undefined)
+      return { status: "MISSING_CONTEXT", actionId: action.actionId, code: "PORTFOLIO_REFERENCES_REQUIRED", message: "The full portfolio is required because another action may declare a symmetric conflict with this action." };
   }
   const common = {
     status: "TRANSLATED" as const,

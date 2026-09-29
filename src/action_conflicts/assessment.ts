@@ -366,9 +366,8 @@ export function assessPortfolioCompatibility(portfolioInput: unknown, contextInp
       else if (resolveReference(conflict.counterparty, context).length > 1) reasons.push("AMBIGUOUS_CONFLICT_COUNTERPARTY");
     } else {
       const adapterId = `${conflict.counterparty.registryRef}.${conflict.counterparty.code}@${conflict.counterparty.version}`;
-      const matches = context.registry.flatMap((entry) => entry.entityKind === "ACTION" ? registeredConflictSemantics(entry.action).filter((adapter) => adapter.adapterId === adapterId) : []);
-      if (matches.length === 0) reasons.push("UNRESOLVED_CONFLICT_REGISTRY");
-      else if (matches.length > 1) reasons.push("AMBIGUOUS_CONFLICT_REGISTRY");
+      const supported = context.registry.some((entry) => entry.entityKind === "ACTION" && registeredConflictSemantics(entry.action).some((adapter) => adapter.adapterId === adapterId));
+      if (!supported) reasons.push("UNRESOLVED_CONFLICT_REGISTRY");
     }
   }
   const byExecution = new Map<string, PortfolioMember[]>();
