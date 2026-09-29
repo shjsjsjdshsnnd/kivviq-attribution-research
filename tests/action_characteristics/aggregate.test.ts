@@ -104,5 +104,12 @@ describe("action characteristic vectors", () => {
     const mistargeted = aggregateExperimentCharacteristics(calendarExperiment, { actions: [calendarControl, treatment], evaluatedAt: "2026-09-30T00:00:00Z", maximumAgeSeconds: 3600, calendarAnchors: [{ ...baseAnchor, actionFingerprint: "fnv1a64:0000000000000000" }] });
     expect(mistargeted.status).toBe("INVALID");
     expect(mistargeted.issues).toContain("UNUSED_CALENDAR_ANCHOR");
+
+    const calendarTreatment = { ...treatment, timing: { ...treatment.timing, implementationDelay: { state: "SPECIFIED" as const, value: { kind: "CALENDAR" as const, amount: 1, unit: "DAY" as const } } } };
+    const dualCalendarExperiment: any = { ...calendarExperiment, what: { ...calendarExperiment.what, arms: calendarExperiment.what.arms.map((arm: any) => arm.armId === "arm_treatment" ? { ...arm, actionFingerprint: fingerprintCanonicalAction(calendarTreatment) } : arm) } };
+    const duplicateAcrossArms = aggregateExperimentCharacteristics(dualCalendarExperiment, { actions: [calendarControl, calendarTreatment], evaluatedAt: "2026-09-30T00:00:00Z", maximumAgeSeconds: 3600, calendarAnchors: [baseAnchor, { ...baseAnchor, actionId: calendarTreatment.actionId, actionFingerprint: fingerprintCanonicalAction(calendarTreatment) }] });
+    expect(duplicateAcrossArms).toMatchObject({ status: "INVALID", issues: ["INVALID_EXPERIMENT_REGISTRY"] });
+    const consumedAndUnusedSameId = aggregateExperimentCharacteristics(calendarExperiment, { actions: [calendarControl, treatment], evaluatedAt: "2026-09-30T00:00:00Z", maximumAgeSeconds: 3600, calendarAnchors: [baseAnchor, { ...baseAnchor, actionId: "action_unrelated", actionFingerprint: "fnv1a64:0000000000000000" }] });
+    expect(consumedAndUnusedSameId).toMatchObject({ status: "INVALID", issues: ["INVALID_EXPERIMENT_REGISTRY"] });
   });
 });

@@ -120,6 +120,15 @@ function fingerprint(value: unknown): string {
   return `fnv1a64:${hash.toString(16).padStart(16, "0")}`;
 }
 
+function calendarAnchorIdentity(anchor: NonNullable<CharacteristicAggregationContext["calendarAnchors"]>[number]): string {
+  return stable({
+    anchorId: anchor.anchorId, actionId: anchor.actionId, actionFingerprint: anchor.actionFingerprint,
+    start: anchor.start, timeZone: anchor.timeZone, boundary: anchor.boundary, observedAt: anchor.observedAt,
+    source: anchor.source, provenance: [...anchor.provenance].sort(),
+    ...(anchor.maximumAgeSeconds === undefined ? {} : { maximumAgeSeconds: anchor.maximumAgeSeconds }),
+  });
+}
+
 const aliasSchema = z.object({
   aliasContractRef: z.string().regex(/^[A-Za-z][A-Za-z0-9_.:-]*$/),
   version: z.string().regex(/^[A-Za-z0-9][A-Za-z0-9_.:-]*$/),
@@ -485,6 +494,8 @@ export function aggregateExperimentCharacteristics(
   }).strict().superRefine((value, context) => {
     if (value.calendarAnchors !== undefined && (value.evaluatedAt === undefined || value.maximumAgeSeconds === undefined))
       context.addIssue({ code: "custom", message: "Calendar anchors require freshness context" });
+    if (value.calendarAnchors !== undefined && new Set(value.calendarAnchors.map(({ anchorId }) => anchorId)).size !== value.calendarAnchors.length)
+      context.addIssue({ code: "custom", path: ["calendarAnchors"], message: "Calendar anchor IDs must be unique" });
   }).safeParse(registryInput);
   if (!parsedRegistry.success) return invalid("INVALID_EXPERIMENT_REGISTRY");
   const registry = parsedRegistry.data;
@@ -528,11 +539,11 @@ export function aggregateExperimentCharacteristics(
   const sharedSetup = experiment.characteristics.state === "PRESENT"
     ? aggregateActionCharacteristics({ kind: "ACTION", action: experiment }, contextForActions([experiment]))
     : undefined;
-  const consumedAnchorIds = new Set([
-    ...(sharedSetup?.audit.calendarAnchors.map(({ anchorId }) => anchorId) ?? []),
-    ...arms.flatMap(({ vector }) => vector.audit.calendarAnchors.map(({ anchorId }) => anchorId)),
+  const consumedAnchorIdentities = new Set([
+    ...(sharedSetup?.audit.calendarAnchors.map((anchor) => calendarAnchorIdentity(anchor)) ?? []),
+    ...arms.flatMap(({ vector }) => vector.audit.calendarAnchors.map((anchor) => calendarAnchorIdentity(anchor))),
   ]);
-  if ((registry.calendarAnchors ?? []).some(({ anchorId }) => !consumedAnchorIds.has(anchorId))) issues.add("UNUSED_CALENDAR_ANCHOR");
+  if ((registry.calendarAnchors ?? []).some((anchor) => !consumedAnchorIdentities.has(calendarAnchorIdentity(anchor as NonNullable<CharacteristicAggregationContext["calendarAnchors"]>[number])))) issues.add("UNUSED_CALENDAR_ANCHOR");
   const resultStatus: ExperimentCharacteristicsResult["status"] = issues.size
       ? ([...issues].some((issue) => issue.includes("MISMATCH") || issue.includes("AMBIGUOUS") || issue === "UNUSED_CALENDAR_ANCHOR") ? "INVALID" as const : "UNKNOWN" as const)
       : sharedSetup?.status === "INVALID" || nestedStatus === "INVALID"
