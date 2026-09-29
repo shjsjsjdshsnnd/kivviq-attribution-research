@@ -8,6 +8,7 @@ import {
 } from "../investigation/index.js";
 import { fingerprintCanonicalAction } from "../canonical_action/serialization.js";
 import { resolveActionTiming } from "../action_timing/resolution.js";
+import { assessActionDependencies, type DependencyAssessment } from "../action_dependencies/assessment.js";
 import type {
   ActionTimingResolutionContext,
   TimingResolution,
@@ -157,6 +158,7 @@ export interface CompoundReadinessContext {
   eligibilityResourceRequirements?: Readonly<Record<string, readonly unknown[]>>;
   eligibilityBoundary?: "DECISION_TIME" | "TRANSLATION_TIME" | "EFFECTIVE_TIME";
   eligibilityMaximumAgeSeconds?: number;
+  dependencyContexts?: Readonly<Record<string, unknown>>;
   constraintEvidence?: Readonly<
     Record<
       string,
@@ -178,6 +180,7 @@ export interface CompoundActionReadiness {
     readinessEvidenceStatus?: ComponentReadinessStatus;
     codes: string[];
     eligibility?: ActionEligibility;
+    dependencyAssessment?: DependencyAssessment;
   }[];
   constraintResults: {
     constraintId: string;
@@ -276,6 +279,27 @@ export function assessCompoundActionReadiness(
         }
       }
     }
+    let dependencyAssessment: DependencyAssessment | undefined;
+    if (c.action.dependencies.length > 0) {
+      const rawDependencyContext = context.dependencyContexts?.[c.componentId];
+      if (rawDependencyContext === undefined) {
+        codes.push("COMPONENT_DEPENDENCY_CONTEXT_REQUIRED");
+        if (status === "READY") status = "MISSING_CONTEXT";
+      } else {
+        dependencyAssessment = assessActionDependencies(c.action, rawDependencyContext);
+        const expectedBoundary = context.eligibilityBoundary ?? "DECISION_TIME";
+        if (dependencyAssessment.actionId !== c.action.actionId || dependencyAssessment.actionFingerprint !== fingerprintCanonicalAction(c.action) || dependencyAssessment.evaluationBoundary !== expectedBoundary || Date.parse(dependencyAssessment.evaluatedAt) !== Date.parse(context.timing.approvedClock)) {
+          codes.push("COMPONENT_DEPENDENCY_MISMATCH");
+          if (status === "READY") status = "MISSING_CONTEXT";
+        } else if (dependencyAssessment.status === "BLOCKED") {
+          codes.push("COMPONENT_DEPENDENCY_BLOCKED");
+          status = "INELIGIBLE";
+        } else if (dependencyAssessment.status === "UNKNOWN") {
+          codes.push("COMPONENT_DEPENDENCY_UNKNOWN");
+          if (status === "READY") status = "MISSING_CONTEXT";
+        }
+      }
+    }
     for (const issue of timing.issues.filter(
       (i) => i.componentId === c.componentId,
     )) {
@@ -324,6 +348,7 @@ export function assessCompoundActionReadiness(
       ...(evidence ? { readinessEvidenceStatus: evidence.status } : {}),
       codes,
       ...(eligibility ? { eligibility } : {}),
+      ...(dependencyAssessment ? { dependencyAssessment } : {}),
     };
   });
   const constraintResults = action.constraints.map((c) => {
@@ -450,6 +475,7 @@ export const compoundReadinessContextSchema = z
     eligibilityResourceRequirements: z.record(z.array(z.unknown())).optional(),
     eligibilityBoundary: z.enum(["DECISION_TIME", "TRANSLATION_TIME", "EFFECTIVE_TIME"]).optional(),
     eligibilityMaximumAgeSeconds: z.number().int().nonnegative().safe().optional(),
+    dependencyContexts: z.record(z.unknown()).optional(),
     constraintEvidence: z
       .record(
         z

@@ -81,7 +81,21 @@ function context(overrides: Record<string, unknown> = {}) {
       { entityKind: "ACTION", action: control },
       { entityKind: "ACTION", action: treatment },
     ],
+    portfolioReferences: [
+      { entityKind: "ACTION", actionId: action.actionId, actionFingerprint: fingerprintCanonicalAction(action) },
+    ],
+    portfolioCompatibilityContext: {
+      evaluatedAt: NOW, evaluationBoundary: "TRANSLATION_TIME", maximumAgeSeconds: 3600,
+      registry: [{ entityKind: "ACTION", action }, { entityKind: "ACTION", action: control }, { entityKind: "ACTION", action: treatment }],
+      timingContexts: {}, scopeIntersectionReceipts: [], priceBaselineReceipts: [], partitionReceipts: [],
+    },
     ...overrides,
+  };
+}
+function portfolioFor(actionValue: typeof action) {
+  return {
+    portfolioReferences: [{ entityKind: "ACTION", actionId: actionValue.actionId, actionFingerprint: fingerprintCanonicalAction(actionValue) }],
+    portfolioCompatibilityContext: { evaluatedAt: NOW, evaluationBoundary: "TRANSLATION_TIME", maximumAgeSeconds: 3600, registry: [{ entityKind: "ACTION", action: actionValue }, { entityKind: "ACTION", action: control }, { entityKind: "ACTION", action: treatment }], timingContexts: {}, scopeIntersectionReceipts: [], priceBaselineReceipts: [], partitionReceipts: [] },
   };
 }
 
@@ -131,13 +145,13 @@ describe("native experiment translation", () => {
   it("maps ineligible evidence to an explicit failure", () => {
     const constrained = canonicalActionSchema.parse({ ...action, constraints: [{ constraintId: "budget", kind: "CUSTOM", target: { kind: "GLOBAL" }, evaluationBoundary: "TRANSLATION_TIME", whenUnknown: "UNKNOWN", registryRef: "budget", code: "AVAILABLE" }] });
     const evaluated = evaluatedFor(constrained, "VIOLATED");
-    expect(translateCanonicalAction(constrained, context({ eligibility: evaluated.eligibility, eligibilityEvaluationContext: evaluated.raw }))).toMatchObject({ status: "INELIGIBLE_ACTION", code: "EXPERIMENT_INELIGIBLE" });
+    expect(translateCanonicalAction(constrained, context({ ...portfolioFor(constrained), eligibility: evaluated.eligibility, eligibilityEvaluationContext: evaluated.raw }))).toMatchObject({ status: "INELIGIBLE_ACTION", code: "EXPERIMENT_INELIGIBLE" });
   });
 
   it("maps a complete unknown assessment to missing context", () => {
     const constrained = canonicalActionSchema.parse({ ...action, constraints: [{ constraintId: "budget", kind: "CUSTOM", target: { kind: "GLOBAL" }, evaluationBoundary: "TRANSLATION_TIME", whenUnknown: "UNKNOWN", registryRef: "budget", code: "AVAILABLE" }] });
     const evaluated = evaluatedFor(constrained);
-    expect(translateCanonicalAction(constrained, context({ eligibility: evaluated.eligibility, eligibilityEvaluationContext: evaluated.raw }))).toMatchObject({ status: "MISSING_CONTEXT", code: "EXPERIMENT_ELIGIBILITY_UNKNOWN" });
+    expect(translateCanonicalAction(constrained, context({ ...portfolioFor(constrained), eligibility: evaluated.eligibility, eligibilityEvaluationContext: evaluated.raw }))).toMatchObject({ status: "MISSING_CONTEXT", code: "EXPERIMENT_ELIGIBILITY_UNKNOWN" });
   });
 
   it("rejects a mutated check whose assessment fingerprint was not recomputed", () => {
@@ -156,12 +170,50 @@ describe("native experiment translation", () => {
     ["absent arm", [{ entityKind: "ACTION", action: control }], "EXPERIMENT_ARM_REQUIRED"],
     ["ambiguous arm", [{ entityKind: "ACTION", action: control }, { entityKind: "ACTION", action: treatment }, { entityKind: "ACTION", action: treatment }], "AMBIGUOUS_EXPERIMENT_ARM"],
     ["mismatched arm fingerprint", [{ entityKind: "ACTION", action: control }, { entityKind: "ACTION", action: { ...treatment, what: { actionType: "no_op.do_nothing", scope: { kind: "FAMILY", family: "PRICING" } } } }], "EXPERIMENT_ARM_FINGERPRINT_MISMATCH"],
+    ["unrelated extra arm", [{ entityKind: "ACTION", action: control }, { entityKind: "ACTION", action: treatment }, { entityKind: "ACTION", action: canonicalActionSchema.parse({ ...control, actionId: "action_unrelated_arm" }) }], "EXPERIMENT_ARM_REGISTRY_EXACT_SET_REQUIRED"],
   ])("rejects %s registry resolution", (_label, experimentArmRegistry, code) => {
     expect(translateCanonicalAction(action, context({ experimentArmRegistry }))).toMatchObject({ status: "MISSING_CONTEXT", code });
   });
 
+  it("requires the complete exact arm portfolio and translation-time freshness", () => {
+    const base = context();
+    const refs = base.portfolioReferences;
+    expect(translateCanonicalAction(action, { ...base, portfolioReferences: [] })).toMatchObject({ code: "EXPERIMENT_PORTFOLIO_REFERENCE_MISMATCH" });
+    expect(translateCanonicalAction(action, { ...base, portfolioReferences: [...refs, refs[0]] })).toMatchObject({ code: "EXPERIMENT_PORTFOLIO_REFERENCE_MISMATCH" });
+    const external = canonicalActionSchema.parse({ ...control, actionId: "action_concurrent_external" });
+    expect(translateCanonicalAction(action, { ...base, portfolioReferences: [...refs, { entityKind: "ACTION", actionId: external.actionId, actionFingerprint: fingerprintCanonicalAction(external) }], portfolioCompatibilityContext: { ...base.portfolioCompatibilityContext, registry: [...base.portfolioCompatibilityContext.registry, { entityKind: "ACTION", action: external }] } })).toMatchObject({ status: "TRANSLATED" });
+    expect(translateCanonicalAction(action, { ...base, portfolioCompatibilityContext: { ...base.portfolioCompatibilityContext, evaluationBoundary: "DECISION_TIME" } })).toMatchObject({ code: "EXPERIMENT_PORTFOLIO_COMPATIBILITY_MISMATCH" });
+    const { maximumAgeSeconds: _age, ...withoutFreshness } = base.portfolioCompatibilityContext;
+    expect(translateCanonicalAction(action, { ...base, portfolioCompatibilityContext: withoutFreshness })).toMatchObject({ code: "EXPERIMENT_PORTFOLIO_COMPATIBILITY_MISMATCH" });
+  });
+
+  it("rejects a global arm conflict before emitting an experiment task", () => {
+    const right = canonicalActionSchema.parse({ ...treatment, actionId: "action_global_conflict_right" });
+    const rightRef = { entityKind: "ACTION" as const, actionId: right.actionId, actionFingerprint: fingerprintCanonicalAction(right) };
+    const left = canonicalActionSchema.parse({ ...control, actionId: "action_global_conflict_left", conflicts: [{ conflictId: "global.write", kind: "MUTUALLY_EXCLUSIVE_INTENT", target: { kind: "GLOBAL" }, scope: { coordinates: [{ kind: "GLOBAL" }] }, overlapRule: "EFFECTIVE_OVERLAP", counterparty: rightRef }] });
+    const conflicting = canonicalActionSchema.parse({ ...action, actionId: "action_global_conflict_experiment", what: { ...action.what, arms: [{ armId: "arm_control", role: "CONTROL", actionId: left.actionId, actionFingerprint: fingerprintCanonicalAction(left), allocationBasisPoints: 5000 }, { armId: "arm_treatment", role: "TREATMENT", actionId: right.actionId, actionFingerprint: rightRef.actionFingerprint, allocationBasisPoints: 5000 }] } });
+    const bound = eligibilityFor(conflicting);
+    const result = translateCanonicalAction(conflicting, context({ ...portfolioFor(conflicting), eligibility: bound, experimentArmRegistry: [{ entityKind: "ACTION", action: left }, { entityKind: "ACTION", action: right }], portfolioCompatibilityContext: { ...portfolioFor(conflicting).portfolioCompatibilityContext, registry: [{ entityKind: "ACTION", action: conflicting }, { entityKind: "ACTION", action: left }, { entityKind: "ACTION", action: right }] } }));
+    expect(result).toMatchObject({ status: "INELIGIBLE_ACTION", code: "EXPERIMENT_PORTFOLIO_CONFLICT" });
+  });
+
+  it("accepts population-scoped arm writes only with an exact disjoint partition receipt", () => {
+    const coordinate = { kind: "POPULATION" as const, populationId: population.populationId, version: population.version, definitionFingerprint: population.definitionFingerprint, binding: population.binding, membershipMode: population.membershipMode };
+    const right = canonicalActionSchema.parse({ ...treatment, actionId: "action_partition_right", population });
+    const rightRef = { entityKind: "ACTION" as const, actionId: right.actionId, actionFingerprint: fingerprintCanonicalAction(right) };
+    const left = canonicalActionSchema.parse({ ...control, actionId: "action_partition_left", population, conflicts: [{ conflictId: "population.write", kind: "MUTUALLY_EXCLUSIVE_INTENT", target: { kind: "POPULATION", ref: population.populationId }, scope: { coordinates: [coordinate] }, overlapRule: "EFFECTIVE_OVERLAP", counterparty: rightRef }] });
+    const partitioned = canonicalActionSchema.parse({ ...action, actionId: "action_partition_experiment", what: { ...action.what, arms: [{ armId: "arm_control", role: "CONTROL", actionId: left.actionId, actionFingerprint: fingerprintCanonicalAction(left), allocationBasisPoints: 5000 }, { armId: "arm_treatment", role: "TREATMENT", actionId: right.actionId, actionFingerprint: rightRef.actionFingerprint, allocationBasisPoints: 5000 }] } });
+    const leftRef = { entityKind: "ACTION" as const, actionId: left.actionId, actionFingerprint: fingerprintCanonicalAction(left) };
+    const pairKey = [`ACTION:${left.actionId}:${leftRef.actionFingerprint}`, `ACTION:${right.actionId}:${rightRef.actionFingerprint}`].sort().join("|");
+    const receipt = { receiptId: "receipt.partition.translation", experimentActionId: partitioned.actionId, experimentActionFingerprint: fingerprintCanonicalAction(partitioned), populationId: population.populationId, populationVersion: population.version, populationFingerprint: population.definitionFingerprint, populationBinding: population.binding, assignmentBoundary: "USE_ENVELOPE_POPULATION_BINDING", leftArmId: "arm_control", rightArmId: "arm_treatment", pairKey, evaluationBoundary: "TRANSLATION_TIME", observedAt: NOW, windowStart: "2026-09-25T04:00:00Z", windowEnd: "2026-10-02T04:00:00Z", leftOccurrenceIndexes: [0], rightOccurrenceIndexes: [0], disjoint: true, sourceRef: "assignment.partition", provenance: ["assignment.snapshot"] };
+    const portfolio = portfolioFor(partitioned);
+    const overrides = { ...portfolio, eligibility: eligibilityFor(partitioned), experimentArmRegistry: [{ entityKind: "ACTION", action: left }, { entityKind: "ACTION", action: right }], portfolioCompatibilityContext: { ...portfolio.portfolioCompatibilityContext, registry: [{ entityKind: "ACTION", action: partitioned }, { entityKind: "ACTION", action: left }, { entityKind: "ACTION", action: right }], partitionReceipts: [receipt] } };
+    expect(translateCanonicalAction(partitioned, context({ ...overrides, portfolioCompatibilityContext: { ...overrides.portfolioCompatibilityContext, partitionReceipts: [] } }))).toMatchObject({ status: "MISSING_CONTEXT", code: "EXPERIMENT_PORTFOLIO_COMPATIBILITY_UNKNOWN" });
+    expect(translateCanonicalAction(partitioned, context(overrides))).toMatchObject({ status: "TRANSLATED", decisionType: "EXPERIMENT" });
+  });
+
   it("resolves compound arm identity and fingerprint exactly", () => {
-    const compound = createCompoundFixtures()[0]!.action;
+    const compound = createCompoundFixtures()[7]!.action;
     const experimentWhat = experimentWhatSchema.parse(action.what);
     const compoundExperiment = canonicalActionSchema.parse({
       ...action,
@@ -175,7 +227,9 @@ describe("native experiment translation", () => {
       },
     });
     const bound = eligibility({ actionId: compoundExperiment.actionId, actionFingerprint: fingerprintCanonicalAction(compoundExperiment) });
-    const result = translateCanonicalAction(compoundExperiment, context({ eligibility: bound, experimentArmRegistry: [{ entityKind: "ACTION", action: control }, { entityKind: "COMPOUND", action: compound }] }));
+    const portfolioReferences = [{ entityKind: "ACTION", actionId: compoundExperiment.actionId, actionFingerprint: fingerprintCanonicalAction(compoundExperiment) }];
+    const portfolioCompatibilityContext = { evaluatedAt: NOW, evaluationBoundary: "TRANSLATION_TIME", maximumAgeSeconds: 3600, registry: [{ entityKind: "ACTION", action: compoundExperiment }, { entityKind: "ACTION", action: control }, { entityKind: "COMPOUND", action: compound }], timingContexts: {}, scopeIntersectionReceipts: [], priceBaselineReceipts: [], partitionReceipts: [] };
+    const result = translateCanonicalAction(compoundExperiment, context({ eligibility: bound, experimentArmRegistry: [{ entityKind: "ACTION", action: control }, { entityKind: "COMPOUND", action: compound }], portfolioReferences, portfolioCompatibilityContext }));
     expect(result.status).toBe("TRANSLATED");
     const tampered = {
       ...compound,
@@ -183,7 +237,7 @@ describe("native experiment translation", () => {
         ? { ...component, role: `${component.role}_tampered` }
         : component),
     };
-    expect(translateCanonicalAction(compoundExperiment, context({ eligibility: bound, experimentArmRegistry: [{ entityKind: "ACTION", action: control }, { entityKind: "COMPOUND", action: tampered }] }))).toMatchObject({ status: "MISSING_CONTEXT", code: "EXPERIMENT_ARM_FINGERPRINT_MISMATCH" });
+    expect(translateCanonicalAction(compoundExperiment, context({ eligibility: bound, experimentArmRegistry: [{ entityKind: "ACTION", action: control }, { entityKind: "COMPOUND", action: tampered }], portfolioReferences, portfolioCompatibilityContext }))).toMatchObject({ status: "MISSING_CONTEXT", code: "EXPERIMENT_ARM_FINGERPRINT_MISMATCH" });
   });
 
   it("requires complete, unique translation-time hard-constraint checks", () => {
@@ -191,8 +245,8 @@ describe("native experiment translation", () => {
     const constrained = canonicalActionSchema.parse({ ...action, constraints: [constraint] });
     const evaluated = evaluatedFor(constrained, "SATISFIED");
     const satisfied = evaluated.eligibility.checks[0]!;
-    const translate = (checks: unknown[]) => translateCanonicalAction(constrained, context({ eligibility: eligibilityFor(constrained, { checks }), eligibilityEvaluationContext: evaluated.raw }));
-    expect(translateCanonicalAction(constrained, context({ eligibility: evaluated.eligibility, eligibilityEvaluationContext: evaluated.raw })).status).toBe("TRANSLATED");
+    const translate = (checks: unknown[]) => translateCanonicalAction(constrained, context({ ...portfolioFor(constrained), eligibility: eligibilityFor(constrained, { checks }), eligibilityEvaluationContext: evaluated.raw }));
+    expect(translateCanonicalAction(constrained, context({ ...portfolioFor(constrained), eligibility: evaluated.eligibility, eligibilityEvaluationContext: evaluated.raw })).status).toBe("TRANSLATED");
     expect(translate([])).toMatchObject({ status: "INVALID_ACTION", code: "INCOMPLETE_EXPERIMENT_ELIGIBILITY" });
     expect(translate([satisfied, satisfied])).toMatchObject({ status: "INVALID_ACTION", code: "INCOMPLETE_EXPERIMENT_ELIGIBILITY" });
     expect(translate([satisfied, { ...satisfied, checkId: "unexpected" }])).toMatchObject({ status: "INVALID_ACTION", code: "INCOMPLETE_EXPERIMENT_ELIGIBILITY" });

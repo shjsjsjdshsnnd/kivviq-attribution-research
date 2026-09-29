@@ -41,6 +41,7 @@ export {
   aggregateCompoundCharacteristics,
   aggregateExperimentCharacteristics,
 } from "./aggregate.js";
+export * from "./legacy.js";
 export type {
   CharacteristicAggregateNode,
   CharacteristicAggregationContext,

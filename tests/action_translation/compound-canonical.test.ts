@@ -51,6 +51,11 @@ function context(action = fixture()) {
   const evaluations = Object.fromEntries(action.components.map((component) => [component.componentId, evaluateEligibilityForTest(component.action, "TRANSLATION_TIME", "2026-09-27T00:00:00Z")]));
   return {
     timing,
+    portfolioReferences: [{ entityKind: "COMPOUND", compoundActionId: action.compoundActionId, compoundFingerprint: fingerprintCompoundAction(action) }],
+    portfolioCompatibilityContext: {
+      evaluatedAt: timing.approvedClock, evaluationBoundary: "TRANSLATION_TIME", maximumAgeSeconds: 3600,
+      registry: [{ entityKind: "COMPOUND", action }], timingContexts: {}, scopeIntersectionReceipts: [], priceBaselineReceipts: [], partitionReceipts: [],
+    },
     components: { component_0: {}, component_1: {} },
     readiness: {
       eligibilityMaximumAgeSeconds: 3600,
@@ -65,10 +70,15 @@ function context(action = fixture()) {
   };
 }
 describe("canonical compound translation", () => {
+  it("requires the exact compound once in the full portfolio", () => {
+    const action = fixture(), ctx = context(action);
+    (ctx as any).portfolioReferences = [{ entityKind: "ACTION", actionId: action.components[0]!.action.actionId, actionFingerprint: fingerprintCanonicalAction(action.components[0]!.action) }];
+    expect(translateCanonicalCompoundAction(action, ctx)).toMatchObject({ status: "MISSING_CONTEXT", code: "COMPOUND_PORTFOLIO_REFERENCE_MISMATCH" });
+  });
   it("preserves an experiment component and a compound arm as an exact engine task", () => {
     const action = fixture();
-    const armCompound = createCompoundFixtures()[0]!.action;
-    const control = action.components[0]!.action;
+    const armCompound = createCompoundFixtures()[7]!.action;
+    const control = canonicalActionSchema.parse({ ...action.components[0]!.action, actionId: "action_nested_experiment_control" });
     const definition = {
       schemaVersion: 1 as const,
       populationId: "population_compound_experiment",
@@ -108,7 +118,10 @@ describe("canonical compound translation", () => {
       evaluations: [evaluatePopulation(definition, { evaluatedAt: "2026-09-27T00:00:00Z", customers: [{ customerId: "customer_one", completedOrderCount: 1 }] })],
       bindingTimes: { DECISION_TIME: "2026-09-27T00:00:00Z" },
       experimentArmRegistry: [{ entityKind: "ACTION", action: control }, { entityKind: "COMPOUND", action: armCompound }],
+      portfolioReferences: [{ entityKind: "ACTION", actionId: experiment.actionId, actionFingerprint: fingerprintCanonicalAction(experiment) }],
+      portfolioCompatibilityContext: { evaluatedAt: timing.approvedClock, evaluationBoundary: "TRANSLATION_TIME", maximumAgeSeconds: 3600, registry: [{ entityKind: "ACTION", action: experiment }, { entityKind: "ACTION", action: control }, { entityKind: "COMPOUND", action: armCompound }], timingContexts: {}, scopeIntersectionReceipts: [], priceBaselineReceipts: [], partitionReceipts: [] },
     };
+    (ctx.portfolioCompatibilityContext.registry as any[]).push({ entityKind: "ACTION", action: control }, { entityKind: "COMPOUND", action: armCompound });
     const result = translateCanonicalCompoundAction(action, ctx);
     expect(result.status).toBe("TRANSLATED");
     if (result.status !== "TRANSLATED") throw new Error(JSON.stringify(result));
@@ -170,7 +183,7 @@ describe("canonical compound translation", () => {
           dependsOn: "component_0",
         },
       ];
-      const ctx = context();
+      const ctx = context(action);
       ctx.components.component_0 = { unexpected: true } as {};
       const result = translateCanonicalCompoundAction(action, ctx);
       expect(result.status).not.toBe("TRANSLATED");
@@ -460,10 +473,5 @@ it("does not emit only the budget increase when its neutralizing decrease fails 
       component_1: { simulator: channelSimulator },
     },
   });
-  expect(result.status).toBe("UNSUPPORTED_SIMULATOR_CAPABILITY");
-  expect(result.compound?.components[1]?.result.status).toBe("TRANSLATED");
-  expect(result.compound?.components[1]?.readiness.codes).toContain(
-    "BUDGET_NEUTRAL_GROUP_NOT_READY",
-  );
-  expect(result.compound?.emittedComponentIds).toEqual([]);
+  expect(result).toMatchObject({ status: "MISSING_CONTEXT", code: "PORTFOLIO_COMPATIBILITY_UNKNOWN" });
 });

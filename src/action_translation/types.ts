@@ -267,6 +267,8 @@ export interface TranslationFailure {
   readonly code: string;
   readonly message: string;
   readonly missingContextRefs?: readonly string[];
+  readonly dependencyAssessment?: import("../action_dependencies/assessment.js").DependencyAssessment;
+  readonly portfolioCompatibility?: import("../action_conflicts/assessment.js").PortfolioCompatibilityAssessment;
 }
 
 export interface TranslatedResult {

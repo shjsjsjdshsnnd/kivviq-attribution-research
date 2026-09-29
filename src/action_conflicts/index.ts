@@ -26,3 +26,4 @@ export type {
 } from "./schema.js";
 export * from "./adapters.js";
 export * from "./assessment.js";
+export * from "./legacy.js";
