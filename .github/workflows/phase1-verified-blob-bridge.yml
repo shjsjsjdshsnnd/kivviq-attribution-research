@@ -1,7 +1,7 @@
 name: Prepare verified public kernel blobs
 
 # Temporary transport bridge, removed by the implementation commit.
-# It creates three explicitly hashed Git blobs only: no branch writes, merges,
+# Creates one explicitly hashed public runtime blob: no branch writes, merges,
 # deployments, dependency execution, or access to merchant/production data.
 on:
   push:
@@ -18,7 +18,7 @@ jobs:
       - uses: actions/checkout@v4
         with:
           persist-credentials: false
-      - name: Create only allowlisted, byte-verified public source blobs
+      - name: Create only the allowlisted byte-verified public runtime blob
         env:
           GH_TOKEN: ${{ github.token }}
         shell: bash
@@ -26,31 +26,48 @@ jobs:
           set -euo pipefail
           python3 - <<'PY'
           import hashlib, json, os, pathlib, urllib.request
-          expected = {
-            'src/simulation/simulator.ts': ('432bc9e72c80f48e70b20ce8a1a4dd636c37e3a5', '128d46394a2b7246b60c03a35001b8f38711d41f'),
-            'src/simulation/commerce.ts': ('c6e96e20adf925e7b4d802970fdad3bfde1ab6cc', '766755367af1212de6e4b4037e767c81885ee40a'),
-            'src/simulation/session.ts': ('6ec70d09e9554934e7bc67eff48900b2debc075f', '96b7b4325bd8d3f5521a7d5c2fe9b404c2a1ace2'),
-          }
+          name = 'src/external_reality/index.ts'
           def blob_hash(data):
             return hashlib.sha1(('blob ' + str(len(data)) + '\0').encode() + data).hexdigest()
-          result = {}
-          for name, (before, after) in expected.items():
-            original = pathlib.Path(name).read_bytes()
-            assert blob_hash(original) == before, 'source changed: ' + name
-            revised = original.replace(b'.applyAt(', b'.applyOccurrenceAt(')
-            assert blob_hash(revised) == after, 'modified bytes differ from tested tree: ' + name
-            body = json.dumps({'content': revised.decode('utf-8'), 'encoding': 'utf-8'}).encode()
-            request = urllib.request.Request(
-              'https://api.github.com/repos/shjsjsjdshsnnd/kivviq-attribution-research/git/blobs',
-              data=body, method='POST', headers={
-                'Authorization': 'Bearer ' + os.environ['GH_TOKEN'],
-                'Accept': 'application/vnd.github+json',
-                'Content-Type': 'application/json',
-                'X-GitHub-Api-Version': '2022-11-28',
-              })
-            with urllib.request.urlopen(request, timeout=30) as response:
-              created = json.load(response)
-            assert created['sha'] == after, 'published blob hash mismatch: ' + name
-            result[name] = after
-          print(json.dumps({'verified_public_blobs': result}, sort_keys=True))
+          original = pathlib.Path(name).read_bytes()
+          assert blob_hash(original) == 'c5746138ab91aeb55810e978f31870199692b8c8', 'source changed'
+          constant = '/** Diagnostic identity only; causal coefficients and random-stream keys are unchanged. */\nexport const EXTERNAL_APPLICATION_IDENTITY_VERSION = "external-effect-occurrence/1.0.0" as const;\n\n'
+          method = '''  /**
+             * Kernel event labels can recur on later dates (for example repeat need
+             * cycles). Address one logical occurrence by label AND event time, without
+             * altering random keys or hiding conflicting resolutions at the same time.
+             * applyAt remains the strict legacy API for globally unique caller IDs.
+             */
+            public applyOccurrenceAt(
+              logicalId: string,
+              target: ExternalTarget,
+              timestampMs: number,
+              context: ExternalContext = {},
+            ): number {
+              if (!logicalId.trim() || !Number.isFinite(timestampMs)) {
+                throw new RangeError("external occurrence requires a nonempty label and finite event time");
+              }
+              const occurrenceId = `${EXTERNAL_APPLICATION_IDENTITY_VERSION}:${JSON.stringify([logicalId, timestampMs])}`;
+              return this.applyAt(occurrenceId, target, timestampMs, context);
+            }
+
+          '''
+          # YAML block indentation is removed by the runner; the method text has
+          # its exact TypeScript two/four/six-space indentation here.
+          assert original.count(b'export type ExternalDomain =') == 1
+          assert original.count(b'  public applyAt(') == 1
+          revised = original.replace(b'export type ExternalDomain =', constant.encode() + b'export type ExternalDomain =')
+          revised = revised.replace(b'  public applyAt(', method.encode() + b'  public applyAt(')
+          expected = '24993de1d4d07ddbcea89b813274327d3e31c006'
+          assert blob_hash(revised) == expected, 'modified bytes differ from the tested source tree'
+          request = urllib.request.Request(
+            'https://api.github.com/repos/shjsjsjdshsnnd/kivviq-attribution-research/git/blobs',
+            data=json.dumps({'content': revised.decode(), 'encoding': 'utf-8'}).encode(), method='POST',
+            headers={'Authorization': 'Bearer ' + os.environ['GH_TOKEN'],
+              'Accept': 'application/vnd.github+json', 'Content-Type': 'application/json',
+              'X-GitHub-Api-Version': '2022-11-28'})
+          with urllib.request.urlopen(request, timeout=30) as response:
+            created = json.load(response)
+          assert created['sha'] == expected, 'published blob mismatch'
+          print(json.dumps({'verified_public_blobs': {name: expected}}, sort_keys=True))
           PY
