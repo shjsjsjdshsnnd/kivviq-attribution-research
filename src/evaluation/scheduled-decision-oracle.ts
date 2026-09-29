@@ -11,13 +11,15 @@ import { scheduledBookedEconomics } from "./scheduled-economics.js";
 import { evaluateFiniteActionSet, type OracleEconomics, type OracleCandidate } from "./finite-decision-oracle.js";
 import { sha256 } from "./replay-manifest.js";
 
-export const SCHEDULED_DECISION_VERSION = "scheduled-decision-oracle/0.1.0" as const;
+export const SCHEDULED_DECISION_VERSION = "scheduled-decision-oracle/0.2.0" as const;
 export interface ScheduledDecisionAction extends RegisteredSimulatorAction { readonly actionCostMinor: number }
 export interface ScheduledDecisionInput {
   readonly initial: SimulateWorldRequest;
   readonly spendPlan: ScheduledSpendPlan;
   readonly measurement: Omit<MeasurementRunOptions, "asOf" | "platformSpend">;
   readonly decisionAt: string;
+  /** Evaluate shorter horizons from the SAME full episode, never by truncating the world. */
+  readonly evaluationCutoffs?: readonly string[];
   readonly candidates: readonly OracleCandidate<ScheduledDecisionAction>[];
   readonly baselineActionId: string;
   readonly actionSetVersion: string;
@@ -42,6 +44,16 @@ export async function evaluateScheduledDecisionSet(input: ScheduledDecisionInput
   if (cutoff <= start || cutoff + 1 >= end || (cutoff - start) % 86400000 !== 0 || plan.changes.length !== 0) {
     throw new RangeError("oracle requires a closed-day warmup and an empty future decision schedule");
   }
+  const evaluationCutoffs = [...(input.evaluationCutoffs ?? [])];
+  let previousCutoff = cutoff;
+  for (const time of evaluationCutoffs) {
+    observationTimeSchema.parse(time);
+    const t = Date.parse(time);
+    if (t <= previousCutoff || t > end || (t - start) % 86400000 !== 0) {
+      throw new RangeError("evaluation cutoffs require strictly increasing closed days after the decision and within the fixed episode");
+    }
+    previousCutoff = t;
+  }
   requestWithScheduledSpend(initial, plan);
   const baselineAction = candidates.find(c => c.actionId === input.baselineActionId)?.action;
   if (!baselineAction || baselineAction.actionCostMinor !== 0 || baselineAction.interventions.length !== 0 ||
@@ -58,7 +70,9 @@ export async function evaluateScheduledDecisionSet(input: ScheduledDecisionInput
   const observedBySeed = new Map<number, string>();
   const beforeBySeed = new Map<number, OracleEconomics>();
   const branches: Array<{ seed: number; actionId: string; requestHash: string; observationHash: string;
-    economics: OracleEconomics; purchaseSignature: string }> = [];
+    economics: OracleEconomics; purchaseSignature: string;
+    checkpoints: Array<{ asOf: string; economics: OracleEconomics; futureOrders: number;
+      firstPurchaseOrders: number; brandedSearchEvents: number }> }> = [];
   // Establish and commit the warmup observation before evaluating any future action.
   for (const seed of seeds) {
     const request = requestWithScheduledSpend({ ...initial, simulationSeed: seed }, plan);
@@ -88,13 +102,23 @@ export async function evaluateScheduledDecisionSet(input: ScheduledDecisionInput
       if (sha256(before) !== sha256(beforeBySeed.get(seed))) throw new RangeError("candidate changed predecision economic state");
       const after = scheduledBookedEconomics(request, bundle.latentTruth.simulation, schedule, request.endTime, action.actionCostMinor).economics;
       const economics = Object.fromEntries(Object.entries(after).map(([k, v]) => [k, v - before[k as keyof OracleEconomics]])) as unknown as OracleEconomics;
-      branches.push({ seed, actionId: candidate.actionId, requestHash: sha256(request), observationHash: sha256(observed), economics,
+      const checkpoints = evaluationCutoffs.map(asOf => {
+        const horizonEnd = Date.parse(asOf);
+        const totals = scheduledBookedEconomics(request, bundle.latentTruth.simulation, schedule, asOf, action.actionCostMinor).economics;
+        const future = Object.fromEntries(Object.entries(totals).map(([key, value]) => [key, value - before[key as keyof OracleEconomics]])) as unknown as OracleEconomics;
+        const purchases = bundle.latentTruth.simulation.purchases.filter(p => Date.parse(p.occurredAt) > cutoff && Date.parse(p.occurredAt) <= horizonEnd && Date.parse(p.occurredAt) < end);
+        const branded = bundle.latentTruth.simulation.observableEvents.filter(e => e.eventType === "search" && e.searchIntent === "branded" &&
+          (e.source === "google_search" || e.source === "google_shopping") && Date.parse(e.occurredAt) > cutoff && Date.parse(e.occurredAt) <= horizonEnd && Date.parse(e.occurredAt) < end);
+        return { asOf, economics: future, futureOrders: purchases.length,
+          firstPurchaseOrders: purchases.filter(p => !p.repeatPurchase).length, brandedSearchEvents: branded.length };
+      });
+      branches.push({ seed, actionId: candidate.actionId, requestHash: sha256(request), observationHash: sha256(observed), economics, checkpoints,
         purchaseSignature: sha256(bundle.latentTruth.simulation.purchases.filter(p => Date.parse(p.occurredAt) > cutoff && Date.parse(p.occurredAt) < end)
           .map(p => ({ customerId: p.customerId, occurredAt: p.occurredAt, lines: p.lines, netRevenueMinor: p.netRevenueMinor }))) });
       return economics;
     } });
   return { access: "evaluator_only" as const, version: SCHEDULED_DECISION_VERSION, oracle, branches, simulatorExecutions: oracle.evaluations + seeds.length,
-    inputHash: sha256({ initial, plan, measurement, decisionAt, candidates }),
+    inputHash: sha256({ initial, plan, measurement, decisionAt, candidates, evaluationCutoffs }),
     /** Never serialize these seed labels or the surrounding object to an Operator. */
     observationBySeed: [...observedBySeed].map(([seed, payload]) => ({ seed, payload })) };
 }

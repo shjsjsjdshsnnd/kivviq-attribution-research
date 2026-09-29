@@ -42,7 +42,8 @@
     "./website-cro": "./dist/website_cro/index.js",
     "./external-reality": "./dist/external_reality/index.js",
     "./observed-world": "./dist/observation/corrupted-world.js",
-    "./measurement-evaluator": "./dist/measurement_corruption/index.js"
+    "./measurement-evaluator": "./dist/measurement_corruption/index.js",
+    "./observed-world-protocol": "./dist/observation/world-protocol.js"
   },
   "devDependencies": {
     "@types/node": "22.15.30",
