@@ -22,6 +22,32 @@ export * from "./investigation/index.js";
 export * from "./action_constraints/index.js";
 export * from "./experiment/index.js";
 export * from "./action_eligibility/index.js";
+export * from "./action_dependencies/index.js";
+export * from "./action_conflicts/index.js";
+export * from "./action_characteristics/index.js";
+export * from "./action_risk/schema.js";
+export * from "./action_risk/legacy.js";
+export {
+  RISK_DIMENSIONS as RISK_CONTRACT_DIMENSIONS,
+  describeActionRiskContracts,
+  describeCanonicalCompoundRiskContracts,
+  describeCompoundRiskContracts,
+  describeExperimentRiskContracts,
+  validateRiskMeasurementContracts,
+} from "./action_risk/aggregate.js";
+export type {
+  ExperimentRiskContractViewResult,
+  ExperimentRiskRegistry,
+  RiskAggregationRule,
+  RiskContractAggregateNode,
+  RiskContractOrigin,
+  RiskContractViewContext,
+  RiskContractViewEntry,
+  RiskContractViewResult,
+  RiskDimension as ActionRiskDimension,
+  RiskExecutionAlias,
+  RiskInteractionDefinition,
+} from "./action_risk/aggregate.js";
 export {
   compoundActionSchema,
   assertCompoundAction,

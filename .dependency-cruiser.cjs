@@ -1,6 +1,40 @@
 module.exports = {
   forbidden: [
     {
+      name: "action-portfolio-cannot-import-hidden-or-execution-internals",
+      comment:
+        "Dependencies, conflicts, characteristics, and risk contracts are operator-safe and cannot depend on simulation internals, hidden truth, prediction, evaluation, ranking, optimization, oracle state, provider execution, or economic-response internals.",
+      severity: "error",
+      from: {
+        path: "^src/(action_dependencies|action_conflicts|action_characteristics|action_risk)(/|$)",
+      },
+      to: {
+        path: "^src/(simulation|ground_truth|generation|customer_population|advertising_economics|cross_channel|ecommerce_economics|product_economics|prediction|evaluation|ranking|optimizer|optimization|oracle|god_mode|provider_execution|provider-execution)(/|$)",
+      },
+    },
+    {
+      name: "action-portfolio-schemas-cannot-import-upward",
+      comment:
+        "Pure portfolio definition schemas remain below canonical envelopes, runtime assessment, translation, and execution layers.",
+      severity: "error",
+      from: {
+        path: "^src/(action_dependencies|action_conflicts|action_characteristics|action_risk)/schema\\.ts$",
+      },
+      to: {
+        path: "^src/(canonical_action|compound_action|experiment|action_eligibility|action_translation|simulator_intervention|simulation)(/|$)|^src/(action_dependencies|action_conflicts|action_characteristics|action_risk)/(assessment|aggregate|validation|legacy|adapters)\\.ts$",
+      },
+    },
+    {
+      name: "canonical-action-cannot-import-portfolio-runtime",
+      comment:
+        "The canonical envelope may import portfolio definition schemas, never their assessment, aggregation, validation, adapter, or translation behavior.",
+      severity: "error",
+      from: { path: "^src/canonical_action(/|$)" },
+      to: {
+        path: "^src/(action_dependencies|action_conflicts|action_characteristics|action_risk)/(assessment|aggregate|validation|legacy|adapters)\\.ts$",
+      },
+    },
+    {
       name: "experiment-eligibility-cannot-import-decision-or-execution-internals",
       comment:
         "Experiment definitions, hard constraints, and eligibility may use operator evidence contracts but cannot import hidden state, evaluation, ranking, optimization, simulator internals, or provider execution.",
