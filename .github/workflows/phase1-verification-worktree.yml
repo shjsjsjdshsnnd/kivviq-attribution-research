@@ -1,5 +1,6 @@
 name: Phase 1 Offline Verification Worktree
 
+# Refresh for the budget-action and simulator regression continuation.
 on:
   push:
     branches: [phase1/steps15-23-measurement-decision-lab]
