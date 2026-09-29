@@ -6,6 +6,7 @@ import {
   assertReachableCancellationStages,
   type StageReachabilityInput,
 } from "./schema.js";
+import { z } from "zod";
 
 export interface RegisteredReversalContract {
   readonly kind: "REGISTERED";
@@ -19,6 +20,10 @@ export interface CharacteristicsValidationContext {
   readonly actions?: readonly CanonicalAction[];
   readonly registeredReversals?: readonly RegisteredReversalContract[];
 }
+
+const registeredReversalSchema = z.object({
+  kind: z.literal("REGISTERED"), registryRef: z.string().min(1), code: z.string().min(1), version: z.string().min(1), domainActionTypes: z.array(z.string().min(1)).min(1),
+}).strict();
 
 export interface CharacteristicsValidationResult {
   readonly status: "VALID" | "INVALID" | "UNKNOWN";
@@ -44,7 +49,7 @@ function hasFiniteCompletion(action: CanonicalAction): boolean {
   );
 }
 
-function profile(action: CanonicalAction): StageReachabilityInput {
+function profile(action: CanonicalAction): StageReachabilityInput | undefined {
   const type = action.what.actionType;
   if (type === "lifecycle.send") return { kind: "INSTANTANEOUS_SEND" };
   if (type === "inventory.reorder")
@@ -59,16 +64,20 @@ function profile(action: CanonicalAction): StageReachabilityInput {
       implementationPrecedesEffect: true,
       hasFiniteCompletion: true,
     };
-  return {
-    kind: "PERSISTENT_POLICY",
-    hasExplicitCompletion: hasFiniteCompletion(action),
-  };
+  if (["advertising.adjust_budget", "lifecycle.adjust_frequency", "lifecycle.adjust_contact_policy"].includes(type))
+    return { kind: "PERSISTENT_POLICY", hasExplicitCompletion: hasFiniteCompletion(action) };
+  return undefined;
 }
 
 export function validateActionCharacteristics(
-  input: CanonicalAction,
-  context: CharacteristicsValidationContext = {},
+  input: unknown,
+  contextInput: unknown = {},
 ): CharacteristicsValidationResult {
+  if (!contextInput || typeof contextInput !== "object" || Array.isArray(contextInput)) return { status: "INVALID", issues: ["INVALID_VALIDATION_CONTEXT"] };
+  const context = contextInput as CharacteristicsValidationContext;
+  if ((context.actions !== undefined && (!Array.isArray(context.actions) || context.actions.some((entry) => !canonicalActionSchema.safeParse(entry).success))) ||
+      (context.registeredReversals !== undefined && (!Array.isArray(context.registeredReversals) || context.registeredReversals.some((entry) => !registeredReversalSchema.safeParse(entry).success))))
+    return { status: "INVALID", issues: ["INVALID_VALIDATION_CONTEXT"] };
   const parsedAction = canonicalActionSchema.safeParse(input);
   if (!parsedAction.success)
     return { status: "INVALID", issues: ["INVALID_ACTION"] };
@@ -81,11 +90,10 @@ export function validateActionCharacteristics(
 
   const issues: string[] = [];
   let unknown = false;
-  try {
-    assertReachableCancellationStages(profile(action), parsed.data);
-  } catch {
-    issues.push("STAGE_PROFILE_MISMATCH");
-  }
+  const stageProfile = profile(action);
+  if (!stageProfile) { unknown = true; issues.push("UNSUPPORTED_STAGE_PROFILE"); }
+  else try { assertReachableCancellationStages(stageProfile, parsed.data); }
+  catch { issues.push("STAGE_PROFILE_MISMATCH"); }
 
   const reversibility = parsed.data.reversibility;
   if (action.what.actionType === "lifecycle.send" && reversibility.kind === "FULLY_REVERSIBLE")
@@ -128,6 +136,6 @@ export function validateActionCharacteristics(
       }
     }
   }
-  const invalid = issues.some((issue) => !issue.endsWith("_MISSING") && !issue.endsWith("_AMBIGUOUS"));
+  const invalid = issues.some((issue) => issue !== "UNSUPPORTED_STAGE_PROFILE" && !issue.endsWith("_MISSING") && !issue.endsWith("_AMBIGUOUS"));
   return { status: invalid ? "INVALID" : unknown ? "UNKNOWN" : "VALID", issues: [...new Set(issues)].sort() };
 }

@@ -38,4 +38,10 @@ describe("characteristics domain validation", () => {
     const compensatedSend = { ...sendBase, characteristics: { state: "PRESENT" as const, value: { ...exact.characteristics.value, cancellationCosts: [stage("BEFORE_START"), stage("EFFECTIVE", false), stage("COMPLETED", false)] } } };
     expect(validateActionCharacteristics(compensatedSend, { actions: [reverse] }).issues).toContain("IRREVERSIBLE_DOMAIN_CANNOT_BE_FULLY_REVERSIBLE");
   });
+
+  it("does not guess a persistent stage profile for an unregistered domain action", () => {
+    const flow = createCanonicalFixtures().find((f) => f.action?.what.actionType === "lifecycle.start_flow")!.action!;
+    const candidate = { ...flow, characteristics: { state: "PRESENT" as const, value: { implementationCost: [], reversibility: { kind: "NOT_APPLICABLE" as const, reason: "no rollback" }, cancellationCosts: [], operationalBurden: [] } } };
+    expect(validateActionCharacteristics(candidate)).toEqual({ status: "UNKNOWN", issues: ["UNSUPPORTED_STAGE_PROFILE"] });
+  });
 });

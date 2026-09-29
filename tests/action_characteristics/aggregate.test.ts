@@ -74,7 +74,7 @@ describe("action characteristic vectors", () => {
   it("stratifies experiment arms and never sums alternative assignments", () => {
     const control = action("action_control", elapsed(1), [knownCost("control", "MEDIA", 10, "USD")], []);
     const treatment = action("action_treatment", elapsed(2), [knownCost("treatment", "MEDIA", 20, "USD")], []);
-    const experiment: any = { characteristics: { state: "ABSENT" }, what: { actionType: "experiment.run", hypothesisRef: "hypothesis.checkout", primaryMetricRef: "metric.conversion", randomizationUnit: "CUSTOMER", assignmentBoundary: { kind: "USE_ENVELOPE_POPULATION_BINDING" }, stopping: { kind: "FIXED", sampleTarget: 100 }, measurementWindow: { start: "2026-10-01T00:00:00Z", end: "2026-10-08T00:00:00Z" }, arms: [
+    const experiment: any = { ...base, actionId: "action_experiment_characteristics", characteristics: { state: "ABSENT" }, what: { actionType: "experiment.run", hypothesisRef: "hypothesis.checkout", primaryMetricRef: "metric.conversion", randomizationUnit: "CUSTOMER", assignmentBoundary: { kind: "USE_ENVELOPE_POPULATION_BINDING" }, stopping: { kind: "FIXED", sampleTarget: 100 }, measurementWindow: { start: "2026-10-01T00:00:00Z", end: "2026-10-08T00:00:00Z" }, arms: [
       { armId: "arm_control", role: "CONTROL", actionId: control.actionId, actionFingerprint: fingerprintCanonicalAction(control), allocationBasisPoints: 5000 },
       { armId: "arm_treatment", role: "TREATMENT", actionId: treatment.actionId, actionFingerprint: fingerprintCanonicalAction(treatment), allocationBasisPoints: 5000 },
     ] } };
