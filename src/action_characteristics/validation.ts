@@ -21,9 +21,22 @@ export interface CharacteristicsValidationContext {
   readonly registeredReversals?: readonly RegisteredReversalContract[];
 }
 
+const safeRef = z.string().regex(/^[A-Za-z][A-Za-z0-9_.:-]*$/);
+const versionRef = z.string().regex(/^[A-Za-z0-9][A-Za-z0-9_.:-]*$/);
 const registeredReversalSchema = z.object({
-  kind: z.literal("REGISTERED"), registryRef: z.string().min(1), code: z.string().min(1), version: z.string().min(1), domainActionTypes: z.array(z.string().min(1)).min(1),
+  kind: z.literal("REGISTERED"), registryRef: safeRef, code: safeRef, version: versionRef,
+  domainActionTypes: z.array(safeRef).min(1).superRefine((values, context) => {
+    if (new Set(values).size !== values.length) context.addIssue({ code: "custom", message: "Domain action types must be unique" });
+  }),
 }).strict();
+const validationContextSchema = z.object({
+  actions: z.array(canonicalActionSchema).optional(),
+  registeredReversals: z.array(registeredReversalSchema).optional(),
+}).strict().superRefine((value, context) => {
+  const contracts = value.registeredReversals ?? [];
+  const keys = contracts.map((entry) => `${entry.registryRef}|${entry.code}|${entry.version}`);
+  if (new Set(keys).size !== keys.length) context.addIssue({ code: "custom", path: ["registeredReversals"], message: "Registered reversal contracts must be unique" });
+});
 
 export interface CharacteristicsValidationResult {
   readonly status: "VALID" | "INVALID" | "UNKNOWN";
@@ -73,11 +86,9 @@ export function validateActionCharacteristics(
   input: unknown,
   contextInput: unknown = {},
 ): CharacteristicsValidationResult {
-  if (!contextInput || typeof contextInput !== "object" || Array.isArray(contextInput)) return { status: "INVALID", issues: ["INVALID_VALIDATION_CONTEXT"] };
-  const context = contextInput as CharacteristicsValidationContext;
-  if ((context.actions !== undefined && (!Array.isArray(context.actions) || context.actions.some((entry) => !canonicalActionSchema.safeParse(entry).success))) ||
-      (context.registeredReversals !== undefined && (!Array.isArray(context.registeredReversals) || context.registeredReversals.some((entry) => !registeredReversalSchema.safeParse(entry).success))))
-    return { status: "INVALID", issues: ["INVALID_VALIDATION_CONTEXT"] };
+  const parsedContext = validationContextSchema.safeParse(contextInput);
+  if (!parsedContext.success) return { status: "INVALID", issues: ["INVALID_VALIDATION_CONTEXT"] };
+  const context = parsedContext.data;
   const parsedAction = canonicalActionSchema.safeParse(input);
   if (!parsedAction.success)
     return { status: "INVALID", issues: ["INVALID_ACTION"] };

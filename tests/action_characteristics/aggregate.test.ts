@@ -26,7 +26,7 @@ describe("action characteristic vectors", () => {
     expect(result.costs).toEqual(expect.arrayContaining([
       expect.objectContaining({ category: "MEDIA", currency: null, amount: { state: "NOT_APPLICABLE", reasons: ["owned channel"] } }),
     ]));
-    expect(result.burdens[0]).toMatchObject({ amount: { state: "KNOWN", quantity: 5 } });
+    expect(result.burdens).toEqual(expect.arrayContaining([expect.objectContaining({ burdenId: "a.hours", amount: { state: "KNOWN", quantity: 2 } }), expect.objectContaining({ burdenId: "b.hours", amount: { state: "KNOWN", quantity: 3 } })]));
     expect(result.burdens[0]).toMatchObject({ resource: { kind: "STAFF", resourceRef: "team.ops" }, unit: "hours" });
     expect(result.declaredDelays).toHaveLength(2);
     expect(result.derivedCriticalPathDelay).toEqual({ state: "KNOWN", seconds: 18_000 });

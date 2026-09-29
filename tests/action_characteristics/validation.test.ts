@@ -44,4 +44,11 @@ describe("characteristics domain validation", () => {
     const candidate = { ...flow, characteristics: { state: "PRESENT" as const, value: { implementationCost: [], reversibility: { kind: "NOT_APPLICABLE" as const, reason: "no rollback" }, cancellationCosts: [], operationalBurden: [] } } };
     expect(validateActionCharacteristics(candidate)).toEqual({ status: "UNKNOWN", issues: ["UNSUPPORTED_STAGE_PROFILE"] });
   });
+
+  it("strictly validates reversal context and rejects duplicate contracts", () => {
+    expect(validateActionCharacteristics(null, { extra: true } as any)).toEqual({ status: "INVALID", issues: ["INVALID_VALIDATION_CONTEXT"] });
+    const contract = { kind: "REGISTERED" as const, registryRef: "rollback.domain", code: "restore", version: "1", domainActionTypes: ["pricing.adjust_price"] };
+    expect(validateActionCharacteristics(null, { registeredReversals: [contract, contract] })).toEqual({ status: "INVALID", issues: ["INVALID_VALIDATION_CONTEXT"] });
+    expect(validateActionCharacteristics(null, { registeredReversals: [{ ...contract, domainActionTypes: ["pricing.adjust_price", "pricing.adjust_price"] }] })).toEqual({ status: "INVALID", issues: ["INVALID_VALIDATION_CONTEXT"] });
+  });
 });

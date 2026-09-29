@@ -24,10 +24,15 @@ describe("characteristics review regressions", () => {
     const calendar = action("action_calendar", { state: "SPECIFIED", value: { kind: "CALENDAR", amount: 1, unit: "DAY" } });
     expect(aggregateActionCharacteristics({ kind: "ACTION", action: absent }).derivedCriticalPathDelay).toEqual({ state: "KNOWN", seconds: 0 });
     expect(aggregateActionCharacteristics({ kind: "ACTION", action: calendar }).derivedCriticalPathDelay.state).toBe("UNKNOWN");
-    const resolved = aggregateActionCharacteristics({ kind: "ACTION", action: calendar }, { calendarAnchors: [{ actionId: calendar.actionId, actionFingerprint: fingerprintCanonicalAction(calendar), start: "2026-03-08T05:00:00Z", timeZone: "America/Toronto" }] });
+    const anchor = (target: any, start: string, observedAt = "2026-03-01T00:00:00Z") => ({ anchorId: `anchor.${target.actionId}`, actionId: target.actionId, actionFingerprint: fingerprintCanonicalAction(target), start, timeZone: "America/Toronto", boundary: "IMPLEMENTATION_DELAY_START" as const, observedAt, source: "calendar.scheduler", provenance: ["receipt.scheduler"] });
+    const resolved = aggregateActionCharacteristics({ kind: "ACTION", action: calendar }, { calendarAnchors: [anchor(calendar, "2026-03-08T05:00:00Z")] });
     expect(resolved.derivedCriticalPathDelay).toEqual({ state: "KNOWN", seconds: 82_800 });
     const month = action("action_month", { state: "SPECIFIED", value: { kind: "CALENDAR", amount: 1, unit: "MONTH" } });
-    expect(aggregateActionCharacteristics({ kind: "ACTION", action: month }, { calendarAnchors: [{ actionId: month.actionId, actionFingerprint: fingerprintCanonicalAction(month), start: "2026-02-01T05:00:00Z", timeZone: "America/Toronto" }] }).derivedCriticalPathDelay).toEqual({ state: "KNOWN", seconds: 2_419_200 });
+    expect(aggregateActionCharacteristics({ kind: "ACTION", action: month }, { calendarAnchors: [anchor(month, "2026-02-01T05:00:00Z")] }).derivedCriticalPathDelay).toEqual({ state: "KNOWN", seconds: 2_419_200 });
+    const changedEvidence = aggregateActionCharacteristics({ kind: "ACTION", action: calendar }, { calendarAnchors: [anchor(calendar, "2026-03-08T05:00:00Z", "2026-03-02T00:00:00Z")] });
+    expect(changedEvidence.derivedCriticalPathDelay).toEqual(resolved.derivedCriticalPathDelay);
+    expect(changedEvidence.aggregateFingerprint).not.toBe(resolved.aggregateFingerprint);
+    expect(resolved.audit.calendarAnchors[0]).toMatchObject({ anchorId: `anchor.${calendar.actionId}`, actionFingerprint: fingerprintCanonicalAction(calendar) });
   });
 
   it("rejects duplicate component IDs, dangling dependencies, and same ID with different semantics", () => {
@@ -59,6 +64,40 @@ describe("characteristics review regressions", () => {
     expect(left.burdens.map((entry) => [entry.phase, entry.stage])).toEqual(expect.arrayContaining([["IMPLEMENTATION", undefined], ["CANCELLATION", "BEFORE_START"]]));
     expect(left.aggregateFingerprint).toBe(right.aggregateFingerprint);
     expect(left.audit.members.map((entry) => entry.actionId)).toEqual(["action_audit_a", "action_audit_b"]);
+  });
+
+  it("keeps distinct burden IDs as deterministic buckets across member reorderings", () => {
+    const burden = (burdenId: string) => ({ burdenId, amount: { state: "KNOWN" as const, value: { quantity: 1, unit: "hours" as const, resource: { kind: "STAFF" as const, resourceRef: "team.ops" } } } });
+    const withBurden = (id: string, burdenId: string) => ({ ...action(id, { state: "ABSENT" }), characteristics: { state: "PRESENT" as const, value: { ...chars.value, operationalBurden: [burden(burdenId)] } } });
+    const a = withBurden("action_burden_a", "burden.a"), b = withBurden("action_burden_b", "burden.b");
+    const aggregate = (members: any[]) => aggregateActionCharacteristics({ kind: "COMPOUND", compoundId: "compound_burdens", executionPolicy: "PARALLEL", members });
+    const left = aggregate([{ componentId: "a", node: { kind: "ACTION", action: a } }, { componentId: "b", node: { kind: "ACTION", action: b } }]);
+    const right = aggregate([{ componentId: "b", node: { kind: "ACTION", action: b } }, { componentId: "a", node: { kind: "ACTION", action: a } }]);
+    expect(left.burdens.map(({ burdenId }) => burdenId)).toEqual(["burden.a", "burden.b"]);
+    expect(left.aggregateFingerprint).toBe(right.aggregateFingerprint);
+  });
+
+  it("audits only aliases consumed by exact duplicate paths", () => {
+    const shared = action("action_alias_shared", { state: "ABSENT" });
+    const node: any = { kind: "COMPOUND", compoundId: "compound_alias", executionPolicy: "PARALLEL", members: [{ componentId: "a", node: { kind: "ACTION", action: shared } }, { componentId: "b", node: { kind: "ACTION", action: shared } }] };
+    const used = { aliasContractRef: "alias.used", version: "1", actionId: shared.actionId, actionFingerprint: fingerprintCanonicalAction(shared), paths: ["compound_alias/a", "compound_alias/b"] };
+    const unrelated = { aliasContractRef: "alias.unrelated", version: "1", actionId: "action_other", actionFingerprint: "fnv1a64:0000000000000000", paths: ["x", "y"] };
+    const plain = aggregateActionCharacteristics(node, { aliases: [used] });
+    const extra = aggregateActionCharacteristics(node, { aliases: [unrelated, used] });
+    expect(extra.audit.aliases).toEqual([used]);
+    expect(extra.aggregateFingerprint).toBe(plain.aggregateFingerprint);
+    const sameContractButUnused = { ...unrelated, aliasContractRef: used.aliasContractRef };
+    const collidingUnused = aggregateActionCharacteristics(node, { aliases: [sameContractButUnused, used] });
+    expect(collidingUnused.audit.aliases).toEqual([used]);
+    expect(collidingUnused.aggregateFingerprint).toBe(plain.aggregateFingerprint);
+  });
+
+  it("strictly validates calendar-anchor evidence", () => {
+    const calendar = action("action_calendar_strict", { state: "SPECIFIED", value: { kind: "CALENDAR", amount: 1, unit: "DAY" } });
+    const anchor = { anchorId: "anchor.calendar", actionId: calendar.actionId, actionFingerprint: fingerprintCanonicalAction(calendar), start: "2026-03-08T05:00:00Z", timeZone: "America/Toronto", boundary: "IMPLEMENTATION_DELAY_START" as const, observedAt: "2026-03-01T00:00:00Z", source: "calendar.scheduler", provenance: ["receipt.scheduler"] };
+    expect(aggregateActionCharacteristics({ kind: "ACTION", action: calendar }, { calendarAnchors: [{ ...anchor, extra: true } as any] }).issues).toEqual(["INVALID_CALENDAR_CONTEXT"]);
+    expect(aggregateActionCharacteristics({ kind: "ACTION", action: calendar }, { calendarAnchors: [{ ...anchor, provenance: ["receipt.scheduler", "receipt.scheduler"] }] }).issues).toEqual(["INVALID_CALENDAR_CONTEXT"]);
+    expect(aggregateActionCharacteristics({ kind: "ACTION", action: calendar }, { calendarAnchors: [anchor, { ...anchor }] }).issues).toEqual(["DUPLICATE_CALENDAR_ANCHOR"]);
   });
 
   it("uses UNKNOWN for missing experiment arms and INVALID for ambiguous registries", () => {
