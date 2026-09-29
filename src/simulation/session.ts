@@ -378,7 +378,7 @@ function productViewEvent(
     offer.productId,
   );
   const deliveryTimeMultiplier =
-    externalReality?.applyAt(
+    externalReality?.applyOccurrenceAt(
       `${session.sessionId}:${suffix}:delivery-time`,
       "delivery_time",
       timestampMs,

@@ -303,7 +303,7 @@ function needStrength(
   const seasonal = seasonalityMultiplier(request, timestampMs);
   const shock = shockDemandMultiplier(request, timestampMs);
   const externalDemand =
-    externalReality?.applyAt(
+    externalReality?.applyOccurrenceAt(
       `need:${customer.customerId}:${cycle}:demand`,
       "demand",
       timestampMs,
@@ -541,7 +541,7 @@ function buildPlatformMetrics(
     sources.add(lastTouch.source);
     const weight = weightByCustomer.get(purchase.customerId) ?? 1;
     const reportingMultiplier =
-      externalReality?.applyAt(
+      externalReality?.applyOccurrenceAt(
         `platform-report:${purchase.orderId}:${lastTouch.source}`,
         "reported_attribution",
         purchaseMs,
@@ -741,7 +741,7 @@ function realizedSupplierLeadMs(
   }
 
   factor *=
-    externalReality?.applyAt(
+    externalReality?.applyOccurrenceAt(
       `supplier-lead:${productId}:${placedAtMs}`,
       "supplier_lead_time",
       placedAtMs,
@@ -762,25 +762,25 @@ function externalPaidDeliveryMultiplier(
 ): number {
   if (externalReality === undefined) return 1;
   const context = { channel };
-  const cpm = externalReality.applyAt(
+  const cpm = externalReality.applyOccurrenceAt(
     `${applicationPrefix}:cpm`,
     "cpm",
     timestampMs,
     context,
   );
-  const cpc = externalReality.applyAt(
+  const cpc = externalReality.applyOccurrenceAt(
     `${applicationPrefix}:cpc`,
     "cpc",
     timestampMs,
     context,
   );
-  const ctr = externalReality.applyAt(
+  const ctr = externalReality.applyOccurrenceAt(
     `${applicationPrefix}:ctr`,
     "ctr",
     timestampMs,
     context,
   );
-  const quality = externalReality.applyAt(
+  const quality = externalReality.applyOccurrenceAt(
     `${applicationPrefix}:traffic-quality`,
     "traffic_quality",
     timestampMs,
@@ -1748,7 +1748,7 @@ export function simulateWorld(
         const externalApplicationPrefix =
           `opportunity:${customer.customerId}:${payload.cycle}:${payload.ordinal}:${opportunity.source}`;
         const storeTrafficMultiplier =
-          externalReality?.applyAt(
+          externalReality?.applyOccurrenceAt(
             `${externalApplicationPrefix}:store-traffic`,
             "store_traffic",
             event.timestampMs,
@@ -1756,7 +1756,7 @@ export function simulateWorld(
           ) ?? 1;
         const organicTrafficMultiplier =
           opportunity.source === "organic_search"
-            ? externalReality?.applyAt(
+            ? externalReality?.applyOccurrenceAt(
                 `${externalApplicationPrefix}:organic-traffic`,
                 "organic_traffic",
                 event.timestampMs,
@@ -2235,7 +2235,7 @@ export function simulateWorld(
               ?.freeShippingThresholdMinor,
           );
         const checkoutShippingCostMultiplier =
-          externalReality?.applyAt(
+          externalReality?.applyOccurrenceAt(
             `${session.sessionId}:checkout:${session.step}:shipping-cost`,
             "shipping_cost",
             event.timestampMs,
@@ -2256,7 +2256,7 @@ export function simulateWorld(
                 ),
               );
         const checkoutDeliveryTimeMultiplier =
-          externalReality?.applyAt(
+          externalReality?.applyOccurrenceAt(
             `${session.sessionId}:checkout:${session.step}:delivery-time`,
             "delivery_time",
             event.timestampMs,
@@ -2266,7 +2266,7 @@ export function simulateWorld(
             },
           ) ?? 1;
         const checkoutPriceSensitivityMultiplier =
-          externalReality?.applyAt(
+          externalReality?.applyOccurrenceAt(
             `${session.sessionId}:checkout:${session.step}:price-sensitivity`,
             "price_sensitivity",
             event.timestampMs,
@@ -2564,7 +2564,7 @@ export function simulateWorld(
           baselinePurchaseProbability *
             (checkoutExperience
               ?.completionMultiplier ?? 1) *
-            (externalReality?.applyAt(
+            (externalReality?.applyOccurrenceAt(
               `${session.sessionId}:checkout:${session.step}:purchase-propensity`,
               "purchase_propensity",
               event.timestampMs,
@@ -2942,7 +2942,7 @@ export function simulateWorld(
           timestampMs:
             event.timestampMs +
             step.delayMs *
-              (externalReality?.applyAt(
+              (externalReality?.applyOccurrenceAt(
                 `${session.sessionId}:step:${session.step}:consideration-time`,
                 "consideration_time",
                 event.timestampMs,

@@ -4,7 +4,7 @@ import { resolve } from "node:path";
 import { pathToFileURL } from "node:url";
 import { z } from "zod";
 import { currentCodeRevision, verifyExecutionIdentity, executionIdentitySchema } from "./execution-identity.js";
-import { runPhase1ValidationMatrix } from "./phase1-validation-suite.js";
+import { runIntegratedPhase1Validation } from "./phase1-integrated-validation.js";
 import { evaluateExactActionSet, exactDecisionRegret } from "./exact-decision-oracle.js";
 import { buildTractableCheckoutControl, TRACTABLE_CONTROL_VERSION } from "./tractable-checkout-control.js";
 import { canonicalJson, sha256 } from "./replay-manifest.js";
@@ -50,7 +50,7 @@ export async function researchEvidenceMain(args: readonly string[]): Promise<num
   }
   const codeRevision = currentCodeRevision(), execution = verifyExecutionIdentity();
   if (options.mode === "validate") {
-    const result = await runPhase1ValidationMatrix(codeRevision, options.runId);
+    const result = await runIntegratedPhase1Validation(codeRevision, options.runId);
     writeFileSync(options.path, `${canonicalJson({ execution, ...result })}\n`, { mode: 0o600, flag: "wx" });
     process.stdout.write(`${JSON.stringify({ phase1: result.acceptance.overall, passed: result.artifact.payload.results.filter(r => r.status === "PASS").length,
       registered: result.plan.cases.length, artifactSha256: result.artifact.sha256 })}\n`);
