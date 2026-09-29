@@ -19,8 +19,8 @@ jobs:
           persist-credentials: false
       - uses: actions/setup-node@v4
         with:
-          node-version: '22'
-      - run: npm install --no-audit --no-fund
+          node-version-file: ".nvmrc"
+      - run: npm ci --no-audit --no-fund
       - name: Package public tracked source and installed test dependencies only
         shell: bash
         run: |

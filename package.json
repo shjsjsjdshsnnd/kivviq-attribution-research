@@ -7,7 +7,7 @@
   "scripts": {
     "typecheck": "tsc --noEmit",
     "test": "vitest run --maxWorkers=1",
-    "build": "tsc -p tsconfig.build.json",
+    "build": "node -e \"require('fs').rmSync('dist',{recursive:true,force:true})\" && tsc -p tsconfig.build.json && node dist/evaluation/execution-identity.js --stamp",
     "check": "npm run architecture && npm run typecheck && npm test && npm run build",
     "simulate": "node dist/evaluation/simulate-cli.js",
     "architecture": "depcruise --config .dependency-cruiser.cjs src",
@@ -23,7 +23,11 @@
     "test:step11": "vitest run tests/retention_ltv --reporter=verbose",
     "test:step12": "vitest run tests/website_cro --reporter=verbose",
     "test:step14": "vitest run tests/external_reality --reporter=verbose",
-    "test:measurement": "vitest run tests/measurement_corruption --maxWorkers=1 --reporter=verbose"
+    "test:measurement": "vitest run tests/measurement_corruption --maxWorkers=1 --reporter=verbose",
+    "test:phase1-validation": "vitest run tests/phase1_validation --maxWorkers=1 --reporter=verbose",
+    "validate:phase1": "node dist/evaluation/research-evidence-cli.js validate",
+    "oracle:control": "node dist/evaluation/research-evidence-cli.js exact-oracle",
+    "replay:oracle": "node dist/evaluation/research-evidence-cli.js replay-exact"
   },
   "exports": {
     ".": "./dist/index.js",
@@ -43,15 +47,19 @@
     "./external-reality": "./dist/external_reality/index.js",
     "./observed-world": "./dist/observation/corrupted-world.js",
     "./measurement-evaluator": "./dist/measurement_corruption/index.js",
-    "./observed-world-protocol": "./dist/observation/world-protocol.js"
+    "./observed-world-protocol": "./dist/observation/world-protocol.js",
+    "./decision-protocol": "./dist/observation/decision-protocol.js"
   },
   "devDependencies": {
     "@types/node": "22.15.30",
-    "typescript": "^5.9.2",
-    "vitest": "^5.0.1",
-    "dependency-cruiser": "^16.10.4"
+    "typescript": "5.9.3",
+    "vitest": "5.0.2",
+    "dependency-cruiser": "16.10.4"
   },
   "dependencies": {
-    "zod": "^3.25.76"
+    "zod": "3.25.76"
+  },
+  "engines": {
+    "node": "22.16.0"
   }
 }

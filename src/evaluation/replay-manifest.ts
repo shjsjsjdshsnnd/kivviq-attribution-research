@@ -1,3 +1,4 @@
+import { executionIdentitySchema, verifyExecutionIdentity, currentRuntimeIdentity, runtimeIdentitySchema, type ExecutionIdentity } from "./execution-identity.js";
 import { createHash } from "node:crypto";
 import { z } from "zod";
 import { WORLD_SIMULATOR_VERSION } from "../simulation/kernel.js";
@@ -8,7 +9,7 @@ import { MEASUREMENT_VERSION, corruptionConfigSchema, perfectWorldSchema } from 
 import { observationTimeSchema } from "../observation/corrupted-world.js";
 import { runMeasuredWorld, type EvaluatorWorldBundle, type MeasurementRunOptions } from "./measured-world.js";
 
-export const REPLAY_MANIFEST_VERSION = "evaluator-replay-manifest/1.0.0" as const;
+export const REPLAY_MANIFEST_VERSION = "evaluator-replay-manifest/1.1.0" as const;
 
 /** Canonical JSON rejects non-JSON values instead of silently hashing lossy serialization. */
 export function canonicalJson(value: unknown): string {
@@ -58,7 +59,11 @@ const manifestSchema = z.object({
     scenarioId: z.string().min(1),
     scenarioVersion: z.string().min(1),
     codeRevision: revision,
-    runtime: z.object({ node: z.string(), platform: z.string(), architecture: z.string() }).strict(),
+    runtime: runtimeIdentitySchema,
+    execution: z.discriminatedUnion("mode", [
+      z.object({ mode: z.literal("unbound_programmatic") }).strict(),
+      z.object({ mode: z.literal("revision_locked_build"), identity: executionIdentitySchema }).strict(),
+    ]),
     request: z.unknown(),
     options: optionsSchema,
     groundTruth: z.unknown(),
@@ -93,6 +98,7 @@ export function createMeasuredManifest(input: {
   readonly codeRevision: string;
   readonly request: SimulateWorldRequest;
   readonly options: MeasurementRunOptions;
+  readonly execution?: ExecutionIdentity;
 }): { readonly manifest: ReplayManifest; readonly bundle: EvaluatorWorldBundle } {
   revision.parse(input.codeRevision);
   const request = validatedRequest(input.request);
@@ -103,7 +109,8 @@ export function createMeasuredManifest(input: {
     measurementVersion: MEASUREMENT_VERSION,
     scenarioId: input.scenarioId, scenarioVersion: input.scenarioVersion,
     codeRevision: input.codeRevision,
-    runtime: { node: process.version, platform: process.platform, architecture: process.arch },
+    runtime: currentRuntimeIdentity(),
+    execution: input.execution === undefined ? { mode: "unbound_programmatic" } : { mode: "revision_locked_build", identity: executionIdentitySchema.parse(input.execution) },
     request, options, groundTruth: bundle.latentTruth.simulation.godMode,
     outputHashes: hashes(bundle),
   };
@@ -116,6 +123,13 @@ export function verifyManifest(value: unknown, runningCodeRevision: string): Rep
   const manifest = manifestSchema.parse(value);
   if (manifest.sha256 !== sha256(manifest.payload)) throw new RangeError("manifest integrity mismatch");
   if (manifest.payload.codeRevision !== revision.parse(runningCodeRevision)) throw new RangeError("wrong code revision for replay");
+  if (canonicalJson(manifest.payload.runtime) !== canonicalJson(currentRuntimeIdentity())) {
+    throw new RangeError("wrong runtime for exact replay");
+  }
+  if (manifest.payload.execution.mode === "revision_locked_build" &&
+      canonicalJson(manifest.payload.execution.identity) !== canonicalJson(verifyExecutionIdentity())) {
+    throw new RangeError("wrong executable build for exact replay");
+  }
   return manifest;
 }
 

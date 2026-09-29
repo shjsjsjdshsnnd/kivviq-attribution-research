@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-import { execFileSync } from "node:child_process";
+import { verifyExecutionIdentity, currentCodeRevision } from "./execution-identity.js";
 import { readFileSync, writeFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { pathToFileURL } from "node:url";
@@ -71,13 +71,6 @@ export function measurementControl(seed: number): { request: SimulateWorldReques
   } };
 }
 
-function codeRevision(): string {
-  const head = execFileSync("git", ["rev-parse", "HEAD"], { encoding: "utf8" }).trim();
-  if (!/^[a-f0-9]{40}$/.test(head)) throw new RangeError("cannot identify code revision");
-  const changed = execFileSync("git", ["diff", "--name-only", "HEAD", "--", "src", "package.json", "tsconfig.json", "tsconfig.build.json"], { encoding: "utf8" }).trim();
-  if (changed) throw new RangeError("commit implementation changes before producing a revision-pinned manifest");
-  return head;
-}
 
 export function simulationMain(args: readonly string[]): void {
   const options = parseSimulationArgs(args);
@@ -85,14 +78,15 @@ export function simulationMain(args: readonly string[]): void {
     process.stdout.write("Generate: node dist/evaluation/simulate-cli.js --scenario measurement-control --seed 88213 [--manifest PRIVATE_FILE]\nReplay: node dist/evaluation/simulate-cli.js --replay PRIVATE_FILE\nMeasurement mechanism scenarios: adv-008, adv-009, adv-010, adv-012, adv-013, adv-014, adv-015, adv-016, identity-001. These are not Phase 1 acceptance certificates.\nDefault stdout is corrupted observations only. Manifests are evaluator-only and must not be shared with an Operator.\n");
     return;
   }
-  const revision = codeRevision();
+  const revision = currentCodeRevision();
+  const execution = verifyExecutionIdentity();
   if (options.mode === "replay") {
     const bundle = replayMeasuredManifest(JSON.parse(readFileSync(options.path, "utf8")) as unknown, revision);
     process.stdout.write(`${operatorPayload(bundle)}\n`);
     return;
   }
   const input = options.scenario === "measurement-control" ? measurementControl(options.seed) : buildMeasurementScenario(options.scenario, options.seed);
-  const { manifest, bundle } = createMeasuredManifest({ ...input,
+  const { manifest, bundle } = createMeasuredManifest({ ...input, execution,
     scenarioId: options.scenario, scenarioVersion: options.scenario === "measurement-control" ? "control/1" : SCENARIO_LIBRARY_VERSION, codeRevision: revision });
   if (options.manifestPath !== undefined) {
     // Never overwrite a previous experiment and never print a manifest to stdout.
@@ -104,7 +98,7 @@ export function simulationMain(args: readonly string[]): void {
 if (process.argv[1] !== undefined && import.meta.url === pathToFileURL(resolve(process.argv[1])).href) {
   try { simulationMain(process.argv.slice(2)); }
   catch (error) {
-    process.stderr.write(`${error instanceof Error ? error.message : "simulation failed"}\n`);
+    process.stderr.write("SIMULATION_FAILED\n");
     process.exitCode = 1;
   }
 }

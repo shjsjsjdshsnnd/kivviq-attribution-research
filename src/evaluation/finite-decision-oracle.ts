@@ -2,7 +2,7 @@ import { z } from "zod";
 import { sha256 } from "./replay-manifest.js";
 import { observationTimeSchema } from "../observation/corrupted-world.js";
 
-export const FINITE_ORACLE_VERSION = "finite-decision-oracle/1.1.0" as const;
+export const FINITE_ORACLE_VERSION = "finite-decision-oracle/1.2.0" as const;
 const cost = z.number().int().nonnegative().max(Number.MAX_SAFE_INTEGER);
 /** Costs are required, including zero. Platform revenue is not a valid outcome field. */
 const economicsSchema = z.object({
@@ -58,15 +58,16 @@ export interface FiniteOracleResult {
 
 export function oracleContribution(value: unknown): number {
   const e = economicsSchema.parse(value);
-  const profit = e.netSalesMinor - e.cogsMinor - e.paymentFeesMinor - e.fulfillmentMinor -
-    e.shippingCostMinor - e.variableOperatingCostMinor - e.paidSpendMinor - e.actionCostMinor;
-  if (!Number.isSafeInteger(profit)) throw new RangeError("oracle economics exceed integer range");
-  return profit;
+  const exact = BigInt(e.netSalesMinor) - BigInt(e.cogsMinor) - BigInt(e.paymentFeesMinor) - BigInt(e.fulfillmentMinor) -
+    BigInt(e.shippingCostMinor) - BigInt(e.variableOperatingCostMinor) - BigInt(e.paidSpendMinor) - BigInt(e.actionCostMinor);
+  if (exact < BigInt(-Number.MAX_SAFE_INTEGER) || exact > BigInt(Number.MAX_SAFE_INTEGER)) throw new RangeError("oracle economics exceed integer range");
+  return Number(exact);
 }
-const mean = (values: readonly number[]): number => values.reduce((a, b) => a + b, 0) / values.length;
+const integerSum = (values: readonly number[]): bigint => values.reduce((a, b) => a + BigInt(b), 0n);
+const mean = (values: readonly number[]): number => Number(integerSum(values)) / values.length;
 function standardError(values: readonly number[]): number | null {
   if (values.length < 2) return null;
-  const average = mean(values);
+  const average = values.reduce((a, b) => a + b / values.length, 0);
   return Math.sqrt(values.reduce((n, x) => n + (x - average) ** 2, 0) / (values.length - 1) / values.length);
 }
 
@@ -89,6 +90,8 @@ export async function evaluateFiniteActionSet<Action>(input: {
   readonly maximumEvaluations: number;
   readonly evaluate: (context: OracleEvaluationContext<Action>) => OracleEconomics | Promise<OracleEconomics>;
 }): Promise<FiniteOracleResult> {
+  const { evaluate, ...configuration } = input;
+  input = { ...structuredClone(configuration), evaluate };
   if (!input.universeComplete || !input.actionSetVersion.trim() || !input.scope.trim()) throw new RangeError("complete versioned feasible universe and metric scope required");
   if (!/^[A-Z]{3}$/.test(input.currency)) throw new RangeError("explicit currency required");
   observationTimeSchema.parse(input.horizon.start);
@@ -120,12 +123,15 @@ export async function evaluateFiniteActionSet<Action>(input: {
   const baseline = outcomes.get(input.baselineActionId)!;
   const ranking = candidates.map((candidate): OracleRow => {
     const values = outcomes.get(candidate.actionId)!;
-    const deltas = values.map((value, index) => value - baseline[index]!);
+    const deltas = values.map((value, index) => Number(BigInt(value) - BigInt(baseline[index]!)));
     return { actionId: candidate.actionId, samples: seeds.length,
       meanContributionMinor: mean(values), standardErrorMinor: standardError(values),
-      meanDeltaVersusBaselineMinor: mean(deltas), pairedDeltaStandardErrorMinor: standardError(deltas),
+      meanDeltaVersusBaselineMinor: Number(integerSum(values) - integerSum(baseline)) / seeds.length, pairedDeltaStandardErrorMinor: standardError(deltas),
       contributionBySeed: seeds.map((seed, index) => ({ seed, contributionMinor: values[index]! })) };
-  }).sort((a, b) => b.meanContributionMinor - a.meanContributionMinor || (a.actionId < b.actionId ? -1 : a.actionId > b.actionId ? 1 : 0));
+  }).sort((a, b) => {
+    const gap = integerSum(outcomes.get(b.actionId)!) - integerSum(outcomes.get(a.actionId)!);
+    return gap > 0n ? 1 : gap < 0n ? -1 : a.actionId < b.actionId ? -1 : a.actionId > b.actionId ? 1 : 0;
+  });
   return { version: FINITE_ORACLE_VERSION, access: "evaluator_only", searchDomain: "supplied_finite_feasible_set",
     actionSetVersion: input.actionSetVersion, candidateSetHash: finiteCandidateSetHash(candidates), scope: input.scope, currency: input.currency,
     horizon, method: seeds.length === 1 ? "single_seed_realized" : "shared_seed_monte_carlo",
@@ -134,11 +140,12 @@ export async function evaluateFiniteActionSet<Action>(input: {
 }
 
 export function decisionRegret(result: FiniteOracleResult, selectedActionId: string) {
+  verifyFiniteOracleEvidence(result);
   const best = result.ranking[0];
   const selected = result.ranking.find(r => r.actionId === selectedActionId);
   if (!best || !selected) throw new RangeError("selected action is outside the evaluated feasible universe");
   return { selectedActionId, bestActionId: best.actionId,
-    regretMinor: best.meanContributionMinor - selected.meanContributionMinor,
+    regretMinor: Number(integerSum(best.contributionBySeed.map(s => s.contributionMinor)) - integerSum(selected.contributionBySeed.map(s => s.contributionMinor))) / result.seeds.length,
     reference: result.method === "single_seed_realized" ? "realized_seed_optimum" as const : "in_sample_finite_set_estimate" as const,
     /** Independent held-out seeds are still required before calling this expected regret. */
     expectedRegretVerified: false as const };
@@ -147,4 +154,31 @@ export function decisionRegret(result: FiniteOracleResult, selectedActionId: str
 /** Binds action payloads as well as IDs; input order does not affect the signature. */
 export function finiteCandidateSetHash<Action>(candidates: readonly OracleCandidate<Action>[]): string {
   return sha256([...candidates].sort((a, b) => a.actionId < b.actionId ? -1 : a.actionId > b.actionId ? 1 : 0));
+}
+
+/** Reconcile a stored result from its paired integer outcomes before scoring it. */
+export function verifyFiniteOracleEvidence(result: FiniteOracleResult): void {
+  if (result.version !== FINITE_ORACLE_VERSION || result.access !== "evaluator_only" ||
+      result.seeds.length === 0 || new Set(result.seeds).size !== result.seeds.length ||
+      result.seeds.some(s => !Number.isSafeInteger(s) || s < 0) || result.ranking.length !== result.evaluatedActions ||
+      result.evaluations !== result.seeds.length * result.evaluatedActions ||
+      new Set(result.ranking.map(r => r.actionId)).size !== result.ranking.length ||
+      result.method !== (result.seeds.length === 1 ? "single_seed_realized" : "shared_seed_monte_carlo")) throw new RangeError("invalid paired oracle evidence");
+  const baseline = result.ranking.find(r => r.actionId === result.baselineActionId);
+  if (!baseline) throw new RangeError("missing baseline evidence");
+  for (const row of result.ranking) {
+    if (row.samples !== result.seeds.length || row.contributionBySeed.length !== result.seeds.length ||
+        row.contributionBySeed.some((s, i) => s.seed !== result.seeds[i] || !Number.isSafeInteger(s.contributionMinor))) throw new RangeError("invalid per-seed oracle evidence");
+    const values = row.contributionBySeed.map(s => s.contributionMinor), base = baseline.contributionBySeed.map(s => s.contributionMinor);
+    const deltas = values.map((v, i) => Number(BigInt(v) - BigInt(base[i]!)));
+    if (row.meanContributionMinor !== mean(values) || row.meanDeltaVersusBaselineMinor !== Number(integerSum(values) - integerSum(base)) / values.length ||
+        row.standardErrorMinor !== standardError(values) || row.pairedDeltaStandardErrorMinor !== standardError(deltas)) throw new RangeError("oracle summary does not reconcile with paired outcomes");
+  }
+  const order = [...result.ranking].sort((a, b) => {
+    const gap = integerSum(b.contributionBySeed.map(s => s.contributionMinor)) - integerSum(a.contributionBySeed.map(s => s.contributionMinor));
+    return gap > 0n ? 1 : gap < 0n ? -1 : a.actionId < b.actionId ? -1 : a.actionId > b.actionId ? 1 : 0;
+  });
+  if (order.some((r, i) => r.actionId !== result.ranking[i]?.actionId) || result.bestActionId !== order[0]?.actionId || result.worstActionId !== order.at(-1)?.actionId) {
+    throw new RangeError("oracle ranking does not match paired outcomes");
+  }
 }

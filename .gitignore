@@ -216,3 +216,8 @@ __marimo__/
 
 # Streamlit
 .streamlit/secrets.toml
+
+# Node research worktrees and evaluator-local artifacts
+/node_modules/
+/dist/
+/phase1-evidence/
