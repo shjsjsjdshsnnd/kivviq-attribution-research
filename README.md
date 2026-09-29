@@ -17,6 +17,12 @@ Canonical Actions can define fixed-allocation experiments and typed hard constra
 
 See the [experiment, eligibility, and constraint boundary guide](docs/experiment-eligibility-constraints.md). Run `npm run test:experiment-eligibility-constraints` for the focused suite.
 
+### Dependencies, conflicts, implementation characteristics, and risk
+
+Canonical Actions can declare evidence-bound prerequisites, symmetric portfolio conflicts, implementation and cancellation characteristics, and six typed risk measurement contracts. Portfolio checks reject impossible combinations before any later optimizer sees them. The contracts describe what must be checked or estimated; they do not predict outcomes, score risk, rank Actions, or execute provider operations.
+
+See the [action portfolio contract guide](docs/action-dependencies-conflicts-characteristics-risk.md). Run `npm run test:action-portfolio` for the focused suite.
+
 ### Frozen research references
 
 **Step 1 — GroundTruth**

@@ -50,11 +50,23 @@ export function withTranslationEligibility(
   const timing = context["timing"] as { approvedClock?: string } | undefined;
   const evaluatedAt = timing?.approvedClock ?? "2026-09-27T00:00:00Z";
   const evaluated = evaluateEligibilityForTest(action, "TRANSLATION_TIME", evaluatedAt);
+  const actionReference = { entityKind: "ACTION" as const, actionId: action.actionId, actionFingerprint: fingerprintCanonicalAction(action) };
   return {
     ...context,
     eligibilityMaximumAgeSeconds: 3600,
     eligibility: evaluated.eligibility,
     eligibilityEvaluationContext: evaluated.evaluationContext,
     eligibilityResourceRequirements: [],
+    portfolioReferences: context["portfolioReferences"] ?? [actionReference],
+    portfolioCompatibilityContext: context["portfolioCompatibilityContext"] ?? {
+      evaluatedAt,
+      evaluationBoundary: "TRANSLATION_TIME",
+      maximumAgeSeconds: 3600,
+      registry: [{ entityKind: "ACTION", action }],
+      timingContexts: {},
+      scopeIntersectionReceipts: [],
+      priceBaselineReceipts: [],
+      partitionReceipts: [],
+    },
   };
 }

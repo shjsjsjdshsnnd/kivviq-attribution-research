@@ -25,6 +25,8 @@ import { translateExperimentAction } from "./experiment.js";
 import { actionEligibilitySchema } from "../action_eligibility/schema.js";
 import { hasValidEligibilityAssessmentFingerprint } from "../action_eligibility/integrity.js";
 import { hasCompleteEligibilityCheckManifest, hasMatchingRecomputedActionEligibility } from "../action_eligibility/evaluate.js";
+import { assessActionDependencies } from "../action_dependencies/assessment.js";
+import { assessPortfolioCompatibility } from "../action_conflicts/assessment.js";
 
 const timestamp = z.string().datetime({ offset: true });
 export const canonicalTranslationContextSchema = z
@@ -49,6 +51,10 @@ export const canonicalTranslationContextSchema = z
     eligibilityResourceRequirements: z.array(z.unknown()).optional(),
     eligibilityMaximumAgeSeconds: z.number().int().nonnegative().safe().optional(),
     experimentArmRegistry: z.unknown().optional(),
+    experimentArmDependencyContexts: z.record(z.unknown()).optional(),
+    dependencyContext: z.unknown().optional(),
+    portfolioReferences: z.array(z.unknown()).optional(),
+    portfolioCompatibilityContext: z.unknown().optional(),
   })
   .strict();
 /** Resolution and eligibility are independent of simulator capability. */
@@ -207,6 +213,46 @@ export function translateCanonicalAction(
   const gate = resolveCanonicalTranslationContext(input, contextInput);
   if (gate.status !== "RESOLVED") return gate as TranslationFailure;
   const { action, context, resolution } = gate;
+  const experimentIntent = experimentWhatSchema.safeParse(action.what);
+  if (action.dependencies.length > 0) {
+    if (context.dependencyContext === undefined)
+      return { status: "MISSING_CONTEXT", actionId: action.actionId, code: "ACTION_DEPENDENCY_CONTEXT_REQUIRED", message: "Raw dependency evidence is required before translation." };
+    const dependency = assessActionDependencies(action, context.dependencyContext);
+    const approvedClock = (context.timing as { approvedClock: string }).approvedClock;
+    if (dependency.actionId !== action.actionId || dependency.actionFingerprint !== fingerprintCanonicalAction(action) || dependency.evaluationBoundary !== "TRANSLATION_TIME" || Date.parse(dependency.evaluatedAt) !== Date.parse(approvedClock))
+      return { status: "MISSING_CONTEXT", actionId: action.actionId, code: "ACTION_DEPENDENCY_MISMATCH", message: "Dependency assessment must be recomputed for the exact action at the approved translation time.", dependencyAssessment: dependency };
+    if (dependency.status === "BLOCKED")
+      return { status: "INELIGIBLE_ACTION", actionId: action.actionId, code: "ACTION_DEPENDENCY_BLOCKED", message: dependency.checks.flatMap((check) => check.reasonCodes).join(", "), dependencyAssessment: dependency };
+    if (dependency.status === "UNKNOWN")
+      return { status: "MISSING_CONTEXT", actionId: action.actionId, code: "ACTION_DEPENDENCY_UNKNOWN", message: dependency.checks.flatMap((check) => check.reasonCodes).join(", "), dependencyAssessment: dependency };
+  }
+  if (!experimentIntent.success && context.portfolioReferences !== undefined) {
+    if (context.portfolioCompatibilityContext === undefined)
+      return { status: "MISSING_CONTEXT", actionId: action.actionId, code: "PORTFOLIO_COMPATIBILITY_CONTEXT_REQUIRED", message: "Raw compatibility evidence is required before portfolio translation." };
+    const rawCompatibility = context.portfolioCompatibilityContext;
+    const approvedClock = (context.timing as { approvedClock: string }).approvedClock;
+    const compatibilityMaximumAge = rawCompatibility && typeof rawCompatibility === "object" && !Array.isArray(rawCompatibility)
+      ? (rawCompatibility as Record<string, unknown>)["maximumAgeSeconds"]
+      : undefined;
+    if (!rawCompatibility || typeof rawCompatibility !== "object" || Array.isArray(rawCompatibility) || (rawCompatibility as Record<string, unknown>)["evaluationBoundary"] !== "TRANSLATION_TIME" || Date.parse(String((rawCompatibility as Record<string, unknown>)["evaluatedAt"])) !== Date.parse(approvedClock) || typeof compatibilityMaximumAge !== "number" || !Number.isFinite(compatibilityMaximumAge) || compatibilityMaximumAge < 0)
+      return { status: "MISSING_CONTEXT", actionId: action.actionId, code: "PORTFOLIO_COMPATIBILITY_MISMATCH", message: "Compatibility must be recomputed at the approved translation boundary and time." };
+    const compatibility = assessPortfolioCompatibility(context.portfolioReferences, rawCompatibility);
+    const exactExpandedCount = compatibility.expandedMembers.filter((reference) =>
+      reference.entityKind === "ACTION" && reference.actionId === action.actionId && reference.actionFingerprint === fingerprintCanonicalAction(action)).length;
+    const exactTopLevelCount = context.portfolioReferences.filter((reference) => {
+      if (!reference || typeof reference !== "object" || Array.isArray(reference)) return false;
+      const candidate = reference as Record<string, unknown>;
+      return candidate["entityKind"] === "ACTION" && candidate["actionId"] === action.actionId && candidate["actionFingerprint"] === fingerprintCanonicalAction(action);
+    }).length;
+    if (exactTopLevelCount !== 1 && !(exactTopLevelCount === 0 && exactExpandedCount === 1))
+      return { status: "MISSING_CONTEXT", actionId: action.actionId, code: "PORTFOLIO_ACTION_BINDING_MISMATCH", message: "The portfolio must contain the exact translated action exactly once.", portfolioCompatibility: compatibility };
+    if (Date.parse(compatibility.evaluatedAt) !== Date.parse(approvedClock))
+      return { status: "MISSING_CONTEXT", actionId: action.actionId, code: "PORTFOLIO_COMPATIBILITY_MISMATCH", message: "Compatibility must be recomputed at the approved translation time.", portfolioCompatibility: compatibility };
+    if (compatibility.status === "CONFLICTING")
+      return { status: "INELIGIBLE_ACTION", actionId: action.actionId, code: "PORTFOLIO_CONFLICT", message: compatibility.pairs.filter((pair) => pair.status === "CONFLICT").flatMap((pair) => pair.reasonCodes).join(", "), portfolioCompatibility: compatibility };
+    if (compatibility.status === "UNKNOWN" || compatibility.validity !== "VALID")
+      return { status: "MISSING_CONTEXT", actionId: action.actionId, code: "PORTFOLIO_COMPATIBILITY_UNKNOWN", message: compatibility.reasonCodes.join(", ") || "Portfolio compatibility is unresolved.", portfolioCompatibility: compatibility };
+  }
   const decision = decisionWhatSchema.safeParse(action.what);
   const experiment = experimentWhatSchema.safeParse(action.what);
   if (!experiment.success) {
@@ -239,6 +285,8 @@ export function translateCanonicalAction(
       return { status: "INELIGIBLE_ACTION", actionId: action.actionId, code: "ACTION_INELIGIBLE", message: "The action violates one or more eligibility checks." };
     if (eligibility.status === "UNKNOWN")
       return { status: "MISSING_CONTEXT", actionId: action.actionId, code: "ACTION_ELIGIBILITY_UNKNOWN", message: "Action eligibility remains unresolved." };
+    if (context.portfolioReferences === undefined)
+      return { status: "MISSING_CONTEXT", actionId: action.actionId, code: "PORTFOLIO_REFERENCES_REQUIRED", message: "The full portfolio is required because another action may declare a symmetric conflict with this action." };
   }
   const common = {
     status: "TRANSLATED" as const,

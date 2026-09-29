@@ -22,6 +22,10 @@ import {
   type TranslationResult,
   type TranslatedResult,
 } from "./types.js";
+import { assessPortfolioCompatibility } from "../action_conflicts/assessment.js";
+import { fingerprintCompoundAction } from "../compound_action/schema.js";
+import { assessActionDependencies } from "../action_dependencies/assessment.js";
+import { fingerprintCanonicalAction } from "../canonical_action/serialization.js";
 
 export const compoundTranslationContextSchema = z
   .object({
@@ -33,6 +37,8 @@ export const compoundTranslationContextSchema = z
         eligibilityResults: z.record(z.unknown()),
         eligibilityMaximumAgeSeconds: z.number().int().nonnegative().safe(),
       }),
+    portfolioReferences: z.array(z.unknown()),
+    portfolioCompatibilityContext: z.unknown().optional(),
   })
   .strict();
 export interface CompoundTranslationMetadata {
@@ -94,6 +100,41 @@ export function translateCanonicalCompoundAction(
       action.compoundActionId,
     );
   const context = checked.data;
+  const compoundReference = {
+    entityKind: "COMPOUND" as const, compoundActionId: action.compoundActionId,
+    compoundFingerprint: fingerprintCompoundAction(action),
+  };
+  for (const component of action.components) {
+    if (component.action.dependencies.length === 0) continue;
+    const raw = context.readiness.dependencyContexts?.[component.componentId];
+    if (raw === undefined)
+      return fail("MISSING_CONTEXT", "COMPONENT_DEPENDENCY_CONTEXT_REQUIRED", `Raw dependency evidence is required for ${component.componentId}.`, action.compoundActionId);
+    const assessment = assessActionDependencies(component.action, raw);
+    if (assessment.actionFingerprint !== fingerprintCanonicalAction(component.action) || assessment.evaluationBoundary !== "TRANSLATION_TIME" || Date.parse(assessment.evaluatedAt) !== Date.parse(context.timing.approvedClock))
+      return { ...fail("MISSING_CONTEXT", "COMPONENT_DEPENDENCY_MISMATCH", `Dependency evidence for ${component.componentId} is not bound to translation time.`, action.compoundActionId), dependencyAssessment: assessment };
+    if (assessment.status === "BLOCKED")
+      return { ...fail("INELIGIBLE_ACTION", "COMPONENT_DEPENDENCY_BLOCKED", `A dependency is blocked for ${component.componentId}.`, action.compoundActionId), dependencyAssessment: assessment };
+    if (assessment.status === "UNKNOWN")
+      return { ...fail("MISSING_CONTEXT", "COMPONENT_DEPENDENCY_UNKNOWN", `A dependency is unresolved for ${component.componentId}.`, action.compoundActionId), dependencyAssessment: assessment };
+  }
+  {
+    const referenceMatches = context.portfolioReferences.filter((reference) => reference && typeof reference === "object" && !Array.isArray(reference) && (reference as Record<string, unknown>)["entityKind"] === "COMPOUND" && (reference as Record<string, unknown>)["compoundActionId"] === compoundReference.compoundActionId && (reference as Record<string, unknown>)["compoundFingerprint"] === compoundReference.compoundFingerprint).length;
+    if (referenceMatches !== 1)
+      return fail("MISSING_CONTEXT", "COMPOUND_PORTFOLIO_REFERENCE_MISMATCH", "The full portfolio must contain the exact compound reference once.", action.compoundActionId);
+    if (context.portfolioCompatibilityContext === undefined)
+      return fail("MISSING_CONTEXT", "PORTFOLIO_COMPATIBILITY_CONTEXT_REQUIRED", "Raw compatibility evidence is required for compound translation.", action.compoundActionId);
+    const rawCompatibility = context.portfolioCompatibilityContext;
+    if (!rawCompatibility || typeof rawCompatibility !== "object" || Array.isArray(rawCompatibility) || (rawCompatibility as Record<string, unknown>)["evaluationBoundary"] !== "TRANSLATION_TIME" || Date.parse(String((rawCompatibility as Record<string, unknown>)["evaluatedAt"])) !== Date.parse(context.timing.approvedClock))
+      return fail("MISSING_CONTEXT", "PORTFOLIO_COMPATIBILITY_MISMATCH", "Compatibility must be recomputed at the approved translation boundary and time.", action.compoundActionId);
+    const compatibilityMaximumAge = (rawCompatibility as Record<string, unknown>)["maximumAgeSeconds"];
+    if (typeof compatibilityMaximumAge !== "number" || !Number.isFinite(compatibilityMaximumAge) || compatibilityMaximumAge < 0)
+      return fail("MISSING_CONTEXT", "PORTFOLIO_COMPATIBILITY_FRESHNESS_REQUIRED", "Compound compatibility requires an explicit freshness limit.", action.compoundActionId);
+    const compatibility = assessPortfolioCompatibility(context.portfolioReferences, rawCompatibility);
+    if (compatibility.status === "CONFLICTING")
+      return { ...fail("INELIGIBLE_ACTION", "PORTFOLIO_CONFLICT", compatibility.pairs.filter((pair) => pair.status === "CONFLICT").flatMap((pair) => pair.reasonCodes).join(", "), action.compoundActionId), portfolioCompatibility: compatibility };
+    if (compatibility.status === "UNKNOWN" || compatibility.validity !== "VALID")
+      return { ...fail("MISSING_CONTEXT", "PORTFOLIO_COMPATIBILITY_UNKNOWN", compatibility.reasonCodes.join(", ") || "Compound compatibility is unresolved.", action.compoundActionId), portfolioCompatibility: compatibility };
+  }
   let readiness: CompoundActionReadiness;
   const timing = context.timing as unknown as ActionTimingResolutionContext;
   try {
@@ -178,6 +219,12 @@ export function translateCanonicalCompoundAction(
                 context.readiness.eligibilityResourceRequirements?.[component.componentId],
               eligibilityMaximumAgeSeconds:
                 context.readiness.eligibilityMaximumAgeSeconds,
+              dependencyContext:
+                context.readiness.dependencyContexts?.[component.componentId],
+              ...(checkedComponent.data.portfolioReferences !== undefined ? {} : {
+                portfolioReferences: context.portfolioReferences,
+                portfolioCompatibilityContext: context.portfolioCompatibilityContext,
+              }),
               timing: {
                 ...(componentTiming as object),
                 ...timing,

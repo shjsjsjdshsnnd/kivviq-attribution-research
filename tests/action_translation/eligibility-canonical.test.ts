@@ -34,10 +34,17 @@ function context(eligibility?: unknown, eligibilityEvaluationContext: unknown = 
   return { timing: { approvedClock: NOW }, eligibilityMaximumAgeSeconds: 3600, eligibilityEvaluationContext, eligibilityResourceRequirements: [], ...(eligibility === undefined ? {} : { eligibility }) };
 }
 
+function portfolio(action: typeof base) {
+  return {
+    portfolioReferences: [{ entityKind: "ACTION" as const, actionId: action.actionId, actionFingerprint: fingerprintCanonicalAction(action) }],
+    portfolioCompatibilityContext: { evaluatedAt: NOW, evaluationBoundary: "TRANSLATION_TIME", maximumAgeSeconds: 3600, registry: [{ entityKind: "ACTION" as const, action }], timingContexts: {}, scopeIntersectionReceipts: [], priceBaselineReceipts: [], partitionReceipts: [] },
+  };
+}
+
 describe("canonical atomic translation eligibility", () => {
   it("requires eligibility even for a no-op and translates a complete eligible assessment", () => {
     expect(translateCanonicalAction(base, context())).toMatchObject({ status: "MISSING_CONTEXT", code: "ACTION_ELIGIBILITY_REQUIRED" });
-    expect(translateCanonicalAction(base, context(assessment(base)))).toMatchObject({ status: "TRANSLATED", decisionType: "NO_OP" });
+    expect(translateCanonicalAction(base, { ...context(assessment(base)), ...portfolio(base) })).toMatchObject({ status: "TRANSLATED", decisionType: "NO_OP" });
   });
 
   it.each([

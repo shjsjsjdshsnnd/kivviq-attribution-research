@@ -17,6 +17,7 @@ import { experimentWhatSchema, type ExperimentArm } from "./schema.js";
 const ref = z.string().regex(/^[A-Za-z][A-Za-z0-9._:-]{1,159}$/);
 const evidenceRefs = z.array(ref).min(1);
 const timestamp = z.string().datetime({ offset: true }).refine((value) => value.endsWith("Z"));
+const fingerprint = z.string().regex(/^fnv1a64:[a-f0-9]{16}$/);
 const populationEvidence = {
   populations: z.array(populationDefinitionSchema),
   evaluations: z.array(populationEvaluationSchema),
@@ -32,10 +33,14 @@ const populationEvidence = {
     .strict(),
 };
 
+type ExperimentRegistryEntry =
+  | { entityKind: "ACTION"; action: CanonicalAction }
+  | { entityKind: "COMPOUND"; action: CompoundAction };
+
 const registryEntrySchema = z.union([
   z.object({ entityKind: z.literal("ACTION"), action: z.custom<CanonicalAction>((value) => canonicalActionSchema.safeParse(value).success) }).strict(),
   z.object({ entityKind: z.literal("COMPOUND"), action: z.lazy(() => compoundActionSchema) }).strict(),
-]);
+]) as unknown as z.ZodType<ExperimentRegistryEntry>;
 const timingContextSchema = z
   .object({
     approvedClock: timestamp,
@@ -68,14 +73,19 @@ const experimentReadinessContextObjectSchema = z
     metricDefinitions: z.array(
       z.object({ metricRef: ref, evidenceRefs }).strict(),
     ),
+    eligibleTrafficMaximumAgeSeconds: z.number().int().nonnegative().safe().optional(),
     eligibleTraffic: z
       .object({
+        experimentActionFingerprint: fingerprint,
         populationId: ref,
         version: z.number().int().positive(),
         definitionFingerprint: z.string().regex(/^fnv1a64:[a-f0-9]{16}$/),
         binding: z.enum(["DECISION_TIME", "EXECUTION_TIME", "SEND_TIME", "TRIGGER_TIME", "EFFECTIVE_TIME"]),
         membershipMode: z.enum(["FROZEN_MEMBERSHIP", "DYNAMIC_MEMBERSHIP"]),
         evaluatedAt: timestamp,
+        rawSourceObservedAt: timestamp,
+        rawSourceFingerprint: fingerprint,
+        maximumAgeSeconds: z.number().int().nonnegative().safe(),
         snapshotRef: ref.optional(),
         evidenceRefs,
       })
@@ -130,6 +140,37 @@ export interface ExperimentReadiness {
   missingRefs: string[];
   evidenceRefs: string[];
   arms: ExperimentArmReadiness[];
+  checks: ExperimentReadinessCheck[];
+  readinessFingerprint: string;
+}
+export interface ExperimentReadinessCheck {
+  checkId: "SUFFICIENT_ELIGIBLE_TRAFFIC";
+  status: "SATISFIED" | "BLOCKED" | "UNKNOWN";
+  experimentActionFingerprint: string;
+  populationId: string;
+  populationVersion: number;
+  populationFingerprint: string;
+  bindingTime?: string;
+  sampleTarget?: number;
+  eligibleCount?: number;
+  reasonCodes: string[];
+  evidenceRefs: string[];
+}
+
+function stable(value: unknown): string {
+  if (Array.isArray(value)) return `[${value.map(stable).join(",")}]`;
+  if (value && typeof value === "object") return `{${Object.entries(value).filter(([, nested]) => nested !== undefined).sort(([a], [b]) => a.localeCompare(b)).map(([key, nested]) => `${JSON.stringify(key)}:${stable(nested)}`).join(",")}}`;
+  return JSON.stringify(value);
+}
+function fnv(value: string): string {
+  let hash = 0xcbf29ce484222325n;
+  for (const character of value) hash = ((hash ^ BigInt(character.codePointAt(0)!)) * 0x100000001b3n) & 0xffffffffffffffffn;
+  return `fnv1a64:${hash.toString(16).padStart(16, "0")}`;
+}
+export function fingerprintExperimentTrafficSource(value: unknown): string { return fnv(stable(value)); }
+export function fingerprintExperimentReadiness(value: unknown): string {
+  if (value && typeof value === "object") { const { readinessFingerprint: _ignored, ...projection } = value as Record<string, unknown>; return fnv(stable(projection)); }
+  return fnv(stable(value));
 }
 
 type RegistryValue =
@@ -220,14 +261,33 @@ export function assessExperimentReadiness(
   const traffic = context.eligibleTraffic;
   const populationRef = action.population!;
   const bindingTime = context.bindingTimes[populationRef.binding];
-  if (traffic.populationId !== populationRef.populationId || traffic.version !== populationRef.version ||
-      traffic.definitionFingerprint !== populationRef.definitionFingerprint || traffic.binding !== populationRef.binding ||
-      traffic.membershipMode !== populationRef.membershipMode || traffic.snapshotRef !== populationRef.snapshotRef ||
-      (bindingTime !== undefined && Date.parse(traffic.evaluatedAt) !== Date.parse(bindingTime)))
+  const trafficPopulationMatches = traffic.populationId === populationRef.populationId && traffic.version === populationRef.version &&
+      traffic.definitionFingerprint === populationRef.definitionFingerprint && traffic.binding === populationRef.binding &&
+      traffic.membershipMode === populationRef.membershipMode && traffic.snapshotRef === populationRef.snapshotRef &&
+      (bindingTime === undefined || Date.parse(traffic.evaluatedAt) === Date.parse(bindingTime));
+  if (!trafficPopulationMatches)
     blocked("ELIGIBLE_TRAFFIC_POPULATION_MISMATCH");
-  if (Date.parse(traffic.evaluatedAt) > Date.parse(context.timing.approvedClock))
+  const trafficExperimentMatches = traffic.experimentActionFingerprint === fingerprintCanonicalAction(action);
+  if (!trafficExperimentMatches)
+    blocked("ELIGIBLE_TRAFFIC_EXPERIMENT_MISMATCH");
+  const rawTrafficSource = populationRef.membershipMode === "FROZEN_MEMBERSHIP"
+    ? context.snapshots?.find((candidate) => candidate.snapshotId === populationRef.snapshotRef && Date.parse(candidate.evaluatedAt) === Date.parse(traffic.rawSourceObservedAt))
+    : context.evaluations.find((candidate) => candidate.populationId === populationRef.populationId && candidate.version === populationRef.version && Date.parse(candidate.evaluatedAt) === Date.parse(traffic.rawSourceObservedAt));
+  const trafficSourceMatches = !!rawTrafficSource && fingerprintExperimentTrafficSource(rawTrafficSource) === traffic.rawSourceFingerprint;
+  if (!trafficSourceMatches)
+    blocked("ELIGIBLE_TRAFFIC_SOURCE_MISMATCH");
+  const trafficEvaluationFuture = Date.parse(traffic.evaluatedAt) > Date.parse(context.timing.approvedClock);
+  if (trafficEvaluationFuture)
     blocked("FUTURE_TRAFFIC_EVIDENCE");
-  if (what.stopping.sampleTarget !== undefined && eligibleCount !== undefined && eligibleCount < what.stopping.sampleTarget)
+  const trafficFuture = Date.parse(traffic.rawSourceObservedAt) > Date.parse(context.timing.approvedClock);
+  if (trafficFuture)
+    blocked("FUTURE_ELIGIBLE_TRAFFIC_SOURCE");
+  const trafficAgeLimits = [traffic.maximumAgeSeconds, context.eligibleTrafficMaximumAgeSeconds].filter((value): value is number => value !== undefined);
+  const trafficStale = Date.parse(context.timing.approvedClock) - Date.parse(traffic.rawSourceObservedAt) > Math.min(...trafficAgeLimits) * 1000;
+  if (trafficStale)
+    blocked("STALE_ELIGIBLE_TRAFFIC_SOURCE");
+  const trafficInsufficient = what.stopping.sampleTarget !== undefined && eligibleCount !== undefined && eligibleCount < what.stopping.sampleTarget;
+  if (trafficInsufficient)
     blocked("INSUFFICIENT_ELIGIBLE_TRAFFIC");
 
   context.engineCapability.evidenceRefs.forEach((entry) => evidence.add(entry));
@@ -251,14 +311,36 @@ export function assessExperimentReadiness(
     : hasUnknown
       ? "UNKNOWN"
       : "READY";
-  return {
+  const trafficReasonCodes = [
+    ...(!trafficPopulationMatches ? ["ELIGIBLE_TRAFFIC_POPULATION_MISMATCH"] : []),
+    ...(!trafficExperimentMatches ? ["ELIGIBLE_TRAFFIC_EXPERIMENT_MISMATCH"] : []),
+    ...(!trafficSourceMatches ? ["ELIGIBLE_TRAFFIC_SOURCE_MISMATCH"] : []),
+    ...(trafficEvaluationFuture ? ["FUTURE_TRAFFIC_EVIDENCE"] : []),
+    ...(trafficFuture ? ["FUTURE_ELIGIBLE_TRAFFIC_SOURCE"] : []),
+    ...(trafficStale ? ["STALE_ELIGIBLE_TRAFFIC_SOURCE"] : []),
+    ...(trafficInsufficient ? ["INSUFFICIENT_ELIGIBLE_TRAFFIC"] : []),
+    ...(what.stopping.sampleTarget === undefined ? ["ELIGIBLE_TRAFFIC_SAMPLE_TARGET_REQUIRED"] : []),
+  ];
+  const trafficCheck: ExperimentReadinessCheck = {
+    checkId: "SUFFICIENT_ELIGIBLE_TRAFFIC",
+    status: what.stopping.sampleTarget === undefined || eligibleCount === undefined || bindingTime === undefined
+      ? "UNKNOWN" : trafficReasonCodes.length ? "BLOCKED" : "SATISFIED",
+    experimentActionFingerprint: fingerprintCanonicalAction(action), populationId: populationRef.populationId,
+    populationVersion: populationRef.version, populationFingerprint: populationRef.definitionFingerprint,
+    ...(bindingTime ? { bindingTime } : {}), ...(what.stopping.sampleTarget !== undefined ? { sampleTarget: what.stopping.sampleTarget } : {}),
+    ...(eligibleCount !== undefined ? { eligibleCount } : {}), reasonCodes: trafficReasonCodes,
+    evidenceRefs: [...traffic.evidenceRefs].sort(),
+  };
+  const projection = {
     actionId: action.actionId,
     status,
     reasonCodes: uniqueReasons,
     missingRefs: [...missing].sort(),
     evidenceRefs: [...evidence].sort(),
     arms,
+    checks: [trafficCheck],
   };
+  return { ...projection, readinessFingerprint: fingerprintExperimentReadiness(projection) };
 }
 
 function parseRegistry(
@@ -397,5 +479,6 @@ function checkPopulation(
 }
 
 function result(actionId: string | undefined, status: ExperimentReadinessStatus, reasonCodes: string[]): ExperimentReadiness {
-  return { ...(actionId ? { actionId } : {}), status, reasonCodes, missingRefs: [], evidenceRefs: [], arms: [] };
+  const projection = { ...(actionId ? { actionId } : {}), status, reasonCodes, missingRefs: [], evidenceRefs: [], arms: [], checks: [] };
+  return { ...projection, readinessFingerprint: fingerprintExperimentReadiness(projection) };
 }
