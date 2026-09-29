@@ -1,0 +1,75 @@
+import { createRetargetingTrapFixture } from "../advertising_economics/adversarial.js";
+import type { SimulateWorldRequest } from "../simulation/types.js";
+import { MEASUREMENT_VERSION } from "../measurement_corruption/index.js";
+import { parseOperatorObservation } from "../observation/corrupted-world.js";
+import { SCHEDULED_SPEND_VERSION, type ScheduledSpendPlan } from "./scheduled-spend.js";
+import { evaluateScheduledDecisionSet, type ScheduledDecisionAction } from "./scheduled-decision-oracle.js";
+import type { OracleCandidate } from "./finite-decision-oracle.js";
+
+export const RETARGETING_DECISION_VERSION = "retargeting-budget-decision/0.1.0" as const;
+/** Registered before validation; public replication seeds, not sealed holdouts. */
+export const RETARGETING_SEEDS = { development: [105002, 105003], validation: [205002, 205003] } as const;
+export function buildRetargetingDecisionScenario() {
+  const fixture = createRetargetingTrapFixture();
+  const e = fixture.evaluation;
+  const initial: SimulateWorldRequest = { merchantWorld: fixture.merchantWorld, latentPopulation: fixture.latentPopulation,
+    startTime: e.periodStart, endTime: e.periodEnd, simulationSeed: e.simulationSeed,
+    ...(e.simulationConfig === undefined ? {} : { config: e.simulationConfig }),
+    interventions: [{ variable: "promotion.discount_active", operation: "set", value: { kind: "boolean", value: false } }] };
+  const spendPlan: ScheduledSpendPlan = { version: SCHEDULED_SPEND_VERSION,
+    periodStart: initial.startTime, periodEnd: initial.endTime,
+    referencePeriodMs: Date.parse(initial.endTime) - Date.parse(initial.startTime),
+    scope: "explicit_simulated_agents", execution: "fully_spent_time_prorated_allocation",
+    initialAllocation: { meta: 45000, google_search: 260000, google_shopping: 0, pinterest: 0, affiliate: 0 }, changes: [] };
+  const candidate = (action: ScheduledDecisionAction): OracleCandidate<ScheduledDecisionAction> => ({ actionId: action.actionId, action });
+  const candidates = [
+    candidate({ actionId: "a0", interventions: [], actionCostMinor: 0 }),
+    candidate({ actionId: "a1", interventions: [], actionCostMinor: 0,
+      budgetAdjustments: [{ channel: "meta", operation: "delta", amountMinor: 100000 }] }),
+    candidate({ actionId: "a2", interventions: [], actionCostMinor: 0,
+      budgetAdjustments: [{ channel: "meta", operation: "set", amountMinor: 0 }] }),
+    candidate({ actionId: "a3", interventions: [], actionCostMinor: 0,
+      budgetAdjustments: [{ channel: "google_search", operation: "delta", amountMinor: 100000 }] }),
+    candidate({ actionId: "a4", interventions: [], actionCostMinor: 0,
+      budgetAdjustments: [{ channel: "google_search", operation: "set", amountMinor: 0 }] }),
+  ];
+  return { initial, spendPlan, candidates, decisionAt: "2026-02-01T00:00:00.000Z",
+    measurement: { corruption: { version: MEASUREMENT_VERSION, seed: 88215,
+      identitySalt: "evaluator-private-retargeting-salt-v1", metaOverAttributionRate: 1,
+      missingUtmRate: 0.2, cookieLossRate: 0.1, crossDeviceIdentityRate: 0.2 }, scope: "explicit_simulated_agents" as const },
+    actionSetVersion: "registered-retargeting-budget-subspace/1.0.0", baselineActionId: "a0", universeComplete: true as const };
+}
+
+/**
+ * Verifies the misleading PRE-decision report against actual FUTURE budget replays.
+ * All candidate actions receive the exact same warmup observation. The finite
+ * subspace is disclosed and is not the full canonical BusinessAction universe.
+ */
+export async function runRetargetingDecisionScenario(seed: number) {
+  const result = await evaluateScheduledDecisionSet({ ...buildRetargetingDecisionScenario(), seeds: [seed], maximumEvaluations: 6 });
+  const observed = parseOperatorObservation(JSON.parse(result.observationBySeed[0]!.payload));
+  const meta = observed.platformReports.find(r => r.platform === "meta")!;
+  const baseline = result.branches.find(r => r.actionId === "a0")!;
+  const increased = result.branches.find(r => r.actionId === "a1")!;
+  const disabled = result.branches.find(r => r.actionId === "a2")!;
+  const baseRank = result.oracle.ranking.find(r => r.actionId === "a0")!;
+  const metaRank = result.oracle.ranking.find(r => r.actionId === "a1")!;
+  const offRank = result.oracle.ranking.find(r => r.actionId === "a2")!;
+  const predicates = [
+    { id: "predecision_meta_roas_above_one", passed: meta.spendMinor > 0 && meta.attributedRevenueMinor > meta.spendMinor },
+    { id: "nonvacuous_future_commerce", passed: baseline.economics.netSalesMinor > 0 },
+    { id: "same_purchases_when_meta_disabled", passed: disabled.purchaseSignature === baseline.purchaseSignature },
+    { id: "more_meta_budget_does_not_increase_purchases", passed: increased.purchaseSignature === baseline.purchaseSignature },
+    { id: "meta_scale_loses_true_contribution", passed: metaRank.meanContributionMinor < baseRank.meanContributionMinor },
+    { id: "meta_off_beats_scaling", passed: offRank.meanContributionMinor > metaRank.meanContributionMinor },
+    { id: "future_actions_do_not_change_decision_information", passed: new Set(result.branches.map(b => b.observationHash)).size === 1 },
+  ];
+  return { access: "evaluator_only" as const, version: RETARGETING_DECISION_VERSION, seed,
+    status: predicates.every(p => p.passed) ? "PASS" as const : "FAIL" as const,
+    qualification: "finite_budget_subspace_not_full_phase1_acceptance" as const,
+    predicates, metrics: { metaObservedRoas: meta.spendMinor === 0 ? null : meta.attributedRevenueMinor / meta.spendMinor,
+      baselineFutureSalesMinor: baseline.economics.netSalesMinor,
+      extraMetaExpenseMinor: increased.economics.paidSpendMinor - baseline.economics.paidSpendMinor,
+      metaIncreaseContributionDeltaMinor: metaRank.meanDeltaVersusBaselineMinor,
+      metaOffContributionDeltaMinor: offRank.meanDeltaVersusBaselineMinor }, result };
+}
