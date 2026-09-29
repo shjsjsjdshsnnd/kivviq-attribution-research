@@ -1,6 +1,6 @@
 name: Phase 1 Offline Verification Worktree
 
-# Refresh for the Steps 15–17 measurement, adversarial scenario and intervention continuation.
+# Refresh for the Steps 18–23 oracle, reproducibility and simulator-validation continuation.
 on:
   push:
     branches: [phase1/steps15-23-measurement-decision-lab]
