@@ -15,7 +15,11 @@ import {
 } from "../../src/index.js";
 
 const architecture = dependencyCruiser as {
-  forbidden: Array<{ name: string; from: { path: string }; to: { path: string } }>;
+  forbidden: Array<{
+    name: string;
+    from: { path: string };
+    to: { path: string; pathNot?: string };
+  }>;
 };
 
 describe("Steps 19-22 public and architecture boundaries", () => {
@@ -80,8 +84,62 @@ describe("Steps 19-22 public and architecture boundaries", () => {
     ]) expect(to.test(forbidden)).toBe(true);
   });
 
+  it("limits assessments to canonical and public evidence/readiness contracts", () => {
+    const rule = architecture.forbidden.find(
+      (candidate) => candidate.name === "action-portfolio-assessments-use-public-contracts-only",
+    );
+    expect(rule).toBeDefined();
+    const from = new RegExp(rule!.from.path);
+    const allowed = new RegExp(rule!.to.pathNot!);
+    expect(from.test("src/action_dependencies/assessment.ts")).toBe(true);
+    expect(from.test("src/action_conflicts/assessment.ts")).toBe(true);
+    expect(from.test("src/action_characteristics/aggregate.ts")).toBe(true);
+    expect(from.test("src/action_characteristics/validation.ts")).toBe(true);
+    expect(from.test("src/action_risk/aggregate.ts")).toBe(true);
+    for (const publicContract of [
+      "src/canonical_action/schema.ts",
+      "src/action_constraints/assessment.ts",
+      "src/action_eligibility/evaluate.ts",
+      "src/experiment/readiness.ts",
+      "src/investigation/index.ts",
+    ]) expect(allowed.test(publicContract)).toBe(true);
+    for (const upwardLayer of [
+      "src/action_translation/canonical.ts",
+      "src/simulator_intervention/index.ts",
+      "src/pricing/translation.ts",
+    ]) expect(allowed.test(upwardLayer)).toBe(false);
+  });
+
+  it("requires translation to use portfolio assessments instead of lower-level portfolio modules", () => {
+    const rule = architecture.forbidden.find(
+      (candidate) => candidate.name === "action-translation-must-use-portfolio-assessments",
+    );
+    expect(rule).toBeDefined();
+    const from = new RegExp(rule!.from.path);
+    const bypass = new RegExp(rule!.to.path);
+    expect(from.test("src/action_translation/canonical.ts")).toBe(true);
+    expect(bypass.test("src/action_dependencies/schema.ts")).toBe(true);
+    expect(bypass.test("src/action_conflicts/adapters.ts")).toBe(true);
+    expect(bypass.test("src/action_dependencies/assessment.ts")).toBe(false);
+    expect(bypass.test("src/action_conflicts/assessment.ts")).toBe(false);
+  });
+
+  it("keeps the canonical envelope limited to portfolio definitions", () => {
+    const rule = architecture.forbidden.find(
+      (candidate) => candidate.name === "canonical-action-cannot-import-portfolio-runtime",
+    );
+    expect(rule).toBeDefined();
+    expect(new RegExp(rule!.from.path).test("src/canonical_action/schema.ts")).toBe(true);
+    const forbidden = new RegExp(rule!.to.path);
+    expect(forbidden.test("src/action_dependencies/assessment.ts")).toBe(true);
+    expect(forbidden.test("src/action_characteristics/validation.ts")).toBe(true);
+    expect(forbidden.test("src/action_risk/aggregate.ts")).toBe(true);
+    expect(forbidden.test("src/action_dependencies/schema.ts")).toBe(false);
+  });
+
   it("defines a focused verification command", () => {
     expect(packageJson.scripts["test:action-portfolio"]).toContain("tests/architecture");
     expect(packageJson.scripts["test:action-portfolio"]).toContain("tests/action_dependencies");
+    expect(packageJson.scripts["test:action-portfolio"]).toContain("tests/compatibility/action-portfolio-legacy.test.ts");
   });
 });

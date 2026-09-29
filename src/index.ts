@@ -44,7 +44,7 @@ export type {
   RiskContractViewContext,
   RiskContractViewEntry,
   RiskContractViewResult,
-  RiskDimension as ActionRiskDimension,
+  RiskDimension as ActionRiskContractDimension,
   RiskExecutionAlias,
   RiskInteractionDefinition,
 } from "./action_risk/aggregate.js";

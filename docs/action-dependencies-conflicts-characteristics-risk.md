@@ -10,16 +10,16 @@ The evaluation boundary is always exact: `DECISION_TIME`, `TRANSLATION_TIME`, or
 
 ## Dependencies
 
-Dependencies state what must be true before an Action may proceed. Supported definitions include:
+Dependencies state what must be true before an Action may proceed. There are exactly four definition kinds:
 
-- another canonical Action or CompoundAction reaching an authoritative lifecycle event;
-- a hard constraint or eligibility check passing from raw evidence;
-- an experiment readiness check passing for an exact experiment identity;
-- an eligible audience, inventory, traffic, capability, or registered external prerequisite evidenced at the selected boundary.
+- `ENTITY_LIFECYCLE`: another canonical Action or CompoundAction reaches `STARTED`, `EFFECTIVE`, `COMPLETED`, or `RESOLVED`;
+- `HARD_CONSTRAINT_GATE`: one exact hard constraint is `SATISFIED` after replaying its raw evidence;
+- `ELIGIBILITY_CHECK_GATE`: one exact eligibility check is `SATISFIED` after replaying its raw evidence;
+- `EXPERIMENT_READINESS_GATE`: an exact experiment is `READY` or has `SUFFICIENT_ELIGIBLE_TRAFFIC` after replaying readiness evidence.
 
 For example, scaling Product A advertising can require an inventory-availability constraint to pass. A winback flow can require exact population membership evidence for its audience. A checkout experiment can require its fixed sample and eligible-traffic readiness evidence. These references do not copy caller-supplied status flags. `assessActionDependencies` resolves the exact target, replays the appropriate assessor, validates freshness, and returns deterministic `SATISFIED`, `BLOCKED`, or `UNKNOWN` findings.
 
-Lifecycle dependencies use authoritative typed events such as accepted, started, completed, cancelled, or failed events tied to the referenced Action ID and fingerprint. A timestamp, note, or provider callback without that identity is insufficient. Business prerequisites are separate from `ActionTiming.dependencies`, which continue to define temporal ordering.
+Action lifecycle evidence has exactly three event kinds: `STARTED`, `EFFECTIVE`, and `COMPLETED`, tied to the referenced Action ID and fingerprint. `RESOLVED` is established by a valid investigation result rather than a lifecycle event. Compound failures and skips use typed component outcomes. A timestamp, note, or provider callback without the required identity is insufficient. Business prerequisites are separate from `ActionTiming.dependencies`, which continue to define temporal ordering.
 
 ## Conflicts and portfolio compatibility
 

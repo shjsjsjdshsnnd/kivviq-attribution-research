@@ -35,6 +35,31 @@ module.exports = {
       },
     },
     {
+      name: "action-portfolio-assessments-use-public-contracts-only",
+      comment:
+        "Portfolio assessment may depend on canonical definitions and public evidence/readiness contracts, but cannot reach translation, execution, or unrelated implementation layers.",
+      severity: "error",
+      from: {
+        path: "^src/((action_dependencies|action_conflicts)/assessment|action_characteristics/(validation|aggregate)|action_risk/aggregate)\\.ts$",
+      },
+      to: {
+        path: "^src/",
+        pathNot: "^src/(core|observation|canonical_action|compound_action|action_timing|action_constraints|action_eligibility|experiment|investigation|action_dependencies|action_conflicts|action_characteristics|action_risk)(/|$)",
+      },
+    },
+    {
+      name: "action-translation-must-use-portfolio-assessments",
+      comment:
+        "Translation consumes portfolio assessment APIs and cannot bypass them by importing portfolio definitions, adapters, legacy conversion, aggregation, or validation modules directly.",
+      severity: "error",
+      from: {
+        path: "^src/action_translation(/|$)",
+      },
+      to: {
+        path: "^src/(action_dependencies|action_conflicts)/(schema|adapters|legacy)\\.ts$|^src/(action_characteristics|action_risk)/(schema|aggregate|validation|legacy)\\.ts$",
+      },
+    },
+    {
       name: "experiment-eligibility-cannot-import-decision-or-execution-internals",
       comment:
         "Experiment definitions, hard constraints, and eligibility may use operator evidence contracts but cannot import hidden state, evaluation, ranking, optimization, simulator internals, or provider execution.",
