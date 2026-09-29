@@ -159,6 +159,21 @@ function emptyResult(issue: string): CharacteristicsAggregateResult {
   return { aggregateFingerprint: fingerprint(body), ...body };
 }
 
+function calendarFreshness(
+  anchor: NonNullable<CharacteristicAggregationContext["calendarAnchors"]>[number],
+  context: Pick<CharacteristicAggregationContext, "evaluatedAt" | "maximumAgeSeconds">,
+): { readonly freshnessAgeSeconds: number; readonly effectiveMaximumAgeSeconds: number; readonly freshnessStatus: "ACCEPTED" | "FUTURE" | "STALE" } {
+  const deltaNanoseconds = Temporal.Instant.from(context.evaluatedAt!).epochNanoseconds - Temporal.Instant.from(anchor.observedAt).epochNanoseconds;
+  const effectiveMaximumAgeSeconds = Math.min(context.maximumAgeSeconds!, anchor.maximumAgeSeconds ?? Number.MAX_SAFE_INTEGER);
+  const freshnessAgeSeconds = Number(deltaNanoseconds) / 1_000_000_000;
+  const freshnessStatus = deltaNanoseconds < 0n
+    ? "FUTURE" as const
+    : deltaNanoseconds > BigInt(effectiveMaximumAgeSeconds) * 1_000_000_000n
+      ? "STALE" as const
+      : "ACCEPTED" as const;
+  return { freshnessAgeSeconds, effectiveMaximumAgeSeconds, freshnessStatus };
+}
+
 function delaySeconds(action: CanonicalAction, context: InternalAggregationContext, issues: Set<string>): number | null {
   const delay = action.timing.implementationDelay;
   if (delay.state === "ABSENT" || delay.state === "NOT_APPLICABLE") return 0;
@@ -177,12 +192,9 @@ function delaySeconds(action: CanonicalAction, context: InternalAggregationConte
   try {
     const anchor = anchors[0]!;
     context.selectedAnchorIds.add(anchor.anchorId);
-    const evaluatedAt = Temporal.Instant.from(context.evaluatedAt!);
-    const observedAt = Temporal.Instant.from(anchor.observedAt);
-    const ageSeconds = Number((evaluatedAt.epochNanoseconds - observedAt.epochNanoseconds) / 1_000_000_000n);
-    const effectiveMaximumAgeSeconds = Math.min(context.maximumAgeSeconds!, anchor.maximumAgeSeconds ?? Number.MAX_SAFE_INTEGER);
-    if (ageSeconds < 0) { issues.add("FUTURE_CALENDAR_ANCHOR"); return null; }
-    if (ageSeconds > effectiveMaximumAgeSeconds) { issues.add("STALE_CALENDAR_ANCHOR"); return null; }
+    const freshness = calendarFreshness(anchor, context);
+    if (freshness.freshnessStatus === "FUTURE") { issues.add("FUTURE_CALENDAR_ANCHOR"); return null; }
+    if (freshness.freshnessStatus === "STALE") { issues.add("STALE_CALENDAR_ANCHOR"); return null; }
     const start = Temporal.Instant.from(anchor.start).toZonedDateTimeISO(anchor.timeZone);
     const end = start.add(value.unit === "DAY" ? { days: value.amount } : value.unit === "WEEK" ? { weeks: value.amount } : { months: value.amount });
     const seconds = Number((end.epochNanoseconds - start.epochNanoseconds) / 1_000_000_000n);
@@ -374,6 +386,7 @@ function aggregateActionCharacteristicsUnsafe(nodeInput: unknown, contextInput: 
   const reversibilityComponents = rawLeaves.map((leaf) => ({ memberPath: leaf.path, value: leaf.characteristics.reversibility })).sort((a, b) => a.memberPath.localeCompare(b.memberPath));
   const summary = reversibilityComponents.reduce<Reversibility["kind"]>((current, entry) => reversalRank[entry.value.kind] > reversalRank[current] ? entry.value.kind : current, "NOT_APPLICABLE");
   const parallelBranches = node.kind === "COMPOUND" && node.executionPolicy === "PARALLEL" ? node.members.map((member) => ({ path: `${rootPath}/${member.componentId}`, delay: computeDelay(member.node, `${rootPath}/${member.componentId}`, context, issues, new Set()) })).sort((a, b) => a.path.localeCompare(b.path)) : [];
+  if ((context.calendarAnchors ?? []).some((anchor) => !context.selectedAnchorIds.has(anchor.anchorId))) issues.add("UNUSED_CALENDAR_ANCHOR");
   const unknownIssues = new Set(["CHARACTERISTICS_ABSENT", "UNRESOLVED_IMPLEMENTATION_DELAY"]);
   const invalid = [...issues].some((issue) => !unknownIssues.has(issue));
   const aggregateStatus: CharacteristicsAggregateResult["status"] = invalid ? "INVALID" : issues.size ? "UNKNOWN" : "VALID";
@@ -389,10 +402,7 @@ function aggregateActionCharacteristicsUnsafe(nodeInput: unknown, contextInput: 
       members: rawLeaves.map((leaf) => ({ memberPath: leaf.path, actionId: leaf.action.actionId, actionFingerprint: fingerprintCanonicalAction(leaf.action) })).sort((a, b) => a.memberPath.localeCompare(b.memberPath)),
       aliases: [...(context.aliases ?? [])].filter((alias) => consumedAliases.has(alias)).map((alias) => ({ ...alias, paths: [...alias.paths].sort() })).sort((a, b) => stable(a).localeCompare(stable(b))),
       calendarAnchors: [...(context.calendarAnchors ?? [])].filter((anchor) => context.selectedAnchorIds.has(anchor.anchorId)).map((anchor) => {
-        const freshnessAgeSeconds = Math.floor((Date.parse(context.evaluatedAt!) - Date.parse(anchor.observedAt)) / 1000);
-        const effectiveMaximumAgeSeconds = Math.min(context.maximumAgeSeconds!, anchor.maximumAgeSeconds ?? Number.MAX_SAFE_INTEGER);
-        const freshnessStatus = freshnessAgeSeconds < 0 ? "FUTURE" as const : freshnessAgeSeconds > effectiveMaximumAgeSeconds ? "STALE" as const : "ACCEPTED" as const;
-        return { ...anchor, provenance: [...anchor.provenance].sort(), freshnessAgeSeconds, effectiveMaximumAgeSeconds, freshnessStatus };
+        return { ...anchor, provenance: [...anchor.provenance].sort(), ...calendarFreshness(anchor, context) };
       }).sort((a, b) => a.anchorId.localeCompare(b.anchorId)),
     },
   };
@@ -486,9 +496,13 @@ export function aggregateExperimentCharacteristics(
   if ([...compoundFingerprints.values()].some((values) => values.size > 1)) return invalid("COMPOUND_ID_FINGERPRINT_CONFLICT");
   const parsedExperiment = experimentWhatSchema.safeParse(experiment.what);
   if (!parsedExperiment.success) return invalid("NOT_AN_EXPERIMENT");
-  const aggregateContext: CharacteristicAggregationContext = {
-    ...(registry.aliases === undefined ? {} : { aliases: registry.aliases }),
-    ...(registry.calendarAnchors === undefined ? {} : { calendarAnchors: registry.calendarAnchors as unknown as NonNullable<CharacteristicAggregationContext["calendarAnchors"]>, evaluatedAt: registry.evaluatedAt!, maximumAgeSeconds: registry.maximumAgeSeconds! }),
+  const contextForActions = (actions: readonly CanonicalAction[]): CharacteristicAggregationContext => {
+    const identities = new Set(actions.map((action) => `${action.actionId}|${fingerprintCanonicalAction(action)}`));
+    const anchors = (registry.calendarAnchors ?? []).filter((anchor) => identities.has(`${anchor.actionId}|${anchor.actionFingerprint}`));
+    return {
+      ...(registry.aliases === undefined ? {} : { aliases: registry.aliases }),
+      ...(anchors.length === 0 ? {} : { calendarAnchors: anchors as unknown as NonNullable<CharacteristicAggregationContext["calendarAnchors"]>, evaluatedAt: registry.evaluatedAt!, maximumAgeSeconds: registry.maximumAgeSeconds! }),
+    };
   };
   const issues = new Set<string>();
   const arms: ExperimentCharacteristicsResult["arms"][number][] = [];
@@ -500,22 +514,27 @@ export function aggregateExperimentCharacteristics(
       audit.push({ armId: arm.armId, entityId: arm.compoundActionId, entityFingerprint: arm.actionFingerprint, registryMatches: matches.length });
       if (matches.length !== 1) issues.add(matches.length ? "AMBIGUOUS_EXPERIMENT_ARM" : "MISSING_EXPERIMENT_ARM");
       else if (fingerprintCompoundAction(matches[0]!) !== arm.actionFingerprint) issues.add("EXPERIMENT_ARM_FINGERPRINT_MISMATCH");
-      else vector = aggregateCompoundCharacteristics(matches[0]!, aggregateContext);
+      else vector = aggregateCompoundCharacteristics(matches[0]!, contextForActions(matches[0]!.components.map(({ action }) => action)));
     } else {
       const matches = (registry.actions ?? []).filter((entry) => entry.actionId === arm.actionId);
       audit.push({ armId: arm.armId, entityId: arm.actionId, entityFingerprint: arm.actionFingerprint, registryMatches: matches.length });
       if (matches.length !== 1) issues.add(matches.length ? "AMBIGUOUS_EXPERIMENT_ARM" : "MISSING_EXPERIMENT_ARM");
       else if (fingerprintCanonicalAction(matches[0]!) !== arm.actionFingerprint) issues.add("EXPERIMENT_ARM_FINGERPRINT_MISMATCH");
-      else vector = aggregateActionCharacteristics({ kind: "ACTION", action: matches[0]! }, aggregateContext);
+      else vector = aggregateActionCharacteristics({ kind: "ACTION", action: matches[0]! }, contextForActions([matches[0]!]));
     }
     if (vector) arms.push({ armId: arm.armId, role: arm.role, allocationBasisPoints: arm.allocationBasisPoints, vector });
   }
   const nestedStatus = arms.some(({ vector }) => vector.status === "INVALID") ? "INVALID" : arms.some(({ vector }) => vector.status === "UNKNOWN") ? "UNKNOWN" : "VALID";
   const sharedSetup = experiment.characteristics.state === "PRESENT"
-    ? aggregateActionCharacteristics({ kind: "ACTION", action: experiment }, aggregateContext)
+    ? aggregateActionCharacteristics({ kind: "ACTION", action: experiment }, contextForActions([experiment]))
     : undefined;
+  const consumedAnchorIds = new Set([
+    ...(sharedSetup?.audit.calendarAnchors.map(({ anchorId }) => anchorId) ?? []),
+    ...arms.flatMap(({ vector }) => vector.audit.calendarAnchors.map(({ anchorId }) => anchorId)),
+  ]);
+  if ((registry.calendarAnchors ?? []).some(({ anchorId }) => !consumedAnchorIds.has(anchorId))) issues.add("UNUSED_CALENDAR_ANCHOR");
   const resultStatus: ExperimentCharacteristicsResult["status"] = issues.size
-      ? ([...issues].some((issue) => issue.includes("MISMATCH") || issue.includes("AMBIGUOUS")) ? "INVALID" as const : "UNKNOWN" as const)
+      ? ([...issues].some((issue) => issue.includes("MISMATCH") || issue.includes("AMBIGUOUS") || issue === "UNUSED_CALENDAR_ANCHOR") ? "INVALID" as const : "UNKNOWN" as const)
       : sharedSetup?.status === "INVALID" || nestedStatus === "INVALID"
         ? "INVALID"
         : sharedSetup?.status === "UNKNOWN" || nestedStatus === "UNKNOWN"

@@ -104,8 +104,14 @@ describe("characteristics review regressions", () => {
     expect(aggregateActionCharacteristics({ kind: "ACTION", action: calendar }, context([anchor, { ...anchor }])).issues).toEqual(["DUPLICATE_CALENDAR_ANCHOR"]);
     expect(aggregateActionCharacteristics({ kind: "ACTION", action: calendar }, { ...context([anchor]), typo: true } as any).issues).toEqual(["INVALID_AGGREGATION_CONTEXT"]);
     expect(aggregateActionCharacteristics({ kind: "ACTION", action: calendar }, context([{ ...anchor, observedAt: "2026-03-09T00:00:00Z" }])).issues).toContain("FUTURE_CALENDAR_ANCHOR");
+    const subsecondFuture = aggregateActionCharacteristics({ kind: "ACTION", action: calendar }, context([{ ...anchor, observedAt: "2026-03-08T05:00:00.001Z" }]));
+    expect(subsecondFuture.issues).toContain("FUTURE_CALENDAR_ANCHOR");
+    expect(subsecondFuture.audit.calendarAnchors[0]).toMatchObject({ freshnessAgeSeconds: -0.001, freshnessStatus: "FUTURE" });
     expect(aggregateActionCharacteristics({ kind: "ACTION", action: calendar }, context([anchor], 60)).issues).toContain("STALE_CALENDAR_ANCHOR");
     expect(aggregateActionCharacteristics({ kind: "ACTION", action: calendar }, context([{ ...anchor, observedAt: "2026-03-08T04:58:00Z", maximumAgeSeconds: 60 }], 3600)).issues).toContain("STALE_CALENDAR_ANCHOR");
+    const unused = { ...anchor, anchorId: "anchor.unused", actionId: "action_unrelated" };
+    expect(aggregateActionCharacteristics({ kind: "ACTION", action: calendar }, context([anchor, unused])).issues).toContain("UNUSED_CALENDAR_ANCHOR");
+    expect(aggregateActionCharacteristics({ kind: "ACTION", action: calendar }, context([{ ...anchor, actionFingerprint: "fnv1a64:0000000000000000" }])).issues).toEqual(expect.arrayContaining(["CALENDAR_ANCHOR_FINGERPRINT_MISMATCH", "UNUSED_CALENDAR_ANCHOR"]));
   });
 
   it("uses UNKNOWN for missing experiment arms and INVALID for ambiguous registries", () => {

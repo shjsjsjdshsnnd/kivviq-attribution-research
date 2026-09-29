@@ -97,5 +97,12 @@ describe("action characteristic vectors", () => {
     });
     expect(calendarResult.status).toBe("VALID");
     expect(calendarResult.arms.find(({ armId }) => armId === "arm_control")?.vector.audit.calendarAnchors[0]).toMatchObject({ anchorId: "anchor.experiment.control", freshnessStatus: "ACCEPTED" });
+    const baseAnchor = { anchorId: "anchor.experiment.control", actionId: calendarControl.actionId, actionFingerprint: fingerprintCanonicalAction(calendarControl), start: "2026-10-01T00:00:00Z", timeZone: "UTC", boundary: "IMPLEMENTATION_DELAY_START" as const, observedAt: "2026-09-29T23:30:00Z", source: "calendar.scheduler", provenance: ["receipt.scheduler"] };
+    const withUnused = aggregateExperimentCharacteristics(calendarExperiment, { actions: [calendarControl, treatment], evaluatedAt: "2026-09-30T00:00:00Z", maximumAgeSeconds: 3600, calendarAnchors: [baseAnchor, { ...baseAnchor, anchorId: "anchor.experiment.unused", actionId: "action_unrelated" }] });
+    expect(withUnused.status).toBe("INVALID");
+    expect(withUnused.issues).toContain("UNUSED_CALENDAR_ANCHOR");
+    const mistargeted = aggregateExperimentCharacteristics(calendarExperiment, { actions: [calendarControl, treatment], evaluatedAt: "2026-09-30T00:00:00Z", maximumAgeSeconds: 3600, calendarAnchors: [{ ...baseAnchor, actionFingerprint: "fnv1a64:0000000000000000" }] });
+    expect(mistargeted.status).toBe("INVALID");
+    expect(mistargeted.issues).toContain("UNUSED_CALENDAR_ANCHOR");
   });
 });
