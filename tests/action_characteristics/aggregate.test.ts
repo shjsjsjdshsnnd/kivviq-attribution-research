@@ -26,7 +26,7 @@ describe("action characteristic vectors", () => {
     expect(result.costs).toEqual(expect.arrayContaining([
       expect.objectContaining({ category: "MEDIA", currency: null, amount: { state: "NOT_APPLICABLE", reasons: ["owned channel"] } }),
     ]));
-    expect(result.burdens).toEqual(expect.arrayContaining([expect.objectContaining({ burdenId: "a.hours", amount: { state: "KNOWN", quantity: 2 } }), expect.objectContaining({ burdenId: "b.hours", amount: { state: "KNOWN", quantity: 3 } })]));
+    expect(result.burdens).toEqual([expect.objectContaining({ contributingBurdenIds: ["a.hours", "b.hours"], amount: { state: "KNOWN", quantity: 5 } })]);
     expect(result.burdens[0]).toMatchObject({ resource: { kind: "STAFF", resourceRef: "team.ops" }, unit: "hours" });
     expect(result.declaredDelays).toHaveLength(2);
     expect(result.derivedCriticalPathDelay).toEqual({ state: "KNOWN", seconds: 18_000 });
@@ -52,6 +52,10 @@ describe("action characteristic vectors", () => {
     const authorized = aggregateActionCharacteristics(duplicated, { aliases: [{ aliasContractRef: "aliases.shared", version: "1", actionId: shared.actionId, actionFingerprint: fingerprintCanonicalAction(shared), paths: ["compound_dup/a", "compound_dup/b"] }] });
     expect(authorized.status).toBe("VALID");
     expect(authorized.costs.find(({ currency }) => currency === "USD")?.amount).toEqual({ state: "KNOWN", amountMinor: 25 });
+    expect(authorized.audit.members).toHaveLength(2);
+    expect(authorized.declaredDelays).toHaveLength(2);
+    const ordered = { ...duplicated, executionPolicy: "ORDERED" as const };
+    expect(aggregateActionCharacteristics(ordered, { aliases: [{ aliasContractRef: "aliases.shared", version: "1", actionId: shared.actionId, actionFingerprint: fingerprintCanonicalAction(shared), paths: ["compound_dup/a", "compound_dup/b"] }] }).derivedCriticalPathDelay).toEqual({ state: "KNOWN", seconds: 3600 });
     const cyclic: any = { kind: "COMPOUND", compoundId: "compound_cycle", executionPolicy: "ORDERED", members: [] };
     cyclic.members.push({ componentId: "self", node: cyclic });
     expect(aggregateActionCharacteristics(cyclic).issues).toContain("EXPANSION_CYCLE");
@@ -83,5 +87,15 @@ describe("action characteristic vectors", () => {
     expect(result.arms).toHaveLength(2);
     expect(result.arms.map((arm) => arm.vector.costs[0]?.amount)).toEqual([{ state: "KNOWN", amountMinor: 10 }, { state: "KNOWN", amountMinor: 20 }]);
     expect(result).not.toHaveProperty("costs");
+    expect(aggregateExperimentCharacteristics(experiment, { actions: [control, treatment], typo: true } as any).issues).toEqual(["INVALID_EXPERIMENT_REGISTRY"]);
+
+    const calendarControl = { ...control, timing: { ...control.timing, implementationDelay: { state: "SPECIFIED" as const, value: { kind: "CALENDAR" as const, amount: 1, unit: "DAY" as const } } } };
+    const calendarExperiment: any = { ...experiment, what: { ...experiment.what, arms: experiment.what.arms.map((arm: any) => arm.armId === "arm_control" ? { ...arm, actionFingerprint: fingerprintCanonicalAction(calendarControl) } : arm) } };
+    const calendarResult = aggregateExperimentCharacteristics(calendarExperiment, {
+      actions: [calendarControl, treatment], evaluatedAt: "2026-09-30T00:00:00Z", maximumAgeSeconds: 3600,
+      calendarAnchors: [{ anchorId: "anchor.experiment.control", actionId: calendarControl.actionId, actionFingerprint: fingerprintCanonicalAction(calendarControl), start: "2026-10-01T00:00:00Z", timeZone: "UTC", boundary: "IMPLEMENTATION_DELAY_START", observedAt: "2026-09-29T23:30:00Z", source: "calendar.scheduler", provenance: ["receipt.scheduler"] }],
+    });
+    expect(calendarResult.status).toBe("VALID");
+    expect(calendarResult.arms.find(({ armId }) => armId === "arm_control")?.vector.audit.calendarAnchors[0]).toMatchObject({ anchorId: "anchor.experiment.control", freshnessStatus: "ACCEPTED" });
   });
 });

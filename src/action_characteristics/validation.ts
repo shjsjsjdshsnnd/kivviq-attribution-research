@@ -54,6 +54,29 @@ function domainFamily(actionType: string): string {
   return actionType.split(".", 1)[0]!;
 }
 
+const rollbackActionTypes: Readonly<Record<string, { actionType: string; parameterKind: string }>> = {
+  pricing: { actionType: "pricing.rollback_price", parameterKind: "price_rollback" },
+  shipping: { actionType: "shipping.rollback_policy", parameterKind: "shipping_policy_rollback" },
+  merchandising: { actionType: "merchandising.rollback_rank", parameterKind: "merchandising_rank_rollback" },
+  cro: { actionType: "cro.rollback_experience", parameterKind: "cro_rollback" },
+};
+
+function validateTypedRollbackContract(source: CanonicalAction, candidate: CanonicalAction): readonly string[] {
+  const adapter = rollbackActionTypes[domainFamily(source.what.actionType)];
+  if (!adapter) return domainFamily(candidate.what.actionType) === domainFamily(source.what.actionType) ? [] : ["REVERSAL_ACTION_DOMAIN_MISMATCH"];
+  if (candidate.what.actionType !== adapter.actionType) return ["REVERSAL_ACTION_TYPE_MISMATCH"];
+  if (!("kind" in source.what) || source.what.kind !== "legacy_business" || !("kind" in candidate.what) || candidate.what.kind !== "legacy_business")
+    return ["REVERSAL_ACTION_CONTRACT_UNSUPPORTED"];
+  const candidateWhat = candidate.what as typeof candidate.what & { reversalOfActionId?: string; parameters?: { kind?: string; originalActionId?: string; conflictGuard?: { sourceActionId?: string } }; target?: unknown };
+  const sourceWhat = source.what as typeof source.what & { target?: unknown };
+  const issues: string[] = [];
+  if (candidateWhat.reversalOfActionId !== source.actionId || candidateWhat.parameters?.originalActionId !== source.actionId || candidateWhat.parameters?.conflictGuard?.sourceActionId !== source.actionId)
+    issues.push("REVERSAL_ACTION_SOURCE_MISMATCH");
+  if (candidateWhat.parameters?.kind !== adapter.parameterKind) issues.push("REVERSAL_ACTION_TYPE_MISMATCH");
+  if (stable(candidateWhat.target) !== stable(sourceWhat.target)) issues.push("REVERSAL_ACTION_TARGET_MISMATCH");
+  return issues;
+}
+
 function hasFiniteCompletion(action: CanonicalAction): boolean {
   return (
     action.timing.end.state === "SPECIFIED" ||
@@ -123,14 +146,7 @@ export function validateActionCharacteristics(
         issues.push("REVERSAL_ACTION_FINGERPRINT_MISMATCH");
       } else {
         const candidate = matches[0]!;
-        if (domainFamily(candidate.what.actionType) !== domainFamily(action.what.actionType))
-          issues.push("REVERSAL_ACTION_DOMAIN_MISMATCH");
-        if ("kind" in action.what && action.what.kind === "legacy_business" && "kind" in candidate.what && candidate.what.kind === "legacy_business") {
-          if (candidate.what.reversalOfActionId !== undefined && candidate.what.reversalOfActionId !== action.actionId)
-            issues.push("REVERSAL_ACTION_SOURCE_MISMATCH");
-          if (stable(candidate.what.target) !== stable(action.what.target))
-            issues.push("REVERSAL_ACTION_TARGET_MISMATCH");
-        }
+        issues.push(...validateTypedRollbackContract(action, candidate));
       }
     } else {
       const matches = (context.registeredReversals ?? []).filter(

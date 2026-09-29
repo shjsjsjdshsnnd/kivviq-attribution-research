@@ -2,6 +2,9 @@ import { describe, expect, it } from "vitest";
 import { adaptLegacyAction } from "../../src/canonical_action/legacy.js";
 import { fingerprintCanonicalAction } from "../../src/canonical_action/serialization.js";
 import { temporarySkuA799SevenDays, rollbackTemporarySkuAToPreActionPrice } from "../../src/pricing/fixtures.js";
+import { temporaryThreshold150To75, rollbackTemporaryThreshold } from "../../src/shipping/fixtures.js";
+import { temporaryProductAPosition1FourDays, rollbackTemporaryProductARank } from "../../src/merchandising/fixtures.js";
+import { temporaryPdpDeliveryReorder, rollbackTemporaryPdpDeliveryReorder } from "../../src/cro/fixtures.js";
 import { reorderSkuA100 } from "../../src/inventory/fixtures.js";
 import { increaseGoogleShoppingBudget20 } from "../../src/paid_media/fixtures.js";
 import { createCanonicalFixtures } from "../../src/canonical_action/fixtures.js";
@@ -50,5 +53,21 @@ describe("characteristics domain validation", () => {
     const contract = { kind: "REGISTERED" as const, registryRef: "rollback.domain", code: "restore", version: "1", domainActionTypes: ["pricing.adjust_price"] };
     expect(validateActionCharacteristics(null, { registeredReversals: [contract, contract] })).toEqual({ status: "INVALID", issues: ["INVALID_VALIDATION_CONTEXT"] });
     expect(validateActionCharacteristics(null, { registeredReversals: [{ ...contract, domainActionTypes: ["pricing.adjust_price", "pricing.adjust_price"] }] })).toEqual({ status: "INVALID", issues: ["INVALID_VALIDATION_CONTEXT"] });
+  });
+
+  it("uses typed domain rollback contracts instead of accepting arbitrary same-domain actions", () => {
+    for (const [sourceLegacy, rollbackLegacy] of [
+      [temporarySkuA799SevenDays, rollbackTemporarySkuAToPreActionPrice],
+      [temporaryThreshold150To75, rollbackTemporaryThreshold],
+      [temporaryProductAPosition1FourDays, rollbackTemporaryProductARank],
+      [temporaryPdpDeliveryReorder, rollbackTemporaryPdpDeliveryReorder],
+    ] as const) {
+      const source = adaptLegacyAction(sourceLegacy);
+      const rollback = adaptLegacyAction(rollbackLegacy);
+      const candidate = { ...source, characteristics: { state: "PRESENT" as const, value: { implementationCost: [], reversibility: { kind: "FULLY_REVERSIBLE" as const, reversal: { kind: "ACTION" as const, actionId: rollback.actionId, actionFingerprint: fingerprintCanonicalAction(rollback) } }, cancellationCosts: [], operationalBurden: [] } } };
+      expect(validateActionCharacteristics(candidate, { actions: [rollback] }).issues).not.toEqual(expect.arrayContaining([expect.stringMatching(/^REVERSAL_ACTION_/)]));
+      const arbitraryCandidate = { ...candidate, characteristics: { ...candidate.characteristics, value: { ...candidate.characteristics.value, reversibility: { kind: "FULLY_REVERSIBLE" as const, reversal: { kind: "ACTION" as const, actionId: source.actionId, actionFingerprint: fingerprintCanonicalAction(source) } } } } };
+      expect(validateActionCharacteristics(arbitraryCandidate, { actions: [source] }).issues).toContain("REVERSAL_ACTION_TYPE_MISMATCH");
+    }
   });
 });

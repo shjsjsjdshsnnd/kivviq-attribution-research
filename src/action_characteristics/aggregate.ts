@@ -39,6 +39,8 @@ export interface SharedExecutionAlias {
 
 export interface CharacteristicAggregationContext {
   readonly aliases?: readonly SharedExecutionAlias[];
+  readonly evaluatedAt?: string;
+  readonly maximumAgeSeconds?: number;
   readonly calendarAnchors?: readonly {
     readonly anchorId: string;
     readonly actionId: string;
@@ -49,9 +51,10 @@ export interface CharacteristicAggregationContext {
     readonly observedAt: string;
     readonly source: string;
     readonly provenance: readonly string[];
+    readonly maximumAgeSeconds?: number;
   }[];
 }
-interface InternalAggregationContext extends CharacteristicAggregationContext { readonly selectedAnchorIds: Set<string> }
+interface InternalAggregationContext extends CharacteristicAggregationContext { readonly selectedAnchorIds: Set<string>; readonly deduplicatedPaths: Set<string> }
 
 type AggregateState =
   | { readonly state: "KNOWN"; readonly amountMinor: number }
@@ -82,7 +85,8 @@ export interface CharacteristicsAggregateResult {
     readonly unit: OperationalQuantity["unit"] | null;
     readonly resourceKey: string;
     readonly unitKey: string;
-    readonly burdenId: string;
+    readonly bucketId: string;
+    readonly contributingBurdenIds: readonly string[];
     readonly phase: "IMPLEMENTATION" | "CANCELLATION" | "COMPENSATION";
     readonly stage?: StageCancellationCost["stage"];
     readonly amount: QuantityState;
@@ -95,7 +99,7 @@ export interface CharacteristicsAggregateResult {
   readonly audit: {
     readonly members: readonly { readonly memberPath: string; readonly actionId: string; readonly actionFingerprint: string }[];
     readonly aliases: readonly SharedExecutionAlias[];
-    readonly calendarAnchors: readonly NonNullable<CharacteristicAggregationContext["calendarAnchors"]>[number][];
+    readonly calendarAnchors: readonly (NonNullable<CharacteristicAggregationContext["calendarAnchors"]>[number] & { readonly freshnessAgeSeconds: number; readonly effectiveMaximumAgeSeconds: number; readonly freshnessStatus: "ACCEPTED" | "FUTURE" | "STALE" })[];
   };
 }
 
@@ -135,9 +139,19 @@ const calendarAnchorSchema = z.object({
   observedAt: z.string().datetime({ offset: true }).refine((value) => value.endsWith("Z")),
   source: z.string().regex(/^[A-Za-z][A-Za-z0-9_.:-]*$/),
   provenance: z.array(z.string().regex(/^[A-Za-z][A-Za-z0-9_.:-]*$/)).min(1),
+  maximumAgeSeconds: z.number().int().nonnegative().optional(),
 }).strict().superRefine((value, context) => {
   if (new Set(value.provenance).size !== value.provenance.length)
     context.addIssue({ code: "custom", path: ["provenance"], message: "Calendar-anchor provenance references must be unique" });
+});
+const aggregationContextSchema = z.object({
+  aliases: z.array(aliasSchema).optional(),
+  evaluatedAt: z.string().datetime({ offset: true }).refine((value) => value.endsWith("Z")).optional(),
+  maximumAgeSeconds: z.number().int().nonnegative().optional(),
+  calendarAnchors: z.array(calendarAnchorSchema).optional(),
+}).strict().superRefine((value, context) => {
+  if (value.calendarAnchors !== undefined && (value.evaluatedAt === undefined || value.maximumAgeSeconds === undefined))
+    context.addIssue({ code: "custom", message: "Calendar anchors require evaluatedAt and maximumAgeSeconds" });
 });
 
 function emptyResult(issue: string): CharacteristicsAggregateResult {
@@ -163,6 +177,12 @@ function delaySeconds(action: CanonicalAction, context: InternalAggregationConte
   try {
     const anchor = anchors[0]!;
     context.selectedAnchorIds.add(anchor.anchorId);
+    const evaluatedAt = Temporal.Instant.from(context.evaluatedAt!);
+    const observedAt = Temporal.Instant.from(anchor.observedAt);
+    const ageSeconds = Number((evaluatedAt.epochNanoseconds - observedAt.epochNanoseconds) / 1_000_000_000n);
+    const effectiveMaximumAgeSeconds = Math.min(context.maximumAgeSeconds!, anchor.maximumAgeSeconds ?? Number.MAX_SAFE_INTEGER);
+    if (ageSeconds < 0) { issues.add("FUTURE_CALENDAR_ANCHOR"); return null; }
+    if (ageSeconds > effectiveMaximumAgeSeconds) { issues.add("STALE_CALENDAR_ANCHOR"); return null; }
     const start = Temporal.Instant.from(anchor.start).toZonedDateTimeISO(anchor.timeZone);
     const end = start.add(value.unit === "DAY" ? { days: value.amount } : value.unit === "WEEK" ? { weeks: value.amount } : { months: value.amount });
     const seconds = Number((end.epochNanoseconds - start.epochNanoseconds) / 1_000_000_000n);
@@ -183,12 +203,12 @@ function checkedQuantityAdd(left: number, right: number, issues: Set<string>): n
   return total;
 }
 
-function computeDelay(node: CharacteristicAggregateNode, context: InternalAggregationContext, issues: Set<string>, active: Set<object>): number | null {
-  if (node.kind === "ACTION") return delaySeconds(node.action, context, issues);
+function computeDelay(node: CharacteristicAggregateNode, pathValue: string, context: InternalAggregationContext, issues: Set<string>, active: Set<object>): number | null {
+  if (node.kind === "ACTION") return context.deduplicatedPaths.has(pathValue) ? 0 : delaySeconds(node.action, context, issues);
   if (active.has(node as object)) { issues.add("EXPANSION_CYCLE"); return null; }
   active.add(node as object);
   const values = new Map<string, number | null>();
-  for (const member of node.members) values.set(member.componentId, computeDelay(member.node, context, issues, active));
+  for (const member of node.members) values.set(member.componentId, computeDelay(member.node, `${pathValue}/${member.componentId}`, context, issues, active));
   active.delete(node as object);
   if ([...values.values()].some((value) => value === null)) return null;
   if (node.executionPolicy === "PARALLEL") return Math.max(0, ...[...values.values()].map((value) => value!));
@@ -267,10 +287,9 @@ const reversalRank: Record<Reversibility["kind"], number> = { IRREVERSIBLE: 5, P
 
 function aggregateActionCharacteristicsUnsafe(nodeInput: unknown, contextInput: unknown = {}): CharacteristicsAggregateResult {
   if (!nodeInput || typeof nodeInput !== "object" || !contextInput || typeof contextInput !== "object" || Array.isArray(contextInput)) return emptyResult("INVALID_AGGREGATION_INPUT");
-  const externalContext = contextInput as CharacteristicAggregationContext;
-  const context: InternalAggregationContext = { ...externalContext, selectedAnchorIds: new Set() };
-  if (context.aliases !== undefined && (!Array.isArray(context.aliases) || context.aliases.some((alias) => !aliasSchema.safeParse(alias).success))) return emptyResult("INVALID_ALIAS_CONTEXT");
-  if (context.calendarAnchors !== undefined && (!Array.isArray(context.calendarAnchors) || context.calendarAnchors.some((anchor) => !calendarAnchorSchema.safeParse(anchor).success))) return emptyResult("INVALID_CALENDAR_CONTEXT");
+  const parsedContext = aggregationContextSchema.safeParse(contextInput);
+  if (!parsedContext.success) return emptyResult("INVALID_AGGREGATION_CONTEXT");
+  const context: InternalAggregationContext = { ...(parsedContext.data as unknown as CharacteristicAggregationContext), selectedAnchorIds: new Set(), deduplicatedPaths: new Set() };
   if (context.calendarAnchors && new Set(context.calendarAnchors.map((anchor) => anchor.anchorId)).size !== context.calendarAnchors.length) return emptyResult("DUPLICATE_CALENDAR_ANCHOR");
   const node = nodeInput as CharacteristicAggregateNode;
   if (node.kind !== "ACTION" && node.kind !== "COMPOUND") return emptyResult("INVALID_AGGREGATE_NODE");
@@ -298,7 +317,10 @@ function aggregateActionCharacteristicsUnsafe(nodeInput: unknown, contextInput: 
     const fingerprint = fingerprintCanonicalAction(first.action);
     const aliases = (context.aliases ?? []).filter((alias) => alias.actionId === first.action.actionId && alias.actionFingerprint === fingerprint && stable([...alias.paths].sort()) === stable(orderedGroup.map(({ path }) => path).sort()));
     if (aliases.length !== 1) issues.add(aliases.length > 1 ? "AMBIGUOUS_ALIAS_CONTRACT" : "DUPLICATE_EXECUTION_IDENTITY");
-    else { leaves.push(first); consumedAliases.add(aliases[0]!); }
+    else {
+      leaves.push(first); consumedAliases.add(aliases[0]!);
+      orderedGroup.slice(1).forEach(({ path }) => context.deduplicatedPaths.add(path));
+    }
   }
 
   const costGroups = new Map<string, { item: CostLineItem; path: string; phase: "IMPLEMENTATION" | "CANCELLATION" | "COMPENSATION"; stage?: StageCancellationCost["stage"] }[]>();
@@ -311,7 +333,7 @@ function aggregateActionCharacteristicsUnsafe(nodeInput: unknown, contextInput: 
   const addBurden = (item: OperationalBurdenLineItem, path: string, phase: "IMPLEMENTATION" | "CANCELLATION" | "COMPENSATION", stage?: StageCancellationCost["stage"]) => {
     const exemplar = item.amount.state === "KNOWN" ? item.amount.value : item.amount.state === "RANGE" ? item.amount.minimum : null;
     const key = exemplar
-      ? `${phase}|${stage ?? ""}|${item.burdenId}|${stable(exemplar.resource)}|${stable(exemplar.unit)}`
+      ? `${phase}|${stage ?? ""}|${stable(exemplar.resource)}|${stable(exemplar.unit)}`
       : `${phase}|${stage ?? ""}|${item.amount.state}|${item.burdenId}|${path}`;
     const entry = stage === undefined ? { item, path, phase } : { item, path, phase, stage };
     burdenGroups.set(key, [...(burdenGroups.get(key) ?? []), entry]);
@@ -338,21 +360,20 @@ function aggregateActionCharacteristicsUnsafe(nodeInput: unknown, contextInput: 
       unit: exemplar?.unit ?? null,
       resourceKey: exemplar ? stable(exemplar.resource) : "?",
       unitKey: exemplar ? stable(exemplar.unit) : "?",
-      burdenId: entries[0]!.item.burdenId,
+      bucketId: fingerprint({ kind: "OPERATIONAL_BURDEN_BUCKET", key }),
+      contributingBurdenIds: [...new Set(entries.map(({ item }) => item.burdenId))].sort(),
       phase: entries[0]!.phase,
       ...(entries[0]!.stage ? { stage: entries[0]!.stage } : {}),
       amount: aggregateQuantity(entries, issues),
       memberPaths: [...new Set(entries.map(({ path }) => path))].sort(),
     };
   }).sort((a, b) => stable(a).localeCompare(stable(b)));
-  let delay = computeDelay(node, context, issues, new Set());
+  let delay = computeDelay(node, rootPath, context, issues, new Set());
   if (issues.has("UNSAFE_NUMERIC_AGGREGATE") || issues.has("UNSAFE_DELAY_ARITHMETIC")) delay = null;
   if (delay === null && !issues.has("UNSAFE_NUMERIC_AGGREGATE") && !issues.has("UNSAFE_DELAY_ARITHMETIC")) issues.add("UNRESOLVED_IMPLEMENTATION_DELAY");
-  const reversibilityComponents = leaves.map((leaf) => ({ memberPath: leaf.path, value: leaf.characteristics.reversibility })).sort((a, b) => a.memberPath.localeCompare(b.memberPath));
+  const reversibilityComponents = rawLeaves.map((leaf) => ({ memberPath: leaf.path, value: leaf.characteristics.reversibility })).sort((a, b) => a.memberPath.localeCompare(b.memberPath));
   const summary = reversibilityComponents.reduce<Reversibility["kind"]>((current, entry) => reversalRank[entry.value.kind] > reversalRank[current] ? entry.value.kind : current, "NOT_APPLICABLE");
-  const parallelBranches = node.kind === "COMPOUND" && node.executionPolicy === "PARALLEL" ? node.members.map((member) => ({ path: `${rootPath}/${member.componentId}`, delay: computeDelay(member.node, context, issues, new Set()) })).sort((a, b) => a.path.localeCompare(b.path)) : [];
-  const unusedAnchors = (context.calendarAnchors ?? []).filter((anchor) => !context.selectedAnchorIds.has(anchor.anchorId));
-  if (unusedAnchors.length > 0) issues.add("UNUSED_CALENDAR_ANCHOR");
+  const parallelBranches = node.kind === "COMPOUND" && node.executionPolicy === "PARALLEL" ? node.members.map((member) => ({ path: `${rootPath}/${member.componentId}`, delay: computeDelay(member.node, `${rootPath}/${member.componentId}`, context, issues, new Set()) })).sort((a, b) => a.path.localeCompare(b.path)) : [];
   const unknownIssues = new Set(["CHARACTERISTICS_ABSENT", "UNRESOLVED_IMPLEMENTATION_DELAY"]);
   const invalid = [...issues].some((issue) => !unknownIssues.has(issue));
   const aggregateStatus: CharacteristicsAggregateResult["status"] = invalid ? "INVALID" : issues.size ? "UNKNOWN" : "VALID";
@@ -360,14 +381,19 @@ function aggregateActionCharacteristicsUnsafe(nodeInput: unknown, contextInput: 
   const body: Omit<CharacteristicsAggregateResult, "aggregateFingerprint"> = {
     status: aggregateStatus,
     issues: [...issues].sort(), costs, burdens,
-    declaredDelays: leaves.map((leaf) => ({ memberPath: leaf.path, value: leaf.action.timing.implementationDelay })).sort((a, b) => a.memberPath.localeCompare(b.memberPath)),
+    declaredDelays: rawLeaves.map((leaf) => ({ memberPath: leaf.path, value: leaf.action.timing.implementationDelay })).sort((a, b) => a.memberPath.localeCompare(b.memberPath)),
     derivedCriticalPathDelay: criticalPath,
     parallelBranches,
     reversibility: { summary, components: reversibilityComponents },
     audit: {
-      members: leaves.map((leaf) => ({ memberPath: leaf.path, actionId: leaf.action.actionId, actionFingerprint: fingerprintCanonicalAction(leaf.action) })).sort((a, b) => a.memberPath.localeCompare(b.memberPath)),
-      aliases: [...(context.aliases ?? [])].filter((alias) => consumedAliases.has(alias)).map((alias) => ({ ...alias, paths: [...alias.paths].sort() })).sort((a, b) => `${a.aliasContractRef}|${a.version}`.localeCompare(`${b.aliasContractRef}|${b.version}`)),
-      calendarAnchors: [...(context.calendarAnchors ?? [])].filter((anchor) => context.selectedAnchorIds.has(anchor.anchorId)).map((anchor) => ({ ...anchor, provenance: [...anchor.provenance].sort() })).sort((a, b) => a.anchorId.localeCompare(b.anchorId)),
+      members: rawLeaves.map((leaf) => ({ memberPath: leaf.path, actionId: leaf.action.actionId, actionFingerprint: fingerprintCanonicalAction(leaf.action) })).sort((a, b) => a.memberPath.localeCompare(b.memberPath)),
+      aliases: [...(context.aliases ?? [])].filter((alias) => consumedAliases.has(alias)).map((alias) => ({ ...alias, paths: [...alias.paths].sort() })).sort((a, b) => stable(a).localeCompare(stable(b))),
+      calendarAnchors: [...(context.calendarAnchors ?? [])].filter((anchor) => context.selectedAnchorIds.has(anchor.anchorId)).map((anchor) => {
+        const freshnessAgeSeconds = Math.floor((Date.parse(context.evaluatedAt!) - Date.parse(anchor.observedAt)) / 1000);
+        const effectiveMaximumAgeSeconds = Math.min(context.maximumAgeSeconds!, anchor.maximumAgeSeconds ?? Number.MAX_SAFE_INTEGER);
+        const freshnessStatus = freshnessAgeSeconds < 0 ? "FUTURE" as const : freshnessAgeSeconds > effectiveMaximumAgeSeconds ? "STALE" as const : "ACCEPTED" as const;
+        return { ...anchor, provenance: [...anchor.provenance].sort(), freshnessAgeSeconds, effectiveMaximumAgeSeconds, freshnessStatus };
+      }).sort((a, b) => a.anchorId.localeCompare(b.anchorId)),
     },
   };
   return { aggregateFingerprint: fingerprint(body), ...body };
@@ -411,6 +437,9 @@ export interface ExperimentCharacteristicsRegistry {
   readonly actions?: readonly CanonicalAction[];
   readonly compounds?: readonly CompoundAction[];
   readonly aliases?: readonly SharedExecutionAlias[];
+  readonly evaluatedAt?: string;
+  readonly maximumAgeSeconds?: number;
+  readonly calendarAnchors?: CharacteristicAggregationContext["calendarAnchors"];
 }
 
 export interface ExperimentCharacteristicsResult {
@@ -437,12 +466,18 @@ export function aggregateExperimentCharacteristics(
   };
   const parsedAction = canonicalActionSchema.safeParse(experimentInput);
   if (!parsedAction.success) return invalid("INVALID_EXPERIMENT_ACTION");
-  if (!registryInput || typeof registryInput !== "object" || Array.isArray(registryInput)) return invalid("INVALID_EXPERIMENT_REGISTRY");
   const experiment = parsedAction.data;
-  const registry = registryInput as ExperimentCharacteristicsRegistry;
-  if ((registry.actions !== undefined && !Array.isArray(registry.actions)) || (registry.compounds !== undefined && !Array.isArray(registry.compounds))) return invalid("INVALID_EXPERIMENT_REGISTRY");
-  if ((registry.actions ?? []).some((entry) => !canonicalActionSchema.safeParse(entry).success) || (registry.compounds ?? []).some((entry) => !compoundActionSchema.safeParse(entry).success)) return invalid("INVALID_EXPERIMENT_REGISTRY_ENTRY");
-  if (registry.aliases !== undefined && (!Array.isArray(registry.aliases) || registry.aliases.some((entry) => !aliasSchema.safeParse(entry).success))) return invalid("INVALID_ALIAS_CONTEXT");
+  const parsedRegistry = z.object({
+    actions: z.array(canonicalActionSchema).optional(), compounds: z.array(compoundActionSchema).optional(),
+    aliases: z.array(aliasSchema).optional(), evaluatedAt: z.string().datetime({ offset: true }).refine((value) => value.endsWith("Z")).optional(),
+    maximumAgeSeconds: z.number().int().nonnegative().optional(),
+    calendarAnchors: z.array(calendarAnchorSchema).optional(),
+  }).strict().superRefine((value, context) => {
+    if (value.calendarAnchors !== undefined && (value.evaluatedAt === undefined || value.maximumAgeSeconds === undefined))
+      context.addIssue({ code: "custom", message: "Calendar anchors require freshness context" });
+  }).safeParse(registryInput);
+  if (!parsedRegistry.success) return invalid("INVALID_EXPERIMENT_REGISTRY");
+  const registry = parsedRegistry.data;
   const actionFingerprints = new Map<string, Set<string>>();
   for (const entry of registry.actions ?? []) actionFingerprints.set(entry.actionId, new Set([...(actionFingerprints.get(entry.actionId) ?? []), fingerprintCanonicalAction(entry)]));
   if ([...actionFingerprints.values()].some((values) => values.size > 1)) return invalid("ACTION_ID_FINGERPRINT_CONFLICT");
@@ -451,7 +486,10 @@ export function aggregateExperimentCharacteristics(
   if ([...compoundFingerprints.values()].some((values) => values.size > 1)) return invalid("COMPOUND_ID_FINGERPRINT_CONFLICT");
   const parsedExperiment = experimentWhatSchema.safeParse(experiment.what);
   if (!parsedExperiment.success) return invalid("NOT_AN_EXPERIMENT");
-  const aggregateContext: CharacteristicAggregationContext = registry.aliases === undefined ? {} : { aliases: registry.aliases };
+  const aggregateContext: CharacteristicAggregationContext = {
+    ...(registry.aliases === undefined ? {} : { aliases: registry.aliases }),
+    ...(registry.calendarAnchors === undefined ? {} : { calendarAnchors: registry.calendarAnchors as unknown as NonNullable<CharacteristicAggregationContext["calendarAnchors"]>, evaluatedAt: registry.evaluatedAt!, maximumAgeSeconds: registry.maximumAgeSeconds! }),
+  };
   const issues = new Set<string>();
   const arms: ExperimentCharacteristicsResult["arms"][number][] = [];
   const audit: ExperimentCharacteristicsResult["audit"][number][] = [];
