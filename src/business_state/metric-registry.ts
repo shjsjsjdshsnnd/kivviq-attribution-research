@@ -185,7 +185,7 @@ export const metricRegistry: Readonly<Record<CanonicalMetricId, MetricDefinition
     label: "Paid media spend",
     definition: "Actual spend reported by paid-media platforms, summed once across eligible channels.",
     unit: "MONEY",
-    authoritativeSources: PAID_PLATFORMS,
+    authoritativeSources: ["FIRST_PARTY", ...PAID_PLATFORMS],
     requiredForDomain: true,
     materialityThresholdPct: 0.03,
     direction: "CONTEXTUAL",
