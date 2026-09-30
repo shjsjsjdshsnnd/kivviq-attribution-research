@@ -16,6 +16,10 @@ import {
   type PortfolioCompatibilityContext,
 } from "../action_conflicts/assessment.js";
 import type { CanonicalEntityReference } from "../action_dependencies/schema.js";
+import {
+  evaluateActionEligibility,
+  type ActionEligibility,
+} from "../action_eligibility/index.js";
 
 export const ACTION_SPACE_VALIDATION_VERSION = "1.0.0" as const;
 
@@ -39,6 +43,20 @@ export type ActionSpaceValidationResult =
       readonly ok: false;
       readonly version: typeof ACTION_SPACE_VALIDATION_VERSION;
       readonly issues: readonly ActionSpaceValidationIssue[];
+    };
+
+export type ActionSpaceEligibilityValidationResult =
+  | {
+      readonly ok: true;
+      readonly version: typeof ACTION_SPACE_VALIDATION_VERSION;
+      readonly action: ActionSpaceCanonicalAction;
+      readonly eligibility: ActionEligibility;
+    }
+  | {
+      readonly ok: false;
+      readonly version: typeof ACTION_SPACE_VALIDATION_VERSION;
+      readonly issues: readonly ActionSpaceValidationIssue[];
+      readonly eligibility?: ActionEligibility;
     };
 
 export type ActionSpacePortfolioValidationResult =
@@ -194,6 +212,100 @@ export function validateActionSpaceDecision(
     ok: false,
     version: ACTION_SPACE_VALIDATION_VERSION,
     issues: zodIssues(looksCompound ? compound.error : atomic.error),
+  };
+}
+
+export function validateActionSpaceActionEligibility(
+  input: unknown,
+  context: {
+    readonly evaluationContext: unknown;
+    readonly resourceRequirements?: readonly unknown[];
+  },
+): ActionSpaceEligibilityValidationResult {
+  const structural = validateActionSpaceDecision(input);
+  if (!structural.ok)
+    return {
+      ok: false,
+      version: ACTION_SPACE_VALIDATION_VERSION,
+      issues: structural.issues,
+    };
+  if (structural.decision.kind !== "ACTION")
+    return {
+      ok: false,
+      version: ACTION_SPACE_VALIDATION_VERSION,
+      issues: [
+        {
+          code: "COMPOUND_ELIGIBILITY_REQUIRES_COMPONENT_CONTEXTS",
+          path: "",
+          message:
+            "Compound Action eligibility must be evaluated for each component with its own bound evidence",
+        },
+      ],
+    };
+
+  const action = structural.decision.action;
+  const evaluated = evaluateActionEligibility(
+    {
+      action,
+      nativeConstraints: {
+        constraints: action.constraints,
+        resourceRequirements: [...(context.resourceRequirements ?? [])],
+      },
+    },
+    context.evaluationContext,
+  );
+  if (!evaluated.ok)
+    return {
+      ok: false,
+      version: ACTION_SPACE_VALIDATION_VERSION,
+      issues: evaluated.failure.messages.map((message, index) => ({
+        code: "ELIGIBILITY_EVALUATION_" + evaluated.failure.code,
+        path: "eligibility." + index,
+        message,
+      })),
+    };
+
+  if (evaluated.result.status === "INELIGIBLE")
+    return {
+      ok: false,
+      version: ACTION_SPACE_VALIDATION_VERSION,
+      eligibility: evaluated.result,
+      issues: [
+        {
+          code: "CONSTRAINT_OR_ELIGIBILITY_VIOLATION",
+          path: "eligibility",
+          message:
+            evaluated.result.checks
+              .filter((check) => check.status === "VIOLATED")
+              .flatMap((check) => check.reasonCodes)
+              .join(", ") || "The Action violates an execution eligibility check",
+        },
+      ],
+    };
+
+  if (evaluated.result.status === "UNKNOWN")
+    return {
+      ok: false,
+      version: ACTION_SPACE_VALIDATION_VERSION,
+      eligibility: evaluated.result,
+      issues: [
+        {
+          code: "ELIGIBILITY_UNRESOLVED",
+          path: "eligibility",
+          message:
+            evaluated.result.checks
+              .filter((check) => check.status === "UNKNOWN")
+              .flatMap((check) => check.missingInformation)
+              .join(", ") || "Action eligibility is unresolved",
+        },
+      ],
+    };
+
+  return {
+    ok: true,
+    version: ACTION_SPACE_VALIDATION_VERSION,
+    action,
+    eligibility: evaluated.result,
   };
 }
 
