@@ -9,7 +9,7 @@ import {
 } from "../../src/evaluation/validation-evidence.js";
 
 describe("executed difficulty worlds", () => {
-  it("qualifies Levels 1 and 2 from executed world evidence without pretending the seven-level ladder is complete", async () => {
+  it("qualifies Levels 1–3 from executed world evidence without pretending the seven-level ladder is complete", async () => {
     const cases = [...buildExecutableDifficultyWorldCases()];
     const plan: ValidationPlan = {
       version: "simulator-validation-plan/1.0.0",
@@ -25,6 +25,7 @@ describe("executed difficulty worlds", () => {
     });
 
     expect(artifact.payload.results.map((row) => row.status)).toEqual([
+      "PASS",
       "PASS",
       "PASS",
     ]);
@@ -48,14 +49,25 @@ describe("executed difficulty worlds", () => {
     expect(level2.measurements["evaluatedActions"]).toBe(37);
     expect(level2.measurements["stochasticOutcomeResponse"]).toBe(true);
 
+    const level3 = artifact.payload.results[2]!;
+    expect(level3.measurements["verifiedFeatures"]).toEqual([
+      "stochastic",
+      "confounding",
+    ]);
+    expect(level3.measurements["confoundingObserved"]).toBe(true);
+    expect(level3.measurements["statewisePurchaseInvariance"]).toBe(true);
+    expect(level3.measurements["exposedConversion"]).toBeGreaterThan(
+      level3.measurements["unexposedConversion"] as number,
+    );
+
     const acceptance = assessArtifactBackedAcceptance(revision, [
       { plan, artifact },
     ]);
     const difficulty = acceptance.requirements.find(
       (row) => row.requirement === "difficulty_levels",
     )!;
-    expect(difficulty.checkedCases).toBe(2);
-    expect(difficulty.distinctCoverage).toBe(2);
+    expect(difficulty.checkedCases).toBe(3);
+    expect(difficulty.distinctCoverage).toBe(3);
     expect(difficulty.requiredCoverage).toBe(7);
     expect(difficulty.status).toBe("FAIL");
     expect(acceptance.overall).toBe("FAIL");
