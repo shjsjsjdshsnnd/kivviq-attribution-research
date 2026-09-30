@@ -16,9 +16,11 @@ import { actionDependenciesSchema } from "../action_dependencies/schema.js";
 import { actionConflictsSchema } from "../action_conflicts/schema.js";
 import { actionCharacteristicsSchema } from "../action_characteristics/schema.js";
 import { actionRiskMeasurementContractsSchema } from "../action_risk/schema.js";
+import { actionOutcomeContractsSchema } from "../action_outcomes/schema.js";
 import { expectedDomainEligibilityCheckIdsForWhat } from "../action_eligibility/definitions.js";
 import type { ActionCharacteristics } from "../action_characteristics/schema.js";
 import type { ActionRiskMeasurementContracts } from "../action_risk/schema.js";
+import type { ActionOutcomeContracts } from "../action_outcomes/schema.js";
 
 export const CANONICAL_ACTION_SCHEMA_VERSION = "2.0.0" as const;
 export type LegacyBusiness = Omit<
@@ -136,6 +138,10 @@ export const actionRiskDimensionsStateSchema = z.union([
   z.object({ state: z.literal("ABSENT") }).strict(),
   actionRiskMeasurementContractsSchema,
 ]);
+export const actionOutcomeContractsStateSchema = z.discriminatedUnion("state", [
+  z.object({ state: z.literal("ABSENT") }).strict(),
+  z.object({ state: z.literal("PRESENT"), value: actionOutcomeContractsSchema }).strict(),
+]);
 const forbidden = new Set([
   "expectedOpenRate",
   "expectedClickRate",
@@ -170,6 +176,14 @@ const forbidden = new Set([
   "posterior",
   "recommendation",
   "best",
+  "groundTruth",
+  "trueWorld",
+  "oracle",
+  "godMode",
+  "latentState",
+  "actualBest",
+  "optimalAction",
+  "regret",
   "adaptive",
   "sequential",
   "results",
@@ -212,6 +226,7 @@ export const canonicalActionSchema = z
     conflicts: actionConflictsSchema.default([]),
     characteristics: actionCharacteristicsStateSchema.default({ state: "ABSENT" }),
     riskDimensions: actionRiskDimensionsStateSchema.default({ state: "ABSENT" }),
+    outcomes: actionOutcomeContractsStateSchema.default({ state: "ABSENT" }),
     provenance: z.array(z.string().regex(/^[A-Za-z][A-Za-z0-9_.:-]*$/)).min(1),
   })
   .strict()
@@ -351,10 +366,11 @@ function hasFiniteTimingHorizon(timing: ActionTiming): boolean {
 export type CanonicalAction = z.infer<typeof canonicalActionSchema>;
 export type NewCanonicalAction = Omit<
   CanonicalAction,
-  "characteristics" | "riskDimensions"
+  "characteristics" | "riskDimensions" | "outcomes"
 > & {
   characteristics: { state: "PRESENT"; value: ActionCharacteristics };
   riskDimensions: ActionRiskMeasurementContracts;
+  outcomes: { state: "PRESENT"; value: ActionOutcomeContracts };
 };
 export const newCanonicalActionSchema = canonicalActionSchema.superRefine(
   (action, context) => {
@@ -362,6 +378,8 @@ export const newCanonicalActionSchema = canonicalActionSchema.superRefine(
       context.addIssue({ code: "custom", path: ["characteristics"], message: "New Actions require explicit characteristics" });
     if ("state" in action.riskDimensions)
       context.addIssue({ code: "custom", path: ["riskDimensions"], message: "New Actions require all six risk measurement dimensions" });
+    if (action.outcomes.state !== "PRESENT")
+      context.addIssue({ code: "custom", path: ["outcomes"], message: "New Actions require measurable outcome contracts" });
   },
 ) as unknown as z.ZodType<NewCanonicalAction>;
 export function assertCanonicalAction(input: unknown): CanonicalAction {
