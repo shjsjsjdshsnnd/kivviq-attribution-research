@@ -83,6 +83,27 @@ export function verifyValidationArtifact(raw: unknown, rawPlan: unknown, codeRev
   }
   return artifact;
 }
+
+function hasHash(value: unknown): boolean {
+  return typeof value === "string" && /^[a-f0-9]{64}$/.test(value);
+}
+
+function canonicalAdversarialQualification(
+  measurements: Readonly<Record<string, unknown>>,
+): boolean {
+  return (
+    measurements["completeActionSet"] === true &&
+    measurements["completeOutcomeSupport"] === true &&
+    measurements["operatorLeakFree"] === true &&
+    measurements["oracleReplayVerified"] === true &&
+    measurements["threeLevelBoundaryVerified"] === true &&
+    measurements["causalCounterfactualVerified"] === true &&
+    hasHash(measurements["worldHash"]) &&
+    hasHash(measurements["candidateSetHash"]) &&
+    hasHash(measurements["oracleHash"])
+  );
+}
+
 /**
  * Acceptance consumes actual artifact bytes and the registered plan, never a
  * caller's pass flags or an unchecked hash. CI provenance/authorship is still a
@@ -99,7 +120,11 @@ export function assessArtifactBackedAcceptance(codeRevision: string, sources: re
   for (const requirement of PHASE1_REQUIREMENTS) {
     const cases = verified.flatMap(({ plan, artifact }) => plan.cases.filter(c => c.requirements.includes(requirement)).map(spec => {
       const result = artifact.payload.results.find(r => r.caseId === spec.caseId)!;
-      return { caseId: spec.caseId, passed: result.status === "PASS", coverageValues:
+      const passed =
+        result.status === "PASS" &&
+        (requirement !== "adversarial_scenarios" ||
+          canonicalAdversarialQualification(result.measurements));
+      return { caseId: spec.caseId, passed, coverageValues:
         requirement === "adversarial_scenarios" ? [spec.scenarioFamily!] : requirement === "difficulty_levels" ? [String(spec.difficultyLevel)] : spec.coverage[requirement] ?? [] };
     }));
     if (cases.length > 0) evidence.push({ requirement, codeRevision, runId: verified.map(s => s.artifact.payload.runId).join("+"),
