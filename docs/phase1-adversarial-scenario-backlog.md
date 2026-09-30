@@ -1,8 +1,8 @@
-# Adversarial scenario library — implementation backlog
+# Adversarial scenario library — Phase 1 families and follow-on backlog
 
-Status: **proposed recipes, not verified executable scenarios**. None of the rows below counts toward the Phase 1 target of at least 20 verified adversarial scenarios. The existing simulator has individual domain traps; those must be reused and verified through the three-level measurement boundary before registration in the new integrated library. The CLI `measurement-control`/`9274` is a pipeline control, not one of these traps.
+Status: **adv-001 through adv-020 are implemented as 20 distinct canonical decision mechanism families and are registered in the integrated Phase 1 acceptance plan.** They use complete finite action/outcome support, exact contribution economics, the three-level measurement boundary, neutral Operator action IDs and evaluator-only causal verification. adv-021 through adv-024 remain follow-on recipes and do not count toward the frozen Phase 1 target.
 
-The numbers in requested examples (11x ROAS, +31% revenue/-8% contribution, four days of stock) are target fixture predicates, not measured results from this branch.
+The CLI `measurement-control`/`9274` remains a pipeline control, not one of these traps. Example numbers such as 11x ROAS, +31% revenue/-8% contribution and four days of stock are illustrative trap descriptions; the executable acceptance evidence is the registered mechanism predicate and oracle ledger, not those prose numbers.
 
 ## Registration requirements
 
@@ -10,7 +10,7 @@ A registered executable scenario must have a stable opaque ID, version, world bu
 
 The Operator must never receive this catalog's labels, mechanism description, difficulty, parameters, verification results or correct action. It receives corrupted observations and a merchant-action interface with neutral action IDs. Development scenarios must not be used as sealed evaluation cases. Variations derived from the same mechanism belong to that scenario family, not inflated independent counts.
 
-## Proposed distinct recipes
+## Canonical Phase 1 families and follow-on recipes
 
 | Proposed ID | Misleading observed pattern / tempting decision | Evaluator-only causal predicate required | Observation / evaluation horizon |
 | --- | --- | --- | --- |
@@ -41,9 +41,9 @@ The Operator must never receive this catalog's labels, mechanism description, di
 
 ## Composition and difficulty
 
-These recipes should first be implemented individually at the minimum appropriate level. Composite Level 6–7 cases combine independently verified mechanisms with explicitly registered interaction rules, not uncontrolled corruption of arbitrary numbers. Each composite needs its own joint causal predicate and held-out seed set.
+The Phase 1 canonical families are verified individually rather than inflating scenario count with extra seeds or parameter variants. Composite Level 6–7 difficulty worlds combine independently checked mechanisms with explicit interaction rules, not uncontrolled corruption of arbitrary numbers.
 
-Level 1 controls require genuinely deterministic mechanics, not merely a fixed seed for stochastic behavior. Level 2 introduces customer randomness; Level 3 adds confounding; Level 4 measurement corruption; Level 5 dynamic effects; Level 6 several misleading mechanisms; Level 7 their realistic combinations. The implemented graduation function can score preregistered results, but its existence does not establish that these worlds or graduation outcomes have been produced.
+Level 1 controls require genuinely deterministic mechanics, not merely a fixed seed for stochastic behavior. Level 2 introduces customer randomness; Level 3 adds confounding; Level 4 measurement corruption; Level 5 dynamic effects; Level 6 several misleading mechanisms; Level 7 combines the registered mechanism classes. All seven executable difficulty worlds are separately registered in the integrated acceptance plan; they are not counted as extra adversarial families.
 
 ## Required checks before counting a scenario
 
@@ -53,6 +53,6 @@ Level 1 controls require genuinely deterministic mechanics, not merely a fixed s
 4. The action ranking uses a complete eligible set, actual spend, implementation costs and an appropriate horizon.
 5. No future events, true identities, causal parameters or oracle scores reach the Operator payload.
 6. The complete manifest reproduces all three output hashes.
-7. The independent validation seed set has sufficient coverage; failed seeds are reported, not filtered away.
+7. The scenario exhausts its registered finite support or uses an independently preregistered validation set appropriate to its stochastic contract; failed branches/results are reported rather than filtered away.
 
-Only after these checks pass should a recipe become a verified scenario in an evidence-backed acceptance report. This document does not assign a pass to any recipe.
+The acceptance artifact, not this document, determines pass/fail. adv-001 through adv-020 are registered for evidence-backed qualification; adv-021 through adv-024 remain outside the Phase 1 denominator.
