@@ -1,9 +1,9 @@
 name: Action Space + Phase 1 Integration CI
 on:
   push:
-    branches: [integration/action-space-steps1-24-phase1]
+    branches: [integration/action-space-steps1-24-business-state-phase1-v2]
   pull_request:
-    branches: [integration/business-state-native-base]
+    branches: [phase1/steps15-23-measurement-decision-lab]
 permissions:
   contents: read
 concurrency:
