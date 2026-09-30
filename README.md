@@ -23,6 +23,14 @@ Canonical Actions can declare evidence-bound prerequisites, symmetric portfolio 
 
 See the [action portfolio contract guide](docs/action-dependencies-conflicts-characteristics-risk.md). Run `npm run test:action-portfolio` for the focused suite.
 
+### Measurable outcomes and Action Space validation
+
+New canonical Actions declare how success can be established: the metric, comparison basis, success condition, measurement horizon, evidence policy, and stable Decision Ledger/Learning references. Outcome definitions are part of Action intent but never contain observed results, predictions, rankings, or GroundTruth/oracle information.
+
+The Action Space adversarial harness validates thousands of Actions and portfolios, rejects malformed targets/parameters/compounds, verifies conflict and hard-constraint gates, and stress-tests deterministic Action-to-simulator translation without semantic drift.
+
+See the [Steps 23–24 guide](docs/action-measurable-outcomes-validation.md). Run `npm run test:action-outcomes-validation` for the focused suite.
+
 ### Frozen research references
 
 **Step 1 — GroundTruth**
