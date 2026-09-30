@@ -32,7 +32,7 @@
     "test:decision-forms": "vitest run tests/compound_action tests/decision_forms tests/investigation tests/decision_evolution tests/canonical_action tests/action_translation --maxWorkers=1",
     "test:experiment-eligibility-constraints": "vitest run tests/action_constraints tests/action_eligibility tests/experiment tests/canonical_action/constraints.test.ts tests/action_translation/experiment-canonical.test.ts tests/action_translation/compound-canonical.test.ts tests/compound_action/compound.test.ts tests/architecture --maxWorkers=1",
     "test:action-portfolio": "npm run build && node tests/public-api/action-portfolio-built.mjs && vitest run tests/action_dependencies tests/action_conflicts tests/action_characteristics tests/action_risk tests/canonical_action tests/action_timing tests/action_constraints tests/action_eligibility tests/experiment tests/compound_action tests/action_translation tests/architecture tests/compatibility/action-portfolio-legacy.test.ts tests/public-api/action-risk-types.test.ts --maxWorkers=1",
-    "test:action-space-validation": "vitest run tests/action_outcomes tests/action_validation tests/action_translation --maxWorkers=1"
+    "test:action-space-validation": "vitest run tests/action_outcomes tests/action_validation tests/action_translation tests/public-api/action-outcomes-validation.test.ts --maxWorkers=1"
   },
   "exports": {
     ".": "./dist/index.js",
