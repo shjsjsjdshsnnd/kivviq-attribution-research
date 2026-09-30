@@ -20,7 +20,7 @@ describe("actual main-kernel mechanism evidence", () => {
     expect(output.measurements["externalCalibration"]).toBe(false);
     expect(output.measurements["qualification"]).toBe("kernel_mechanism_regression_not_canonical_decision_scenario");
   }, 90000);
-  it("preserves failed retention qualifications in the artifact instead of counting the seed as accepted", async () => {
+  it("requires retention evidence to be uncensored and stable under a doubled session ceiling", async () => {
     const retention = cases.filter(c => c.spec.caseId.startsWith("domain:retention"));
     const plan = { version: "simulator-validation-plan/1.0.0" as const, suiteId: "retention-domain-regression", cases: retention.map(c => c.spec) };
     const artifact = await executeValidationPlan({ codeRevision: "a".repeat(40), runId: "retention-public-regression", plan, executors: retention });
@@ -29,15 +29,19 @@ describe("actual main-kernel mechanism evidence", () => {
       const checks = record.measurements["checks"] as Array<{ id: string; passed: boolean }>;
       expect(record.status).not.toBe("ERROR"); expect(record.status).not.toBe("NOT_RUN");
       expect(record.status === "PASS").toBe(checks.every(c => c.passed));
+      expect(checks.find(c => c.id === "retention_session_cap_is_nonbinding")?.passed).toBe(true);
+      expect(checks.find(c => c.id === "retention_trajectory_converges_under_doubled_cap")?.passed).toBe(true);
+      expect(checks.find(c => c.id === "future_value_is_nonvacuous_and_separate")?.passed).toBe(true);
+      const validity = record.measurements["longitudinalValidity"] as {
+        primarySessionCap: number; convergenceSessionCap: number;
+        sessionCapNonbinding: boolean; trajectoryConverged: boolean;
+      };
+      expect(validity.primarySessionCap).toBeLessThan(validity.convergenceSessionCap);
+      expect(validity.sessionCapNonbinding).toBe(true);
+      expect(validity.trajectoryConverged).toBe(true);
     }
-    // This is an executed known failing qualification, not permission to weaken
-    // its non-vacuous future-value requirement or remove its registered seed.
-    const failed = artifact.payload.results.find(r => r.caseId.endsWith(":1211201"))!;
-    expect(failed.status).toBe("FAIL");
-    expect((failed.measurements["checks"] as Array<{ id: string; passed: boolean }>).filter(c => !c.passed).map(c => c.id))
-      .toContain("future_value_is_nonvacuous_and_separate");
     const acceptance = assessArtifactBackedAcceptance("a".repeat(40), [{ plan, artifact }]);
-    expect(acceptance.overall).toBe("FAIL");
+    expect(acceptance.requirements.find(r => r.requirement === "retention_clv")!.status).toBe("PASS");
     expect(acceptance.requirements.find(r => r.requirement === "retention_clv")!.checkedCases).toBe(2);
-  }, 90000);
+  }, 180000);
 });
