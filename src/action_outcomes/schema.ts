@@ -273,6 +273,8 @@ function compatibleThreshold(
     return valueType.currency === threshold.currency;
   if (valueType.kind === "QUANTITY" && threshold.valueType === "QUANTITY")
     return valueType.unit === threshold.unit;
+  if (valueType.kind === "SCALAR" && threshold.valueType === "SCALAR")
+    return valueType.unitRef === threshold.unit;
   return true;
 }
 
