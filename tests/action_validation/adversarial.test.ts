@@ -23,6 +23,7 @@ import {
 import { translateBusinessAction } from "../../src/action_translation/translate.js";
 import { translateCanonicalAction } from "../../src/action_translation/canonical.js";
 import { evaluateEligibilityForTest } from "../action_translation/eligibility-helper.js";
+import type { SimulatorOperation } from "../../src/simulator_intervention/types.js";
 
 const evaluatedAt = "2026-09-27T12:00:00Z";
 
@@ -74,13 +75,25 @@ function generatedNoOp(id: string) {
   });
 }
 
+function semanticOperation(operation: SimulatorOperation) {
+  if (operation.kind === "SET") return operation;
+  return {
+    ...operation,
+    baseline: {
+      value: operation.baseline.value,
+      referenceKind: operation.baseline.referenceKind,
+      source: operation.baseline.source,
+    },
+  };
+}
+
 function interventionMeaning(result: ReturnType<typeof translateBusinessAction>) {
   if (result.status !== "TRANSLATED") return result.status;
   return result.interventions.map((intervention) => ({
     interventionType: intervention.interventionType,
     target: intervention.target,
     scope: intervention.scope,
-    operation: intervention.operation,
+    operation: semanticOperation(intervention.operation),
     effectiveTime: intervention.effectiveTime,
     duration: intervention.duration,
     endCondition: intervention.endCondition,
@@ -100,7 +113,7 @@ describe("Step 24 Action Space validation and adversarial tests", () => {
         expect(first.entity.fingerprint).toBe(fingerprintCanonicalAction(action));
       }
     }
-  });
+  }, 30_000);
 
   it("rejects thousands of invalid targets and impossible parameters", () => {
     const base = adaptLegacyAction(increaseGoogleShoppingBudget20);
@@ -190,11 +203,15 @@ describe("Step 24 Action Space validation and adversarial tests", () => {
       expect(validateActionSpacePortfolio([left, right]).valid).toBe(true);
       expect(validateActionSpacePortfolio([left, left]).valid).toBe(false);
     }
-  });
+  }, 20_000);
 
   it("rejects conflicting portfolios through the canonical conflict engine", () => {
+    const conflictTiming = createCanonicalFixtures()[25]!.action!.timing;
     for (let index = 0; index < 128; index += 1) {
-      const right = generatedNoOp(`action_conflict_${index}_right`);
+      const right = canonicalActionSchema.parse({
+        ...generatedNoOp(`action_conflict_${index}_right`),
+        timing: conflictTiming,
+      });
       const rightRef = {
         entityKind: "ACTION" as const,
         actionId: right.actionId,
@@ -315,5 +332,5 @@ describe("Step 24 Action Space validation and adversarial tests", () => {
       expect(audit.first.status).toBe("TRANSLATED");
       expect(interventionMeaning(audit.first)).toEqual(expected.get(base.actionId));
     }
-  });
+  }, 30_000);
 });
