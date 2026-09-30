@@ -8,8 +8,8 @@ describe("actual main-kernel mechanism evidence", () => {
   it("retains all previous checks and every registered domain seed", () => {
     expect(cases).toHaveLength(8);
     const integrated = buildIntegratedPhase1ValidationSuite();
-    expect(integrated.plan.cases).toHaveLength(75);
-    expect(new Set(integrated.plan.cases.map(c => c.caseId)).size).toBe(75);
+    expect(integrated.plan.cases).toHaveLength(76);
+    expect(new Set(integrated.plan.cases.map(c => c.caseId)).size).toBe(76);
     expect(Object.values(DOMAIN_VALIDATION_SEEDS).flat()).toHaveLength(8);
     expect(cases.every(c => !c.spec.requirements.includes("adversarial_scenarios") && !c.spec.requirements.includes("difficulty_levels"))).toBe(true);
   });
