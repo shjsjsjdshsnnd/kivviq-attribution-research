@@ -387,6 +387,7 @@ function derivedMetricState(
         kind.toLowerCase() +
         ":" +
         request.asOf,
+      merchantId: request.merchantId,
       metricId,
       source: "DERIVED",
       periodKind: kind,
@@ -394,6 +395,7 @@ function derivedMetricState(
       periodStart: period.start,
       periodEnd: period.end,
       value,
+      ...(definition.unit === "MONEY" ? { currency: request.currency } : {}),
       provenance:
         "Derived from " +
         dependencies.join(",") +
@@ -511,9 +513,19 @@ export async function collectBusinessState(
             return;
           }
 
+          const moneyCurrencyMismatch =
+            definition.unit === "MONEY" &&
+            parsed.currency !== request.currency;
+          const futureEvidence =
+            Date.parse(parsed.observedAt) > Date.parse(request.asOf);
           if (
+            parsed.merchantId !== request.merchantId ||
             parsed.metricId !== metricId ||
             parsed.periodKind !== period.kind ||
+            parsed.periodStart !== period.start ||
+            parsed.periodEnd !== period.end ||
+            moneyCurrencyMismatch ||
+            futureEvidence ||
             !isAuthoritativeEvidenceSource(metricId, parsed.source)
           ) {
             const reasons = invalidReasons.get(metricId) ?? [];
@@ -629,11 +641,14 @@ export class InMemoryEvidenceProvider
   ): Promise<EvidenceRef | null> {
     const matches = this.#records.filter(
       (record) =>
+        record.merchantId === request.merchantId &&
         record.metricId === request.metricId &&
         record.periodKind === request.periodKind &&
         request.sourceCandidates.includes(record.source) &&
         record.periodStart === request.periodStart &&
-        record.periodEnd === request.periodEnd,
+        record.periodEnd === request.periodEnd &&
+        (metricRegistry[record.metricId].unit !== "MONEY" ||
+          record.currency === request.currency),
     );
     if (matches.length === 0) return null;
     if (matches.length > 1) {
