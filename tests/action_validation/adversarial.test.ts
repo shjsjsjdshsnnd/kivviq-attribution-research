@@ -305,7 +305,7 @@ function semanticIntervention(value: any) {
 }
 
 describe("Step 24 generated Action Space validation", () => {
-  it("accepts 3,000 deterministic valid Actions and 1,000 valid portfolios", () => {
+  it("accepts 3,000 deterministic valid Actions and 2,000 valid portfolios", () => {
     const random = generator(0x23_24_20_26);
     let accepted = 0;
     for (let index = 0; index < 3000; index += 1) {
@@ -323,7 +323,7 @@ describe("Step 24 generated Action Space validation", () => {
     expect(accepted).toBe(3000);
 
     let portfolios = 0;
-    for (let index = 0; index < 1000; index += 1) {
+    for (let index = 0; index < 2000; index += 1) {
       const base = 10_000 + index * 3;
       const result = validateActionSpacePortfolio([
         rawAction(base),
@@ -339,8 +339,8 @@ describe("Step 24 generated Action Space validation", () => {
         );
       portfolios += 1;
     }
-    expect(portfolios).toBe(1000);
-  }, 20_000);
+    expect(portfolios).toBe(2000);
+  }, 30_000);
 
   it("rejects 1,500 adversarial Actions and malformed compounds", () => {
     const supported = {
