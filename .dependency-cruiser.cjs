@@ -77,7 +77,7 @@ module.exports = {
         "Operator-facing modules must never depend on GroundTruth, generation, latent customers, simulation, advertising economics, cross-channel interactions, ecommerce economics, product economics, evaluator/oracle, or other God-mode internals.",
       severity: "error",
       from: {
-        path: "^(src/(observation|operator|operator_safe|action_ontology|canonical_action|compound_action|decision_forms|investigation|population|action_timing|action_translation|simulator_intervention|paid_media|pricing|promotion|shipping|merchandising|inventory|cro|lifecycle|experiment|action_constraints|action_eligibility)(/|$)|src/index\\.ts$)",
+        path: "^(src/(observation|operator|operator_safe|business_state|action_ontology|canonical_action|compound_action|decision_forms|investigation|population|action_timing|action_translation|simulator_intervention|paid_media|pricing|promotion|shipping|merchandising|inventory|cro|lifecycle|experiment|action_constraints|action_eligibility)(/|$)|src/index\\.ts$)",
       },
       to: {
         path: "^src/(ground_truth|generation|customer_population|simulation|advertising_economics|cross_channel|ecommerce_economics|product_economics|evaluation|oracle|god_mode)(/|$)",
