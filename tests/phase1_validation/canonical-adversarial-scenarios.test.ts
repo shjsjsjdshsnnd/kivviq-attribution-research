@@ -37,7 +37,18 @@ describe("canonical adversarial decision worlds", () => {
       expect(row.measurements["completeActionSet"]).toBe(true);
       expect(row.measurements["completeOutcomeSupport"]).toBe(true);
       expect(row.measurements["operatorLeakFree"]).toBe(true);
+      expect(row.measurements["oracleReplayVerified"]).toBe(true);
+      expect(row.measurements["threeLevelBoundaryVerified"]).toBe(true);
+      expect(row.measurements["causalCounterfactualVerified"]).toBe(true);
       expect(row.measurements["neutralActionIds"]).toEqual(["a0", "a1", "a2"]);
+      const boundary = row.measurements["measurementBoundary"] as {
+        replayVerified: boolean;
+        serverOrdersPreserved: boolean;
+        corruptionApplied: boolean;
+      };
+      expect(boundary.replayVerified).toBe(true);
+      expect(boundary.serverOrdersPreserved).toBe(true);
+      expect(boundary.corruptionApplied).toBe(true);
       const trap = row.measurements["trapCheck"] as {
         mechanism: boolean;
         bestActionId: string;
