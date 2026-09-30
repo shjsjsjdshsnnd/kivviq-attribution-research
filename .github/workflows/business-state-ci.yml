@@ -12,7 +12,7 @@ on:
       - ".github/workflows/business-state-ci.yml"
   push:
     branches:
-      - "business-state/steps1-25-v3"
+      - "business-state/steps1-25-v4"
     paths:
       - "src/business_state/**"
       - "tests/business_state/**"
