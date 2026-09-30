@@ -15,6 +15,7 @@ import { reorderSkuA100 } from "../../src/inventory/fixtures.js";
 import { freeStandardShippingAllOrders } from "../../src/shipping/fixtures.js";
 import type { ActionCharacteristics } from "../../src/action_characteristics/index.js";
 import type { ActionRiskMeasurementContracts } from "../../src/action_risk/index.js";
+import type { ActionOutcomeContracts } from "../../src/action_outcomes/index.js";
 
 const fingerprint = "fnv1a64:0123456789abcdef";
 const base = () => createCanonicalFixtures()[0]!.action!;
@@ -77,6 +78,28 @@ const riskDimensions = {
   CUSTOMER_IMPACT: [{ ...commonRisk, measurementId: "risk.customer", metricRef: "metric.customer", dimension: "CUSTOMER_IMPACT" as const, population, impactFamily: { registryRef: "risk.customer", code: "disruption", version: "1" }, valueType: { kind: "QUANTITY" as const, unit: "customers" as const } }],
   TIME_TO_RECOVERY: [{ ...commonRisk, measurementId: "risk.recovery", metricRef: "metric.recovery", dimension: "TIME_TO_RECOVERY" as const, target: { kind: "GLOBAL" as const }, recoveryBaselineRef: "baseline.recovery", recoveryCriterionRef: "criterion.recovery", startBoundary: "ACTION_EFFECTIVE" as const, valueType: { kind: "DURATION" as const, unit: "HOUR" as const } }],
 };
+const outcomes = {
+  state: "PRESENT" as const,
+  value: [{
+    outcomeId: "outcome.primary",
+    role: "PRIMARY" as const,
+    metricRef: "metric.contribution_profit",
+    metricFamily: "CONTRIBUTION_PROFIT" as const,
+    target: { kind: "GLOBAL" as const },
+    valueType: { kind: "MONEY" as const, currency: "USD" },
+    comparison: { kind: "NONE" as const },
+    successCondition: {
+      kind: "ABSOLUTE_THRESHOLD" as const,
+      comparator: "GTE" as const,
+      threshold: { valueType: "MONEY" as const, amountMinor: 1, currency: "USD" },
+    },
+    horizon: { amount: 30, unit: "DAY" as const, anchor: "ACTION_EFFECTIVE" as const },
+    evidencePolicyRef: "policy.incremental",
+    sourceDefinitionRef: { registryRef: "metric.registry", code: "contribution_profit", version: "1" },
+    decisionLedger: { outcomeKey: "decision.outcome.primary", evidenceSlotRef: "decision.evidence.primary" },
+    learning: { signalRef: "learning.signal.primary", updateRuleRef: "learning.rule.primary" },
+  }],
+};
 
 describe("canonical portfolio definition integration", () => {
   it("defaults historical v2 payloads without changing locked fingerprints", () => {
@@ -88,12 +111,14 @@ describe("canonical portfolio definition integration", () => {
       expect(action.conflicts).toEqual([]);
       expect(action.characteristics).toEqual({ state: "ABSENT" });
       expect(action.riskDimensions).toEqual({ state: "ABSENT" });
+      expect(action.outcomes).toEqual({ state: "ABSENT" });
       expect(fingerprintCanonicalAction(action)).toBe(fingerprintCanonicalAction(canonicalActionSchema.parse({
         ...action,
         dependencies: [],
         conflicts: [],
         characteristics: { state: "ABSENT" },
         riskDimensions: { state: "ABSENT" },
+        outcomes: { state: "ABSENT" },
       })));
     }
   });
@@ -114,6 +139,7 @@ describe("canonical portfolio definition integration", () => {
       { conflicts: [conflict()] },
       { characteristics: { state: "PRESENT" as const, value: characteristics } },
       { riskDimensions },
+      { outcomes },
     ]) expect(fingerprintCanonicalAction(canonicalActionSchema.parse({ ...action, ...addition }))).not.toBe(originalFingerprint);
     const extended = canonicalActionSchema.parse({
       ...action,
@@ -168,10 +194,12 @@ describe("canonical portfolio definition integration", () => {
 
   it("requires complete explicit definition states from the new-author helper", () => {
     const action = base();
-    expect(() => assertNewCanonicalAction({ ...action, characteristics: { state: "PRESENT", value: characteristics }, riskDimensions })).not.toThrow();
+    expect(() => assertNewCanonicalAction({ ...action, characteristics: { state: "PRESENT", value: characteristics }, riskDimensions, outcomes })).not.toThrow();
     expect(() => assertNewCanonicalAction(action)).toThrow();
-    expect(() => assertNewCanonicalAction({ ...action, characteristics: { state: "ABSENT" }, riskDimensions })).toThrow();
+    expect(() => assertNewCanonicalAction({ ...action, characteristics: { state: "ABSENT" }, riskDimensions, outcomes })).toThrow();
+    expect(() => assertNewCanonicalAction({ ...action, characteristics: { state: "PRESENT", value: characteristics }, riskDimensions })).toThrow();
     expectTypeOf<NewCanonicalAction["characteristics"]>().toEqualTypeOf<{ state: "PRESENT"; value: ActionCharacteristics }>();
     expectTypeOf<NewCanonicalAction["riskDimensions"]>().toEqualTypeOf<ActionRiskMeasurementContracts>();
+    expectTypeOf<NewCanonicalAction["outcomes"]>().toEqualTypeOf<{ state: "PRESENT"; value: ActionOutcomeContracts }>();
   });
 });
