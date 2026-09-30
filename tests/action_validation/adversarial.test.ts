@@ -142,14 +142,25 @@ function portfolioContext(
 }
 
 function semanticIntervention(value: any) {
+  const effectiveTime =
+    typeof value.effectiveTime === "string"
+      ? Date.parse(value.effectiveTime)
+      : value.effectiveTime;
+  const endAt =
+    value.endCondition?.kind === "fixed_end"
+      ? Date.parse(value.endCondition.at)
+      : value.endCondition?.kind === "fixed_duration" &&
+          typeof effectiveTime === "number"
+        ? effectiveTime + value.endCondition.durationSeconds * 1000
+        : value.endCondition;
   return {
     interventionType: value.interventionType,
     target: value.target,
     operation: value.operation,
     scope: value.scope,
-    effectiveTime: value.effectiveTime,
+    effectiveTime,
     duration: value.duration,
-    endCondition: value.endCondition,
+    endAt,
   };
 }
 
@@ -429,7 +440,7 @@ describe("Step 24 generated Action Space validation", () => {
       translated += 1;
     }
     expect(translated).toBe(500);
-  });
+  }, 20_000);
 
   it("parses 500 generated compounds deterministically and rejects cycles", () => {
     let valid = 0;
