@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { DIFFICULTY_FEATURES, registerDifficultyCurriculum, graduateScoredCurriculum, type CurriculumCase } from "../../src/evaluation/difficulty-curriculum.js";
+import { DIFFICULTY_FEATURES, LEVEL7_MECHANISM_REQUIREMENTS, registerDifficultyCurriculum, graduateScoredCurriculum, type CurriculumCase } from "../../src/evaluation/difficulty-curriculum.js";
 import { executeValidationPlan, type ExecutableValidationCase, type ValidationPlan } from "../../src/evaluation/validation-evidence.js";
 import { evaluateExactActionSet } from "../../src/evaluation/exact-decision-oracle.js";
 import { buildTractableCheckoutControl } from "../../src/evaluation/tractable-checkout-control.js";
@@ -13,7 +13,13 @@ async function setup() {
     spec: { caseId: `case-${p.level}`, implementationVersion: "logic-only/1", kind: "qualified_difficulty_world",
       difficultyLevel: p.level, requirements: ["difficulty_levels"] },
     run: () => ({ passed: true, measurements: { worldHash: sha256(`logic-world-${p.level}`),
-      verifiedFeatures: [...p.required], deterministicAcrossExogenousStates: p.level === 1 } }),
+      verifiedFeatures: [...p.required], deterministicAcrossExogenousStates: p.level === 1,
+      ...(p.level === 7 ? {
+        allMechanismsCoverage: [...LEVEL7_MECHANISM_REQUIREMENTS],
+        allMechanismsChecks: Object.fromEntries(
+          LEVEL7_MECHANISM_REQUIREMENTS.map(mechanism => [mechanism, true]),
+        ),
+      } : {}) } }),
   }));
   const plan: ValidationPlan = { version: "simulator-validation-plan/1.0.0", suiteId: "logic-only-not-world-qualification", cases: cases.map(c => c.spec) };
   const codeRevision = "a".repeat(40);
@@ -45,6 +51,25 @@ describe("evidence-bound difficulty graduation", () => {
     source.artifact.sha256 = sha256(source.artifact.payload);
     for (const c of input.cases) c.qualificationArtifactHash = source.artifact.sha256;
     expect(() => registerDifficultyCurriculum(input, [source])).toThrow("claimed difficulty");
+  });
+  it("refuses Level 7 when any canonical mechanism is missing or unproven", async () => {
+    const x = await setup();
+    const missing = structuredClone(x.sources[0]!);
+    const level7 = missing.artifact.payload.results.find(r => r.caseId === "case-7")!;
+    level7.measurements["allMechanismsCoverage"] = LEVEL7_MECHANISM_REQUIREMENTS.slice(0, -1);
+    missing.artifact.sha256 = sha256(missing.artifact.payload);
+    const input = structuredClone(x.input);
+    for (const c of input.cases) c.qualificationArtifactHash = missing.artifact.sha256;
+    expect(() => registerDifficultyCurriculum(input, [missing])).toThrow("every canonical mechanism");
+
+    const failed = structuredClone(x.sources[0]!);
+    const failedLevel7 = failed.artifact.payload.results.find(r => r.caseId === "case-7")!;
+    const checks = failedLevel7.measurements["allMechanismsChecks"] as Record<string, boolean>;
+    checks["returns_economics"] = false;
+    failed.artifact.sha256 = sha256(failed.artifact.payload);
+    const failedInput = structuredClone(x.input);
+    for (const c of failedInput.cases) c.qualificationArtifactHash = failed.artifact.sha256;
+    expect(() => registerDifficultyCurriculum(failedInput, [failed])).toThrow("every canonical mechanism");
   });
   it("computes regret from full oracle evidence and advances levels in sequence", async () => {
     const x = await setup();
