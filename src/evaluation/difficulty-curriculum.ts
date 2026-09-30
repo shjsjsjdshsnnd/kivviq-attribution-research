@@ -6,7 +6,21 @@ import { decisionRegret, type FiniteOracleResult } from "./finite-decision-oracl
 import { exactDecisionRegret, type ExactOracleResult } from "./exact-decision-oracle.js";
 
 /** Evaluator-only curriculum; labels/features must never enter an Operator offer. */
-export const DIFFICULTY_FEATURES = [
+export export const LEVEL7_MECHANISM_REQUIREMENTS = [
+  "paid_media_response",
+  "diminishing_channel_returns",
+  "cross_channel_interaction",
+  "pricing_elasticity",
+  "promotion_economics",
+  "retention_customer_value",
+  "inventory_constraints",
+  "external_shocks",
+  "measurement_corruption",
+  "returns_economics",
+  "counterfactual_interventions",
+] as const;
+
+const DIFFICULTY_FEATURES = [
   { level: 1, required: [], forbidden: ["stochastic", "confounding", "corruption", "dynamics", "multiple_traps", "all_mechanisms"] },
   { level: 2, required: ["stochastic"], forbidden: ["confounding", "corruption", "dynamics", "multiple_traps", "all_mechanisms"] },
   { level: 3, required: ["stochastic", "confounding"], forbidden: ["corruption", "dynamics", "multiple_traps", "all_mechanisms"] },
@@ -45,6 +59,28 @@ export function registerDifficultyCurriculum(raw: {
     if (profile.required.some(f => !c.verifiedFeatures.includes(f)) || profile.forbidden.some(f => c.verifiedFeatures.includes(f)) ||
         (c.level === 1 && !c.deterministicAcrossExogenousStates) || (c.level > 1 && c.deterministicAcrossExogenousStates)) {
       throw new RangeError("world qualification does not establish the claimed difficulty");
+    }
+    if (c.level === 7) {
+      const coverage = executed.measurements["allMechanismsCoverage"];
+      const checks = executed.measurements["allMechanismsChecks"];
+      const coverageValid =
+        Array.isArray(coverage) &&
+        canonicalJson(coverage) === canonicalJson(LEVEL7_MECHANISM_REQUIREMENTS);
+      const checksValid =
+        typeof checks === "object" &&
+        checks !== null &&
+        !Array.isArray(checks) &&
+        LEVEL7_MECHANISM_REQUIREMENTS.every(
+          (mechanism) =>
+            (checks as Record<string, unknown>)[mechanism] === true,
+        ) &&
+        Object.keys(checks as Record<string, unknown>).length ===
+          LEVEL7_MECHANISM_REQUIREMENTS.length;
+      if (!coverageValid || !checksValid) {
+        throw new RangeError(
+          "Level 7 requires executed evidence for every canonical mechanism",
+        );
+      }
     }
   }
   for (const { level } of DIFFICULTY_LEVELS) {
