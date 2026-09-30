@@ -745,8 +745,8 @@ async function level5Evidence() {
   let stablePastAcrossShock = true;
   let knownShockEffect = true;
   const byBase = new Map<string, {
-    readonly off: DynamicWorld;
-    readonly on: DynamicWorld;
+    off?: DynamicWorld;
+    on?: DynamicWorld;
   }>();
   for (const outcome of input.outcomes) {
     const perfect = perfectWorldForDynamicState(
@@ -801,23 +801,25 @@ async function level5Evidence() {
     confoundingUnexposedPurchases +=
       [...directSubjects].filter((subject) => purchasers.has(subject)).length;
 
-    const orders = purchasers.size;
+    const purchaseEvents = perfect.events.filter(
+      (event) => event.origin === "server" && event.eventType === "purchase",
+    ).length;
     inventoryNeverNegative &&=
-      dynamicParameters.initialInventoryUnits - orders >= 0;
+      dynamicParameters.initialInventoryUnits - purchaseEvents >= 0;
 
     const baseKey = outcome.outcomeId.replace(/:shock-(?:on|off)$/, "");
-    const previous = byBase.get(baseKey);
-    byBase.set(baseKey, {
-      off: outcome.world.externalDemandShock
-        ? previous?.off ?? { ...outcome.world, externalDemandShock: false }
-        : outcome.world,
-      on: outcome.world.externalDemandShock
-        ? outcome.world
-        : previous?.on ?? { ...outcome.world, externalDemandShock: true },
-    });
+    const previous = byBase.get(baseKey) ?? {};
+    byBase.set(baseKey, outcome.world.externalDemandShock
+      ? { ...previous, on: outcome.world }
+      : { ...previous, off: outcome.world });
   }
 
   for (const pair of byBase.values()) {
+    if (pair.off === undefined || pair.on === undefined) {
+      stablePastAcrossShock = false;
+      knownShockEffect = false;
+      continue;
+    }
     const off = perfectWorldForDynamicState(pair.off, 70_000 + pairedDynamicCases * 2);
     const on = perfectWorldForDynamicState(pair.on, 70_001 + pairedDynamicCases * 2);
     const normalizePrefix = (world: PerfectObservableWorld) =>
