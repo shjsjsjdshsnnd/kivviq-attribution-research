@@ -8,3 +8,4 @@ export * from "./decision.js";
 export * from "./benchmark.js";
 export * from "./shadow.js";
 export * from "./native.js";
+export * from "./kivviq-shadow-adapter.js";
