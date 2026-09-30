@@ -1,0 +1,107 @@
+name: Diagnosis Engine Foundation
+
+on:
+  push:
+    branches:
+      - 'diagnosis/**'
+  pull_request:
+    paths:
+      - 'src/**'
+      - 'tests/**'
+      - 'scripts/**'
+      - 'tsconfig*.json'
+      - 'package*.json'
+      - '.dependency-cruiser.cjs'
+      - '.github/workflows/diagnosis-foundation-ci.yml'
+
+permissions:
+  contents: read
+
+# Cancel only superseded runs of this workflow on the same event/ref.
+# Keep push and PR runs separate: the latter validates the proposed merge tree.
+concurrency:
+  group: diagnosis-${{ github.event_name }}-${{ github.head_ref || github.ref_name }}
+  cancel-in-progress: true
+
+jobs:
+  diagnosis:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: '.nvmrc'
+      - run: npm ci --no-audit --no-fund
+      - name: Strict diagnosis core typecheck and deterministic/adversarial tests
+        run: node scripts/test-diagnosis.mjs
+      - name: Canonical adapter and merchant-local calendar integration tests
+        run: npm exec -- vitest run tests/diagnosis_integration --maxWorkers=1
+
+  static-validation:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: '.nvmrc'
+      - run: npm ci --no-audit --no-fund
+      - name: Complete repository architecture boundary
+        run: npm run architecture
+      - name: Complete repository typecheck
+        run: npm run typecheck
+      - name: Complete repository build and execution-identity stamp
+        run: npm run build
+
+  regression-tests:
+    name: Regression shard ${{ matrix.shard }}/8
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [1, 2, 3, 4, 5, 6, 7, 8]
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: '.nvmrc'
+      - run: npm ci --no-audit --no-fund
+      # Use the existing test script and its complete test universe. Sharding
+      # partitions files across independent runners; no tests or assertions are
+      # excluded and per-file isolation/single-worker semantics stay intact.
+      - name: Full-suite shard with auditable results
+        run: npm test -- --shard=${{ matrix.shard }}/8 --reporter=verbose --reporter=json --outputFile.json=${{ runner.temp }}/diagnosis-regression-${{ matrix.shard }}.json
+      - name: Preserve shard results even on a test failure
+        if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: diagnosis-regression-${{ github.run_id }}-${{ github.run_attempt }}-${{ matrix.shard }}
+          path: ${{ runner.temp }}/diagnosis-regression-${{ matrix.shard }}.json
+          if-no-files-found: error
+          retention-days: 7
+
+  # Preserve the existing required-check name. Missing, skipped, cancelled or
+  # failed upstream jobs cannot turn into a green aggregate result.
+  repository-regression:
+    if: ${{ always() }}
+    needs: [diagnosis, static-validation, regression-tests]
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+    steps:
+      - name: Require every validation job and all eight shards
+        env:
+          DIAGNOSIS: ${{ needs.diagnosis.result }}
+          STATIC: ${{ needs.static-validation.result }}
+          REGRESSION: ${{ needs.regression-tests.result }}
+        run: |
+          test "$DIAGNOSIS" = success
+          test "$STATIC" = success
+          test "$REGRESSION" = success

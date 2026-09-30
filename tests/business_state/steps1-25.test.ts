@@ -1,3 +1,4 @@
+import { describe, it, expect } from "vitest";
 import {
   BUSINESS_STATE_VERSION,
   InMemoryBusinessStateHistory,
@@ -92,7 +93,7 @@ function request(
     currency: "CAD",
     timezone: "America/Toronto",
     periods: { current: CURRENT, previous: PREVIOUS, yoy: YOY },
-    domains,
+    ...(domains === undefined ? {} : { domains }),
     includeOptionalMetrics: false,
   };
 }
@@ -428,7 +429,7 @@ describe("Canonical Business State — Steps 1–25", () => {
     const snapshot = caseById("state-growth").snapshot;
     const seed = snapshotToSimulatorSeed(snapshot);
     expect(seed.sourceSnapshotId).toBe(snapshot.snapshotId);
-    expect(seed.knownMetrics.revenue_net).toBe(120_000);
+    expect(seed.knownMetrics["revenue_net"]).toBe(120_000);
     expect(deterministicSimulatorSeedJson(snapshot)).toBe(
       deterministicSimulatorSeedJson(snapshot),
     );
