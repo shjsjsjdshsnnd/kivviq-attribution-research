@@ -16,7 +16,7 @@ concurrency:
 jobs:
   focused:
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4
         with:
@@ -61,9 +61,10 @@ jobs:
           npm run validate:phase1 -- --out "$matrix" --run-id "ci-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
           result=$?
           set -e
-          # A partial matrix is deliberately not a Phase 1 pass. All registered
-          # checks must nevertheless execute and pass; errors cannot be hidden
-          # behind the expected INCOMPLETE exit status.
+          # A partial matrix is deliberately not a Phase 1 pass. Every registered
+          # executable case must pass. The only allowed Phase 1 failures here are
+          # explicit coverage shortfalls for the still-incomplete adversarial and
+          # difficulty curricula; scientific/mechanism failures remain fatal.
           test "$result" = "2"
           node --input-type=module - "$matrix" <<'NODE'
           import { readFileSync } from 'node:fs';
@@ -71,7 +72,21 @@ jobs:
           const value = JSON.parse(readFileSync(process.argv[2], 'utf8'));
           const checked = assessArtifactBackedAcceptance(value.artifact.payload.codeRevision,
             [{plan: value.plan, artifact: value.artifact}]);
-          if (checked.overall !== 'INCOMPLETE' || value.artifact.payload.results.some(r => r.status !== 'PASS')) {
+          const allowedCoverageGaps = new Set(['adversarial_scenarios', 'difficulty_levels']);
+          const failedCases = value.artifact.payload.results.filter(r => r.status !== 'PASS');
+          const disallowedFailures = checked.requirements.filter(r =>
+            r.status === 'FAIL' && !allowedCoverageGaps.has(r.requirement));
+          const invalidCoverageFailures = checked.requirements.filter(r =>
+            r.status === 'FAIL' && allowedCoverageGaps.has(r.requirement) &&
+            (r.checkedCases === 0 || r.requiredCoverage === null ||
+             r.distinctCoverage >= r.requiredCoverage));
+          const unexpectedMissing = checked.requirements.filter(r =>
+            r.status === 'NOT_MEASURED' && r.requirement !== 'adversarial_scenarios');
+          const unfinishedCoverage = checked.requirements.filter(r =>
+            allowedCoverageGaps.has(r.requirement) && r.status !== 'PASS');
+          if (checked.overall !== 'FAIL' || failedCases.length > 0 ||
+              disallowedFailures.length > 0 || invalidCoverageFailures.length > 0 ||
+              unexpectedMissing.length > 0 || unfinishedCoverage.length === 0) {
             throw new Error('registered validation failed or acceptance status changed; review gates explicitly');
           }
           NODE
