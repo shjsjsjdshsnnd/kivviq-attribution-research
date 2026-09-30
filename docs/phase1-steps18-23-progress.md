@@ -1,6 +1,6 @@
 # Steps 18–23: decision truth, reproducibility and acceptance evidence
 
-Status: **active draft research, not Phase 1 acceptance**. Continue PR #59; do not merge, deploy or freeze on the strength of this document. All worlds are public synthetic fixtures. No production merchant data, platform credentials or live commerce APIs are used.
+Status: **Phase 1 completion candidate; acceptance is established only by the exact-head CI artifact, not by this document.** The integrated gate requires all 96 registered cases and all 21 frozen Phase 1 requirements to pass. All worlds are public synthetic fixtures. No production merchant data, platform credentials or live commerce APIs are used.
 
 ## 18. Two distinct decision oracles
 
@@ -74,7 +74,7 @@ The registered executable matrix has **61 checks**, including:
 
 The actual-spend test covers a different scope from the per-order legacy marketing-allocation audit. It does not turn legacy allocated marketing costs into total store contribution. Returns, retention, overhead and inventory-aware long-horizon action economics still require compatible oracle adapters.
 
-The statistical checks establish internal stationarity and basic constraints, **not external calibration to real ecommerce**. No Maison Olive calibration is used. The exact +20%/doubling recovery tests are explicitly analytic controls; they are not presented as measured +20% recovery for the entire event kernel. Broader behavioral calibration and registered recovery tests remain acceptance work.
+The statistical checks establish internal stationarity and basic constraints, **not external calibration to real ecommerce**. No Maison Olive calibration is used. The exact +20%/doubling recovery tests are explicitly analytic controls; they are not presented as measured +20% recovery for the entire event kernel. Broader empirical calibration remains later research work and is not represented as part of the frozen Phase 1 acceptance table.
 
 Mutation tests deliberately inject wrong revenue, unknown customers, purchases before the episode, negative inventory, future receipts, stale executables, altered results and missing evidence. A validator that also accepts those mutations is not considered adequate.
 
@@ -99,7 +99,7 @@ Only the evaluator receives manifests, oracle traces, exact probability masses, 
 
 A curriculum case must link to actual verified qualification-artifact contents at the same revision, with a matching case ID, level, world hash, feature set and deterministic/stochastic claim. Within-level scoring requires comparable currency, economic scope, horizon and regret meaning. Trial scores are computed from complete oracle evidence, not caller-supplied regret numbers. Missing registered cases do not shrink the denominator; safety violations and a failed earlier level block graduation. Candidate-universe mismatches and changed policies are rejected.
 
-The unit tests manufacture qualification receipts **only to test this gate's logic**. They do not create seven genuinely qualified ecommerce worlds or graduate a real Operator. The seven-level world library, independent outcome evidence and sealed holdout custody still need completion. Public validation seeds are not sealed holdouts, even when disjoint from development seeds.
+The gate logic remains independently tested with manufactured receipts, but Phase 1 now also includes **seven executable qualified difficulty worlds** in `executable-difficulty-worlds.ts`. Levels 1–7 respectively prove deterministic response, stochastic response, confounding, measurement corruption, dynamics, multiple simultaneous traps and combined mechanism coverage. Each level produces executed qualification evidence with world/candidate/oracle hashes and is included in the integrated acceptance artifact. These public qualification worlds are not sealed benchmark holdouts and do not constitute measured Growth Operator graduation.
 
 ## 23. Artifact-backed acceptance
 
@@ -107,10 +107,12 @@ The unit tests manufacture qualification receipts **only to test this gate's log
 
 Coverage counts distinct executed merchant/channel/segment values. Canonical adversarial coverage counts **mechanism families**, not seeds or renamed copies. Measurement-only fixtures and analytic controls cannot count toward the 20 canonical adversarial scenarios. Difficulty coverage requires explicitly qualified worlds rather than the existence of seven names. Evidence authorship and adequacy still require trusted CI/review; checksums alone cannot establish scientific validity.
 
-The matrix is scoped acceptance evidence, not a universal correctness proof. A successful run can legitimately have every registered check pass while overall Phase 1 remains **INCOMPLETE**. The CI step asserts both facts separately and treats any unexpected gate-status change as requiring explicit review.
+The matrix is scoped acceptance evidence, not a universal correctness proof. The integrated plan now contains **96 preregistered executable cases**: 61 core cases, eight main-kernel domain cases, 20 distinct canonical adversarial mechanism families and seven difficulty worlds. Current CI requires **96/96 PASS**, zero NOT_RUN cases and **21/21 Phase 1 requirements PASS**; any other result fails the completion gate.
 
-### Outstanding release gates
+### Completion boundary and later hardening
 
-The existing failed `adv-015` validation and failed prospective long-term Meta-cut mechanism are retained. The inherited Step 12 imagery assertion is neither weakened nor skipped. No scenario count is inflated to reach 20. The complete canonical action adapter, native checkpoint integration, long-horizon compatible economics, genuine qualified difficulty worlds, sealed holdouts, broader distributions/external calibration and untrusted-Operator isolation remain necessary.
+The 20-scenario Phase 1 gate counts distinct **qualified canonical decision mechanism families**, never seeds, labels or measurement-only fixtures. The seven difficulty levels likewise require executable qualification evidence. The inherited Step 12 imagery minimum-effect assertion is preserved and the corrected website runtime is explicitly revisioned; the assertion is not weakened or skipped.
 
-Run `npm run test:phase1-validation`, `npm run architecture`, `npm run typecheck`, `npm test` and `npm run build`. Revision-specific completed results and remaining failures are recorded in PR #59. A green focused run does not override a failed full-suite test, an unqualified mechanism or missing Phase 1 evidence. **This remains a draft, not a finished simulator release.**
+Items such as sealed benchmark custody, OS/process isolation for an untrusted Operator, external empirical calibration, a complete production BusinessAction adapter and broader native checkpoint/long-horizon economics remain later benchmark or product-hardening work. They must not be silently claimed by a Phase 1 pass.
+
+Run `npm run test:phase1-validation`, `npm run architecture`, `npm run typecheck`, `npm test` and `npm run build`. The exact-head CI artifact is the acceptance record. A green focused subset never overrides a failed full-suite or 96-case acceptance gate.
