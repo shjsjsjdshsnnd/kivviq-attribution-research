@@ -463,7 +463,7 @@ export function buildCanonicalAdversarialScenarioCases(): readonly ExecutableVal
       implementationVersion: CANONICAL_ADVERSARIAL_VERSION,
       kind: "canonical_decision_scenario" as const,
       scenarioFamily: family,
-      requirements: ["adversarial_scenarios"] as const,
+      requirements: ["adversarial_scenarios" as const],
     },
     run: () => runFamily(family),
   }));
