@@ -416,6 +416,7 @@ function perfectWorldForConfoundedState(
         subjectCreatedAt: periodStart,
         knownCustomerId: `customer-${buyer}`,
         source: "unknown",
+        directNavigation: false,
         orderId: `difficulty-l4-${ordinal}-order-${buyer}`,
         amountMinor: confoundedParameters.unitPriceMinor,
       });
@@ -606,9 +607,10 @@ function perfectWorldForDynamicState(
         subjectCreatedAt: periodStart,
         sessionId: `difficulty-l5-${ordinal}-${label}-session-${buyer}`,
         source: highIntent ? "meta" : "direct",
+        directNavigation: !highIntent,
         ...(highIntent
           ? { utmSource: "meta", utmMedium: "paid_social" }
-          : { directNavigation: true }),
+          : {}),
       });
       if (highIntent) {
         events.push({
@@ -663,6 +665,7 @@ function perfectWorldForDynamicState(
         subjectCreatedAt: "2026-02-01T00:00:00.000Z",
         knownCustomerId: `shock-customer-${index}`,
         source: "unknown",
+        directNavigation: false,
         orderId: `difficulty-l5-${ordinal}-shock-order-${index}`,
         amountMinor: dynamicParameters.unitPriceMinor,
       });
