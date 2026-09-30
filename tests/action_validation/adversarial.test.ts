@@ -219,6 +219,7 @@ describe("Step 24 Action Space validation and adversarial tests", () => {
       };
       const left = canonicalActionSchema.parse({
         ...generatedNoOp(`action_conflict_${index}_left`),
+        timing: conflictTiming,
         conflicts: [{
           conflictId: `conflict.generated.${index}`,
           kind: "MUTUALLY_EXCLUSIVE_INTENT",
