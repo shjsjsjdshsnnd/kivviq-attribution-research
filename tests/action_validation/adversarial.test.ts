@@ -360,7 +360,6 @@ describe("Step 24 generated Action Space validation", () => {
   it("translates supported measurable Actions deterministically without changing business semantics", () => {
     const supported = [
       increaseGoogleShoppingBudget20,
-      pauseUnderperformingMetaCampaign,
       reduceSkuPrice899To849,
       runCollectionPromotion15FourDays,
     ];
@@ -394,6 +393,12 @@ describe("Step 24 generated Action Space validation", () => {
         );
       }
     }
+  });
+
+  it("preserves the frozen manual-reversal migration boundary", () => {
+    expect(() => adaptLegacyAction(pauseUnderperformingMetaCampaign)).toThrow(
+      "Legacy manual reversal requires explicit reversal-event timing migration",
+    );
   });
 
   it("returns a deterministic explicit unsupported result instead of approximating semantics", () => {
