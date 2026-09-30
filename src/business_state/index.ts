@@ -7,3 +7,4 @@ export * from "./constraints.js";
 export * from "./decision.js";
 export * from "./benchmark.js";
 export * from "./shadow.js";
+export * from "./native.js";
