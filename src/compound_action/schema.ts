@@ -1,8 +1,17 @@
 import { z } from "zod";
-import { canonicalActionSchema } from "../canonical_action/schema.js";
+import {
+  canonicalActionSchema,
+  actionSpaceCanonicalActionSchema,
+  type ActionSpaceCanonicalAction,
+} from "../canonical_action/schema.js";
 import { canonicalizeForSerialization } from "../action_ontology/semantics.js";
+import { canonicalizeActionOutcomePlan } from "../action_outcomes/schema.js";
 import { validateTimingDependencyGraph } from "../action_timing/validation.js";
 import type { TimingDependency } from "../action_timing/types.js";
+import {
+  actionOutcomePlanSchema,
+  type ActionOutcomePlan,
+} from "../action_outcomes/schema.js";
 const ref = z.string().regex(/^[A-Za-z][A-Za-z0-9_.:-]*$/);
 // An explicit union keeps each dependency's fields closed and typed.
 const temporalDependency = z
@@ -105,6 +114,7 @@ const definition = z
         unit: z.enum(["HOUR", "DAY", "WEEK", "MONTH"]),
       })
       .strict(),
+    outcomePlan: actionOutcomePlanSchema.optional(),
     provenance: z.array(ref).min(1),
   })
   .strict();
@@ -193,13 +203,88 @@ export const compoundActionSchema = definition.superRefine((action, ctx) => {
   const graph = validateTimingDependencyGraph(compoundDependencyGraph(action));
   if (!graph.ok) for (const i of graph.issues) issue(i.code + ": " + i.message);
 });
+export type MeasurableCompoundAction = CompoundAction & {
+  outcomePlan: ActionOutcomePlan;
+};
+export const measurableCompoundActionSchema = compoundActionSchema.superRefine(
+  (action, context) => {
+    if (action.outcomePlan === undefined)
+      context.addIssue({
+        code: "custom",
+        path: ["outcomePlan"],
+        message:
+          "Step 23+ Compound Actions require an explicit measurable outcome plan",
+      });
+    action.components.forEach((component, index) => {
+      if (component.action.outcomePlan === undefined)
+        context.addIssue({
+          code: "custom",
+          path: ["components", index, "action", "outcomePlan"],
+          message:
+            "Every component Action in a Step 23+ Compound Action requires its own measurable outcome plan",
+        });
+    });
+  },
+) as unknown as z.ZodType<MeasurableCompoundAction>;
+
+export type ActionSpaceCompoundAction = MeasurableCompoundAction & {
+  components: Array<
+    CompoundAction["components"][number] & {
+      action: ActionSpaceCanonicalAction;
+    }
+  >;
+};
+export const actionSpaceCompoundActionSchema =
+  measurableCompoundActionSchema.superRefine((action, context) => {
+    action.components.forEach((component, index) => {
+      const parsed = actionSpaceCanonicalActionSchema.safeParse(component.action);
+      if (!parsed.success)
+        parsed.error.issues.forEach((issue) =>
+          context.addIssue({
+            code: "custom",
+            path: ["components", index, "action", ...issue.path],
+            message: issue.message,
+          }),
+        );
+    });
+  }) as unknown as z.ZodType<ActionSpaceCompoundAction>;
+
 export function assertCompoundAction(value: unknown): CompoundAction {
   return compoundActionSchema.parse(value);
 }
+export function assertMeasurableCompoundAction(
+  value: unknown,
+): MeasurableCompoundAction {
+  return measurableCompoundActionSchema.parse(value);
+}
+export function assertActionSpaceCompoundAction(
+  value: unknown,
+): ActionSpaceCompoundAction {
+  return actionSpaceCompoundActionSchema.parse(value);
+}
 export function serializeCompoundAction(value: CompoundAction): string {
-  return JSON.stringify(
-    canonicalizeForSerialization(compoundActionSchema.parse(value)),
-  );
+  const parsed = compoundActionSchema.parse(value);
+  const normalized = {
+    ...parsed,
+    components: parsed.components.map((component) => ({
+      ...component,
+      action:
+        component.action.outcomePlan === undefined
+          ? component.action
+          : {
+              ...component.action,
+              outcomePlan: canonicalizeActionOutcomePlan(
+                component.action.outcomePlan,
+              ),
+            },
+    })),
+    ...(parsed.outcomePlan === undefined
+      ? {}
+      : {
+          outcomePlan: canonicalizeActionOutcomePlan(parsed.outcomePlan),
+        }),
+  };
+  return JSON.stringify(canonicalizeForSerialization(normalized));
 }
 export function deserializeCompoundAction(value: string): CompoundAction {
   return compoundActionSchema.parse(JSON.parse(value));

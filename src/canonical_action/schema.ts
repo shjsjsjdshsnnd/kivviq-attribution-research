@@ -19,6 +19,8 @@ import { actionRiskMeasurementContractsSchema } from "../action_risk/schema.js";
 import { expectedDomainEligibilityCheckIdsForWhat } from "../action_eligibility/definitions.js";
 import type { ActionCharacteristics } from "../action_characteristics/schema.js";
 import type { ActionRiskMeasurementContracts } from "../action_risk/schema.js";
+import { actionOutcomePlanSchema } from "../action_outcomes/schema.js";
+import type { ActionOutcomePlan } from "../action_outcomes/schema.js";
 
 export const CANONICAL_ACTION_SCHEMA_VERSION = "2.0.0" as const;
 export type LegacyBusiness = Omit<
@@ -212,6 +214,7 @@ export const canonicalActionSchema = z
     conflicts: actionConflictsSchema.default([]),
     characteristics: actionCharacteristicsStateSchema.default({ state: "ABSENT" }),
     riskDimensions: actionRiskDimensionsStateSchema.default({ state: "ABSENT" }),
+    outcomePlan: actionOutcomePlanSchema.optional(),
     provenance: z.array(z.string().regex(/^[A-Za-z][A-Za-z0-9_.:-]*$/)).min(1),
   })
   .strict()
@@ -364,8 +367,47 @@ export const newCanonicalActionSchema = canonicalActionSchema.superRefine(
       context.addIssue({ code: "custom", path: ["riskDimensions"], message: "New Actions require all six risk measurement dimensions" });
   },
 ) as unknown as z.ZodType<NewCanonicalAction>;
+export type MeasurableCanonicalAction = CanonicalAction & {
+  outcomePlan: ActionOutcomePlan;
+};
+export const measurableCanonicalActionSchema = canonicalActionSchema.superRefine(
+  (action, context) => {
+    if (action.outcomePlan === undefined)
+      context.addIssue({
+        code: "custom",
+        path: ["outcomePlan"],
+        message: "Measured historical Actions require an explicit outcome plan",
+      });
+  },
+) as unknown as z.ZodType<MeasurableCanonicalAction>;
+
+export type ActionSpaceCanonicalAction = Omit<NewCanonicalAction, "outcomePlan"> & {
+  outcomePlan: ActionOutcomePlan;
+};
+export const actionSpaceCanonicalActionSchema = newCanonicalActionSchema.superRefine(
+  (action, context) => {
+    if (action.outcomePlan === undefined)
+      context.addIssue({
+        code: "custom",
+        path: ["outcomePlan"],
+        message:
+          "Step 23+ authored Actions require characteristics, risk dimensions, and an explicit measurable outcome plan",
+      });
+  },
+) as unknown as z.ZodType<ActionSpaceCanonicalAction>;
+
 export function assertCanonicalAction(input: unknown): CanonicalAction {
   return canonicalActionSchema.parse(input);
+}
+export function assertMeasurableCanonicalAction(
+  input: unknown,
+): MeasurableCanonicalAction {
+  return measurableCanonicalActionSchema.parse(input);
+}
+export function assertActionSpaceCanonicalAction(
+  input: unknown,
+): ActionSpaceCanonicalAction {
+  return actionSpaceCanonicalActionSchema.parse(input);
 }
 export function assertNewCanonicalAction(input: unknown): NewCanonicalAction {
   return newCanonicalActionSchema.parse(input);
