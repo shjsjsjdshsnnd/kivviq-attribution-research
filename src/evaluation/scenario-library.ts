@@ -54,8 +54,15 @@ export function buildMeasurementScenario(id: string, seed: number): {
     simulationSeed: seed, startTime: START, endTime: END,
     interventions: [{ variable: "promotion.discount_active", operation: "set", value: { kind: "boolean", value: false } }],
     config: { maxEvents: 180000, maxSessionsPerCustomer: 16 } };
+  // adv-015 is specifically an overlapping-claims world. Both paid platforms
+  // need enough observable delivery to make dual-touch orders structurally
+  // common across the preregistered seed set. Channel causal effects remain
+  // exactly zero, so this changes the measurement opportunity set, not sales.
+  const scenarioAllocation: ScenarioAllocation = id === "adv-015"
+    ? { ...BASE_ALLOCATION, meta: 500000, google_search: 500000 }
+    : { ...BASE_ALLOCATION };
   const spendPlan: ScenarioSpendPlan = { version: SCENARIO_SPEND_VERSION, periodStart: START, periodEnd: END,
-    scope: "explicit_simulated_agents", execution: "fully_spent_period_allocation", allocation: { ...BASE_ALLOCATION } };
+    scope: "explicit_simulated_agents", execution: "fully_spent_period_allocation", allocation: scenarioAllocation };
   const controlCorruption: CorruptionConfigInput = { version: MEASUREMENT_VERSION, seed: 88213,
     identitySalt: "scenario-validation-private-identity-v1" };
   return { request: requestWithScenarioSpend(initial, spendPlan), spendPlan, controlCorruption,
