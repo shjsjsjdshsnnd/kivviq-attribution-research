@@ -25,6 +25,8 @@ export * from "./action_eligibility/index.js";
 export * from "./action_dependencies/index.js";
 export * from "./action_conflicts/index.js";
 export * from "./action_characteristics/index.js";
+export * from "./action_outcomes/index.js";
+export * from "./action_validation/index.js";
 export * from "./action_risk/schema.js";
 export * from "./action_risk/legacy.js";
 export {
