@@ -67,7 +67,9 @@
     "./action-dependencies": "./dist/action_dependencies/index.js",
     "./action-conflicts": "./dist/action_conflicts/index.js",
     "./action-characteristics": "./dist/action_characteristics/index.js",
-    "./action-risk": "./dist/action_risk/index.js"
+    "./action-risk": "./dist/action_risk/index.js",
+    "./action-outcomes": "./dist/action_outcomes/index.js",
+    "./action-validation": "./dist/action_validation/index.js"
   },
   "devDependencies": {
     "dependency-cruiser": "^16.10.4",
