@@ -3,6 +3,7 @@ import {
   WEBSITE_SCHEMA_VERSION,
   type WebsiteScenario,
 } from "./types.js";
+import { WEBSITE_RUNTIME_REVISION } from "./runtime-revision.js";
 
 function canonicalize(value: unknown): unknown {
   if (Array.isArray(value)) {
@@ -30,6 +31,7 @@ export function serializeWebsiteScenario(
     canonicalize({
       modelVersion: WEBSITE_MODEL_VERSION,
       schemaVersion: WEBSITE_SCHEMA_VERSION,
+      runtimeRevision: WEBSITE_RUNTIME_REVISION,
       scenario,
     }),
   );
@@ -46,7 +48,7 @@ function fnv1a32(value: string): string {
 
 /**
  * Deterministic fingerprint used in God-mode truth and simulation provenance
- * so website-model/configuration changes are externally detectable.
+ * so website-model/configuration/runtime-response changes are detectable.
  */
 export function websiteScenarioFingerprint(
   scenario: WebsiteScenario,
