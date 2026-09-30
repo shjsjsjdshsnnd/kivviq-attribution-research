@@ -15,6 +15,10 @@ on:
       - ".dependency-cruiser.cjs"
       - ".github/workflows/action-outcomes-validation-ci.yml"
 
+concurrency:
+  group: action-space-steps23-24-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   validate:
     runs-on: ubuntu-latest
