@@ -6,7 +6,7 @@ import { decisionRegret, type FiniteOracleResult } from "./finite-decision-oracl
 import { exactDecisionRegret, type ExactOracleResult } from "./exact-decision-oracle.js";
 
 /** Evaluator-only curriculum; labels/features must never enter an Operator offer. */
-export export const LEVEL7_MECHANISM_REQUIREMENTS = [
+export const LEVEL7_MECHANISM_REQUIREMENTS = [
   "paid_media_response",
   "diminishing_channel_returns",
   "cross_channel_interaction",
@@ -20,7 +20,7 @@ export export const LEVEL7_MECHANISM_REQUIREMENTS = [
   "counterfactual_interventions",
 ] as const;
 
-const DIFFICULTY_FEATURES = [
+export const DIFFICULTY_FEATURES = [
   { level: 1, required: [], forbidden: ["stochastic", "confounding", "corruption", "dynamics", "multiple_traps", "all_mechanisms"] },
   { level: 2, required: ["stochastic"], forbidden: ["confounding", "corruption", "dynamics", "multiple_traps", "all_mechanisms"] },
   { level: 3, required: ["stochastic", "confounding"], forbidden: ["corruption", "dynamics", "multiple_traps", "all_mechanisms"] },
