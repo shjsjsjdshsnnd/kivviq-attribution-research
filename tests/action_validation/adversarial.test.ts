@@ -179,6 +179,7 @@ function plan(id: string, days = 14) {
         family: "CONTRIBUTION_PROFIT" as const,
         metricRef: "metric.contribution_profit",
         role: "PRIMARY" as const,
+        measurementScope: { kind: "GLOBAL" as const },
         valueType: { kind: "MONEY" as const, currency: "CAD" },
         comparison: {
           kind: "PRE_ACTION_BASELINE" as const,
