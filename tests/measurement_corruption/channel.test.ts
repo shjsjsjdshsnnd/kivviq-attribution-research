@@ -133,6 +133,10 @@ describe("corruption mechanisms", () => {
     const r = run({ metaOverAttributionRate: 1, googleOverAttributionRate: 1 });
     expect(r.observation.platformReports.map(r => r.attributedRevenueMinor)).toEqual([42000, 42000]);
     expect(r.observation.orders.reduce((n, o) => n + o.netSalesMinor, 0)).toBe(42000);
+    expect(r.audit.platformClaims.meta).toHaveLength(1);
+    expect(r.audit.platformClaims.google).toHaveLength(1);
+    expect(r.audit.platformClaims.meta[0]).toBe(r.audit.platformClaims.google[0]);
+    expect(JSON.stringify(r.observation)).not.toContain(r.audit.platformClaims.meta[0]);
   });
   it("over-attribution never uses a future touch or a channel with no eligible touch", () => {
     const world = fixture();
