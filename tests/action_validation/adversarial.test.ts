@@ -407,6 +407,16 @@ describe("Step 24 generated Action Space validation", () => {
     expect(rejected).toBe(1500);
   });
 
+  it("rejects hidden God-mode namespaces carried by otherwise valid references", () => {
+    const action: any = structuredClone(rawAction(39_999));
+    action.provenance = ["oracle:best_action"];
+    const result = validateActionSpaceDecision(action);
+    expect(result).toMatchObject({
+      ok: false,
+      issues: [{ code: "HIDDEN_GOD_MODE_REFERENCE" }],
+    });
+  });
+
   it("requires measurable outcomes on every component of a new compound decision", () => {
     const value: any = structuredClone(compound(40_000));
     delete value.components[1].action.outcomePlan;
