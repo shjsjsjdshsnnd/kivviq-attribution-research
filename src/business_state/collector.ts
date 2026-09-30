@@ -1,6 +1,7 @@
 import {
   BUSINESS_STATE_VERSION,
   businessStateSnapshotSchema,
+  businessStateDetailsSchema,
   evidenceRefSchema,
   type BusinessStateCollectionRequest,
   type BusinessStateEvidenceProvider,
@@ -467,6 +468,15 @@ export async function collectBusinessState(
   provider: BusinessStateEvidenceProvider,
 ): Promise<BusinessStateSnapshot> {
   const domains = [...(request.domains ?? ALL_DOMAINS)];
+  const detailsPromise = provider.getDetails === undefined
+    ? Promise.resolve({
+        acquisitionChannels: [],
+        customerCohorts: [],
+        journeyCharacteristics: [],
+        merchandisingEntities: [],
+        lifecyclePrograms: [],
+      })
+    : provider.getDetails(request);
   const requestedMetricIds = metricsForDomains(
     domains,
     request.includeOptionalMetrics ?? true,
@@ -542,7 +552,11 @@ export async function collectBusinessState(
     }
   }
 
-  await Promise.all(jobs);
+  const [, rawDetails] = await Promise.all([
+    Promise.all(jobs),
+    detailsPromise,
+  ]);
+  const details = businessStateDetailsSchema.parse(rawDetails);
 
   const states = new Map<CanonicalMetricId, MetricState>();
   for (const metricId of directMetricIds) {
@@ -620,6 +634,7 @@ export async function collectBusinessState(
     signals: [],
     constraints: [],
     measurement: buildMeasurementCoverage(states),
+    details,
     overallConfidence,
     requestedDomains: domains,
     collectorVersion: BUSINESS_STATE_COLLECTOR_VERSION,
