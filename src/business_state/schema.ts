@@ -126,6 +126,7 @@ export type PeriodKind = z.infer<typeof periodKindSchema>;
 export const evidenceRefSchema = z
   .object({
     evidenceId: z.string().min(1),
+    merchantId: z.string().min(1),
     metricId: canonicalMetricIdSchema,
     source: authoritativeSourceSchema,
     periodKind: periodKindSchema,
@@ -133,6 +134,7 @@ export const evidenceRefSchema = z
     periodStart: z.string().datetime(),
     periodEnd: z.string().datetime(),
     value: z.number().finite(),
+    currency: z.string().regex(/^[A-Z]{3}$/).optional(),
     sampleSize: z.number().int().nonnegative().optional(),
     coverage: z.number().min(0).max(1).optional(),
     freshnessSeconds: z.number().nonnegative().finite().optional(),
