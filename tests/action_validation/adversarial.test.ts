@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  validateActionSpaceActionEligibility,
   validateActionSpaceDecision,
   validateActionSpacePortfolio,
 } from "../../src/action_validation/index.js";
@@ -479,6 +480,16 @@ describe("Step 24 generated Action Space validation", () => {
       NOW,
       "INELIGIBLE",
     );
+    const explicitValidation = validateActionSpaceActionEligibility(action, {
+      evaluationContext: evaluated.evaluationContext,
+      resourceRequirements: evaluated.resourceRequirements,
+    });
+    expect(explicitValidation).toMatchObject({
+      ok: false,
+      issues: [{ code: "CONSTRAINT_OR_ELIGIBILITY_VIOLATION" }],
+      eligibility: { status: "INELIGIBLE" },
+    });
+
     const reference = {
       entityKind: "ACTION" as const,
       actionId: action.actionId,
