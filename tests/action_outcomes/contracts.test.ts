@@ -4,6 +4,7 @@ import {
   canonicalizeActionOutcomePlan,
 } from "../../src/action_outcomes/schema.js";
 import {
+  actionSpaceCanonicalActionSchema,
   canonicalActionSchema,
   measurableCanonicalActionSchema,
 } from "../../src/canonical_action/schema.js";
@@ -141,6 +142,7 @@ describe("Step 23 measurable outcomes", () => {
 
     const measurable = { ...historical, outcomePlan: outcomePlan() };
     expect(measurableCanonicalActionSchema.safeParse(measurable).success).toBe(true);
+    expect(actionSpaceCanonicalActionSchema.safeParse(measurable).success).toBe(false);
   });
 
   it("does not alter a historical fingerprint when the optional outcome plan is absent", () => {
