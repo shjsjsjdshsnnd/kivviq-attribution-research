@@ -1,0 +1,41 @@
+name: Phase 1 Offline Verification Worktree
+
+# Refresh for the Steps 18–23 oracle, reproducibility and simulator-validation continuation.
+on:
+  push:
+    branches: [phase1/steps15-23-measurement-decision-lab]
+    paths: [.github/workflows/phase1-verification-worktree.yml]
+
+permissions:
+  contents: read
+
+jobs:
+  worktree:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: ".nvmrc"
+      - run: npm ci --no-audit --no-fund
+      - name: Package public tracked source and installed test dependencies only
+        shell: bash
+        run: |
+          set -euo pipefail
+          stage="$RUNNER_TEMP/public-verification-worktree"
+          mkdir "$stage"
+          git archive HEAD | tar -x -C "$stage"
+          cp -a node_modules "$stage/node_modules"
+          cp package-lock.json "$stage/package-lock.json"
+          git rev-parse HEAD > "$stage/VERIFICATION_REVISION"
+          tar -czf "$RUNNER_TEMP/public-verification-worktree.tgz" -C "$stage" .
+      - uses: actions/upload-artifact@v4
+        with:
+          name: public-verification-worktree
+          path: ${{ runner.temp }}/public-verification-worktree.tgz
+          retention-days: 1
+          compression-level: 0
+          if-no-files-found: error

@@ -1,0 +1,698 @@
+import type {
+  AuthoritativeSource,
+  CanonicalMetricId,
+  MetricUnit,
+  StateDomain,
+} from "./schema.js";
+
+export interface MetricDefinition {
+  readonly id: CanonicalMetricId;
+  readonly domain: StateDomain;
+  readonly label: string;
+  readonly definition: string;
+  readonly unit: MetricUnit;
+  readonly authoritativeSources: readonly AuthoritativeSource[];
+  readonly requiredForDomain: boolean;
+  readonly derivedFrom?: readonly CanonicalMetricId[];
+  readonly derivation?: string;
+  readonly minimumCoverage?: number;
+  readonly minimumSampleSize?: number;
+  readonly materialityThresholdPct?: number;
+  readonly direction: "HIGHER_IS_BETTER" | "LOWER_IS_BETTER" | "CONTEXTUAL";
+}
+
+function metric(
+  definition: MetricDefinition,
+): MetricDefinition {
+  return Object.freeze(definition);
+}
+
+const DIRECT_COMMERCE: readonly AuthoritativeSource[] = ["SHOPIFY"];
+const PAID_PLATFORMS: readonly AuthoritativeSource[] = [
+  "GOOGLE_ADS",
+  "META_ADS",
+  "PINTEREST_ADS",
+];
+const LIFECYCLE: readonly AuthoritativeSource[] = ["OMNISEND", "KLAVIYO"];
+
+export const metricRegistry: Readonly<Record<CanonicalMetricId, MetricDefinition>> = {
+  revenue_net: metric({
+    id: "revenue_net",
+    domain: "COMMERCIAL",
+    label: "Net revenue",
+    definition:
+      "Shopify net sales for the requested store scope and period, after discounts and before non-store attribution claims are added.",
+    unit: "MONEY",
+    authoritativeSources: DIRECT_COMMERCE,
+    requiredForDomain: true,
+    materialityThresholdPct: 0.03,
+    direction: "HIGHER_IS_BETTER",
+  }),
+  online_revenue: metric({
+    id: "online_revenue",
+    domain: "COMMERCIAL",
+    label: "Online Store revenue",
+    definition: "Shopify net sales attributed to the Online Store sales channel.",
+    unit: "MONEY",
+    authoritativeSources: DIRECT_COMMERCE,
+    requiredForDomain: false,
+    materialityThresholdPct: 0.03,
+    direction: "HIGHER_IS_BETTER",
+  }),
+  pos_revenue: metric({
+    id: "pos_revenue",
+    domain: "COMMERCIAL",
+    label: "POS revenue",
+    definition: "Shopify net sales attributed to POS.",
+    unit: "MONEY",
+    authoritativeSources: DIRECT_COMMERCE,
+    requiredForDomain: false,
+    materialityThresholdPct: 0.03,
+    direction: "CONTEXTUAL",
+  }),
+  orders: metric({
+    id: "orders",
+    domain: "COMMERCIAL",
+    label: "Orders",
+    definition: "Count of eligible Shopify orders in the requested store scope and period.",
+    unit: "COUNT",
+    authoritativeSources: DIRECT_COMMERCE,
+    requiredForDomain: true,
+    materialityThresholdPct: 0.03,
+    direction: "HIGHER_IS_BETTER",
+  }),
+  aov: metric({
+    id: "aov",
+    domain: "COMMERCIAL",
+    label: "Average order value",
+    definition: "Net revenue divided by eligible orders for the same scope and period.",
+    unit: "MONEY",
+    authoritativeSources: ["DERIVED"],
+    requiredForDomain: true,
+    derivedFrom: ["revenue_net", "orders"],
+    derivation: "revenue_net / orders",
+    materialityThresholdPct: 0.03,
+    direction: "CONTEXTUAL",
+  }),
+  discount_rate: metric({
+    id: "discount_rate",
+    domain: "COMMERCIAL",
+    label: "Discount rate",
+    definition: "Discount amount divided by pre-discount merchandise value for eligible Shopify orders.",
+    unit: "RATIO",
+    authoritativeSources: DIRECT_COMMERCE,
+    requiredForDomain: true,
+    direction: "LOWER_IS_BETTER",
+  }),
+  return_rate: metric({
+    id: "return_rate",
+    domain: "COMMERCIAL",
+    label: "Return rate",
+    definition: "Returned merchandise value divided by eligible merchandise value using mature return windows.",
+    unit: "RATIO",
+    authoritativeSources: DIRECT_COMMERCE,
+    requiredForDomain: false,
+    direction: "LOWER_IS_BETTER",
+  }),
+  returns_cost: metric({
+    id: "returns_cost",
+    domain: "PROFITABILITY",
+    label: "Return cost",
+    definition: "Refund, reverse-logistics, handling and non-recoverable return cost recognized for the period.",
+    unit: "MONEY",
+    authoritativeSources: ["SHOPIFY", "MERCHANT_CONFIG"],
+    requiredForDomain: true,
+    direction: "LOWER_IS_BETTER",
+  }),
+  cogs: metric({
+    id: "cogs",
+    domain: "PROFITABILITY",
+    label: "Cost of goods sold",
+    definition: "Recognized product cost for eligible units sold; uncovered units remain unknown rather than zero.",
+    unit: "MONEY",
+    authoritativeSources: ["SHOPIFY", "MERCHANT_CONFIG"],
+    requiredForDomain: true,
+    direction: "LOWER_IS_BETTER",
+  }),
+  gross_profit: metric({
+    id: "gross_profit",
+    domain: "PROFITABILITY",
+    label: "Gross profit",
+    definition: "Net revenue minus recognized COGS for the same eligible order scope.",
+    unit: "MONEY",
+    authoritativeSources: ["DERIVED"],
+    requiredForDomain: true,
+    derivedFrom: ["revenue_net", "cogs"],
+    derivation: "revenue_net - cogs",
+    materialityThresholdPct: 0.03,
+    direction: "HIGHER_IS_BETTER",
+  }),
+  gross_margin: metric({
+    id: "gross_margin",
+    domain: "PROFITABILITY",
+    label: "Gross margin",
+    definition: "Gross profit divided by net revenue for the same scope.",
+    unit: "RATIO",
+    authoritativeSources: ["DERIVED"],
+    requiredForDomain: true,
+    derivedFrom: ["gross_profit", "revenue_net"],
+    derivation: "gross_profit / revenue_net",
+    direction: "HIGHER_IS_BETTER",
+  }),
+  shipping_fulfillment_cost: metric({
+    id: "shipping_fulfillment_cost",
+    domain: "PROFITABILITY",
+    label: "Shipping and fulfillment cost",
+    definition: "Merchant-borne variable shipping and fulfillment cost for eligible orders.",
+    unit: "MONEY",
+    authoritativeSources: ["SHOPIFY", "MERCHANT_CONFIG"],
+    requiredForDomain: true,
+    direction: "LOWER_IS_BETTER",
+  }),
+  payment_fees: metric({
+    id: "payment_fees",
+    domain: "PROFITABILITY",
+    label: "Payment fees",
+    definition: "Variable payment processing fees recognized for eligible orders.",
+    unit: "MONEY",
+    authoritativeSources: ["SHOPIFY", "MERCHANT_CONFIG"],
+    requiredForDomain: true,
+    direction: "LOWER_IS_BETTER",
+  }),
+  paid_spend: metric({
+    id: "paid_spend",
+    domain: "ACQUISITION",
+    label: "Paid media spend",
+    definition: "Actual spend reported by paid-media platforms, summed once across eligible channels.",
+    unit: "MONEY",
+    authoritativeSources: ["FIRST_PARTY", ...PAID_PLATFORMS],
+    requiredForDomain: true,
+    materialityThresholdPct: 0.03,
+    direction: "CONTEXTUAL",
+  }),
+  contribution_profit: metric({
+    id: "contribution_profit",
+    domain: "PROFITABILITY",
+    label: "Contribution profit",
+    definition:
+      "Gross profit minus paid media spend, shipping/fulfillment, payment fees and return cost. Any unknown required cost keeps contribution unknown.",
+    unit: "MONEY",
+    authoritativeSources: ["DERIVED"],
+    requiredForDomain: true,
+    derivedFrom: [
+      "gross_profit",
+      "paid_spend",
+      "shipping_fulfillment_cost",
+      "payment_fees",
+      "returns_cost",
+    ],
+    derivation:
+      "gross_profit - paid_spend - shipping_fulfillment_cost - payment_fees - returns_cost",
+    materialityThresholdPct: 0.03,
+    direction: "HIGHER_IS_BETTER",
+  }),
+  contribution_margin: metric({
+    id: "contribution_margin",
+    domain: "PROFITABILITY",
+    label: "Contribution margin",
+    definition: "Contribution profit divided by net revenue.",
+    unit: "RATIO",
+    authoritativeSources: ["DERIVED"],
+    requiredForDomain: true,
+    derivedFrom: ["contribution_profit", "revenue_net"],
+    derivation: "contribution_profit / revenue_net",
+    direction: "HIGHER_IS_BETTER",
+  }),
+  sessions: metric({
+    id: "sessions",
+    domain: "ACQUISITION",
+    label: "Sessions",
+    definition: "GA4 sessions for the governed storefront scope.",
+    unit: "COUNT",
+    authoritativeSources: ["GA4"],
+    requiredForDomain: true,
+    minimumSampleSize: 100,
+    direction: "CONTEXTUAL",
+  }),
+  cvr: metric({
+    id: "cvr",
+    domain: "ACQUISITION",
+    label: "Conversion rate",
+    definition: "Eligible Shopify orders divided by GA4 sessions for matching periods and storefront scope.",
+    unit: "RATIO",
+    authoritativeSources: ["DERIVED"],
+    requiredForDomain: true,
+    derivedFrom: ["orders", "sessions"],
+    derivation: "orders / sessions",
+    direction: "HIGHER_IS_BETTER",
+  }),
+  new_customers: metric({
+    id: "new_customers",
+    domain: "CUSTOMER",
+    label: "New customers",
+    definition: "Customers whose first observed eligible Shopify order falls in the requested period.",
+    unit: "COUNT",
+    authoritativeSources: DIRECT_COMMERCE,
+    requiredForDomain: true,
+    direction: "HIGHER_IS_BETTER",
+  }),
+  returning_orders: metric({
+    id: "returning_orders",
+    domain: "CUSTOMER",
+    label: "Returning-customer orders",
+    definition: "Eligible orders from customers with an earlier eligible purchase before the order.",
+    unit: "COUNT",
+    authoritativeSources: DIRECT_COMMERCE,
+    requiredForDomain: true,
+    direction: "HIGHER_IS_BETTER",
+  }),
+  repeat_rate: metric({
+    id: "repeat_rate",
+    domain: "CUSTOMER",
+    label: "Repeat order rate",
+    definition: "Returning-customer orders divided by eligible orders.",
+    unit: "RATIO",
+    authoritativeSources: ["DERIVED"],
+    requiredForDomain: true,
+    derivedFrom: ["returning_orders", "orders"],
+    derivation: "returning_orders / orders",
+    direction: "HIGHER_IS_BETTER",
+  }),
+  cac: metric({
+    id: "cac",
+    domain: "ACQUISITION",
+    label: "Observed customer acquisition cost",
+    definition:
+      "Paid spend divided by observed new customers. This is an observed blended ratio, not an incrementality claim.",
+    unit: "MONEY",
+    authoritativeSources: ["DERIVED"],
+    requiredForDomain: true,
+    derivedFrom: ["paid_spend", "new_customers"],
+    derivation: "paid_spend / new_customers",
+    direction: "LOWER_IS_BETTER",
+  }),
+  paid_attributed_revenue: metric({
+    id: "paid_attributed_revenue",
+    domain: "ACQUISITION",
+    label: "Paid-attributed revenue",
+    definition:
+      "Observed order revenue linked to paid acquisition under the governed first-party attribution method.",
+    unit: "MONEY",
+    authoritativeSources: ["FIRST_PARTY"],
+    requiredForDomain: false,
+    direction: "CONTEXTUAL",
+  }),
+  paid_dependency: metric({
+    id: "paid_dependency",
+    domain: "ACQUISITION",
+    label: "Observed paid dependency",
+    definition:
+      "Paid-attributed revenue divided by store net revenue. It is descriptive and is not incremental paid contribution.",
+    unit: "RATIO",
+    authoritativeSources: ["DERIVED"],
+    requiredForDomain: false,
+    derivedFrom: ["paid_attributed_revenue", "revenue_net"],
+    derivation: "paid_attributed_revenue / revenue_net",
+    direction: "CONTEXTUAL",
+  }),
+  prospecting_share: metric({
+    id: "prospecting_share",
+    domain: "ACQUISITION",
+    label: "Prospecting spend share",
+    definition: "Observed paid spend classified as prospecting divided by eligible paid spend.",
+    unit: "RATIO",
+    authoritativeSources: PAID_PLATFORMS,
+    requiredForDomain: false,
+    direction: "CONTEXTUAL",
+  }),
+  retargeting_share: metric({
+    id: "retargeting_share",
+    domain: "ACQUISITION",
+    label: "Retargeting spend share",
+    definition: "Observed paid spend classified as retargeting divided by eligible paid spend.",
+    unit: "RATIO",
+    authoritativeSources: PAID_PLATFORMS,
+    requiredForDomain: true,
+    direction: "LOWER_IS_BETTER",
+  }),
+  platform_roas: metric({
+    id: "platform_roas",
+    domain: "ACQUISITION",
+    label: "Platform-reported ROAS",
+    definition:
+      "Platform-attributed revenue divided by spend under the platform's own reporting methodology. Never treated as incrementality.",
+    unit: "RATIO",
+    authoritativeSources: PAID_PLATFORMS,
+    requiredForDomain: false,
+    direction: "CONTEXTUAL",
+  }),
+  incremental_paid_contribution: metric({
+    id: "incremental_paid_contribution",
+    domain: "ACQUISITION",
+    label: "Measured incremental paid contribution",
+    definition:
+      "Incremental contribution profit attributable to a paid intervention under a valid experimental or causal design.",
+    unit: "MONEY",
+    authoritativeSources: ["FIRST_PARTY"],
+    requiredForDomain: false,
+    direction: "HIGHER_IS_BETTER",
+  }),
+  acquisition_concentration: metric({
+    id: "acquisition_concentration",
+    domain: "ACQUISITION",
+    label: "Acquisition concentration",
+    definition: "Share of observed new-customer acquisition attributable to the largest measured source.",
+    unit: "RATIO",
+    authoritativeSources: ["FIRST_PARTY"],
+    requiredForDomain: false,
+    direction: "LOWER_IS_BETTER",
+  }),
+  purchase_frequency: metric({
+    id: "purchase_frequency",
+    domain: "CUSTOMER",
+    label: "Purchase frequency",
+    definition: "Eligible orders per observed customer over the governed cohort horizon.",
+    unit: "RATIO",
+    authoritativeSources: ["SHOPIFY"],
+    requiredForDomain: false,
+    direction: "HIGHER_IS_BETTER",
+  }),
+  customer_value_90d: metric({
+    id: "customer_value_90d",
+    domain: "CUSTOMER",
+    label: "90-day customer value",
+    definition: "Mature net revenue per customer within 90 days of cohort entry.",
+    unit: "MONEY",
+    authoritativeSources: ["SHOPIFY"],
+    requiredForDomain: false,
+    direction: "HIGHER_IS_BETTER",
+  }),
+  retention_rate_90d: metric({
+    id: "retention_rate_90d",
+    domain: "CUSTOMER",
+    label: "90-day retention rate",
+    definition: "Share of mature cohort customers with a repeat eligible purchase within 90 days.",
+    unit: "RATIO",
+    authoritativeSources: ["SHOPIFY"],
+    requiredForDomain: true,
+    direction: "HIGHER_IS_BETTER",
+  }),
+  product_revenue_concentration: metric({
+    id: "product_revenue_concentration",
+    domain: "MERCHANDISING",
+    label: "Product revenue concentration",
+    definition: "Share of product revenue produced by the largest governed product/category grouping.",
+    unit: "RATIO",
+    authoritativeSources: ["SHOPIFY"],
+    requiredForDomain: true,
+    direction: "CONTEXTUAL",
+  }),
+  product_gross_profit_concentration: metric({
+    id: "product_gross_profit_concentration",
+    domain: "MERCHANDISING",
+    label: "Product gross-profit concentration",
+    definition: "Share of known product gross profit produced by the largest governed product/category grouping.",
+    unit: "RATIO",
+    authoritativeSources: ["SHOPIFY", "MERCHANT_CONFIG"],
+    requiredForDomain: false,
+    direction: "CONTEXTUAL",
+  }),
+  average_product_margin: metric({
+    id: "average_product_margin",
+    domain: "MERCHANDISING",
+    label: "Average product gross margin",
+    definition: "Revenue-weighted gross margin over product lines with known COGS.",
+    unit: "RATIO",
+    authoritativeSources: ["SHOPIFY", "MERCHANT_CONFIG"],
+    requiredForDomain: true,
+    direction: "HIGHER_IS_BETTER",
+  }),
+  discounted_revenue_share: metric({
+    id: "discounted_revenue_share",
+    domain: "MERCHANDISING",
+    label: "Discounted revenue share",
+    definition: "Share of net revenue from orders or lines receiving a merchandise discount.",
+    unit: "RATIO",
+    authoritativeSources: ["SHOPIFY"],
+    requiredForDomain: true,
+    direction: "LOWER_IS_BETTER",
+  }),
+  inventory_days_cover_min: metric({
+    id: "inventory_days_cover_min",
+    domain: "MERCHANDISING",
+    label: "Minimum inventory days of cover",
+    definition: "Minimum forward days of sellable stock among material products using observed demand rate.",
+    unit: "DAYS",
+    authoritativeSources: ["SHOPIFY", "MERCHANT_CONFIG"],
+    requiredForDomain: true,
+    direction: "HIGHER_IS_BETTER",
+  }),
+  out_of_stock_rate: metric({
+    id: "out_of_stock_rate",
+    domain: "MERCHANDISING",
+    label: "Out-of-stock rate",
+    definition: "Share of material products unavailable for sale in the governed period.",
+    unit: "RATIO",
+    authoritativeSources: ["SHOPIFY"],
+    requiredForDomain: true,
+    direction: "LOWER_IS_BETTER",
+  }),
+  inventory_at_risk_value: metric({
+    id: "inventory_at_risk_value",
+    domain: "MERCHANDISING",
+    label: "Inventory value at risk",
+    definition: "Known inventory cost value exposed to projected stockout or excess-stock conditions.",
+    unit: "MONEY",
+    authoritativeSources: ["SHOPIFY", "MERCHANT_CONFIG"],
+    requiredForDomain: false,
+    direction: "LOWER_IS_BETTER",
+  }),
+  product_momentum: metric({
+    id: "product_momentum",
+    domain: "MERCHANDISING",
+    label: "Product momentum",
+    definition: "Normalized recent product demand change versus the governed prior period.",
+    unit: "SCORE",
+    authoritativeSources: ["SHOPIFY"],
+    requiredForDomain: false,
+    direction: "CONTEXTUAL",
+  }),
+  email_list_size: metric({
+    id: "email_list_size",
+    domain: "LIFECYCLE",
+    label: "Email list size",
+    definition: "Active marketable email contacts reported by the connected lifecycle provider.",
+    unit: "COUNT",
+    authoritativeSources: LIFECYCLE,
+    requiredForDomain: true,
+    direction: "HIGHER_IS_BETTER",
+  }),
+  sms_list_size: metric({
+    id: "sms_list_size",
+    domain: "LIFECYCLE",
+    label: "SMS list size",
+    definition: "Active marketable SMS contacts reported by the connected lifecycle provider.",
+    unit: "COUNT",
+    authoritativeSources: LIFECYCLE,
+    requiredForDomain: false,
+    direction: "HIGHER_IS_BETTER",
+  }),
+  email_list_growth: metric({
+    id: "email_list_growth",
+    domain: "LIFECYCLE",
+    label: "Email list growth",
+    definition: "Net change in active marketable email contacts over the governed period.",
+    unit: "COUNT",
+    authoritativeSources: LIFECYCLE,
+    requiredForDomain: false,
+    direction: "HIGHER_IS_BETTER",
+  }),
+  campaign_revenue: metric({
+    id: "campaign_revenue",
+    domain: "LIFECYCLE",
+    label: "Lifecycle campaign revenue",
+    definition: "Provider-reported revenue associated with one-off lifecycle campaigns.",
+    unit: "MONEY",
+    authoritativeSources: LIFECYCLE,
+    requiredForDomain: true,
+    direction: "CONTEXTUAL",
+  }),
+  automation_revenue: metric({
+    id: "automation_revenue",
+    domain: "LIFECYCLE",
+    label: "Lifecycle automation revenue",
+    definition: "Provider-reported revenue associated with lifecycle automations/flows.",
+    unit: "MONEY",
+    authoritativeSources: LIFECYCLE,
+    requiredForDomain: true,
+    direction: "CONTEXTUAL",
+  }),
+  lifecycle_revenue: metric({
+    id: "lifecycle_revenue",
+    domain: "LIFECYCLE",
+    label: "Lifecycle revenue",
+    definition: "Campaign revenue plus automation revenue under one provider methodology.",
+    unit: "MONEY",
+    authoritativeSources: ["DERIVED"],
+    requiredForDomain: true,
+    derivedFrom: ["campaign_revenue", "automation_revenue"],
+    derivation: "campaign_revenue + automation_revenue",
+    direction: "CONTEXTUAL",
+  }),
+  lifecycle_revenue_share: metric({
+    id: "lifecycle_revenue_share",
+    domain: "LIFECYCLE",
+    label: "Lifecycle revenue share",
+    definition:
+      "Lifecycle provider revenue divided by store net revenue. This remains provider-attributed context, not incrementality.",
+    unit: "RATIO",
+    authoritativeSources: ["DERIVED"],
+    requiredForDomain: false,
+    derivedFrom: ["lifecycle_revenue", "revenue_net"],
+    derivation: "lifecycle_revenue / revenue_net",
+    direction: "CONTEXTUAL",
+  }),
+  automation_coverage: metric({
+    id: "automation_coverage",
+    domain: "LIFECYCLE",
+    label: "Lifecycle automation coverage",
+    definition: "Share of defined customer lifecycle stages covered by an active automation.",
+    unit: "RATIO",
+    authoritativeSources: LIFECYCLE,
+    requiredForDomain: true,
+    direction: "HIGHER_IS_BETTER",
+  }),
+  cogs_coverage: metric({
+    id: "cogs_coverage",
+    domain: "MEASUREMENT",
+    label: "COGS coverage",
+    definition: "Share of eligible merchandise value with known governed COGS.",
+    unit: "RATIO",
+    authoritativeSources: ["SHOPIFY", "MERCHANT_CONFIG", "FIRST_PARTY"],
+    requiredForDomain: true,
+    minimumCoverage: 0.95,
+    direction: "HIGHER_IS_BETTER",
+  }),
+  journey_coverage: metric({
+    id: "journey_coverage",
+    domain: "MEASUREMENT",
+    label: "Journey coverage",
+    definition: "Share of eligible Online Store orders linked to an observed first-party journey.",
+    unit: "RATIO",
+    authoritativeSources: ["FIRST_PARTY"],
+    requiredForDomain: true,
+    minimumCoverage: 0.7,
+    direction: "HIGHER_IS_BETTER",
+  }),
+  identity_quality: metric({
+    id: "identity_quality",
+    domain: "MEASUREMENT",
+    label: "Identity quality",
+    definition: "Share of eligible observations linked to a governed durable visitor/customer identity.",
+    unit: "RATIO",
+    authoritativeSources: ["FIRST_PARTY"],
+    requiredForDomain: true,
+    minimumCoverage: 0.7,
+    direction: "HIGHER_IS_BETTER",
+  }),
+  provider_availability_score: metric({
+    id: "provider_availability_score",
+    domain: "MEASUREMENT",
+    label: "Provider availability",
+    definition: "Share of required evidence providers available and fresh enough for the requested state.",
+    unit: "RATIO",
+    authoritativeSources: ["FIRST_PARTY"],
+    requiredForDomain: true,
+    minimumCoverage: 0.8,
+    direction: "HIGHER_IS_BETTER",
+  }),
+  data_freshness_seconds: metric({
+    id: "data_freshness_seconds",
+    domain: "MEASUREMENT",
+    label: "Data freshness",
+    definition: "Age in seconds of the stalest required evidence used by the snapshot.",
+    unit: "SECONDS",
+    authoritativeSources: ["FIRST_PARTY"],
+    requiredForDomain: true,
+    direction: "LOWER_IS_BETTER",
+  }),
+  attribution_quality: metric({
+    id: "attribution_quality",
+    domain: "MEASUREMENT",
+    label: "Attribution quality",
+    definition:
+      "Governed first-party attribution quality score based on linkage, method completeness and known measurement limitations.",
+    unit: "RATIO",
+    authoritativeSources: ["FIRST_PARTY"],
+    requiredForDomain: true,
+    minimumCoverage: 0.7,
+    direction: "HIGHER_IS_BETTER",
+  }),
+  incrementality_measured_rate: metric({
+    id: "incrementality_measured_rate",
+    domain: "MEASUREMENT",
+    label: "Incrementality measured rate",
+    definition:
+      "Share of material paid/lifecycle interventions with valid experimental or causal incrementality evidence.",
+    unit: "RATIO",
+    authoritativeSources: ["FIRST_PARTY"],
+    requiredForDomain: true,
+    direction: "HIGHER_IS_BETTER",
+  }),
+  sample_adequacy: metric({
+    id: "sample_adequacy",
+    domain: "MEASUREMENT",
+    label: "Sample adequacy",
+    definition: "Governed sufficiency score for sample size and maturity of the evidence underlying the state.",
+    unit: "RATIO",
+    authoritativeSources: ["FIRST_PARTY"],
+    requiredForDomain: true,
+    minimumCoverage: 0.7,
+    direction: "HIGHER_IS_BETTER",
+  }),
+};
+
+export const allMetricIds = Object.freeze(
+  Object.keys(metricRegistry) as CanonicalMetricId[],
+);
+
+export function metricsForDomains(
+  domains: readonly StateDomain[],
+  includeOptionalMetrics = true,
+): CanonicalMetricId[] {
+  const wanted = new Set(domains);
+  return allMetricIds.filter((id) => {
+    const definition = metricRegistry[id];
+    return (
+      wanted.has(definition.domain) &&
+      (includeOptionalMetrics || definition.requiredForDomain)
+    );
+  });
+}
+
+export function requiredMetricClosure(
+  metricIds: readonly CanonicalMetricId[],
+): CanonicalMetricId[] {
+  const result = new Set<CanonicalMetricId>();
+
+  const visit = (metricId: CanonicalMetricId): void => {
+    if (result.has(metricId)) return;
+    result.add(metricId);
+    const definition = metricRegistry[metricId];
+    for (const dependency of definition.derivedFrom ?? []) {
+      visit(dependency);
+    }
+  };
+
+  for (const metricId of metricIds) visit(metricId);
+  return [...result];
+}
+
+export function isAuthoritativeEvidenceSource(
+  metricId: CanonicalMetricId,
+  source: AuthoritativeSource,
+): boolean {
+  const definition = metricRegistry[metricId];
+  if (definition.authoritativeSources.includes("DERIVED")) return false;
+  return definition.authoritativeSources.includes(source);
+}

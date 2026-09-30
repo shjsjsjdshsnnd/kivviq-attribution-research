@@ -3,6 +3,9 @@ import { SharedRandomness, SimulationClock } from "../simulation/kernel.js";
 export const EXTERNAL_REALITY_MODEL_VERSION =
   "external_reality_model_v1" as const;
 
+/** Diagnostic identity only; causal coefficients and random-stream keys are unchanged. */
+export const EXTERNAL_APPLICATION_IDENTITY_VERSION = "external-effect-occurrence/1.0.0" as const;
+
 export type ExternalDomain =
   | "competition"
   | "economy"
@@ -765,6 +768,25 @@ export class ExternalRealityRuntime {
       timestampMs,
       context,
     ).multiplier;
+  }
+
+  /**
+   * Kernel event labels can recur on later dates (for example repeat need
+   * cycles). Address one logical occurrence by label AND event time, without
+   * altering random keys or hiding conflicting resolutions at the same time.
+   * applyAt remains the strict legacy API for globally unique caller IDs.
+   */
+  public applyOccurrenceAt(
+    logicalId: string,
+    target: ExternalTarget,
+    timestampMs: number,
+    context: ExternalContext = {},
+  ): number {
+    if (!logicalId.trim() || !Number.isFinite(timestampMs)) {
+      throw new RangeError("external occurrence requires a nonempty label and finite event time");
+    }
+    const occurrenceId = `${EXTERNAL_APPLICATION_IDENTITY_VERSION}:${JSON.stringify([logicalId, timestampMs])}`;
+    return this.applyAt(occurrenceId, target, timestampMs, context);
   }
 
   public applyAt(

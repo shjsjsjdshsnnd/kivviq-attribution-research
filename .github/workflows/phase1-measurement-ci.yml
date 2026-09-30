@@ -1,0 +1,94 @@
+name: Phase 1 Measurement and Decision Lab
+
+on:
+  push:
+    branches: [phase1/steps15-23-measurement-decision-lab]
+  pull_request:
+    branches: [step14/external-reality]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: phase1-measurement-${{ github.event_name }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  focused:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: ".nvmrc"
+      - run: npm ci --no-audit --no-fund
+      - run: npm run architecture
+      - run: npm run typecheck
+      - run: npx vitest run tests/measurement_corruption tests/scenario_library tests/phase1_validation tests/external_reality/occurrence-identity.test.ts --maxWorkers=1 --reporter=verbose
+      - run: npm run build
+      - name: Observed-only CLI and evaluator replay
+        shell: bash
+        run: |
+          set -euo pipefail
+          manifest="$RUNNER_TEMP/kivviq-private-manifest.json"
+          first="$RUNNER_TEMP/kivviq-observed-1.json"
+          second="$RUNNER_TEMP/kivviq-observed-2.json"
+          node dist/evaluation/simulate-cli.js --scenario 9274 --seed 88213 --manifest "$manifest" > "$first"
+          node dist/evaluation/simulate-cli.js --replay "$manifest" > "$second"
+          cmp "$first" "$second"
+          node --input-type=module - "$first" <<'NODE'
+          import { readFileSync } from 'node:fs';
+          import { parseOperatorObservation } from './dist/observation/corrupted-world.js';
+          const value = JSON.parse(readFileSync(process.argv[2], 'utf8'));
+          parseOperatorObservation(value);
+          if ('payload' in value || 'groundTruth' in value || 'audit' in value) throw new Error('evaluator data in observed output');
+          NODE
+          test "$(stat -c '%a' "$manifest")" = "600"
+          rm "$manifest" "$first" "$second"
+      - name: Exact oracle replay and evidence-backed Phase 1 status
+        shell: bash
+        run: |
+          set -euo pipefail
+          oracle="$RUNNER_TEMP/kivviq-private-oracle.json"
+          matrix="$RUNNER_TEMP/kivviq-private-validation.json"
+          trap 'rm -f "$oracle" "$matrix"' EXIT
+          npm run oracle:control -- --out "$oracle" --selected a0
+          npm run replay:oracle -- --input "$oracle"
+          npm run validate:phase1 -- --out "$matrix" --run-id "ci-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+          node --input-type=module - "$matrix" <<'NODE'
+          import { readFileSync } from 'node:fs';
+          import { assessArtifactBackedAcceptance } from './dist/evaluation/validation-evidence.js';
+          const value = JSON.parse(readFileSync(process.argv[2], 'utf8'));
+          const checked = assessArtifactBackedAcceptance(value.artifact.payload.codeRevision,
+            [{plan: value.plan, artifact: value.artifact}]);
+          const failedCases = value.artifact.payload.results.filter(r => r.status !== 'PASS');
+          const incompleteRequirements = checked.requirements.filter(r => r.status !== 'PASS');
+          if (value.plan.cases.length !== 96 ||
+              value.artifact.payload.results.length !== 96 ||
+              checked.requirements.length !== 21 ||
+              checked.overall !== 'PASS' ||
+              failedCases.length > 0 ||
+              incompleteRequirements.length > 0 ||
+              checked.notRunCases.length > 0) {
+            throw new Error('Phase 1 acceptance requires 96/96 executed cases and all 21 requirements PASS');
+          }
+          NODE
+          test "$(stat -c '%a' "$oracle")" = "600"
+          test "$(stat -c '%a' "$matrix")" = "600"
+  regression:
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: ".nvmrc"
+      - run: npm ci --no-audit --no-fund
+      # Do not skip or weaken the inherited Step 12 imagery assertion.
+      - run: npm test

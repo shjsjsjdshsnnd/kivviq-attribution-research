@@ -406,7 +406,7 @@ export function chooseProduct(
         );
       const categoryId = demand?.categoryId;
       const externalInventoryAvailability =
-        externalReality?.applyAt(
+        externalReality?.applyOccurrenceAt(
           `${key}:inventory-availability:${productId}`,
           "inventory_availability",
           timestampMs,
@@ -418,7 +418,7 @@ export function chooseProduct(
           },
         ) ?? 1;
       const externalCategoryPreference =
-        externalReality?.applyAt(
+        externalReality?.applyOccurrenceAt(
           `${key}:category-preference:${productId}`,
           "category_preference",
           timestampMs,
@@ -430,7 +430,7 @@ export function chooseProduct(
           },
         ) ?? 1;
       const externalPriceSensitivity =
-        externalReality?.applyAt(
+        externalReality?.applyOccurrenceAt(
           `${key}:price-sensitivity:${productId}`,
           "price_sensitivity",
           timestampMs,
@@ -1249,7 +1249,7 @@ export function completePurchase(
         (item) => item.productId === cartLine.productId,
       );
     const inventoryAvailabilityMultiplier =
-      externalReality?.applyAt(
+      externalReality?.applyOccurrenceAt(
         `${orderId}:inventory-availability:${cartLine.productId}`,
         "inventory_availability",
         timestampMs,
@@ -1307,7 +1307,7 @@ export function completePurchase(
     const revenue = Math.max(0, gross - discount);
 
     const landedCostMultiplier =
-      externalReality?.applyAt(
+      externalReality?.applyOccurrenceAt(
         `${orderId}:landed-cost:${cartLine.productId}`,
         "landed_cost",
         timestampMs,
@@ -1377,21 +1377,21 @@ export function completePurchase(
     commercePolicy?.freeShippingThresholdMinor,
   );
   const shippingCostMultiplier =
-    externalReality?.applyAt(
+    externalReality?.applyOccurrenceAt(
       `${orderId}:shipping-cost`,
       "shipping_cost",
       timestampMs,
       { channel: source },
     ) ?? 1;
   const deliveryTimeMultiplier =
-    externalReality?.applyAt(
+    externalReality?.applyOccurrenceAt(
       `${orderId}:delivery-time`,
       "delivery_time",
       timestampMs,
       { channel: source },
     ) ?? 1;
   const returnPropensityMultiplier =
-    externalReality?.applyAt(
+    externalReality?.applyOccurrenceAt(
       `${orderId}:return-propensity`,
       "return_propensity",
       timestampMs,
