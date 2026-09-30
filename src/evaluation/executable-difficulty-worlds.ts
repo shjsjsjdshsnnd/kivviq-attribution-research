@@ -6,6 +6,7 @@ import type { OracleEconomics } from "./finite-decision-oracle.js";
 import { buildTractableCheckoutControl } from "./tractable-checkout-control.js";
 import { sha256 } from "./replay-manifest.js";
 import type { ExecutableValidationCase } from "./validation-evidence.js";
+import { MEASUREMENT_VERSION, measurePerfectWorld, type PerfectObservableWorld } from "../measurement_corruption/index.js";
 
 export const EXECUTABLE_DIFFICULTY_WORLD_VERSION =
   "phase1-executable-difficulty-worlds/0.1.0" as const;
@@ -378,6 +379,145 @@ async function level3Evidence() {
   };
 }
 
+
+function perfectWorldForConfoundedState(
+  world: ConfoundedWorld,
+  ordinal: number,
+): PerfectObservableWorld {
+  const periodStart = "2026-01-01T00:00:00.000Z";
+  const periodEnd = "2026-01-08T00:00:00.000Z";
+  const sessionAt = "2026-01-02T00:00:00.000Z";
+  const purchaseAt = "2026-01-03T00:00:00.000Z";
+  const events: PerfectObservableWorld["events"] = [];
+  world.highIntent.forEach((highIntent, buyer) => {
+    const subjectId = `difficulty-l4-${ordinal}-buyer-${buyer}`;
+    const sessionId = `difficulty-l4-${ordinal}-session-${buyer}`;
+    events.push({
+      eventId: `difficulty-l4-${ordinal}-visit-${buyer}`,
+      origin: "browser",
+      eventType: "session_start",
+      occurredAt: sessionAt,
+      subjectId,
+      subjectCreatedAt: periodStart,
+      sessionId,
+      source: highIntent ? "meta" : "direct",
+      ...(highIntent
+        ? { utmSource: "meta", utmMedium: "paid_social" }
+        : { directNavigation: true }),
+    });
+    if (highIntent) {
+      events.push({
+        eventId: `difficulty-l4-${ordinal}-purchase-${buyer}`,
+        origin: "server",
+        eventType: "purchase",
+        occurredAt: purchaseAt,
+        subjectId,
+        subjectCreatedAt: periodStart,
+        knownCustomerId: `customer-${buyer}`,
+        source: "unknown",
+        orderId: `difficulty-l4-${ordinal}-order-${buyer}`,
+        amountMinor: confoundedParameters.unitPriceMinor,
+      });
+    }
+  });
+  return {
+    schemaVersion: "perfect-observation/1.0.0",
+    periodStart,
+    periodEnd,
+    events,
+    spend: [
+      {
+        id: `difficulty-l4-${ordinal}-meta-spend`,
+        platform: "meta",
+        occurredAt: sessionAt,
+        amountMinor: confoundedParameters.baselineMetaSpendMinor,
+      },
+    ],
+  };
+}
+
+/**
+ * Level 4 keeps the Level 3 stochastic confounding mechanism and passes its
+ * perfect observable facts through the production measurement-corruption
+ * channel. Missing UTMs turn genuine Meta browser sessions into direct traffic
+ * while server orders remain unchanged.
+ */
+async function level4Evidence() {
+  const base = await level3Evidence();
+  const input = buildConfoundedDifficultyControl();
+  const cleanConfig = {
+    version: MEASUREMENT_VERSION,
+    seed: 9404,
+    identitySalt: "difficulty-level4-private-identity",
+  } as const;
+  const corruptConfig = {
+    ...cleanConfig,
+    missingUtmRate: 1,
+    directFallbackRate: 1,
+  } as const;
+  let cleanMetaEvents = 0;
+  let corruptedMetaEvents = 0;
+  let corruptedDirectEvents = 0;
+  let preservedOrders = true;
+  const reasons = new Set<string>();
+  input.outcomes.forEach((outcome, ordinal) => {
+    const perfect = perfectWorldForConfoundedState(outcome.world, ordinal);
+    const clean = measurePerfectWorld(
+      perfect,
+      cleanConfig,
+      perfect.periodEnd,
+    );
+    const corrupted = measurePerfectWorld(
+      perfect,
+      corruptConfig,
+      perfect.periodEnd,
+    );
+    cleanMetaEvents += clean.observation.events.filter(
+      (event) => event.origin === "browser" && event.source === "meta",
+    ).length;
+    corruptedMetaEvents += corrupted.observation.events.filter(
+      (event) => event.origin === "browser" && event.source === "meta",
+    ).length;
+    corruptedDirectEvents += corrupted.observation.events.filter(
+      (event) => event.origin === "browser" && event.source === "direct",
+    ).length;
+    preservedOrders &&=
+      sha256(clean.observation.orders) ===
+      sha256(corrupted.observation.orders);
+    for (const row of corrupted.audit.rows) {
+      for (const reason of row.reasons) reasons.add(reason);
+    }
+  });
+  const corruptionObserved =
+    cleanMetaEvents > 0 &&
+    corruptedMetaEvents === 0 &&
+    corruptedDirectEvents > cleanMetaEvents &&
+    reasons.has("missing_utms") &&
+    reasons.has("direct_fallback") &&
+    preservedOrders;
+  return {
+    passed: base.passed && corruptionObserved,
+    measurements: {
+      ...base.measurements,
+      worldHash: sha256({
+        baseWorldHash: base.measurements["worldHash"],
+        measurementVersion: MEASUREMENT_VERSION,
+        cleanConfig,
+        corruptConfig,
+      }),
+      verifiedFeatures: ["stochastic", "confounding", "corruption"],
+      cleanMetaEvents,
+      corruptedMetaEvents,
+      corruptedDirectEvents,
+      preservedOrders,
+      corruptionReasons: [...reasons].sort(),
+      corruptionObserved,
+      qualification:
+        "executed_structural_world_with_production_measurement_corruption",
+    },
+  };
+}
+
 export function buildExecutableDifficultyWorldCases(): readonly ExecutableValidationCase[] {
   return [
     {
@@ -409,6 +549,16 @@ export function buildExecutableDifficultyWorldCases(): readonly ExecutableValida
         requirements: ["difficulty_levels"],
       },
       run: level3Evidence,
+    },
+    {
+      spec: {
+        caseId: "difficulty:level-4:corrupted-confounding",
+        implementationVersion: EXECUTABLE_DIFFICULTY_WORLD_VERSION,
+        kind: "qualified_difficulty_world",
+        difficultyLevel: 4,
+        requirements: ["difficulty_levels"],
+      },
+      run: level4Evidence,
     },
   ] as const;
 }
