@@ -5,6 +5,7 @@ import { parseOperatorObservation } from "../observation/corrupted-world.js";
 import { SCHEDULED_SPEND_VERSION, type ScheduledSpendPlan } from "./scheduled-spend.js";
 import { evaluateScheduledDecisionSet, type ScheduledDecisionAction } from "./scheduled-decision-oracle.js";
 import type { OracleCandidate } from "./finite-decision-oracle.js";
+import { sha256 } from "./replay-manifest.js";
 
 export const RETARGETING_DECISION_VERSION = "retargeting-budget-decision/0.1.0" as const;
 /** Registered before validation; public replication seeds, not sealed holdouts. */
@@ -72,4 +73,126 @@ export async function runRetargetingDecisionScenario(seed: number) {
       extraMetaExpenseMinor: increased.economics.paidSpendMinor - baseline.economics.paidSpendMinor,
       metaIncreaseContributionDeltaMinor: metaRank.meanDeltaVersusBaselineMinor,
       metaOffContributionDeltaMinor: offRank.meanDeltaVersusBaselineMinor }, result };
+}
+
+
+export type RetargetingDecisionRecord = Awaited<
+  ReturnType<typeof runRetargetingDecisionScenario>
+>;
+
+/**
+ * Candidate admission is deliberately stricter than "the test passed once".
+ * It requires every preregistered public development/validation seed, the same
+ * finite action universe and economic scope, complete mechanism predicates and
+ * an Operator payload that contains none of the evaluator-only answer fields.
+ *
+ * This still does NOT count toward Phase 1 adversarial coverage: the scenario's
+ * five-action budget subspace has not yet been translated through the complete
+ * canonical BusinessAction universe.
+ */
+export function retargetingScenarioCandidateAdmission(
+  records: readonly RetargetingDecisionRecord[],
+) {
+  const expectedSeeds = [
+    ...RETARGETING_SEEDS.development,
+    ...RETARGETING_SEEDS.validation,
+  ];
+  if (
+    records.length !== expectedSeeds.length ||
+    new Set(records.map((record) => record.seed)).size !== expectedSeeds.length ||
+    records.some((record) => !(expectedSeeds as readonly number[]).includes(record.seed))
+  ) {
+    throw new RangeError(
+      "candidate admission requires every preregistered retargeting seed exactly once",
+    );
+  }
+  const ordered = [...records].sort((a, b) => a.seed - b.seed);
+  const expectedPredicateIds = [
+    "predecision_meta_roas_above_one",
+    "nonvacuous_future_commerce",
+    "same_purchases_when_meta_disabled",
+    "more_meta_budget_does_not_increase_purchases",
+    "meta_scale_loses_true_contribution",
+    "meta_off_beats_scaling",
+    "future_actions_do_not_change_decision_information",
+  ];
+  for (const record of ordered) {
+    const predicateIds = record.predicates.map((predicate) => predicate.id);
+    if (
+      record.status !== "PASS" ||
+      record.predicates.some((predicate) => !predicate.passed) ||
+      JSON.stringify(predicateIds) !== JSON.stringify(expectedPredicateIds) ||
+      record.result.oracle.evaluatedActions !== 5 ||
+      record.result.oracle.searchDomain !== "supplied_finite_feasible_set" ||
+      record.result.oracle.actionSetVersion !==
+        "registered-retargeting-budget-subspace/1.0.0" ||
+      record.result.observationBySeed.length !== 1 ||
+      record.result.observationBySeed.some(({ payload }) =>
+        [
+          "purchaseSignature",
+          "oracle",
+          "latentTruth",
+          "godMode",
+          "simulationSeed",
+          "measurementDiagnostics",
+        ].some((term) => payload.includes(term)),
+      )
+    ) {
+      throw new RangeError(
+        "retargeting candidate lacks complete non-leaking executed evidence",
+      );
+    }
+  }
+  const validation = ordered.filter((record) =>
+    (RETARGETING_SEEDS.validation as readonly number[]).includes(record.seed),
+  );
+  const candidateSetHashes = new Set(
+    validation.map((record) => record.result.oracle.candidateSetHash),
+  );
+  const scopes = new Set(
+    validation.map((record) => record.result.oracle.scope),
+  );
+  const horizons = new Set(
+    validation.map((record) => JSON.stringify(record.result.oracle.horizon)),
+  );
+  if (
+    validation.length !== RETARGETING_SEEDS.validation.length ||
+    candidateSetHashes.size !== 1 ||
+    scopes.size !== 1 ||
+    horizons.size !== 1
+  ) {
+    throw new RangeError(
+      "validation seeds must share one action universe, scope and horizon",
+    );
+  }
+  const scenario = buildRetargetingDecisionScenario();
+  return {
+    access: "evaluator_only" as const,
+    version: RETARGETING_DECISION_VERSION,
+    scenarioFamily: "retargeting_selection_trap" as const,
+    status: "CANDIDATE_QUALIFIED" as const,
+    publicDevelopmentSeeds: [...RETARGETING_SEEDS.development],
+    publicValidationSeeds: [...RETARGETING_SEEDS.validation],
+    worldHash: sha256({
+      initial: scenario.initial,
+      spendPlan: scenario.spendPlan,
+      decisionAt: scenario.decisionAt,
+      measurement: scenario.measurement,
+    }),
+    candidateSetHash: validation[0]!.result.oracle.candidateSetHash,
+    actionSetVersion: validation[0]!.result.oracle.actionSetVersion,
+    scope: validation[0]!.result.oracle.scope,
+    horizon: validation[0]!.result.oracle.horizon,
+    evidenceHash: sha256(
+      ordered.map((record) => ({
+        seed: record.seed,
+        predicates: record.predicates,
+        oracle: record.result.oracle,
+        observationHash: record.result.branches[0]!.observationHash,
+      })),
+    ),
+    phase1AdversarialCoverageCounted: false as const,
+    blockingReason:
+      "bounded_budget_subspace_not_complete_canonical_business_action_universe" as const,
+  };
 }
