@@ -495,10 +495,8 @@ describe("Canonical Business State — Steps 1–25", () => {
   it("Step 22 provides a synthetic Business-State benchmark across distinct business conditions", () => {
     const benchmark = syntheticBusinessStateBenchmark();
     expect(benchmark.length).toBeGreaterThanOrEqual(12);
-    expect(new Set(benchmark.map((item) => item.trap))).toEqual(
-      expect.objectContaining
-        ? expect.anything()
-        : new Set(),
+    expect(new Set(benchmark.map((item) => item.scenarioId)).size).toBe(
+      benchmark.length,
     );
     expect(benchmark.map((item) => item.trap)).toEqual(
       expect.arrayContaining([
