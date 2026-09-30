@@ -24,7 +24,7 @@ Outcome contracts reject answer-bearing fields such as expected profit, predicte
 
 Historical canonical v2 Actions remain readable. The Step 23 validation schema requires an explicit outcome plan for new Actions. A Step 23 compound decision requires both a compound-level outcome plan and an outcome plan on every component Action.
 
-The stable `outcomeId`, `metricRef`, comparison contract, evidence policy, and measurement horizon are the join keys future Decision Ledger and Learning systems can use. This branch does not implement those later systems.
+The stable `outcomeId`, `metricRef`, comparison contract, evidence policy, and measurement horizon feed `buildOutcomeMeasurementBridge`, which deterministically projects Action- or compound-bound Decision Ledger outcome keys and Learning signal keys. The bridge is only a typed join contract: it does not implement those later systems, record results, update beliefs, or score decisions.
 
 ## Step 24 — Action Space validation
 
@@ -58,7 +58,7 @@ A valid Action whose business meaning cannot be represented by the simulator rem
 The focused Step 24 suite deterministically exercises:
 
 - 3,000 valid generated Actions
-- 1,000 valid generated portfolios
+- 2,000 valid generated portfolios
 - 1,500 invalid/adversarial Actions and compounds
 - 500 generated no-op translation determinism checks
 - 500 generated compound parsing/determinism checks
