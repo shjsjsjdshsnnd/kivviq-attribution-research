@@ -40,7 +40,7 @@ They reject:
 - hidden God-mode, future-state, counterfactual, optimizer-answer, and prediction fields
 - incompatible portfolios when supplied to the existing portfolio compatibility engine
 
-Dynamic merchant constraints, eligibility, dependencies, and evidence freshness remain authoritative in their existing engines. Step 24 does not duplicate or weaken those contracts.
+Dynamic merchant constraints, eligibility, dependencies, and evidence freshness remain authoritative in their existing engines. Step 24 does not duplicate or weaken those contracts. `validateActionSpaceActionEligibility` composes the existing eligibility engine so a bound hard-constraint or domain-rule violation is rejected explicitly at the Action Space validation boundary before translation; unresolved evidence remains fail-closed.
 
 ## Translation invariant
 
