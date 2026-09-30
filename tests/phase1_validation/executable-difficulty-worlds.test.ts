@@ -9,7 +9,7 @@ import {
 } from "../../src/evaluation/validation-evidence.js";
 
 describe("executed difficulty worlds", () => {
-  it("qualifies Levels 1–6 from executed world evidence without pretending the seven-level ladder is complete", async () => {
+  it("qualifies all seven levels from executed world evidence, including full Level 7 mechanism coverage", async () => {
     const cases = [...buildExecutableDifficultyWorldCases()];
     const plan: ValidationPlan = {
       version: "simulator-validation-plan/1.0.0",
@@ -25,6 +25,7 @@ describe("executed difficulty worlds", () => {
     });
 
     expect(artifact.payload.results.map((row) => row.status)).toEqual([
+      "PASS",
       "PASS",
       "PASS",
       "PASS",
@@ -107,16 +108,48 @@ describe("executed difficulty worlds", () => {
     expect(level6.measurements["inventoryBindingStates"]).toBeGreaterThan(0);
     expect(level6.measurements["independentTrapCount"]).toBeGreaterThanOrEqual(3);
 
+    const level7 = artifact.payload.results[6]!;
+    expect(level7.measurements["verifiedFeatures"]).toEqual([
+      "stochastic",
+      "confounding",
+      "corruption",
+      "dynamics",
+      "multiple_traps",
+      "all_mechanisms",
+    ]);
+    expect(level7.measurements["confoundingObserved"]).toBe(true);
+    expect(level7.measurements["preservedOrders"]).toBe(true);
+    expect(level7.measurements["stablePastAcrossShock"]).toBe(true);
+    expect(level7.measurements["inventoryBindingStates"]).toBeGreaterThan(0);
+    expect(level7.measurements["scaleMetaRevenueTrap"]).toBe(true);
+    expect(level7.measurements["discountRevenueTrap"]).toBe(true);
+    expect(level7.measurements["allMechanismsCoverage"]).toEqual([
+      "paid_media_response",
+      "diminishing_channel_returns",
+      "cross_channel_interaction",
+      "pricing_elasticity",
+      "promotion_economics",
+      "retention_customer_value",
+      "inventory_constraints",
+      "external_shocks",
+      "measurement_corruption",
+      "returns_economics",
+      "counterfactual_interventions",
+    ]);
+    expect(Object.values(
+      level7.measurements["allMechanismsChecks"] as Record<string, boolean>,
+    ).every(Boolean)).toBe(true);
+
     const acceptance = assessArtifactBackedAcceptance(revision, [
       { plan, artifact },
     ]);
     const difficulty = acceptance.requirements.find(
       (row) => row.requirement === "difficulty_levels",
     )!;
-    expect(difficulty.checkedCases).toBe(6);
-    expect(difficulty.distinctCoverage).toBe(6);
+    expect(difficulty.checkedCases).toBe(7);
+    expect(difficulty.distinctCoverage).toBe(7);
     expect(difficulty.requiredCoverage).toBe(7);
-    expect(difficulty.status).toBe("FAIL");
-    expect(acceptance.overall).toBe("FAIL");
+    expect(difficulty.status).toBe("PASS");
+    expect(acceptance.overall).toBe("INCOMPLETE");
   });
 });
