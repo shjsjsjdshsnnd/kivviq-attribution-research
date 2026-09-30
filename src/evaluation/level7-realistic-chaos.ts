@@ -237,9 +237,10 @@ function perfectObservation(world: ChaosWorld, ordinal: number): PerfectObservab
         subjectCreatedAt: periodStart,
         sessionId,
         source: highIntent ? "meta" : "direct",
+        directNavigation: !highIntent,
         ...(highIntent
           ? { utmSource: "meta", utmMedium: "paid_social" }
-          : { directNavigation: true }),
+          : {}),
       });
       if (highIntent) {
         events.push({
@@ -252,6 +253,7 @@ function perfectObservation(world: ChaosWorld, ordinal: number): PerfectObservab
           subjectCreatedAt: periodStart,
           knownCustomerId: "customer-" + buyer,
           source: "unknown",
+          directNavigation: false,
           orderId:
             "difficulty-l7-" + ordinal + "-" + label + "-order-" + buyer,
           amountMinor: parameters.unitPriceMinor,
@@ -292,6 +294,7 @@ function perfectObservation(world: ChaosWorld, ordinal: number): PerfectObservab
         subjectCreatedAt: "2026-02-01T00:00:00.000Z",
         knownCustomerId: "shock-customer-" + index,
         source: "unknown",
+        directNavigation: false,
         orderId: subjectId + "-order",
         amountMinor: parameters.unitPriceMinor,
       });
