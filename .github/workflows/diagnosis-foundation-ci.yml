@@ -7,7 +7,11 @@ on:
   pull_request:
     paths:
       - 'src/diagnosis/**'
+      - 'src/diagnosis_integration/**'
+      - 'src/business_state/**'
       - 'tests/diagnosis/**'
+      - 'tests/diagnosis_integration/**'
+      - 'tests/business_state/**'
       - 'scripts/test-diagnosis.mjs'
       - 'tsconfig*.json'
       - 'package*.json'
@@ -26,8 +30,10 @@ jobs:
         with:
           node-version-file: '.nvmrc'
       - run: npm ci --no-audit --no-fund
-      - name: Strict diagnosis typecheck and deterministic/adversarial tests
+      - name: Strict diagnosis core typecheck and deterministic/adversarial tests
         run: node scripts/test-diagnosis.mjs
+      - name: Canonical adapter and merchant-local calendar integration tests
+        run: npm exec -- vitest run tests/diagnosis_integration --maxWorkers=1
   repository-regression:
     runs-on: ubuntu-latest
     timeout-minutes: 20
