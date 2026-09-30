@@ -65,6 +65,7 @@ function evidence(
   return {
     evidenceId:
       metricId + ":" + periodKind.toLowerCase() + ":" + value.toString(),
+    merchantId: "merchant-1",
     metricId,
     source: options.source ?? sourceFor(metricId),
     periodKind,
@@ -72,6 +73,7 @@ function evidence(
     periodStart: period.start,
     periodEnd: period.end,
     value,
+    ...(metricRegistry[metricId].unit === "MONEY" ? { currency: "CAD" } : {}),
     ...(options.coverage === undefined
       ? {}
       : { coverage: options.coverage }),
