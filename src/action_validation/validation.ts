@@ -1,14 +1,14 @@
 import {
-  measurableCanonicalActionSchema,
-  type MeasurableCanonicalAction,
+  actionSpaceCanonicalActionSchema,
+  type ActionSpaceCanonicalAction,
 } from "../canonical_action/schema.js";
 import {
   fingerprintCanonicalAction,
 } from "../canonical_action/serialization.js";
 import {
-  measurableCompoundActionSchema,
+  actionSpaceCompoundActionSchema,
   fingerprintCompoundAction,
-  type MeasurableCompoundAction,
+  type ActionSpaceCompoundAction,
 } from "../compound_action/schema.js";
 import {
   assessPortfolioCompatibility,
@@ -20,8 +20,8 @@ import type { CanonicalEntityReference } from "../action_dependencies/schema.js"
 export const ACTION_SPACE_VALIDATION_VERSION = "1.0.0" as const;
 
 export type ValidatedActionSpaceDecision =
-  | { kind: "ACTION"; action: MeasurableCanonicalAction }
-  | { kind: "COMPOUND"; action: MeasurableCompoundAction };
+  | { kind: "ACTION"; action: ActionSpaceCanonicalAction }
+  | { kind: "COMPOUND"; action: ActionSpaceCompoundAction };
 
 export interface ActionSpaceValidationIssue {
   readonly code: string;
@@ -168,7 +168,7 @@ export function validateActionSpaceDecision(
       issues: [hidden],
     };
 
-  const compound = measurableCompoundActionSchema.safeParse(input);
+  const compound = actionSpaceCompoundActionSchema.safeParse(input);
   if (compound.success)
     return {
       ok: true,
@@ -176,7 +176,7 @@ export function validateActionSpaceDecision(
       decision: { kind: "COMPOUND", action: compound.data },
     };
 
-  const atomic = measurableCanonicalActionSchema.safeParse(input);
+  const atomic = actionSpaceCanonicalActionSchema.safeParse(input);
   if (atomic.success)
     return {
       ok: true,
