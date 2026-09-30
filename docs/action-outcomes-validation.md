@@ -63,7 +63,8 @@ The focused Step 24 suite deterministically exercises:
 - 500 generated compound parsing/determinism checks
 - explicit portfolio conflicts
 - hard-constraint denial before intervention emission
-- supported budget, campaign pause, pricing, and promotion semantic-equivalence checks
+- supported budget, pricing, and promotion semantic-equivalence checks
+- the existing campaign-pause translator plus the frozen manual-reversal canonical-migration boundary
 - deterministic unsupported-action behavior
 
 The generator is seeded/deterministic so failures are reproducible.
