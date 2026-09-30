@@ -17,7 +17,10 @@ import { sha256 } from "./replay-manifest.js";
 import type { ExecutableValidationCase } from "./validation-evidence.js";
 import type { Phase1Requirement } from "./phase1-acceptance.js";
 
-export const DOMAIN_VALIDATION_VERSION = "phase1-kernel-mechanism-checks/1.0.0" as const;
+export const DOMAIN_VALIDATION_VERSION = "phase1-kernel-mechanism-checks/1.1.0" as const;
+const RETENTION_PRIMARY_SESSION_CAP = 4096;
+const RETENTION_CONVERGENCE_SESSION_CAP = 8192;
+const RETENTION_MAX_EVENTS = 600_000;
 /** Public regression seeds, fixed by this version. Not sealed holdouts. */
 export const DOMAIN_VALIDATION_SEEDS = Object.freeze({
   crossChannel: Object.freeze([93060, 193060]), pricing: Object.freeze([210201, 1210201]),
@@ -141,7 +144,7 @@ export function buildRetentionValidationPair(seed: number): DomainWorldPair {
     latentPopulation: generateCustomerPopulation({ merchantWorld: fixture.merchantWorld, populationSeed: 211101,
       populationConfig: { maxExplicitAgents: 32, complexity: "complex" } }),
     simulationSeed: seed, startTime: START, endTime: "2027-01-01T00:00:00.000Z", interventions: fixture.interventions ?? [],
-    config: { ...fixture.simulationConfig, maxSessionsPerCustomer: 32, maxEvents: 180000 } };
+    config: { ...fixture.simulationConfig, maxSessionsPerCustomer: RETENTION_PRIMARY_SESSION_CAP, maxEvents: RETENTION_MAX_EVENTS } };
   return { control: { ...shared, commercePolicy: { retentionScenario: { ...retained, merchantRepeatHazardMultiplier: 0.1 } } },
     treatment: { ...shared, commercePolicy: { retentionScenario: retained } } };
 }
@@ -156,14 +159,56 @@ export function runRetentionValidation(seed: number) {
     treatment: repeatPurchaseHazardMultiplier(pair.treatment.merchantWorld, pair.treatment.commercePolicy!.retentionScenario!, c) }));
   const purchases = run.treatment.latentTruth.simulation.purchases;
   const totalValue = purchases.reduce((n, p) => n + p.contributionProfitMinor + p.allocatedMarketingSpendMinor, 0);
+
+  // A long-horizon retention result is not qualified while the configured
+  // per-customer session ceiling is censoring the trajectory. Re-run the
+  // treatment with a strictly larger ceiling and require the executable
+  // trajectory to be identical. This establishes that the smaller bound is
+  // non-binding rather than increasing it until a desired future order appears.
+  const primaryControlSummary = summary(run.control);
+  const primaryTreatmentSummary = summary(run.treatment);
+  const convergenceRequest: SimulateWorldRequest = {
+    ...pair.treatment,
+    config: {
+      ...(pair.treatment.config ?? {}),
+      maxSessionsPerCustomer: RETENTION_CONVERGENCE_SESSION_CAP,
+      maxEvents: RETENTION_MAX_EVENTS,
+    },
+  };
+  const convergence = runMeasuredWorld(convergenceRequest, measurement(convergenceRequest.endTime));
+  const convergenceSummary = summary(convergence);
+  const trajectory = (bundle: EvaluatorWorldBundle) => ({
+    purchases: bundle.latentTruth.simulation.purchases,
+    observableEvents: bundle.latentTruth.simulation.observableEvents,
+    customerFinalStates: bundle.latentTruth.simulation.godMode.customerFinalStates,
+  });
+  const sessionCapNonbinding =
+    primaryControlSummary.customersReachingSessionLimit === 0 &&
+    primaryTreatmentSummary.customersReachingSessionLimit === 0;
+  const trajectoryConverged =
+    convergenceSummary.customersReachingSessionLimit === 0 &&
+    sha256(trajectory(run.treatment)) === sha256(trajectory(convergence));
+
   return result([...run.checks,
     check("repeat_hazard_responds_to_declared_mechanism", hazards.length > 0 && hazards.every(h => h.treatment > h.control)),
     check("repeat_orders_use_normal_commerce_path", purchases.some(p => p.repeatPurchase) && purchases.filter(p => p.repeatPurchase).every(p =>
       run.treatment.latentTruth.simulation.observableEvents.some(e => e.eventType === "purchase" && e.orderId === p.orderId))),
+    check("retention_session_cap_is_nonbinding", sessionCapNonbinding),
+    check("retention_trajectory_converges_under_doubled_cap", trajectoryConverged),
     check("future_value_is_nonvacuous_and_separate", values.realizedAtAsOf.totals.orders > 0 && values.futureRealizedTruthNotForecast.totals.orders > 0),
     check("customer_value_reconciles_single_episode", values.realizedAtAsOf.totals.bookedContributionBeforeAdvertisingMinor +
       values.futureRealizedTruthNotForecast.totals.bookedContributionBeforeAdvertisingMinor === totalValue),
   ], { ...run.evidence, seed, repeatHazards: hazards, customerValue: values,
+    longitudinalValidity: {
+      primarySessionCap: RETENTION_PRIMARY_SESSION_CAP,
+      convergenceSessionCap: RETENTION_CONVERGENCE_SESSION_CAP,
+      primaryControl: primaryControlSummary,
+      primaryTreatment: primaryTreatmentSummary,
+      convergenceTreatment: convergenceSummary,
+      sessionCapNonbinding,
+      trajectoryConverged,
+      convergenceTrajectoryHash: sha256(trajectory(convergence)),
+    },
     interpretation: "realized_365_day_customer_value_not_expected_lifetime_profit_or_causal_clv" });
 }
 
