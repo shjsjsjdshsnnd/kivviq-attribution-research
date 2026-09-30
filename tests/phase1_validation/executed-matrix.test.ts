@@ -1,7 +1,28 @@
 import { describe, expect, it } from "vitest";
 import { runPhase1ValidationMatrix } from "../../src/evaluation/phase1-validation-suite.js";
+import { buildIntegratedPhase1ValidationSuite } from "../../src/evaluation/phase1-integrated-validation.js";
 
 describe("executed public simulator validation matrix", () => {
+  it("keeps all Phase 1 evidence families in the integrated acceptance plan", () => {
+    const { plan } = buildIntegratedPhase1ValidationSuite();
+    expect(plan.cases).toHaveLength(96);
+    expect(new Set(plan.cases.map((row) => row.caseId)).size).toBe(96);
+
+    const adversarial = plan.cases.filter((row) =>
+      row.requirements.includes("adversarial_scenarios"),
+    );
+    expect(adversarial).toHaveLength(20);
+    expect(new Set(adversarial.map((row) => row.scenarioFamily)).size).toBe(20);
+
+    const difficulty = plan.cases.filter((row) =>
+      row.requirements.includes("difficulty_levels"),
+    );
+    expect(difficulty).toHaveLength(7);
+    expect(difficulty.map((row) => row.difficultyLevel)).toEqual([
+      1, 2, 3, 4, 5, 6, 7,
+    ]);
+  });
+
   it("executes every registered case without treating partial coverage as Phase 1 acceptance", async () => {
     const result = await runPhase1ValidationMatrix("a".repeat(40), "unit-matrix-public-seeds");
     expect(result.plan.cases).toHaveLength(61);
