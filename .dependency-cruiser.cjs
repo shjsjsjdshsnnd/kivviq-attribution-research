@@ -6,7 +6,7 @@ module.exports = {
         "Dependencies, conflicts, characteristics, and risk contracts are operator-safe and cannot depend on simulation internals, hidden truth, prediction, evaluation, ranking, optimization, oracle state, provider execution, or economic-response internals.",
       severity: "error",
       from: {
-        path: "^src/(action_dependencies|action_conflicts|action_characteristics|action_risk)(/|$)",
+        path: "^src/(action_dependencies|action_conflicts|action_characteristics|action_risk|action_outcomes)(/|$)",
       },
       to: {
         path: "^src/(simulation|ground_truth|generation|customer_population|advertising_economics|cross_channel|ecommerce_economics|product_economics|prediction|evaluation|ranking|optimizer|optimization|oracle|god_mode|provider_execution|provider-execution)(/|$)",
@@ -18,10 +18,10 @@ module.exports = {
         "Pure portfolio definition schemas remain below canonical envelopes, runtime assessment, translation, and execution layers.",
       severity: "error",
       from: {
-        path: "^src/(action_dependencies|action_conflicts|action_characteristics|action_risk)/schema\\.ts$",
+        path: "^src/(action_dependencies|action_conflicts|action_characteristics|action_risk|action_outcomes)/schema\\.ts$",
       },
       to: {
-        path: "^src/(canonical_action|compound_action|experiment|action_eligibility|action_translation|simulator_intervention|simulation)(/|$)|^src/(action_dependencies|action_conflicts|action_characteristics|action_risk)/(assessment|aggregate|validation|legacy|adapters)\\.ts$",
+        path: "^src/(canonical_action|compound_action|experiment|action_eligibility|action_translation|simulator_intervention|simulation)(/|$)|^src/(action_dependencies|action_conflicts|action_characteristics|action_risk|action_outcomes)/(assessment|aggregate|validation|legacy|adapters)\\.ts$",
       },
     },
     {
@@ -31,7 +31,7 @@ module.exports = {
       severity: "error",
       from: { path: "^src/canonical_action(/|$)" },
       to: {
-        path: "^src/(action_dependencies|action_conflicts|action_characteristics|action_risk)/(assessment|aggregate|validation|legacy|adapters)\\.ts$",
+        path: "^src/(action_dependencies|action_conflicts|action_characteristics|action_risk|action_outcomes)/(assessment|aggregate|validation|legacy|adapters)\\.ts$",
       },
     },
     {
@@ -77,7 +77,7 @@ module.exports = {
         "Operator-facing modules must never depend on GroundTruth, generation, latent customers, simulation, advertising economics, cross-channel interactions, ecommerce economics, product economics, evaluator/oracle, or other God-mode internals.",
       severity: "error",
       from: {
-        path: "^(src/(observation|operator|operator_safe|action_ontology|canonical_action|compound_action|decision_forms|investigation|population|action_timing|action_translation|simulator_intervention|paid_media|pricing|promotion|shipping|merchandising|inventory|cro|lifecycle|experiment|action_constraints|action_eligibility)(/|$)|src/index\\.ts$)",
+        path: "^(src/(observation|operator|operator_safe|action_ontology|canonical_action|compound_action|decision_forms|investigation|population|action_timing|action_translation|simulator_intervention|paid_media|pricing|promotion|shipping|merchandising|inventory|cro|lifecycle|experiment|action_constraints|action_eligibility|action_outcomes|action_validation)(/|$)|src/index\\.ts$)",
       },
       to: {
         path: "^src/(ground_truth|generation|customer_population|simulation|advertising_economics|cross_channel|ecommerce_economics|product_economics|evaluation|oracle|god_mode)(/|$)",
