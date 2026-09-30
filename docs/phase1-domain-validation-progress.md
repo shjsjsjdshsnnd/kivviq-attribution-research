@@ -1,6 +1,6 @@
 # Integrated domain validation and external-occurrence repair
 
-Status: **draft research; no merge, deployment or Phase 1 freeze**. This continuation builds on public implementation `2f637e14ca6d9941b0dfef1efd9c6fb4ce768b7e`. All worlds are synthetic. Frozen causal coefficients, action ontology and previous baseline operators are unchanged.
+Status: **integrated Phase 1 completion candidate**. Acceptance still depends on the exact-head 96-case CI artifact. This continuation builds on public implementation `2f637e14ca6d9941b0dfef1efd9c6fb4ce768b7e`. All worlds are synthetic. Frozen action ontology and previous baseline operators are unchanged; the separately revisioned Step 12 website runtime repair is documented in the repository regression history.
 
 ## Recurrent external-effect IDs: an executed defect, not a tuning problem
 
@@ -27,13 +27,13 @@ For price and shock tests, January 1–May 1, 2026 is one fixed episode. The dec
 
 The declared external demand multiplier of 2 and purchase-propensity multiplier of 1.2 are checked as structural effects. They are **not** claims of exactly doubled realized sales or a recovered 20% revenue uplift. The price cases likewise verify response direction and actual price application without asserting that a 10% price cut must increase revenue on every seed.
 
-### Retention qualification deliberately remains failed
+### Retention qualification now requires uncensored convergence
 
-Both retention cases execute a January 1, 2026–January 1, 2027 episode with 32 explicit customers and a maximum of 32 sessions per customer. This is a bounded simulation, not evidence of uncensored real-world annual CLV. Each result records the configured limit and the count of customers reaching it.
+The original 32-session annual retention fixture was correctly rejected because the computational ceiling censored almost every customer trajectory. The registered seeds and annual episode were retained; the fix was **not** to substitute easier seeds or raise the cap until a preferred result appeared.
 
-At the registered April 1 cutoff, seed 211201 has 11 earlier orders and three later orders. Seed **1211201 has eight earlier orders and zero later orders**. It therefore fails `future_value_is_nonvacuous_and_separate`. The seed, cutoff and predicate are retained. The current evidence does not establish that the session cap alone caused the empty tail; separating cap effects from the fixture's purchase dynamics remains further work.
+The current qualification uses a primary ceiling of **4,096 sessions per customer** and an independent convergence replay at **8,192**. A retention case passes only when both control and treatment have zero customers reaching the primary ceiling, the higher-cap treatment also remains non-binding, and the complete purchase/event/final-customer trajectory is identical across the two caps. The earlier/future customer-value split must also be non-vacuous and reconcile to the single fixed annual episode.
 
-A unit test verifies that this executed failure survives artifact serialization and prevents acceptance. Passing that unit test does **not** turn the scientific qualification into PASS. No failed seed has been replaced with an easier seed.
+This converts the former censoring diagnostic into an explicit longitudinal-validity gate. The result is still realized synthetic 365-day customer value, **not** empirically calibrated expected lifetime value or causal CLV.
 
 ## Evaluator-only customer-value ledger
 
@@ -45,9 +45,9 @@ The metric is **unweighted explicit-customer legacy booked order contribution be
 
 ## Integrated acceptance, without hiding failures
 
-`phase1-integrated-validation.ts` preserves every one of the previous 61 registered cases and adds these eight, producing a **69-case plan**. The validation CLI now executes this combined plan rather than the earlier core-only matrix. The earlier builder remains available for its original scoped regression tests.
+`phase1-integrated-validation.ts` now combines the original **61** core cases, **eight** main-kernel domain cases, **20** canonical adversarial decision families and **seven** executable difficulty worlds for a **96-case plan**. The validation CLI executes this complete plan; the earlier 61-case builder remains available only for its scoped regression contract.
 
-The CI acceptance assertion is not weakened: every registered case must pass before that check is green. The newly measured retention failure is expected to make the scientific validation gate red. A CLI exit code of 2 means incomplete or failed Phase 1, not successful acceptance. Read the artifact's individual results and recomputed overall status rather than inferring success from the exit code alone.
+The CI acceptance assertion is stricter than before: `validate:phase1` must exit successfully, all **96/96** registered cases must be PASS, no case may be NOT_RUN, and all **21/21** frozen Phase 1 requirements must be PASS. There is no longer an allowed adversarial/difficulty coverage exception.
 
 ```sh
 npm ci
@@ -60,4 +60,4 @@ npm run validate:phase1 -- --out /secure/evaluator-validation.json --run-id publ
 
 The output path must not already exist. Build/runtime/source verification and evaluator file mode 0600 remain enforced. Run identifiers, environment identity and source revision belong to the artifact. Full evaluator inputs, output hashes, comparisons and failed predicates must never be handed to an untrusted Operator.
 
-This continuation does not count these eight checks toward the required 20 qualified canonical scenarios. It does not supply the seven qualified difficulty-world generators, sealed holdouts, native checkpoints, complete canonical action translation, compatible long-horizon inventory/returns economics, external empirical calibration or OS-level Operator isolation. The inherited imagery magnitude assertion and earlier unqualified scenarios remain unresolved. Completed local and exact-head CI results are recorded on PR #59; they must not be inferred from the existence of this document.
+These eight domain checks remain mechanism regressions and do not themselves count toward the 20-scenario requirement. The separate canonical adversarial suite supplies 20 distinct qualified decision mechanism families, and the executable difficulty suite supplies Levels 1–7. Sealed holdouts, external empirical calibration, OS/process isolation and broader production action/checkpoint integration remain later hardening work and are not implied by Phase 1 acceptance. The inherited imagery assertion is preserved and addressed through the explicitly revisioned website runtime repair. Exact-head CI remains the acceptance record.
