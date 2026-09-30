@@ -2,7 +2,7 @@ name: Phase 1 Measurement and Decision Lab
 
 on:
   push:
-    branches: [phase1/steps15-23-measurement-decision-lab]
+    branches: [phase1/steps15-23-measurement-decision-lab, phase1/difficulty-worlds-1-2]
   pull_request:
     branches: [step14/external-reality]
 
@@ -16,7 +16,7 @@ concurrency:
 jobs:
   focused:
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4
         with:
