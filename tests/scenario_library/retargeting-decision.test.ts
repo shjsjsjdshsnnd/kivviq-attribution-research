@@ -16,6 +16,14 @@ describe("retargeting decision trap through the measurement boundary", () => {
     expect(admission.candidateSetHash).toMatch(/^[a-f0-9]{64}$/);
     expect(admission.worldHash).toMatch(/^[a-f0-9]{64}$/);
     expect(admission.evidenceHash).toMatch(/^[a-f0-9]{64}$/);
+    expect(() =>
+      retargetingScenarioCandidateAdmission(records.slice(1)),
+    ).toThrow("every preregistered");
+    const leaked = structuredClone(records);
+    leaked[0]!.result.observationBySeed[0]!.payload += "\\noracle";
+    expect(() =>
+      retargetingScenarioCandidateAdmission(leaked),
+    ).toThrow("non-leaking");
   });
   for (const seed of [...RETARGETING_SEEDS.development, ...RETARGETING_SEEDS.validation]) {
     it(`evaluates every preregistered budget decision after the same warmup (seed ${seed})`, async () => {
