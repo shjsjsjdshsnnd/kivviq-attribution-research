@@ -1,3 +1,4 @@
+import { describe, it, expect, vi } from "vitest";
 import { collectBusinessState } from "../../src/business_state/collector.js";
 import { BUSINESS_STATE_VERSION, type BusinessStateSnapshot, type BusinessStateEvidenceProvider, type CanonicalMetricId } from "../../src/business_state/schema.js";
 import { diagnose, lastCompleteLocalDays } from "../../src/diagnosis/engine.js";
