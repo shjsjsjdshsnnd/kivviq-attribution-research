@@ -199,6 +199,185 @@ async function level2Evidence() {
   };
 }
 
+
+type ConfoundedAction =
+  | { readonly kind: "baseline_meta" }
+  | { readonly kind: "scale_meta" }
+  | { readonly kind: "cut_meta" };
+
+interface ConfoundedWorld {
+  readonly highIntent: readonly boolean[];
+}
+
+interface ConfoundedParameters {
+  readonly unitPriceMinor: number;
+  readonly unitVariableCostMinor: number;
+  readonly baselineMetaSpendMinor: number;
+}
+
+const confoundedParameters: ConfoundedParameters = {
+  unitPriceMinor: 12_000,
+  unitVariableCostMinor: 5_000,
+  baselineMetaSpendMinor: 12_000,
+};
+
+function binaryWorlds(size: number): readonly {
+  readonly outcomeId: string;
+  readonly weight: number;
+  readonly world: ConfoundedWorld;
+}[] {
+  if (!Number.isSafeInteger(size) || size < 1 || size > 12) {
+    throw new RangeError("confounded world size must be a small positive integer");
+  }
+  return Array.from({ length: 2 ** size }, (_, mask) => ({
+    outcomeId: `intent-${mask.toString(2).padStart(size, "0")}`,
+    weight: 1,
+    world: {
+      highIntent: Array.from(
+        { length: size },
+        (_, index) => ((mask >> index) & 1) === 1,
+      ),
+    },
+  }));
+}
+
+function confoundedEconomics(
+  action: ConfoundedAction,
+  world: ConfoundedWorld,
+  p: ConfoundedParameters = confoundedParameters,
+): OracleEconomics {
+  const purchases = world.highIntent.filter(Boolean).length;
+  const paidSpendMinor =
+    action.kind === "cut_meta"
+      ? 0
+      : action.kind === "scale_meta"
+        ? p.baselineMetaSpendMinor * 2
+        : p.baselineMetaSpendMinor;
+  return {
+    netSalesMinor: purchases * p.unitPriceMinor,
+    cogsMinor: purchases * p.unitVariableCostMinor,
+    paymentFeesMinor: 0,
+    fulfillmentMinor: 0,
+    shippingCostMinor: 0,
+    variableOperatingCostMinor: 0,
+    paidSpendMinor,
+    actionCostMinor: 0,
+  };
+}
+
+/**
+ * Level 3 introduces selection confounding without measurement corruption.
+ * High-intent buyers are preferentially observed with Meta exposure, but Meta
+ * has zero causal effect on purchase. Exact state-by-state interventions prove
+ * that cutting Meta leaves purchases unchanged while saving spend.
+ */
+export function buildConfoundedDifficultyControl(): ExactOracleInput<
+  ConfoundedAction,
+  ConfoundedWorld,
+  ConfoundedParameters
+> {
+  return {
+    modelVersion: "difficulty-level-3-selection-confounding/1.0.0",
+    modelParameters: confoundedParameters,
+    actionSetVersion: "difficulty-level-3-actions/1.0.0",
+    completeActionSet: true,
+    completeOutcomeSupport: true,
+    baselineActionId: "baseline-meta",
+    candidates: [
+      { actionId: "baseline-meta", action: { kind: "baseline_meta" } },
+      { actionId: "scale-meta", action: { kind: "scale_meta" } },
+      { actionId: "cut-meta", action: { kind: "cut_meta" } },
+    ],
+    outcomes: binaryWorlds(4),
+    currency: "CAD",
+    scope: "confounded_meta_selection_one_period_booked_contribution",
+    horizon: {
+      start: "2026-01-01T00:00:00.000Z",
+      end: "2026-01-08T00:00:00.000Z",
+    },
+    maximumEvaluations: 48,
+    evaluate: ({ action, world, parameters }) =>
+      confoundedEconomics(action, world, parameters),
+  };
+}
+
+async function level3Evidence() {
+  const input = buildConfoundedDifficultyControl();
+  const oracle = await evaluateExactActionSet(input);
+  const baselineRows = oracle.ledger.filter(
+    (row) => row.actionId === "baseline-meta",
+  );
+  const cutRows = oracle.ledger.filter((row) => row.actionId === "cut-meta");
+  const cutByOutcome = new Map(
+    cutRows.map((row) => [row.outcomeId, row]),
+  );
+
+  // Perfectly observed exposure/purchase association. Exposure is selected by
+  // latent intent: every high-intent buyer is Meta-exposed; low-intent buyers
+  // are not. The latent intent variable itself is not observable.
+  let exposed = 0;
+  let exposedPurchases = 0;
+  let unexposed = 0;
+  let unexposedPurchases = 0;
+  let statewisePurchaseInvariance = true;
+  for (const outcome of input.outcomes) {
+    for (const highIntent of outcome.world.highIntent) {
+      if (highIntent) {
+        exposed += outcome.weight;
+        exposedPurchases += outcome.weight;
+      } else {
+        unexposed += outcome.weight;
+      }
+    }
+    const baseline = baselineRows.find(
+      (row) => row.outcomeId === outcome.outcomeId,
+    )!;
+    const cut = cutByOutcome.get(outcome.outcomeId)!;
+    // Paid spend is the only economic field changed by the intervention.
+    statewisePurchaseInvariance &&=
+      baseline.economics.netSalesMinor === cut.economics.netSalesMinor &&
+      baseline.economics.cogsMinor === cut.economics.cogsMinor;
+  }
+  const exposedConversion =
+    exposed === 0 ? 0 : exposedPurchases / exposed;
+  const unexposedConversion =
+    unexposed === 0 ? 0 : unexposedPurchases / unexposed;
+  const confoundingObserved =
+    exposed > 0 &&
+    unexposed > 0 &&
+    exposedConversion > unexposedConversion;
+  const stochasticOutcomeResponse =
+    BigInt(oracle.probabilityDenominator) > 1n &&
+    new Set(
+      baselineRows.map((row) => row.contributionMinor),
+    ).size > 1;
+  const passed =
+    oracle.evaluations === 48 &&
+    oracle.bestActionId === "cut-meta" &&
+    stochasticOutcomeResponse &&
+    confoundingObserved &&
+    statewisePurchaseInvariance;
+
+  return {
+    passed,
+    measurements: {
+      worldHash: oracle.inputHash,
+      candidateSetHash: oracle.candidateSetHash,
+      oracleHash: oracle.resultHash,
+      verifiedFeatures: ["stochastic", "confounding"],
+      deterministicAcrossExogenousStates: false,
+      probabilityDenominator: oracle.probabilityDenominator,
+      outcomeCount: input.outcomes.length,
+      exposedConversion,
+      unexposedConversion,
+      confoundingObserved,
+      statewisePurchaseInvariance,
+      qualification:
+        "executed_structural_world_not_logic_only_receipt",
+    },
+  };
+}
+
 export function buildExecutableDifficultyWorldCases(): readonly ExecutableValidationCase[] {
   return [
     {
@@ -220,6 +399,16 @@ export function buildExecutableDifficultyWorldCases(): readonly ExecutableValida
         requirements: ["difficulty_levels"],
       },
       run: level2Evidence,
+    },
+    {
+      spec: {
+        caseId: "difficulty:level-3:selection-confounding",
+        implementationVersion: EXECUTABLE_DIFFICULTY_WORLD_VERSION,
+        kind: "qualified_difficulty_world",
+        difficultyLevel: 3,
+        requirements: ["difficulty_levels"],
+      },
+      run: level3Evidence,
     },
   ] as const;
 }
