@@ -210,6 +210,15 @@ export const measurableCompoundActionSchema = compoundActionSchema.superRefine(
         message:
           "Step 23+ Compound Actions require an explicit measurable outcome plan",
       });
+    action.components.forEach((component, index) => {
+      if (component.action.outcomePlan === undefined)
+        context.addIssue({
+          code: "custom",
+          path: ["components", index, "action", "outcomePlan"],
+          message:
+            "Every component Action in a Step 23+ Compound Action requires its own measurable outcome plan",
+        });
+    });
   },
 ) as unknown as z.ZodType<MeasurableCompoundAction>;
 
