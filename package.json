@@ -27,7 +27,8 @@
     "test:phase1-validation": "vitest run tests/phase1_validation --maxWorkers=1 --reporter=verbose",
     "validate:phase1": "node dist/evaluation/research-evidence-cli.js validate",
     "oracle:control": "node dist/evaluation/research-evidence-cli.js exact-oracle",
-    "replay:oracle": "node dist/evaluation/research-evidence-cli.js replay-exact"
+    "replay:oracle": "node dist/evaluation/research-evidence-cli.js replay-exact",
+    "test:business-state": "vitest run tests/business_state --maxWorkers=1 --reporter=verbose"
   },
   "exports": {
     ".": "./dist/index.js",
@@ -48,7 +49,8 @@
     "./observed-world": "./dist/observation/corrupted-world.js",
     "./measurement-evaluator": "./dist/measurement_corruption/index.js",
     "./observed-world-protocol": "./dist/observation/world-protocol.js",
-    "./decision-protocol": "./dist/observation/decision-protocol.js"
+    "./decision-protocol": "./dist/observation/decision-protocol.js",
+    "./business-state": "./dist/business_state/index.js"
   },
   "devDependencies": {
     "@types/node": "22.15.30",
