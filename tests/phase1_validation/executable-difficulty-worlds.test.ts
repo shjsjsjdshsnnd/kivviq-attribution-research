@@ -9,7 +9,7 @@ import {
 } from "../../src/evaluation/validation-evidence.js";
 
 describe("executed difficulty worlds", () => {
-  it("qualifies Levels 1–3 from executed world evidence without pretending the seven-level ladder is complete", async () => {
+  it("qualifies Levels 1–4 from executed world evidence without pretending the seven-level ladder is complete", async () => {
     const cases = [...buildExecutableDifficultyWorldCases()];
     const plan: ValidationPlan = {
       version: "simulator-validation-plan/1.0.0",
@@ -25,6 +25,7 @@ describe("executed difficulty worlds", () => {
     });
 
     expect(artifact.payload.results.map((row) => row.status)).toEqual([
+      "PASS",
       "PASS",
       "PASS",
       "PASS",
@@ -60,14 +61,27 @@ describe("executed difficulty worlds", () => {
       level3.measurements["unexposedConversion"] as number,
     );
 
+    const level4 = artifact.payload.results[3]!;
+    expect(level4.measurements["verifiedFeatures"]).toEqual([
+      "stochastic",
+      "confounding",
+      "corruption",
+    ]);
+    expect(level4.measurements["corruptionObserved"]).toBe(true);
+    expect(level4.measurements["preservedOrders"]).toBe(true);
+    expect(level4.measurements["cleanMetaEvents"]).toBeGreaterThan(0);
+    expect(level4.measurements["corruptedMetaEvents"]).toBe(0);
+    expect(level4.measurements["corruptionReasons"]).toContain("missing_utms");
+    expect(level4.measurements["corruptionReasons"]).toContain("direct_fallback");
+
     const acceptance = assessArtifactBackedAcceptance(revision, [
       { plan, artifact },
     ]);
     const difficulty = acceptance.requirements.find(
       (row) => row.requirement === "difficulty_levels",
     )!;
-    expect(difficulty.checkedCases).toBe(3);
-    expect(difficulty.distinctCoverage).toBe(3);
+    expect(difficulty.checkedCases).toBe(4);
+    expect(difficulty.distinctCoverage).toBe(4);
     expect(difficulty.requiredCoverage).toBe(7);
     expect(difficulty.status).toBe("FAIL");
     expect(acceptance.overall).toBe("FAIL");
