@@ -1,0 +1,25 @@
+name: Action Space + Phase 1 Integration CI
+on:
+  push:
+    branches: [integration/action-space-steps1-24-phase1]
+  pull_request:
+    branches: [integration/business-state-native-base]
+permissions:
+  contents: read
+concurrency:
+  group: action-space-phase1-integration-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - run: npm ci --no-audit --no-fund
+      - run: npm run test:action-space-validation
+      - run: npm run test:phase1-validation
+      - run: npm run check
