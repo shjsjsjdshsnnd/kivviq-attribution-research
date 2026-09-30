@@ -11,6 +11,7 @@ Each outcome declares:
 - a stable outcome identity and metric reference
 - a controlled outcome family such as contribution profit, incremental customers, conversion rate, inventory position, retention, revenue, orders, customer value, returns, engagement, delivery, or evidence quality
 - its role: primary, secondary, or guardrail
+- an explicit measurement scope (action scope, whole business/global, population, entity, or versioned registered scope)
 - an explicit value type and unit
 - the comparison basis: pre-action baseline, concurrent control, holdout population, registered reference, or absolute metric
 - a success criterion: directional, registered threshold, or observe-only
@@ -19,7 +20,7 @@ Each outcome declares:
 
 The horizon uses fixed duration units through weeks. Months are intentionally excluded because a calendar month is not a deterministic duration without an anchor and calendar semantics.
 
-Outcome contracts reject answer-bearing fields such as expected profit, predicted lift, counterfactual revenue, true incremental ROAS, ground truth, oracle state, or realized values.
+Outcome contracts reject answer-bearing fields such as expected profit, predicted lift, counterfactual revenue, true incremental ROAS, ground truth, oracle state, or realized values. Primary outcomes cannot be observe-only, and incremental-customer outcomes cannot use an absolute metric without a comparison reference.
 
 Historical canonical v2 Actions remain readable. The Step 23 validation schema requires an explicit outcome plan for new Actions. A Step 23 compound decision requires both a compound-level outcome plan and an outcome plan on every component Action.
 
