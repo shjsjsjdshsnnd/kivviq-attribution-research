@@ -6,6 +6,13 @@ import {
 import type { OracleEconomics } from "./finite-decision-oracle.js";
 import type { ExecutableValidationCase } from "./validation-evidence.js";
 import { sha256 } from "./replay-manifest.js";
+import {
+  MEASUREMENT_VERSION,
+  measurePerfectWorld,
+  type CorruptionConfigInput,
+  type PerfectEvent,
+  type PerfectObservableWorld,
+} from "../measurement_corruption/index.js";
 
 export const CANONICAL_ADVERSARIAL_VERSION =
   "canonical-adversarial-exact-controls/1.0.0" as const;
@@ -419,13 +426,254 @@ function trapPredicate(
   };
 }
 
+
+const MEASUREMENT_FAMILIES = new Set<Family>([
+  "utm_loss_direct_fallback",
+  "cross_device_hidden_assist",
+  "cookie_loss_repeat_identity",
+  "consent_selection_extrapolation",
+  "pixel_outage",
+  "duplicate_receipts",
+  "reporting_delay_immature_tail",
+  "overlapping_platform_claims",
+  "channel_misclassification",
+]);
+
+function perfectObservationForFamily(family: Family): PerfectObservableWorld {
+  const periodStart = "2026-01-01T00:00:00.000Z";
+  const periodEnd = "2026-02-01T00:00:00.000Z";
+  const events: PerfectEvent[] = [];
+  const buyerCount = 12;
+
+  for (let buyer = 0; buyer < buyerCount; buyer += 1) {
+    const subjectId = "adv-subject-" + buyer;
+    const firstDevice = buyer % 2 === 0 ? "mobile" : "desktop";
+    const secondDevice = buyer % 2 === 0 ? "desktop" : "mobile";
+    const metaSession = "adv-meta-session-" + buyer;
+    const googleSession = "adv-google-session-" + buyer;
+    events.push({
+      eventId: "adv-meta-visit-" + buyer,
+      origin: "browser",
+      eventType: "session_start",
+      occurredAt: "2026-01-05T00:00:00.000Z",
+      subjectId,
+      subjectCreatedAt: periodStart,
+      sessionId: metaSession,
+      source: "meta",
+      device: firstDevice,
+      utmSource: "meta",
+      utmMedium: "paid_social",
+      directNavigation: false,
+    });
+    events.push({
+      eventId: "adv-google-visit-" + buyer,
+      origin: "browser",
+      eventType: "session_start",
+      occurredAt: "2026-01-06T00:00:00.000Z",
+      subjectId,
+      subjectCreatedAt: periodStart,
+      sessionId: googleSession,
+      source: "google_search",
+      device: secondDevice,
+      utmSource: "google_search",
+      utmMedium: "paid_search",
+      directNavigation: false,
+    });
+
+    if (buyer < 8) {
+      const orderId = "adv-order-" + buyer;
+      events.push({
+        eventId: "adv-browser-purchase-" + buyer,
+        origin: "browser",
+        eventType: "purchase",
+        occurredAt: "2026-01-07T00:00:00.000Z",
+        subjectId,
+        subjectCreatedAt: periodStart,
+        sessionId: googleSession,
+        source: "google_search",
+        device: secondDevice,
+        knownCustomerId: "customer-" + buyer,
+        orderId,
+        amountMinor: 10_000 + buyer * 100,
+        utmSource: "google_search",
+        utmMedium: "paid_search",
+        directNavigation: false,
+      });
+      events.push({
+        eventId: "adv-server-purchase-" + buyer,
+        origin: "server",
+        eventType: "purchase",
+        occurredAt: "2026-01-07T00:00:01.000Z",
+        subjectId,
+        subjectCreatedAt: periodStart,
+        knownCustomerId: "customer-" + buyer,
+        source: "unknown",
+        orderId,
+        amountMinor: 10_000 + buyer * 100,
+        directNavigation: false,
+      });
+    }
+
+    events.push({
+      eventId: "adv-repeat-visit-" + buyer,
+      origin: "browser",
+      eventType: "session_start",
+      occurredAt: "2026-01-20T00:00:00.000Z",
+      subjectId,
+      subjectCreatedAt: periodStart,
+      sessionId: "adv-repeat-session-" + buyer,
+      source: "direct",
+      device: firstDevice,
+      directNavigation: true,
+    });
+  }
+
+  return {
+    schemaVersion: "perfect-observation/1.0.0",
+    periodStart,
+    periodEnd,
+    events,
+    spend: [
+      {
+        id: "adv-meta-spend",
+        platform: "meta",
+        occurredAt: "2026-01-05T00:00:00.000Z",
+        amountMinor: 45_000,
+      },
+      {
+        id: "adv-google-spend",
+        platform: "google",
+        occurredAt: "2026-01-06T00:00:00.000Z",
+        amountMinor: 60_000,
+      },
+    ],
+  };
+}
+
+function corruptionForFamily(family: Family): CorruptionConfigInput {
+  const base: CorruptionConfigInput = {
+    version: MEASUREMENT_VERSION,
+    seed: 990_000 + CANONICAL_ADVERSARIAL_FAMILIES.findIndex(
+      (candidate) => candidate.family === family,
+    ),
+    identitySalt: "canonical-adversarial-private-identity-v1",
+  };
+  switch (family) {
+    case "utm_loss_direct_fallback":
+      return { ...base, missingUtmRate: 1, directFallbackRate: 1 };
+    case "cross_device_hidden_assist":
+      return { ...base, crossDeviceIdentityRate: 1 };
+    case "cookie_loss_repeat_identity":
+      return { ...base, cookieLossRate: 1 };
+    case "consent_selection_extrapolation":
+      return { ...base, consentExclusionRate: 0.5 };
+    case "pixel_outage":
+      return { ...base, blockedPixelRate: 1 };
+    case "duplicate_receipts":
+      return { ...base, duplicateEventRate: 1 };
+    case "reporting_delay_immature_tail":
+      return { ...base, platformReportingDelayMs: 7 * 86_400_000 };
+    case "overlapping_platform_claims":
+      return {
+        ...base,
+        metaOverAttributionRate: 1,
+        googleOverAttributionRate: 1,
+        serverToPlatformPurchases: true,
+      };
+    case "channel_misclassification":
+      return { ...base, incorrectChannelRate: 1 };
+    default:
+      return base;
+  }
+}
+
+function measurementBoundaryEvidence(family: Family) {
+  const perfect = perfectObservationForFamily(family);
+  const cleanConfig: CorruptionConfigInput = {
+    version: MEASUREMENT_VERSION,
+    seed: 880_001,
+    identitySalt: "canonical-adversarial-clean-identity-v1",
+    serverToPlatformPurchases: true,
+  };
+  const corruptConfig = corruptionForFamily(family);
+  const clean = measurePerfectWorld(perfect, cleanConfig, perfect.periodEnd);
+  const corrupted = measurePerfectWorld(
+    perfect,
+    corruptConfig,
+    perfect.periodEnd,
+  );
+  const replay = measurePerfectWorld(
+    perfect,
+    corruptConfig,
+    perfect.periodEnd,
+  );
+  const perfectHash = sha256(perfect);
+  const cleanHash = sha256(clean.observation);
+  const corruptedHash = sha256(corrupted.observation);
+  const replayHash = sha256(replay.observation);
+  const measurementFamily = MEASUREMENT_FAMILIES.has(family);
+  const corruptionApplied = measurementFamily
+    ? corruptedHash !== cleanHash
+    : true;
+  const serverOrdersPreserved =
+    sha256(corrupted.observation.orders) ===
+    sha256(clean.observation.orders);
+  const replayVerified = corruptedHash === replayHash;
+
+  return {
+    perfect,
+    clean: clean.observation,
+    corrupted: corrupted.observation,
+    evidence: {
+      perfectHash,
+      cleanHash,
+      corruptedHash,
+      replayHash,
+      measurementFamily,
+      corruptionApplied,
+      serverOrdersPreserved,
+      replayVerified,
+      browserEventsClean: clean.observation.events.filter(
+        (event) => event.origin === "browser",
+      ).length,
+      browserEventsCorrupted: corrupted.observation.events.filter(
+        (event) => event.origin === "browser",
+      ).length,
+      cleanVisitorCount: new Set(
+        clean.observation.events
+          .filter((event) => event.origin === "browser")
+          .map((event) => event.visitorId)
+          .filter((value): value is string => value !== undefined),
+      ).size,
+      corruptedVisitorCount: new Set(
+        corrupted.observation.events
+          .filter((event) => event.origin === "browser")
+          .map((event) => event.visitorId)
+          .filter((value): value is string => value !== undefined),
+      ).size,
+      platformClaimedRevenueCorrupted: corrupted.observation.platformReports.reduce(
+        (sum, report) => sum + report.attributedRevenueMinor,
+        0,
+      ),
+      storeRevenueCorrupted: corrupted.observation.orders.reduce(
+        (sum, order) => sum + order.netSalesMinor,
+        0,
+      ),
+    },
+  };
+}
+
 async function runFamily(family: Family) {
-  const oracle = await evaluateExactActionSet(inputFor(family));
+  const oracleInput = inputFor(family);
+  const oracle = await evaluateExactActionSet(oracleInput);
+  const oracleReplay = await evaluateExactActionSet(oracleInput);
   const observed = observedPattern(family);
   const trap = trapPredicate(family, oracle, observed);
+  const boundary = measurementBoundaryEvidence(family);
   const operatorOffer = JSON.stringify({
     actions: ["a0", "a1", "a2"],
-    observation: observed,
+    observation: boundary.corrupted,
+    merchantFacts: observed,
     objective: "contribution_profit",
     currency: "CAD",
   });
@@ -436,8 +684,18 @@ async function runFamily(family: Family) {
     "groundTruth",
     "weightedContribution",
   ].some((term) => operatorOffer.includes(term));
+  const oracleReplayVerified = oracle.resultHash === oracleReplay.resultHash;
+  const threeLevelBoundaryVerified =
+    boundary.evidence.replayVerified &&
+    boundary.evidence.serverOrdersPreserved &&
+    boundary.evidence.corruptionApplied &&
+    boundary.evidence.perfectHash !== boundary.evidence.corruptedHash;
   return {
-    passed: trap.passed && leakFree,
+    passed:
+      trap.passed &&
+      leakFree &&
+      oracleReplayVerified &&
+      threeLevelBoundaryVerified,
     measurements: {
       worldHash: oracle.inputHash,
       candidateSetHash: oracle.candidateSetHash,
@@ -448,10 +706,14 @@ async function runFamily(family: Family) {
       neutralActionIds: ["a0", "a1", "a2"],
       operatorOfferHash: sha256(operatorOffer),
       operatorLeakFree: leakFree,
+      oracleReplayVerified,
+      threeLevelBoundaryVerified,
+      causalCounterfactualVerified: trap.passed,
+      measurementBoundary: boundary.evidence,
       observedPattern: observed,
       trapCheck: trap.values,
       qualification:
-        "exact_structural_adversarial_decision_world_with_complete_registered_actions",
+        "exact_adversarial_decision_world_with_three_level_measurement_boundary",
     },
   };
 }
