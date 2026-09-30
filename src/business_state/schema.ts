@@ -259,6 +259,102 @@ export const measurementCoverageSchema = z
   .strict();
 export type MeasurementCoverage = z.infer<typeof measurementCoverageSchema>;
 
+const detailEvidenceIdsSchema = z.array(z.string().min(1));
+const detailConfidenceSchema = stateConfidenceSchema;
+
+export const acquisitionChannelStateSchema = z.object({
+  channelId: z.string().min(1),
+  spend: z.number().finite().nonnegative().nullable(),
+  observedRevenue: z.number().finite().nonnegative().nullable(),
+  observedRoas: z.number().finite().nonnegative().nullable(),
+  prospectingShare: z.number().min(0).max(1).nullable(),
+  retargetingShare: z.number().min(0).max(1).nullable(),
+  incrementalContribution: z.number().finite().nullable(),
+  confidence: detailConfidenceSchema,
+  evidenceIds: detailEvidenceIdsSchema,
+}).strict();
+export type AcquisitionChannelState = z.infer<typeof acquisitionChannelStateSchema>;
+
+export const customerCohortStateSchema = z.object({
+  cohortId: z.string().min(1),
+  acquisitionStart: z.string().datetime(),
+  acquisitionEnd: z.string().datetime(),
+  horizonDays: z.number().int().positive(),
+  eligibleCustomers: z.number().int().nonnegative(),
+  matureCustomers: z.number().int().nonnegative(),
+  repeatCustomers: z.number().int().nonnegative().nullable(),
+  repurchaseRate: z.number().min(0).max(1).nullable(),
+  realizedCustomerValue: z.number().finite().nonnegative().nullable(),
+  confidence: detailConfidenceSchema,
+  evidenceIds: detailEvidenceIdsSchema,
+}).strict().superRefine((cohort, ctx) => {
+  if (cohort.matureCustomers > cohort.eligibleCustomers) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ["matureCustomers"],
+      message: "Mature customers cannot exceed eligible cohort customers",
+    });
+  }
+  if (
+    cohort.repurchaseRate !== null &&
+    cohort.matureCustomers !== cohort.eligibleCustomers
+  ) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ["repurchaseRate"],
+      message: "A complete cohort repurchase rate requires equal observation opportunity",
+    });
+  }
+});
+
+export const journeyCharacteristicStateSchema = z.object({
+  characteristicId: z.string().min(1),
+  population: z.string().min(1),
+  value: z.number().finite().nullable(),
+  unit: z.enum(["COUNT", "RATIO", "SCORE"]),
+  observedOnly: z.literal(true),
+  confidence: detailConfidenceSchema,
+  evidenceIds: detailEvidenceIdsSchema,
+}).strict();
+
+export const merchandisingEntityStateSchema = z.object({
+  entityId: z.string().min(1),
+  entityType: z.enum(["PRODUCT", "CATEGORY"]),
+  revenue: z.number().finite().nonnegative().nullable(),
+  grossProfit: z.number().finite().nullable(),
+  grossMargin: z.number().finite().nullable(),
+  discountShare: z.number().min(0).max(1).nullable(),
+  inventoryAvailable: z.number().finite().nonnegative().nullable(),
+  inventoryDaysCover: z.number().finite().nonnegative().nullable(),
+  momentum: z.number().finite().nullable(),
+  confidence: detailConfidenceSchema,
+  evidenceIds: detailEvidenceIdsSchema,
+}).strict();
+
+export const lifecycleProgramStateSchema = z.object({
+  programId: z.string().min(1),
+  programType: z.enum(["CAMPAIGN", "AUTOMATION"]),
+  channel: z.enum(["EMAIL", "SMS", "OTHER"]),
+  active: z.boolean(),
+  customerStage: z.string().min(1).nullable(),
+  delivered: z.number().int().nonnegative().nullable(),
+  revenue: z.number().finite().nonnegative().nullable(),
+  openRate: z.number().min(0).max(1).nullable(),
+  clickRate: z.number().min(0).max(1).nullable(),
+  universeComplete: z.boolean(),
+  confidence: detailConfidenceSchema,
+  evidenceIds: detailEvidenceIdsSchema,
+}).strict();
+
+export const businessStateDetailsSchema = z.object({
+  acquisitionChannels: z.array(acquisitionChannelStateSchema).default([]),
+  customerCohorts: z.array(customerCohortStateSchema).default([]),
+  journeyCharacteristics: z.array(journeyCharacteristicStateSchema).default([]),
+  merchandisingEntities: z.array(merchandisingEntityStateSchema).default([]),
+  lifecyclePrograms: z.array(lifecycleProgramStateSchema).default([]),
+}).strict();
+export type BusinessStateDetails = z.infer<typeof businessStateDetailsSchema>;
+
 export const businessStateSnapshotSchema = z
   .object({
     version: z.literal(BUSINESS_STATE_VERSION),
@@ -273,6 +369,13 @@ export const businessStateSnapshotSchema = z
     signals: z.array(derivedStateSignalSchema),
     constraints: z.array(businessConstraintSchema),
     measurement: measurementCoverageSchema,
+    details: businessStateDetailsSchema.default({
+      acquisitionChannels: [],
+      customerCohorts: [],
+      journeyCharacteristics: [],
+      merchandisingEntities: [],
+      lifecyclePrograms: [],
+    }),
     overallConfidence: stateConfidenceSchema,
     requestedDomains: z.array(stateDomainSchema).min(1),
     collectorVersion: z.string().min(1),
@@ -316,6 +419,9 @@ export interface EvidenceRequest {
 
 export interface BusinessStateEvidenceProvider {
   getEvidence(request: EvidenceRequest): Promise<EvidenceRef | null>;
+  getDetails?(
+    request: BusinessStateCollectionRequest,
+  ): Promise<BusinessStateDetails>;
 }
 
 export interface CollectionPeriods {
