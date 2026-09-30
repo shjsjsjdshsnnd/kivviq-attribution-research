@@ -10,7 +10,7 @@ import type { ExecutableValidationCase } from "./validation-evidence.js";
 import { MEASUREMENT_VERSION, measurePerfectWorld, type PerfectEvent, type PerfectObservableWorld } from "../measurement_corruption/index.js";
 
 export const EXECUTABLE_DIFFICULTY_WORLD_VERSION =
-  "phase1-executable-difficulty-worlds/0.1.0" as const;
+  "phase1-executable-difficulty-worlds/0.2.0" as const;
 
 type DeterministicAction =
   | { readonly kind: "baseline" }
