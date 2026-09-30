@@ -7,6 +7,7 @@ import { canonicalizeTiming } from "../action_timing/canonical.js";
 import { canonicalActionSchema, type CanonicalAction } from "./schema.js";
 import type { Action } from "../action_ontology/types.js";
 import { experimentWhatSchema } from "../experiment/index.js";
+import { canonicalizeActionOutcomePlan } from "../action_outcomes/schema.js";
 
 export function serializeCanonicalAction(input: CanonicalAction): string {
   return JSON.stringify(
@@ -29,7 +30,7 @@ export function readCanonicalAction(
 export function fingerprintCanonicalAction(input: CanonicalAction): string {
   const {
     schemaVersion, what, population, timing, constraints,
-    dependencies, conflicts, characteristics, riskDimensions,
+    dependencies, conflicts, characteristics, riskDimensions, outcomePlan,
   } =
     canonicalActionSchema.parse(input);
   const experiment = experimentWhatSchema.safeParse(what);
@@ -69,6 +70,9 @@ export function fingerprintCanonicalAction(input: CanonicalAction): string {
       ...(!("state" in riskDimensions)
         ? { riskDimensions: canonicalRiskDimensions(riskDimensions) }
         : {}),
+      ...(outcomePlan === undefined
+        ? {}
+        : { outcomePlan: canonicalizeActionOutcomePlan(outcomePlan) }),
     }),
   );
   let hash = 0xcbf29ce484222325n;
