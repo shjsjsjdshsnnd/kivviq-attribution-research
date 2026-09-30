@@ -4,12 +4,13 @@ import {
 } from "./exact-decision-oracle.js";
 import type { OracleEconomics } from "./finite-decision-oracle.js";
 import { buildTractableCheckoutControl } from "./tractable-checkout-control.js";
+import { level7RealisticChaosEvidence } from "./level7-realistic-chaos.js";
 import { sha256 } from "./replay-manifest.js";
 import type { ExecutableValidationCase } from "./validation-evidence.js";
 import { MEASUREMENT_VERSION, measurePerfectWorld, type PerfectEvent, type PerfectObservableWorld } from "../measurement_corruption/index.js";
 
 export const EXECUTABLE_DIFFICULTY_WORLD_VERSION =
-  "phase1-executable-difficulty-worlds/0.1.0" as const;
+  "phase1-executable-difficulty-worlds/0.2.0" as const;
 
 type DeterministicAction =
   | { readonly kind: "baseline" }
@@ -1170,6 +1171,16 @@ export function buildExecutableDifficultyWorldCases(): readonly ExecutableValida
         requirements: ["difficulty_levels"],
       },
       run: level6Evidence,
+    },
+    {
+      spec: {
+        caseId: "difficulty:level-7:realistic-chaos",
+        implementationVersion: EXECUTABLE_DIFFICULTY_WORLD_VERSION,
+        kind: "qualified_difficulty_world",
+        difficultyLevel: 7,
+        requirements: ["difficulty_levels"],
+      },
+      run: level7RealisticChaosEvidence,
     },
   ] as const;
 }
