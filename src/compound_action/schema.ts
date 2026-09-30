@@ -5,6 +5,7 @@ import {
   type ActionSpaceCanonicalAction,
 } from "../canonical_action/schema.js";
 import { canonicalizeForSerialization } from "../action_ontology/semantics.js";
+import { canonicalizeActionOutcomePlan } from "../action_outcomes/schema.js";
 import { validateTimingDependencyGraph } from "../action_timing/validation.js";
 import type { TimingDependency } from "../action_timing/types.js";
 import {
@@ -262,9 +263,28 @@ export function assertActionSpaceCompoundAction(
   return actionSpaceCompoundActionSchema.parse(value);
 }
 export function serializeCompoundAction(value: CompoundAction): string {
-  return JSON.stringify(
-    canonicalizeForSerialization(compoundActionSchema.parse(value)),
-  );
+  const parsed = compoundActionSchema.parse(value);
+  const normalized = {
+    ...parsed,
+    components: parsed.components.map((component) => ({
+      ...component,
+      action:
+        component.action.outcomePlan === undefined
+          ? component.action
+          : {
+              ...component.action,
+              outcomePlan: canonicalizeActionOutcomePlan(
+                component.action.outcomePlan,
+              ),
+            },
+    })),
+    ...(parsed.outcomePlan === undefined
+      ? {}
+      : {
+          outcomePlan: canonicalizeActionOutcomePlan(parsed.outcomePlan),
+        }),
+  };
+  return JSON.stringify(canonicalizeForSerialization(normalized));
 }
 export function deserializeCompoundAction(value: string): CompoundAction {
   return compoundActionSchema.parse(JSON.parse(value));
