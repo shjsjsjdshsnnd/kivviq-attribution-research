@@ -1,0 +1,30 @@
+name: Action Space Steps 23-24
+
+on:
+  push:
+    branches:
+      - "action-space/steps23-24-*"
+  pull_request:
+    paths:
+      - "src/action_outcomes/**"
+      - "src/action_validation/**"
+      - "src/canonical_action/**"
+      - "tests/action_outcomes/**"
+      - "tests/action_validation/**"
+      - "package.json"
+      - ".dependency-cruiser.cjs"
+      - ".github/workflows/action-outcomes-validation-ci.yml"
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm run test:action-outcomes-validation
+      - run: npm run check
