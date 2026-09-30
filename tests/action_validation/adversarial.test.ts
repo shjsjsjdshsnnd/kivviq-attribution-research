@@ -36,6 +36,139 @@ import {
 const NOW = "2026-09-27T00:00:00Z";
 const LEGACY_NOW = "2026-09-21T13:00:00Z";
 
+const AUTHOR_FINGERPRINT = "fnv1a64:0123456789abcdef";
+const authorCharacteristics = {
+  implementationCost: [
+    {
+      lineItemId: "cost.validation",
+      category: "LABOR" as const,
+      amount: {
+        state: "KNOWN" as const,
+        value: { amountMinor: 100, currency: "CAD" },
+      },
+    },
+  ],
+  reversibility: {
+    kind: "FULLY_REVERSIBLE" as const,
+    reversal: {
+      kind: "ACTION" as const,
+      actionId: "action_generated_reverse",
+      actionFingerprint: AUTHOR_FINGERPRINT,
+    },
+  },
+  cancellationCosts: [
+    {
+      stage: "BEFORE_START" as const,
+      cancellationAvailable: true,
+      cancellationCost: [],
+      compensationCost: [],
+      operationalBurden: [],
+    },
+  ],
+  operationalBurden: [],
+};
+
+const authorRiskCommon = {
+  horizon: { amount: 7, unit: "DAY" as const },
+  aggregation: "INTERVAL" as const,
+  evidencePolicyRef: "policy.observed",
+  sourceDefinitionRef: {
+    registryRef: "risk.sources",
+    code: "validation",
+    version: "1",
+  },
+};
+
+const authorRiskPopulation = {
+  populationId: "population_validation",
+  version: 1,
+  definitionFingerprint: AUTHOR_FINGERPRINT,
+  binding: "DECISION_TIME" as const,
+  membershipMode: "FROZEN_MEMBERSHIP" as const,
+  snapshotRef: "snapshot_validation",
+};
+
+const authorRiskDimensions = {
+  FINANCIAL_DOWNSIDE: [
+    {
+      ...authorRiskCommon,
+      measurementId: "risk.financial",
+      metricRef: "metric.loss",
+      dimension: "FINANCIAL_DOWNSIDE" as const,
+      target: { kind: "GLOBAL" as const },
+      valueType: { kind: "MONEY" as const, currency: "CAD" },
+      lossBaselineRef: "baseline.financial",
+    },
+  ],
+  IRREVERSIBILITY: [
+    {
+      ...authorRiskCommon,
+      measurementId: "risk.irreversible",
+      metricRef: "metric.irreversible",
+      dimension: "IRREVERSIBILITY" as const,
+      target: { kind: "GLOBAL" as const },
+      valueType: { kind: "PERCENTAGE" as const },
+      reversibilityContractRef: "characteristics.reversibility",
+      irreversibleEffectKinds: ["CUSTOMER_EXPOSED" as const],
+      restorationCriterionRef: "criterion.restored",
+    },
+  ],
+  UNCERTAINTY: [
+    {
+      ...authorRiskCommon,
+      measurementId: "risk.uncertainty",
+      metricRef: "metric.uncertainty",
+      dimension: "UNCERTAINTY" as const,
+      target: { kind: "GLOBAL" as const },
+      valueType: { kind: "PERCENTAGE" as const },
+      uncertainQuantityRef: "quantity.response",
+      uncertaintySource: {
+        kind: "PARAMETER_METRIC" as const,
+        parameterRef: "parameter.response",
+        metricRef: "metric.response",
+      },
+    },
+  ],
+  INVENTORY_EXPOSURE: [
+    {
+      ...authorRiskCommon,
+      measurementId: "risk.inventory",
+      metricRef: "metric.inventory",
+      dimension: "INVENTORY_EXPOSURE" as const,
+      inventoryTarget: { productRef: "product.alpha" },
+      valueType: { kind: "QUANTITY" as const, unit: "units" as const },
+    },
+  ],
+  CUSTOMER_IMPACT: [
+    {
+      ...authorRiskCommon,
+      measurementId: "risk.customer",
+      metricRef: "metric.customer",
+      dimension: "CUSTOMER_IMPACT" as const,
+      population: authorRiskPopulation,
+      impactFamily: {
+        registryRef: "risk.customer",
+        code: "disruption",
+        version: "1",
+      },
+      valueType: { kind: "QUANTITY" as const, unit: "customers" as const },
+    },
+  ],
+  TIME_TO_RECOVERY: [
+    {
+      ...authorRiskCommon,
+      measurementId: "risk.recovery",
+      metricRef: "metric.recovery",
+      dimension: "TIME_TO_RECOVERY" as const,
+      target: { kind: "GLOBAL" as const },
+      recoveryBaselineRef: "baseline.recovery",
+      recoveryCriterionRef: "criterion.recovery",
+      startBoundary: "ACTION_EFFECTIVE" as const,
+      valueType: { kind: "DURATION" as const, unit: "HOUR" as const },
+    },
+  ],
+};
+
 function plan(id: string, days = 14) {
   return {
     schemaVersion: 1 as const,
@@ -91,6 +224,11 @@ function rawAction(index: number, days = 14) {
       scope: { kind: "GLOBAL" as const },
     },
     timing: immediatePersistentBudgetTiming,
+    characteristics: {
+      state: "PRESENT" as const,
+      value: authorCharacteristics,
+    },
+    riskDimensions: authorRiskDimensions,
     outcomePlan: plan("generated.primary." + index, days),
     provenance: ["generator.step24"],
   };
@@ -205,6 +343,11 @@ describe("Step 24 generated Action Space validation", () => {
   it("rejects 1,500 adversarial Actions and malformed compounds", () => {
     const supported = {
       ...adaptLegacyAction(increaseGoogleShoppingBudget20),
+      characteristics: {
+        state: "PRESENT",
+        value: authorCharacteristics,
+      },
+      riskDimensions: authorRiskDimensions,
       outcomePlan: plan("supported.primary"),
     } as any;
     let rejected = 0;
