@@ -1,6 +1,6 @@
 # Integrated domain validation and external-occurrence repair
 
-Status: **integrated Phase 1 completion candidate**. Acceptance still depends on the exact-head 96-case CI artifact. This continuation builds on public implementation `2f637e14ca6d9941b0dfef1efd9c6fb4ce768b7e`. All worlds are synthetic. Frozen action ontology and previous baseline operators are unchanged; the separately revisioned Step 12 website runtime repair is documented in the repository regression history.
+Status: **integrated Phase 1 accepted for the current PR merge candidate**. GitHub Actions run `36789127433` produced `96/96 PASS`, all 21 Phase 1 requirements PASS, and acceptance artifact SHA-256 `0d8994d631bf1b42b13978bdada7025552b2d53b6d8c09e8263868657e5e2603`. The tested merge commit is `53b1cfd581b0891529950d7ba5f39e1d8f319d0e`, corresponding to head `d981589ff85bc8d2204d3bae5887fea7f88da815` on base `5155f4a36f74ebb9e2c6ec65095dee35c582ca24`. This continuation builds on public implementation `2f637e14ca6d9941b0dfef1efd9c6fb4ce768b7e`. All worlds are synthetic. Frozen action ontology and previous baseline operators are unchanged; the separately revisioned Step 12 website runtime repair is documented in the repository regression history.
 
 ## Recurrent external-effect IDs: an executed defect, not a tuning problem
 
