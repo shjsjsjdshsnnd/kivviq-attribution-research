@@ -145,8 +145,12 @@ export function verifyMeasurementScenario(id: MeasurementScenarioId, bundle: Eva
     }
     case "adv-015": {
       const claims = observed.platformReports.reduce((s, r) => s + r.attributedRevenueMinor, 0);
-      check("independent_platform_claims_overlap", claims > revenue(observed),
-        { summedClaimsMinor: claims, storeRevenueMinor: revenue(observed) });
+      const metaClaims = new Set(bundle.measurementDiagnostics.platformClaims.meta);
+      const googleClaims = new Set(bundle.measurementDiagnostics.platformClaims.google);
+      const overlappingOrders = [...metaClaims].filter(orderId => googleClaims.has(orderId)).length;
+      check("independent_platform_claims_overlap", overlappingOrders > 0,
+        { metaClaimedOrders: metaClaims.size, googleClaimedOrders: googleClaims.size,
+          overlappingOrders, summedClaimsMinor: claims, storeRevenueMinor: revenue(observed) });
       break;
     }
     case "adv-016": {
