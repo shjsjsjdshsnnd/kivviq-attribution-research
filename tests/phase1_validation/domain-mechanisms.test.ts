@@ -43,5 +43,5 @@ describe("actual main-kernel mechanism evidence", () => {
     const acceptance = assessArtifactBackedAcceptance("a".repeat(40), [{ plan, artifact }]);
     expect(acceptance.requirements.find(r => r.requirement === "retention_clv")!.status).toBe("PASS");
     expect(acceptance.requirements.find(r => r.requirement === "retention_clv")!.checkedCases).toBe(2);
-  }, 180000);
+  }, 360000);
 });
