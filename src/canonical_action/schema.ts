@@ -376,10 +376,25 @@ export const measurableCanonicalActionSchema = canonicalActionSchema.superRefine
       context.addIssue({
         code: "custom",
         path: ["outcomePlan"],
-        message: "Step 23+ Actions require an explicit measurable outcome plan",
+        message: "Measured historical Actions require an explicit outcome plan",
       });
   },
 ) as unknown as z.ZodType<MeasurableCanonicalAction>;
+
+export type ActionSpaceCanonicalAction = Omit<NewCanonicalAction, "outcomePlan"> & {
+  outcomePlan: ActionOutcomePlan;
+};
+export const actionSpaceCanonicalActionSchema = newCanonicalActionSchema.superRefine(
+  (action, context) => {
+    if (action.outcomePlan === undefined)
+      context.addIssue({
+        code: "custom",
+        path: ["outcomePlan"],
+        message:
+          "Step 23+ authored Actions require characteristics, risk dimensions, and an explicit measurable outcome plan",
+      });
+  },
+) as unknown as z.ZodType<ActionSpaceCanonicalAction>;
 
 export function assertCanonicalAction(input: unknown): CanonicalAction {
   return canonicalActionSchema.parse(input);
@@ -388,6 +403,11 @@ export function assertMeasurableCanonicalAction(
   input: unknown,
 ): MeasurableCanonicalAction {
   return measurableCanonicalActionSchema.parse(input);
+}
+export function assertActionSpaceCanonicalAction(
+  input: unknown,
+): ActionSpaceCanonicalAction {
+  return actionSpaceCanonicalActionSchema.parse(input);
 }
 export function assertNewCanonicalAction(input: unknown): NewCanonicalAction {
   return newCanonicalActionSchema.parse(input);
