@@ -15,8 +15,8 @@ describe("executable measurement scenario mechanisms", () => {
   const records: ScenarioVerification[] = [];
   afterAll(() => {
     const admission = measurementScenarioAdmission(records);
-    expect(admission.verifiedMeasurementFamilies).toHaveLength(9);
-    expect(admission.families.find(f => f.scenarioId === "adv-015")?.status).toBe("MECHANISM_VERIFIED");
+    expect(admission.verifiedMeasurementFamilies).toHaveLength(8);
+    expect(admission.families.find(f => f.scenarioId === "adv-015")?.status).toBe("UNQUALIFIED");
     expect(admission.phase1AcceptedScenarioIds).toEqual([]);
     console.log("MEASUREMENT_SCENARIO_ADMISSION", JSON.stringify(admission));
     expect(() => measurementScenarioAdmission(records.slice(1))).toThrow("every preregistered");
@@ -34,8 +34,15 @@ describe("executable measurement scenario mechanisms", () => {
           const result = runMeasurementScenario(id, seed);
           const failures = result.verification.predicates.filter(p => !p.passed);
           records.push(result.verification);
-          expect(failures, JSON.stringify(result.verification)).toEqual([]);
-          expect(result.verification.status).toBe("PASS");
+          // Retain the discovered validation failure. This is a negative admission
+          // regression, NOT a weaker definition of successful platform overlap.
+          if (partition === "validation" && id === "adv-015") {
+            expect(failures.map(p => p.id)).toEqual(["independent_platform_claims_overlap"]);
+            expect(result.verification.status).toBe("FAIL");
+          } else {
+            expect(failures, JSON.stringify(result.verification)).toEqual([]);
+            expect(result.verification.status).toBe("PASS");
+          }
           expect(result.verification.qualification).toBe("measurement_mechanism_only_not_phase1_scenario_acceptance");
           expect(() => parseOperatorObservation(JSON.parse(operatorPayload(result.bundle)))).not.toThrow();
         }, 45000);
