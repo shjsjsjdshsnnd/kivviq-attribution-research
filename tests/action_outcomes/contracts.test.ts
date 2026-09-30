@@ -158,6 +158,13 @@ describe("Step 23 measurable outcomes", () => {
     expect(
       measurableCompoundActionSchema.safeParse({
         ...historical,
+        components: historical.components.map((component, index) => ({
+          ...component,
+          action: {
+            ...component.action,
+            outcomePlan: outcomePlan("component." + index),
+          },
+        })),
         outcomePlan: outcomePlan("compound.profit"),
       }).success,
     ).toBe(true);
