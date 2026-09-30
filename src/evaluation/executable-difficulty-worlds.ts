@@ -402,9 +402,10 @@ function perfectWorldForConfoundedState(
       subjectCreatedAt: periodStart,
       sessionId,
       source: highIntent ? "meta" : "direct",
+      directNavigation: !highIntent,
       ...(highIntent
         ? { utmSource: "meta", utmMedium: "paid_social" }
-        : { directNavigation: true }),
+        : {}),
     });
     if (highIntent) {
       events.push({
@@ -622,6 +623,7 @@ function perfectWorldForDynamicState(
           subjectCreatedAt: periodStart,
           knownCustomerId: `customer-${buyer}`,
           source: "unknown",
+          directNavigation: false,
           orderId: `difficulty-l5-${ordinal}-${label}-order-${buyer}`,
           amountMinor: dynamicParameters.unitPriceMinor,
         });
