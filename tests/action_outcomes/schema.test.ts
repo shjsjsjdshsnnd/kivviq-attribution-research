@@ -114,6 +114,16 @@ describe("Action measurable outcome contracts", () => {
       ...secondary,
       comparison: { kind: "NONE" },
     }]).success).toBe(false);
+
+    expect(actionOutcomeContractsSchema.safeParse([{
+      ...primary,
+      valueType: { kind: "SCALAR", unitRef: "ratio.points" },
+      successCondition: {
+        kind: "ABSOLUTE_THRESHOLD",
+        comparator: "GTE",
+        threshold: { valueType: "SCALAR", value: 1, unit: "ratio.other" },
+      },
+    }]).success).toBe(false);
   });
 
   it("rejects observed results and hidden evaluator or God-mode references", () => {
