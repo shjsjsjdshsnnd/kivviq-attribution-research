@@ -312,15 +312,15 @@ function trapPredicate(
 
   switch (family) {
     case "retargeting_selection":
-      mechanism = Number(observed.reportedRoas) > 1 &&
+      mechanism = Number(observed["reportedRoas"]) > 1 &&
         sameRevenueStatewise(oracle, "a0", "a1") && tempting < base;
       break;
     case "branded_search_saturation":
-      mechanism = Number(observed.reportedRoas) >= 10 &&
+      mechanism = Number(observed["reportedRoas"]) >= 10 &&
         temptingRevenue > baseRevenue && tempting < base && corrective > base;
       break;
     case "discount_margin_inversion":
-      mechanism = Number(observed.shortWindowRevenueLift) > 0 &&
+      mechanism = Number(observed["shortWindowRevenueLift"]) > 0 &&
         temptingRevenue > baseRevenue && tempting < base;
       break;
     case "inventory_stockout":
@@ -328,74 +328,74 @@ function trapPredicate(
       break;
     case "simpsons_mix_shift":
       mechanism =
-        Number(observed.segmentAAfter) > Number(observed.segmentABefore) &&
-        Number(observed.segmentBAfter) > Number(observed.segmentBBefore) &&
-        Number(observed.pooledAfter) < Number(observed.pooledBefore) &&
+        Number(observed["segmentAAfter"]) > Number(observed["segmentABefore"]) &&
+        Number(observed["segmentBAfter"]) > Number(observed["segmentBBefore"]) &&
+        Number(observed["pooledAfter"]) < Number(observed["pooledBefore"]) &&
         tempting < base;
       break;
     case "seasonal_correlation":
-      mechanism = Number(observed.channelSalesCorrelation) > 0.8 &&
+      mechanism = Number(observed["channelSalesCorrelation"]) > 0.8 &&
         sameRevenueStatewise(oracle, "a0", "a1") && tempting < base;
       break;
     case "upper_funnel_delayed_decay":
-      mechanism = Number(observed.sevenDayContributionDeltaMinor) > 0 &&
+      mechanism = Number(observed["sevenDayContributionDeltaMinor"]) > 0 &&
         tempting < base && oracle.bestActionId !== "a1";
       break;
     case "utm_loss_direct_fallback":
-      mechanism = Number(observed.directShareAfter) > Number(observed.directShareBefore) &&
-        Number(observed.paidAttributedDrop) > 0 && tempting < base;
+      mechanism = Number(observed["directShareAfter"]) > Number(observed["directShareBefore"]) &&
+        Number(observed["paidAttributedDrop"]) > 0 && tempting < base;
       break;
     case "cross_device_hidden_assist":
-      mechanism = Number(observed.observedAssistedConversions) === 0 && tempting < base;
+      mechanism = Number(observed["observedAssistedConversions"]) === 0 && tempting < base;
       break;
     case "cookie_loss_repeat_identity":
-      mechanism = Number(observed.repeatRateAfter) < Number(observed.repeatRateBefore) &&
-        Number(observed.visitorInflation) > 1 && sameRevenueStatewise(oracle, "a0", "a1") &&
+      mechanism = Number(observed["repeatRateAfter"]) < Number(observed["repeatRateBefore"]) &&
+        Number(observed["visitorInflation"]) > 1 && sameRevenueStatewise(oracle, "a0", "a1") &&
         tempting < base;
       break;
     case "consent_selection_extrapolation":
-      mechanism = Number(observed.consentedSegmentRoas) > 1 &&
+      mechanism = Number(observed["consentedSegmentRoas"]) > 1 &&
         temptingRevenue > baseRevenue && tempting < base && corrective > base;
       break;
     case "pixel_outage":
-      mechanism = Number(observed.browserPurchasesAfter) === 0 &&
-        Number(observed.serverOrdersAfter) === Number(observed.browserPurchasesBefore) &&
+      mechanism = Number(observed["browserPurchasesAfter"]) === 0 &&
+        Number(observed["serverOrdersAfter"]) === Number(observed["browserPurchasesBefore"]) &&
         tempting < base;
       break;
     case "duplicate_receipts":
-      mechanism = Number(observed.purchaseReceipts) > Number(observed.distinctOrders) &&
+      mechanism = Number(observed["purchaseReceipts"]) > Number(observed["distinctOrders"]) &&
         sameRevenueStatewise(oracle, "a0", "a1") && tempting < base;
       break;
     case "reporting_delay_immature_tail":
-      mechanism = Number(observed.latestDayReportedOrders) === 0 &&
-        Number(observed.matureOrders) > 0 && tempting < base;
+      mechanism = Number(observed["latestDayReportedOrders"]) === 0 &&
+        Number(observed["matureOrders"]) > 0 && tempting < base;
       break;
     case "overlapping_platform_claims":
       mechanism =
-        Number(observed.metaClaimRevenue) + Number(observed.googleClaimRevenue) >
-          Number(observed.storeRevenue) &&
+        Number(observed["metaClaimRevenue"]) + Number(observed["googleClaimRevenue"]) >
+          Number(observed["storeRevenue"]) &&
         sameRevenueStatewise(oracle, "a0", "a1") && tempting < base && corrective > base;
       break;
     case "channel_misclassification":
-      mechanism = Number(observed.apparentWinnerRevenueDelta) > 0 &&
-        Number(observed.storeRevenueDelta) === 0 && tempting < base;
+      mechanism = Number(observed["apparentWinnerRevenueDelta"]) > 0 &&
+        Number(observed["storeRevenueDelta"]) === 0 && tempting < base;
       break;
     case "product_mix_margin":
-      mechanism = Number(observed.temptingProductRevenue) > Number(observed.baselineProductRevenue) &&
+      mechanism = Number(observed["temptingProductRevenue"]) > Number(observed["baselineProductRevenue"]) &&
         temptingRevenue > baseRevenue && tempting < base && corrective > base;
       break;
     case "promotion_pullforward":
-      mechanism = Number(observed.promotionWindowRevenueLift) > 0 &&
-        Number(observed.postPromotionObservedDays) === 0 &&
+      mechanism = Number(observed["promotionWindowRevenueLift"]) > 0 &&
+        Number(observed["postPromotionObservedDays"]) === 0 &&
         temptingRevenue < baseRevenue && tempting < base;
       break;
     case "delayed_returns":
-      mechanism = Number(observed.temptingBookedRevenue) > Number(observed.correctiveBookedRevenue) &&
-        observed.matureReturnsObserved === false && tempting < corrective;
+      mechanism = Number(observed["temptingBookedRevenue"]) > Number(observed["correctiveBookedRevenue"]) &&
+        observed["matureReturnsObserved"] === false && tempting < corrective;
       break;
     case "supplier_lead_time":
-      mechanism = Number(observed.historicalLeadDays) === 14 &&
-        observed.disruptionVisible === false && tempting < base && corrective > base;
+      mechanism = Number(observed["historicalLeadDays"]) === 14 &&
+        observed["disruptionVisible"] === false && tempting < base && corrective > base;
       break;
   }
 
