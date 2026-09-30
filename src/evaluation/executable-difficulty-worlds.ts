@@ -6,7 +6,7 @@ import type { OracleEconomics } from "./finite-decision-oracle.js";
 import { buildTractableCheckoutControl } from "./tractable-checkout-control.js";
 import { sha256 } from "./replay-manifest.js";
 import type { ExecutableValidationCase } from "./validation-evidence.js";
-import { MEASUREMENT_VERSION, measurePerfectWorld, type PerfectObservableWorld } from "../measurement_corruption/index.js";
+import { MEASUREMENT_VERSION, measurePerfectWorld, type PerfectEvent, type PerfectObservableWorld } from "../measurement_corruption/index.js";
 
 export const EXECUTABLE_DIFFICULTY_WORLD_VERSION =
   "phase1-executable-difficulty-worlds/0.1.0" as const;
@@ -388,7 +388,7 @@ function perfectWorldForConfoundedState(
   const periodEnd = "2026-01-08T00:00:00.000Z";
   const sessionAt = "2026-01-02T00:00:00.000Z";
   const purchaseAt = "2026-01-03T00:00:00.000Z";
-  const events: PerfectObservableWorld["events"] = [];
+  const events: PerfectEvent[] = [];
   world.highIntent.forEach((highIntent, buyer) => {
     const subjectId = `difficulty-l4-${ordinal}-buyer-${buyer}`;
     const sessionId = `difficulty-l4-${ordinal}-session-${buyer}`;
@@ -588,7 +588,7 @@ function perfectWorldForDynamicState(
 ): PerfectObservableWorld {
   const periodStart = "2026-01-01T00:00:00.000Z";
   const periodEnd = "2026-03-01T00:00:00.000Z";
-  const events: PerfectObservableWorld["events"] = [];
+  const events: PerfectEvent[] = [];
   const addPeriod = (
     label: "pre" | "post",
     sessionAt: string,
