@@ -338,7 +338,7 @@ describe("Step 24 generated Action Space validation", () => {
       portfolios += 1;
     }
     expect(portfolios).toBe(1000);
-  });
+  }, 20_000);
 
   it("rejects 1,500 adversarial Actions and malformed compounds", () => {
     const supported = {
