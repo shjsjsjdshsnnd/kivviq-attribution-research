@@ -1,6 +1,6 @@
 # Steps 18–23: decision truth, reproducibility and acceptance evidence
 
-Status: **Phase 1 completion candidate; acceptance is established only by the exact-head CI artifact, not by this document.** The integrated gate requires all 96 registered cases and all 21 frozen Phase 1 requirements to pass. All worlds are public synthetic fixtures. No production merchant data, platform credentials or live commerce APIs are used.
+Status: **Phase 1 accepted for the current PR merge candidate.** GitHub Actions run `36789127433` tested merge commit `53b1cfd581b0891529950d7ba5f39e1d8f319d0e` (head `d981589ff85bc8d2204d3bae5887fea7f88da815` onto base `5155f4a36f74ebb9e2c6ec65095dee35c582ca24`) and produced `96/96 PASS` with all 21 frozen Phase 1 requirements passing. Acceptance artifact SHA-256: `0d8994d631bf1b42b13978bdada7025552b2d53b6d8c09e8263868657e5e2603`. The focused suite passed 218/218 tests; the full repository suite passed 513/513 tests across 100 files. This is Phase 1 simulator/research acceptance, not production deployment readiness. All worlds are public synthetic fixtures. No production merchant data, platform credentials or live commerce APIs are used.
 
 ## 18. Two distinct decision oracles
 
