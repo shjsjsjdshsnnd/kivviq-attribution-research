@@ -68,6 +68,29 @@ const valueTypeSchema = z.discriminatedUnion("kind", [
     .strict(),
 ]);
 
+const measurementScopeSchema = z.discriminatedUnion("kind", [
+  z.object({ kind: z.literal("ACTION_SCOPE") }).strict(),
+  z.object({ kind: z.literal("GLOBAL") }).strict(),
+  z
+    .object({
+      kind: z.literal("POPULATION"),
+      populationRef: stableReferenceSchema,
+    })
+    .strict(),
+  z
+    .object({
+      kind: z.literal("ENTITY"),
+      entityRef: stableReferenceSchema,
+    })
+    .strict(),
+  z
+    .object({
+      kind: z.literal("REGISTERED_SCOPE"),
+      scope: versionedReferenceSchema,
+    })
+    .strict(),
+]);
+
 const comparisonReferenceSchema = z.discriminatedUnion("kind", [
   z
     .object({
@@ -151,6 +174,7 @@ const actionOutcomeMeasurementObjectSchema = z
     family: outcomeFamilySchema,
     metricRef: stableReferenceSchema,
     role: outcomeRoleSchema,
+    measurementScope: measurementScopeSchema,
     valueType: valueTypeSchema,
     comparison: comparisonReferenceSchema,
     successCriterion: successCriterionSchema,
@@ -293,6 +317,28 @@ const actionOutcomePlanObjectSchema = z
         message: "Every measurable Action requires at least one PRIMARY outcome",
       });
     }
+    plan.outcomes.forEach((outcome, index) => {
+      if (
+        outcome.role === "PRIMARY" &&
+        outcome.successCriterion.kind === "OBSERVE_ONLY"
+      )
+        context.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: ["outcomes", index, "successCriterion"],
+          message:
+            "A PRIMARY outcome must define what would count as success",
+        });
+      if (
+        outcome.family === "INCREMENTAL_CUSTOMERS" &&
+        outcome.comparison.kind === "ABSOLUTE_METRIC"
+      )
+        context.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: ["outcomes", index, "comparison"],
+          message:
+            "Incremental customer outcomes require an explicit comparison or counterfactual reference",
+        });
+    });
   });
 
 export const actionOutcomePlanSchema = noOutcomeLeakageSchema.pipe(
@@ -301,6 +347,9 @@ export const actionOutcomePlanSchema = noOutcomeLeakageSchema.pipe(
 
 export type ActionOutcomeFamily = z.infer<typeof outcomeFamilySchema>;
 export type ActionOutcomeRole = z.infer<typeof outcomeRoleSchema>;
+export type ActionOutcomeMeasurementScope = z.infer<
+  typeof measurementScopeSchema
+>;
 export type ActionOutcomeHorizon = z.infer<typeof outcomeHorizonSchema>;
 export type ActionOutcomeMeasurement = z.infer<
   typeof actionOutcomeMeasurementSchema
