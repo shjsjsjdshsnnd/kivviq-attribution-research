@@ -9,7 +9,7 @@ import {
 } from "../../src/evaluation/validation-evidence.js";
 
 describe("executed difficulty worlds", () => {
-  it("qualifies Levels 1–5 from executed world evidence without pretending the seven-level ladder is complete", async () => {
+  it("qualifies Levels 1–6 from executed world evidence without pretending the seven-level ladder is complete", async () => {
     const cases = [...buildExecutableDifficultyWorldCases()];
     const plan: ValidationPlan = {
       version: "simulator-validation-plan/1.0.0",
@@ -25,6 +25,7 @@ describe("executed difficulty worlds", () => {
     });
 
     expect(artifact.payload.results.map((row) => row.status)).toEqual([
+      "PASS",
       "PASS",
       "PASS",
       "PASS",
@@ -91,14 +92,29 @@ describe("executed difficulty worlds", () => {
     expect(level5.measurements["pairedDynamicCases"]).toBe(16);
     expect(level5.measurements["outcomeCount"]).toBe(32);
 
+    const level6 = artifact.payload.results[5]!;
+    expect(level6.measurements["verifiedFeatures"]).toEqual([
+      "stochastic",
+      "confounding",
+      "corruption",
+      "dynamics",
+      "multiple_traps",
+    ]);
+    expect(level6.measurements["scaleHasZeroIncrementalSales"]).toBe(true);
+    expect(level6.measurements["scaleDestroysContribution"]).toBe(true);
+    expect(level6.measurements["discountRaisesRevenue"]).toBe(true);
+    expect(level6.measurements["discountLowersContribution"]).toBe(true);
+    expect(level6.measurements["inventoryBindingStates"]).toBeGreaterThan(0);
+    expect(level6.measurements["independentTrapCount"]).toBeGreaterThanOrEqual(3);
+
     const acceptance = assessArtifactBackedAcceptance(revision, [
       { plan, artifact },
     ]);
     const difficulty = acceptance.requirements.find(
       (row) => row.requirement === "difficulty_levels",
     )!;
-    expect(difficulty.checkedCases).toBe(5);
-    expect(difficulty.distinctCoverage).toBe(5);
+    expect(difficulty.checkedCases).toBe(6);
+    expect(difficulty.distinctCoverage).toBe(6);
     expect(difficulty.requiredCoverage).toBe(7);
     expect(difficulty.status).toBe("FAIL");
     expect(acceptance.overall).toBe("FAIL");
