@@ -51,6 +51,34 @@ describe("artifact-backed Phase 1 evidence", () => {
     const row = assessArtifactBackedAcceptance(revision, [{ plan, artifact }]).requirements.find(r => r.requirement === "adversarial_scenarios")!;
     expect(row.distinctCoverage).toBe(1); expect(row.status).toBe("FAIL");
   });
+
+  it("does not count twenty unique adversarial labels without executed qualification evidence", async () => {
+    const base = suite().plan;
+    const cases: ExecutableValidationCase[] = Array.from({ length: 20 }, (_, i) => ({
+      spec: {
+        caseId: `unqualified-${i}`,
+        implementationVersion: "test/1",
+        kind: "canonical_decision_scenario",
+        scenarioFamily: `family-${i}`,
+        requirements: ["adversarial_scenarios"],
+      },
+      run: () => ({ passed: true, measurements: {} }),
+    }));
+    const plan: ValidationPlan = { ...base, cases: cases.map(c => c.spec) };
+    const artifact = await executeValidationPlan({
+      codeRevision: revision,
+      runId: "unqualified-adversarial",
+      plan,
+      executors: cases,
+    });
+    const row = assessArtifactBackedAcceptance(revision, [{ plan, artifact }])
+      .requirements.find(r => r.requirement === "adversarial_scenarios")!;
+    expect(row.checkedCases).toBe(20);
+    expect(row.passedCases).toBe(0);
+    expect(row.distinctCoverage).toBe(0);
+    expect(row.status).toBe("FAIL");
+  });
+
   it("cannot award difficulty coverage from labels alone or reuse artifacts to inflate coverage", async () => {
     const { cases, plan } = suite();
     expect(() => validatePlan({ ...plan, cases: [{ ...plan.cases[0], requirements: ["difficulty_levels"] }] })).toThrow("qualification");
