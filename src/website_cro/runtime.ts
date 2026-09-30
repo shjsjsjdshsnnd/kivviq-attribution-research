@@ -678,7 +678,9 @@ function componentQuality(
       0.08 * trustImportance +
       0.07 * priceConfidencePressure;
     const weighted =
-      imagery * (0.12 + 0.11 * imageryImportance) +
+      // Product imagery is a primary PDP decision input. Keep this effect
+      // PDP-local rather than steepening the global website quality curve.
+      imagery * (0.24 + 0.26 * imageryImportance) +
       information * informationWeight +
       state.pdp.priceClarity * 0.09 +
       state.pdp.variantSelectionUsability * 0.08 +
@@ -688,7 +690,7 @@ function componentQuality(
       state.pdp.socialProof * 0.05 +
       state.pdp.ctaUsability * 0.08;
     const denominator =
-      (0.12 + 0.11 * imageryImportance) +
+      (0.24 + 0.26 * imageryImportance) +
       informationWeight +
       0.09 +
       0.08 +
