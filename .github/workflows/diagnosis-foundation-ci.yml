@@ -1,0 +1,41 @@
+name: Diagnosis Engine Foundation
+
+on:
+  push:
+    branches:
+      - 'diagnosis/**'
+  pull_request:
+    paths:
+      - 'src/diagnosis/**'
+      - 'tests/diagnosis/**'
+      - 'scripts/test-diagnosis.mjs'
+      - 'tsconfig*.json'
+      - 'package*.json'
+      - '.github/workflows/diagnosis-foundation-ci.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  diagnosis:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: '.nvmrc'
+      - run: npm ci --no-audit --no-fund
+      - name: Strict diagnosis typecheck and deterministic/adversarial tests
+        run: node scripts/test-diagnosis.mjs
+  repository-regression:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: '.nvmrc'
+      - run: npm ci --no-audit --no-fund
+      - name: Existing architecture, types, tests and build
+        run: npm run check
