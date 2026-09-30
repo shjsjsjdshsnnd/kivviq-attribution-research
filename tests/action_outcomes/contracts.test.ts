@@ -130,6 +130,12 @@ describe("Step 23 measurable outcomes", () => {
     expect(actionOutcomePlanSchema.safeParse(incremental).success).toBe(false);
   });
 
+  it("rejects hidden truth namespaces even when smuggled through valid references", () => {
+    const plan: any = structuredClone(outcomePlan());
+    plan.outcomes[0].sourceDefinitionRef.registryRef = "ground_truth";
+    expect(actionOutcomePlanSchema.safeParse(plan).success).toBe(false);
+  });
+
   it.each([
     ["expectedProfit", 1200],
     ["groundTruth", { bestAction: "action_secret" }],
