@@ -148,16 +148,17 @@ export function deriveStateSignals(
     "attribution_quality",
     "sample_adequacy",
   ];
-  const lowMeasurement =
-    measurementIds.some((metricId) => {
-      const value = current(snapshot, metricId);
-      return value !== null && value < 0.7;
-    }) ||
-    measurementIds.some(
-      (metricId) =>
-        metric(snapshot, metricId)?.confidence === "UNKNOWN" ||
-        metric(snapshot, metricId)?.confidence === "UNCERTAIN",
-    );
+  const lowMeasurement = measurementIds.some((metricId) => {
+    const state = metric(snapshot, metricId);
+    if (state === undefined || state.current === null) return true;
+    if (
+      state.confidence === "UNKNOWN" ||
+      state.confidence === "UNCERTAIN"
+    ) {
+      return true;
+    }
+    return state.current < 0.7;
+  });
   signals.push(
     signal(
       snapshot,
