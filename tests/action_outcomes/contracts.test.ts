@@ -102,12 +102,12 @@ describe("Step 23 measurable outcomes", () => {
   });
 
   it("requires a primary outcome and chronologically ordered horizons", () => {
-    const noPrimary = structuredClone(outcomePlan());
+    const noPrimary: any = structuredClone(outcomePlan());
     noPrimary.outcomes[0]!.role = "SECONDARY" as const;
     noPrimary.outcomes[1]!.role = "GUARDRAIL" as const;
     expect(actionOutcomePlanSchema.safeParse(noPrimary).success).toBe(false);
 
-    const reversed = structuredClone(outcomePlan());
+    const reversed: any = structuredClone(outcomePlan());
     reversed.outcomes[0]!.measurementWindow.earliestMeaningful = {
       amount: 15,
       unit: "DAY",
