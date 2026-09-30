@@ -589,13 +589,14 @@ function corruptionForFamily(family: Family): CorruptionConfigInput {
 
 function measurementBoundaryEvidence(family: Family) {
   const perfect = perfectObservationForFamily(family);
+  const corruptConfig = corruptionForFamily(family);
   const cleanConfig: CorruptionConfigInput = {
     version: MEASUREMENT_VERSION,
-    seed: 880_001,
-    identitySalt: "canonical-adversarial-clean-identity-v1",
-    serverToPlatformPurchases: true,
+    seed: corruptConfig.seed,
+    identitySalt: corruptConfig.identitySalt,
+    serverToPlatformPurchases:
+      corruptConfig.serverToPlatformPurchases ?? false,
   };
-  const corruptConfig = corruptionForFamily(family);
   const clean = measurePerfectWorld(perfect, cleanConfig, perfect.periodEnd);
   const corrupted = measurePerfectWorld(
     perfect,
