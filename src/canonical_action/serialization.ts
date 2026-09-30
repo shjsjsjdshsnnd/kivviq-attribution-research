@@ -29,7 +29,7 @@ export function readCanonicalAction(
 export function fingerprintCanonicalAction(input: CanonicalAction): string {
   const {
     schemaVersion, what, population, timing, constraints,
-    dependencies, conflicts, characteristics, riskDimensions,
+    dependencies, conflicts, characteristics, riskDimensions, outcomes,
   } =
     canonicalActionSchema.parse(input);
   const experiment = experimentWhatSchema.safeParse(what);
@@ -68,6 +68,9 @@ export function fingerprintCanonicalAction(input: CanonicalAction): string {
         : {}),
       ...(!("state" in riskDimensions)
         ? { riskDimensions: canonicalRiskDimensions(riskDimensions) }
+        : {}),
+      ...(outcomes.state === "PRESENT"
+        ? { outcomes: { state: "PRESENT", value: canonicalOutcomeContracts(outcomes.value) } }
         : {}),
     }),
   );
@@ -120,6 +123,9 @@ function canonicalRiskDimensions<T extends Record<string, readonly { measurement
         ? { ...measurement, irreversibleEffectKinds: [...measurement.irreversibleEffectKinds].sort() }
         : measurement),
   ]));
+}
+function canonicalOutcomeContracts<T extends readonly { outcomeId: string }[]>(value: T): unknown {
+  return [...value].sort((left, right) => left.outcomeId.localeCompare(right.outcomeId));
 }
 function legacyProjection(what: unknown): unknown {
   // The existing projection remains authoritative for inherited business semantics.
