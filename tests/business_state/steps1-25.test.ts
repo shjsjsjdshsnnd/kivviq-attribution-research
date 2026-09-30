@@ -1,3 +1,4 @@
+import { describe, expect, it } from "vitest";
 import {
   BUSINESS_STATE_VERSION,
   InMemoryBusinessStateHistory,
