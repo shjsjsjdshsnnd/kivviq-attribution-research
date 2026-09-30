@@ -84,7 +84,7 @@ function evidence(
 }
 
 function request(
-  domains: BusinessStateCollectionRequest["domains"],
+  domains: NonNullable<BusinessStateCollectionRequest["domains"]>,
 ): BusinessStateCollectionRequest {
   return {
     merchantId: "merchant-1",
@@ -428,7 +428,7 @@ describe("Canonical Business State — Steps 1–25", () => {
     const snapshot = caseById("state-growth").snapshot;
     const seed = snapshotToSimulatorSeed(snapshot);
     expect(seed.sourceSnapshotId).toBe(snapshot.snapshotId);
-    expect(seed.knownMetrics.revenue_net).toBe(120_000);
+    expect(seed.knownMetrics["revenue_net"]).toBe(120_000);
     expect(deterministicSimulatorSeedJson(snapshot)).toBe(
       deterministicSimulatorSeedJson(snapshot),
     );
