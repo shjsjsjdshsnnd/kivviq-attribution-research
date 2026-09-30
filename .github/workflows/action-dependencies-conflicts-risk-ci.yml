@@ -1,0 +1,23 @@
+name: Action Dependencies Conflicts Risk CI
+on:
+  push:
+    branches: [action-space/steps19-22-dependencies-conflicts-risk]
+  pull_request:
+    branches: [action-space/steps16-18-experiment-eligibility-constraints]
+permissions:
+  contents: read
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - run: npm ci --no-audit --no-fund
+      - run: npm run test:action-portfolio
+      - run: npm run architecture
+      - run: npm run typecheck
+      - run: npm run build

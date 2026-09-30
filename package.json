@@ -28,6 +28,22 @@
     "validate:phase1": "node dist/evaluation/research-evidence-cli.js validate",
     "oracle:control": "node dist/evaluation/research-evidence-cli.js exact-oracle",
     "replay:oracle": "node dist/evaluation/research-evidence-cli.js replay-exact",
+    "test:action-ontology": "vitest run tests/action_ontology --reporter=verbose",
+    "test:action-translation": "vitest run tests/action_translation tests/simulator_intervention --reporter=verbose",
+    "test:paid-media": "vitest run tests/paid_media --reporter=verbose",
+    "test:pricing": "vitest run tests/pricing --reporter=verbose",
+    "test:promotion": "vitest run tests/promotion --reporter=verbose",
+    "test:shipping": "vitest run tests/shipping --reporter=verbose",
+    "test:merchandising": "vitest run tests/merchandising --reporter=verbose",
+    "test:inventory": "vitest run tests/inventory --reporter=verbose",
+    "test:cro": "vitest run tests/cro --reporter=verbose",
+    "test:lifecycle": "vitest run tests/lifecycle --reporter=verbose",
+    "test:action-timing": "vitest run tests/action_timing --reporter=verbose",
+    "test:canonical": "vitest run tests/canonical_action tests/population tests/action_timing tests/lifecycle --maxWorkers=1",
+    "test:decision-forms": "vitest run tests/compound_action tests/decision_forms tests/investigation tests/decision_evolution tests/canonical_action tests/action_translation --maxWorkers=1",
+    "test:experiment-eligibility-constraints": "vitest run tests/action_constraints tests/action_eligibility tests/experiment tests/canonical_action/constraints.test.ts tests/action_translation/experiment-canonical.test.ts tests/action_translation/compound-canonical.test.ts tests/compound_action/compound.test.ts tests/architecture --maxWorkers=1",
+    "test:action-portfolio": "npm run build && node tests/public-api/action-portfolio-built.mjs && vitest run tests/action_dependencies tests/action_conflicts tests/action_characteristics tests/action_risk tests/canonical_action tests/action_timing tests/action_constraints tests/action_eligibility tests/experiment tests/compound_action tests/action_translation tests/architecture tests/compatibility/action-portfolio-legacy.test.ts tests/public-api/action-risk-types.test.ts --maxWorkers=1",
+    "test:action-space-validation": "vitest run tests/action_outcomes tests/action_validation tests/action_translation tests/public-api/action-outcomes-validation.test.ts --maxWorkers=1",
     "test:business-state": "vitest run tests/business_state --maxWorkers=1 --reporter=verbose"
   },
   "exports": {
@@ -50,6 +66,32 @@
     "./measurement-evaluator": "./dist/measurement_corruption/index.js",
     "./observed-world-protocol": "./dist/observation/world-protocol.js",
     "./decision-protocol": "./dist/observation/decision-protocol.js",
+    "./action-ontology": "./dist/action_ontology/index.js",
+    "./simulator-intervention": "./dist/simulator_intervention/index.js",
+    "./action-translation": "./dist/action_translation/index.js",
+    "./paid-media": "./dist/paid_media/index.js",
+    "./pricing": "./dist/pricing/index.js",
+    "./promotion": "./dist/promotion/index.js",
+    "./shipping": "./dist/shipping/index.js",
+    "./merchandising": "./dist/merchandising/index.js",
+    "./inventory": "./dist/inventory/index.js",
+    "./cro": "./dist/cro/index.js",
+    "./lifecycle": "./dist/lifecycle/index.js",
+    "./action-timing": "./dist/action_timing/index.js",
+    "./canonical-action": "./dist/canonical_action/index.js",
+    "./population": "./dist/population/index.js",
+    "./compound-action": "./dist/compound_action/index.js",
+    "./decision-forms": "./dist/decision_forms/index.js",
+    "./investigation": "./dist/investigation/index.js",
+    "./action-constraints": "./dist/action_constraints/index.js",
+    "./experiment": "./dist/experiment/index.js",
+    "./action-eligibility": "./dist/action_eligibility/index.js",
+    "./action-dependencies": "./dist/action_dependencies/index.js",
+    "./action-conflicts": "./dist/action_conflicts/index.js",
+    "./action-characteristics": "./dist/action_characteristics/index.js",
+    "./action-risk": "./dist/action_risk/index.js",
+    "./action-outcomes": "./dist/action_outcomes/index.js",
+    "./action-validation": "./dist/action_validation/index.js",
     "./business-state": "./dist/business_state/index.js"
   },
   "devDependencies": {
@@ -59,7 +101,8 @@
     "dependency-cruiser": "16.10.4"
   },
   "dependencies": {
-    "zod": "3.25.76"
+    "zod": "3.25.76",
+    "@js-temporal/polyfill": "^0.5.1"
   },
   "engines": {
     "node": "22.16.0"

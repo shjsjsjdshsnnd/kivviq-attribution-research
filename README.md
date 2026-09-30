@@ -4,6 +4,33 @@
 
 This public repository is a synthetic-only causal ecommerce research environment.
 
+### Canonical lifecycle, population and timing
+
+Action schema 2.0.0 separates WHAT, WHO and WHEN, with strict population membership,
+provider-neutral lifecycle flows and timezone-aware recurrence. See the
+[contract and migration guide](docs/steps10-12-canonical-boundary.md).
+Run `npm run test:canonical` for the focused suite or `npm run check` for all checks.
+
+### Experiments, eligibility, and hard constraints
+
+Canonical Actions can define fixed-allocation experiments and typed hard constraints. Runtime modules assess constraint evidence, evaluate Action eligibility, resolve experiment readiness, and translate eligible experiments into structured engine tasks. These contracts do not select experiments, rank actions, evaluate outcomes, or execute provider operations.
+
+See the [experiment, eligibility, and constraint boundary guide](docs/experiment-eligibility-constraints.md). Run `npm run test:experiment-eligibility-constraints` for the focused suite.
+
+### Dependencies, conflicts, implementation characteristics, and risk
+
+Canonical Actions can declare evidence-bound prerequisites, symmetric portfolio conflicts, implementation and cancellation characteristics, and six typed risk measurement contracts. Portfolio checks reject impossible combinations before any later optimizer sees them. The contracts describe what must be checked or estimated; they do not predict outcomes, score risk, rank Actions, or execute provider operations.
+
+See the [action portfolio contract guide](docs/action-dependencies-conflicts-characteristics-risk.md). Run `npm run test:action-portfolio` for the focused suite.
+
+### Measurable outcomes and Action Space validation
+
+Step 23+ Actions and compound decisions declare measurable outcome plans: metric identity, scope, comparison, success criterion, ordered measurement horizons, source definition and evidence policy. `buildOutcomeMeasurementBridge` turns those contracts into deterministic Decision Ledger and Learning join keys without importing outcome results, predictions, ranking or GroundTruth.
+
+Step 24 adds the operator-safe Action Space validation boundary and deterministic adversarial generation for thousands of Actions and portfolios, including invalid targets/parameters, conflicts, hard-constraint violations, hidden God-mode data and malformed compounds.
+
+See the [Steps 23–24 guide](docs/action-outcomes-validation.md). Run `npm run test:action-space-validation` for the focused suite.
+
 ### Frozen research references
 
 **Step 1 — GroundTruth**

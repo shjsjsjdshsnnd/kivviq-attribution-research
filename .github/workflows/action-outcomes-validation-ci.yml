@@ -1,0 +1,24 @@
+name: Action Outcomes Validation CI
+on:
+  push:
+    branches: [action-space/steps23-24-outcomes-validation]
+  pull_request:
+    branches: [action-space/steps19-22-dependencies-conflicts-risk]
+permissions:
+  contents: read
+concurrency:
+  group: action-outcomes-validation-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - run: npm ci --no-audit --no-fund
+      - run: npm run test:action-space-validation
+      - run: npm run check
