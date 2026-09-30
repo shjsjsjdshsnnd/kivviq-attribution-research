@@ -518,6 +518,401 @@ async function level4Evidence() {
   };
 }
 
+
+interface DynamicWorld extends ConfoundedWorld {
+  readonly externalDemandShock: boolean;
+}
+
+interface DynamicParameters extends ConfoundedParameters {
+  readonly shockAdditionalOrders: number;
+  readonly initialInventoryUnits: number;
+}
+
+const dynamicParameters: DynamicParameters = {
+  ...confoundedParameters,
+  shockAdditionalOrders: 2,
+  initialInventoryUnits: 12,
+};
+
+function dynamicWorlds(): readonly {
+  readonly outcomeId: string;
+  readonly weight: number;
+  readonly world: DynamicWorld;
+}[] {
+  return binaryWorlds(4).flatMap((base) =>
+    [false, true].map((externalDemandShock) => ({
+      outcomeId: `${base.outcomeId}:shock-${externalDemandShock ? "on" : "off"}`,
+      weight: 1,
+      world: {
+        highIntent: base.world.highIntent,
+        externalDemandShock,
+      },
+    })),
+  );
+}
+
+function dynamicEconomics(
+  action: ConfoundedAction,
+  world: DynamicWorld,
+  p: DynamicParameters = dynamicParameters,
+): OracleEconomics {
+  const baseOrdersPerPeriod = world.highIntent.filter(Boolean).length;
+  const demandedOrders =
+    baseOrdersPerPeriod * 2 +
+    (world.externalDemandShock ? p.shockAdditionalOrders : 0);
+  const fulfilledOrders = Math.min(
+    p.initialInventoryUnits,
+    demandedOrders,
+  );
+  const paidSpendMinor =
+    action.kind === "cut_meta"
+      ? 0
+      : action.kind === "scale_meta"
+        ? p.baselineMetaSpendMinor * 4
+        : p.baselineMetaSpendMinor * 2;
+  return {
+    netSalesMinor: fulfilledOrders * p.unitPriceMinor,
+    cogsMinor: fulfilledOrders * p.unitVariableCostMinor,
+    paymentFeesMinor: 0,
+    fulfillmentMinor: 0,
+    shippingCostMinor: 0,
+    variableOperatingCostMinor: 0,
+    paidSpendMinor,
+    actionCostMinor: 0,
+  };
+}
+
+function perfectWorldForDynamicState(
+  world: DynamicWorld,
+  ordinal: number,
+): PerfectObservableWorld {
+  const periodStart = "2026-01-01T00:00:00.000Z";
+  const periodEnd = "2026-03-01T00:00:00.000Z";
+  const events: PerfectObservableWorld["events"] = [];
+  const addPeriod = (
+    label: "pre" | "post",
+    sessionAt: string,
+    purchaseAt: string,
+  ) => {
+    world.highIntent.forEach((highIntent, buyer) => {
+      const subjectId = `difficulty-l5-${ordinal}-buyer-${buyer}`;
+      events.push({
+        eventId: `difficulty-l5-${ordinal}-${label}-visit-${buyer}`,
+        origin: "browser",
+        eventType: "session_start",
+        occurredAt: sessionAt,
+        subjectId,
+        subjectCreatedAt: periodStart,
+        sessionId: `difficulty-l5-${ordinal}-${label}-session-${buyer}`,
+        source: highIntent ? "meta" : "direct",
+        ...(highIntent
+          ? { utmSource: "meta", utmMedium: "paid_social" }
+          : { directNavigation: true }),
+      });
+      if (highIntent) {
+        events.push({
+          eventId: `difficulty-l5-${ordinal}-${label}-purchase-${buyer}`,
+          origin: "server",
+          eventType: "purchase",
+          occurredAt: purchaseAt,
+          subjectId,
+          subjectCreatedAt: periodStart,
+          knownCustomerId: `customer-${buyer}`,
+          source: "unknown",
+          orderId: `difficulty-l5-${ordinal}-${label}-order-${buyer}`,
+          amountMinor: dynamicParameters.unitPriceMinor,
+        });
+      }
+    });
+  };
+  addPeriod(
+    "pre",
+    "2026-01-10T00:00:00.000Z",
+    "2026-01-11T00:00:00.000Z",
+  );
+  addPeriod(
+    "post",
+    "2026-02-10T00:00:00.000Z",
+    "2026-02-11T00:00:00.000Z",
+  );
+  if (world.externalDemandShock) {
+    for (
+      let index = 0;
+      index < dynamicParameters.shockAdditionalOrders;
+      index += 1
+    ) {
+      const subjectId = `difficulty-l5-${ordinal}-shock-buyer-${index}`;
+      events.push({
+        eventId: `difficulty-l5-${ordinal}-shock-visit-${index}`,
+        origin: "browser",
+        eventType: "session_start",
+        occurredAt: "2026-02-12T00:00:00.000Z",
+        subjectId,
+        subjectCreatedAt: "2026-02-01T00:00:00.000Z",
+        sessionId: `difficulty-l5-${ordinal}-shock-session-${index}`,
+        source: "direct",
+        directNavigation: true,
+      });
+      events.push({
+        eventId: `difficulty-l5-${ordinal}-shock-purchase-${index}`,
+        origin: "server",
+        eventType: "purchase",
+        occurredAt: "2026-02-13T00:00:00.000Z",
+        subjectId,
+        subjectCreatedAt: "2026-02-01T00:00:00.000Z",
+        knownCustomerId: `shock-customer-${index}`,
+        source: "unknown",
+        orderId: `difficulty-l5-${ordinal}-shock-order-${index}`,
+        amountMinor: dynamicParameters.unitPriceMinor,
+      });
+    }
+  }
+  return {
+    schemaVersion: "perfect-observation/1.0.0",
+    periodStart,
+    periodEnd,
+    events,
+    spend: [
+      {
+        id: `difficulty-l5-${ordinal}-meta-spend-pre`,
+        platform: "meta",
+        occurredAt: "2026-01-10T00:00:00.000Z",
+        amountMinor: dynamicParameters.baselineMetaSpendMinor,
+      },
+      {
+        id: `difficulty-l5-${ordinal}-meta-spend-post`,
+        platform: "meta",
+        occurredAt: "2026-02-10T00:00:00.000Z",
+        amountMinor: dynamicParameters.baselineMetaSpendMinor,
+      },
+    ],
+  };
+}
+
+export function buildDynamicDifficultyControl(): ExactOracleInput<
+  ConfoundedAction,
+  DynamicWorld,
+  DynamicParameters
+> {
+  return {
+    modelVersion: "difficulty-level-5-dynamic-shock/1.0.0",
+    modelParameters: dynamicParameters,
+    actionSetVersion: "difficulty-level-5-actions/1.0.0",
+    completeActionSet: true,
+    completeOutcomeSupport: true,
+    baselineActionId: "baseline-meta",
+    candidates: [
+      { actionId: "baseline-meta", action: { kind: "baseline_meta" } },
+      { actionId: "scale-meta", action: { kind: "scale_meta" } },
+      { actionId: "cut-meta", action: { kind: "cut_meta" } },
+    ],
+    outcomes: dynamicWorlds(),
+    currency: "CAD",
+    scope: "dynamic_confounded_corrupted_two_period_contribution",
+    horizon: {
+      start: "2026-01-01T00:00:00.000Z",
+      end: "2026-03-01T00:00:00.000Z",
+    },
+    maximumEvaluations: 96,
+    evaluate: ({ action, world, parameters }) =>
+      dynamicEconomics(action, world, parameters),
+  };
+}
+
+async function level5Evidence() {
+  const input = buildDynamicDifficultyControl();
+  const oracle = await evaluateExactActionSet(input);
+  const cleanConfig = {
+    version: MEASUREMENT_VERSION,
+    seed: 9505,
+    identitySalt: "difficulty-level5-private-identity",
+  } as const;
+  const corruptConfig = {
+    ...cleanConfig,
+    missingUtmRate: 1,
+    directFallbackRate: 1,
+  } as const;
+  const shockEffectiveAt = Date.parse("2026-02-01T00:00:00.000Z");
+  let cleanMetaEvents = 0;
+  let corruptedMetaEvents = 0;
+  let preservedOrders = true;
+  let confoundingExposed = 0;
+  let confoundingExposedPurchases = 0;
+  let confoundingUnexposed = 0;
+  let confoundingUnexposedPurchases = 0;
+  let inventoryNeverNegative = true;
+  let pairedDynamicCases = 0;
+  let stablePastAcrossShock = true;
+  let knownShockEffect = true;
+  const byBase = new Map<string, {
+    readonly off: DynamicWorld;
+    readonly on: DynamicWorld;
+  }>();
+  for (const outcome of input.outcomes) {
+    const perfect = perfectWorldForDynamicState(
+      outcome.world,
+      input.outcomes.indexOf(outcome),
+    );
+    const clean = measurePerfectWorld(
+      perfect,
+      cleanConfig,
+      perfect.periodEnd,
+    );
+    const corrupted = measurePerfectWorld(
+      perfect,
+      corruptConfig,
+      perfect.periodEnd,
+    );
+    cleanMetaEvents += clean.observation.events.filter(
+      (event) => event.origin === "browser" && event.source === "meta",
+    ).length;
+    corruptedMetaEvents += corrupted.observation.events.filter(
+      (event) => event.origin === "browser" && event.source === "meta",
+    ).length;
+    preservedOrders &&=
+      sha256(clean.observation.orders) ===
+      sha256(corrupted.observation.orders);
+
+    const metaSubjects = new Set(
+      perfect.events
+        .filter(
+          (event) => event.origin === "browser" && event.source === "meta",
+        )
+        .map((event) => event.subjectId),
+    );
+    const directSubjects = new Set(
+      perfect.events
+        .filter(
+          (event) => event.origin === "browser" && event.source === "direct",
+        )
+        .map((event) => event.subjectId),
+    );
+    const purchasers = new Set(
+      perfect.events
+        .filter(
+          (event) => event.origin === "server" && event.eventType === "purchase",
+        )
+        .map((event) => event.subjectId),
+    );
+    confoundingExposed += metaSubjects.size;
+    confoundingExposedPurchases +=
+      [...metaSubjects].filter((subject) => purchasers.has(subject)).length;
+    confoundingUnexposed += directSubjects.size;
+    confoundingUnexposedPurchases +=
+      [...directSubjects].filter((subject) => purchasers.has(subject)).length;
+
+    const orders = purchasers.size;
+    inventoryNeverNegative &&=
+      dynamicParameters.initialInventoryUnits - orders >= 0;
+
+    const baseKey = outcome.outcomeId.replace(/:shock-(?:on|off)$/, "");
+    const previous = byBase.get(baseKey);
+    byBase.set(baseKey, {
+      off: outcome.world.externalDemandShock
+        ? previous?.off ?? { ...outcome.world, externalDemandShock: false }
+        : outcome.world,
+      on: outcome.world.externalDemandShock
+        ? outcome.world
+        : previous?.on ?? { ...outcome.world, externalDemandShock: true },
+    });
+  }
+
+  for (const pair of byBase.values()) {
+    const off = perfectWorldForDynamicState(pair.off, 70_000 + pairedDynamicCases * 2);
+    const on = perfectWorldForDynamicState(pair.on, 70_001 + pairedDynamicCases * 2);
+    const normalizePrefix = (world: PerfectObservableWorld) =>
+      world.events
+        .filter((event) => Date.parse(event.occurredAt) < shockEffectiveAt)
+        .map((event) => ({
+          origin: event.origin,
+          eventType: event.eventType,
+          occurredAt: event.occurredAt,
+          source: event.source,
+          amountMinor: event.amountMinor,
+        }));
+    stablePastAcrossShock &&=
+      sha256(normalizePrefix(off)) === sha256(normalizePrefix(on));
+    const offOrders = off.events.filter(
+      (event) => event.origin === "server" && event.eventType === "purchase",
+    ).length;
+    const onOrders = on.events.filter(
+      (event) => event.origin === "server" && event.eventType === "purchase",
+    ).length;
+    knownShockEffect &&=
+      onOrders - offOrders === dynamicParameters.shockAdditionalOrders;
+    pairedDynamicCases += 1;
+  }
+
+  const exposedConversion =
+    confoundingExposed === 0
+      ? 0
+      : confoundingExposedPurchases / confoundingExposed;
+  const unexposedConversion =
+    confoundingUnexposed === 0
+      ? 0
+      : confoundingUnexposedPurchases / confoundingUnexposed;
+  const confoundingObserved =
+    confoundingExposed > 0 &&
+    confoundingUnexposed > 0 &&
+    exposedConversion > unexposedConversion;
+  const corruptionObserved =
+    cleanMetaEvents > 0 &&
+    corruptedMetaEvents === 0 &&
+    preservedOrders;
+  const stochasticOutcomeResponse =
+    new Set(
+      oracle.ledger
+        .filter((row) => row.actionId === "baseline-meta")
+        .map((row) => row.contributionMinor),
+    ).size > 1;
+  const passed =
+    oracle.evaluations === 96 &&
+    oracle.bestActionId === "cut-meta" &&
+    stochasticOutcomeResponse &&
+    confoundingObserved &&
+    corruptionObserved &&
+    stablePastAcrossShock &&
+    knownShockEffect &&
+    inventoryNeverNegative &&
+    pairedDynamicCases === 16;
+  return {
+    passed,
+    measurements: {
+      worldHash: sha256({
+        inputHash: oracle.inputHash,
+        measurementVersion: MEASUREMENT_VERSION,
+        corruptConfig,
+      }),
+      candidateSetHash: oracle.candidateSetHash,
+      oracleHash: oracle.resultHash,
+      verifiedFeatures: [
+        "stochastic",
+        "confounding",
+        "corruption",
+        "dynamics",
+      ],
+      deterministicAcrossExogenousStates: false,
+      probabilityDenominator: oracle.probabilityDenominator,
+      outcomeCount: input.outcomes.length,
+      stochasticOutcomeResponse,
+      exposedConversion,
+      unexposedConversion,
+      confoundingObserved,
+      cleanMetaEvents,
+      corruptedMetaEvents,
+      preservedOrders,
+      corruptionObserved,
+      shockEffectiveAt: new Date(shockEffectiveAt).toISOString(),
+      stablePastAcrossShock,
+      knownShockEffect,
+      pairedDynamicCases,
+      inventoryNeverNegative,
+      qualification:
+        "executed_two_period_world_with_confounding_corruption_and_known_external_shock",
+    },
+  };
+}
+
 export function buildExecutableDifficultyWorldCases(): readonly ExecutableValidationCase[] {
   return [
     {
@@ -559,6 +954,16 @@ export function buildExecutableDifficultyWorldCases(): readonly ExecutableValida
         requirements: ["difficulty_levels"],
       },
       run: level4Evidence,
+    },
+    {
+      spec: {
+        caseId: "difficulty:level-5:dynamic-shock",
+        implementationVersion: EXECUTABLE_DIFFICULTY_WORLD_VERSION,
+        kind: "qualified_difficulty_world",
+        difficultyLevel: 5,
+        requirements: ["difficulty_levels"],
+      },
+      run: level5Evidence,
     },
   ] as const;
 }
