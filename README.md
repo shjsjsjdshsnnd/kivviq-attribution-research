@@ -23,6 +23,14 @@ Canonical Actions can declare evidence-bound prerequisites, symmetric portfolio 
 
 See the [action portfolio contract guide](docs/action-dependencies-conflicts-characteristics-risk.md). Run `npm run test:action-portfolio` for the focused suite.
 
+### Measurable outcomes and Action Space validation
+
+Step 23+ Actions and compound decisions declare measurable outcome plans: metric identity, scope, comparison, success criterion, ordered measurement horizons, source definition and evidence policy. `buildOutcomeMeasurementBridge` turns those contracts into deterministic Decision Ledger and Learning join keys without importing outcome results, predictions, ranking or GroundTruth.
+
+Step 24 adds the operator-safe Action Space validation boundary and deterministic adversarial generation for thousands of Actions and portfolios, including invalid targets/parameters, conflicts, hard-constraint violations, hidden God-mode data and malformed compounds.
+
+See the [Steps 23–24 guide](docs/action-outcomes-validation.md). Run `npm run test:action-space-validation` for the focused suite.
+
 ### Frozen research references
 
 **Step 1 — GroundTruth**
