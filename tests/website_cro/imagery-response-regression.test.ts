@@ -1,6 +1,7 @@
 import { createHash } from "node:crypto";
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
+import { utcTimestamp } from "../../src/core/units.js";
 import { healthyWebsiteState, healthyWebsiteScenario, weakProductImageryScenario, IMPROVE_PDP_IMAGERY } from "../../src/website_cro/adversarial.js";
 import { websitePageExperience, resolveWebsiteState } from "../../src/website_cro/runtime.js";
 import { websitePageExperience as legacyPage, resolveWebsiteState as legacyState } from "../../src/website_cro/runtime-v1.js";
@@ -77,7 +78,7 @@ describe("PDP imagery runtime correction", () => {
   it("respects intervention activation and device targeting without changing resolved state", () => {
     const weak = weakProductImageryScenario(START);
     const scenario: WebsiteScenario = { ...weak, interventions: [{ ...IMPROVE_PDP_IMAGERY,
-      effectiveAt: "2026-01-02T00:00:00.000Z", population: { devices: ["mobile"] } }] };
+      effectiveAt: utcTimestamp("2026-01-02T00:00:00.000Z"), population: { devices: ["mobile"] } }] };
     const before = input(scenario);
     expect(websitePageExperience(before)).toEqual(websitePageExperience(input(weak)));
     const after = input(scenario, { timestampMs: Date.parse("2026-01-03T00:00:00.000Z") });
