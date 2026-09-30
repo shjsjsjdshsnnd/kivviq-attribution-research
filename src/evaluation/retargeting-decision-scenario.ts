@@ -100,7 +100,7 @@ export function retargetingScenarioCandidateAdmission(
   if (
     records.length !== expectedSeeds.length ||
     new Set(records.map((record) => record.seed)).size !== expectedSeeds.length ||
-    records.some((record) => !expectedSeeds.includes(record.seed as never))
+    records.some((record) => !(expectedSeeds as readonly number[]).includes(record.seed))
   ) {
     throw new RangeError(
       "candidate admission requires every preregistered retargeting seed exactly once",
