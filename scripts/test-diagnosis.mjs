@@ -1,6 +1,6 @@
 /** Isolated core gate; no network, no credentials, no test-runner dependency. */
 import { spawnSync } from "node:child_process";
-import { existsSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, mkdtempSync, readdirSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
@@ -17,7 +17,11 @@ try {
   if (existsSync(localTsc)) run(process.execPath, [localTsc, ...args]);
   else run("tsc", args);
   writeFileSync(join(out, "package.json"), '{"type":"module"}\n');
-  run(process.execPath, ["--test", "tests/diagnosis/foundation.node-test.mjs"], { KIVVIQ_DIAGNOSIS_BUILD_URL: pathToFileURL(out + "/").href });
+  const tests = readdirSync(join(root, "tests/diagnosis"), { withFileTypes: true })
+    .filter(entry => entry.isFile() && entry.name.endsWith(".node-test.mjs"))
+    .map(entry => `tests/diagnosis/${entry.name}`).sort();
+  if (tests.length === 0) throw new Error("No diagnosis test files discovered");
+  run(process.execPath, ["--test", ...tests], { KIVVIQ_DIAGNOSIS_BUILD_URL: pathToFileURL(out + "/").href });
 } catch (error) {
   console.error(error instanceof Error ? error.message : String(error));
   process.exitCode = 1;

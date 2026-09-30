@@ -1,6 +1,8 @@
 /** Step 5 foundation. Draft contract; not a frozen or production interface. */
-export const DIAGNOSIS_VERSION = "diagnosis/0.1.0" as const;
+export const DIAGNOSIS_VERSION = "diagnosis/0.1.1" as const;
 export const INPUT_VERSION = "diagnosis-input/0.1.0" as const;
+/** Definition revision supported by the core; integration tests bind it to Business State. */
+export const CANONICAL_DEFINITION_VERSION = "business-state/1.0.0" as const;
 
 /** Explicit supported subset of the existing canonical business-state metric IDs. */
 export const METRIC_IDS = ["revenue_net", "orders", "aov", "sessions", "cvr"] as const;

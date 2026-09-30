@@ -1,4 +1,4 @@
-import { DIAGNOSIS_VERSION } from "./contract.js";
+import { CANONICAL_DEFINITION_VERSION, DIAGNOSIS_VERSION } from "./contract.js";
 import type { Change, Confidence, ConfidenceLevel, DiagnosisInput, DiagnosisReport, Driver, EvidenceEdge, EvidenceNode, MetricId, MetricSeries, Observation, RevenueDecomposition, Source, Unknown } from "./contract.js";
 import { allocateProductChange, roundEffects } from "./math.js";
 import { parseDiagnosisInput } from "./validate.js";
@@ -26,6 +26,7 @@ function observationProblems(observation: Observation, series: MetricSeries, inp
   if (observation.value === null) problems.push("value_missing");
   if (observation.merchantId !== input.merchantId) problems.push("merchant_mismatch");
   if (observation.source !== AUTHORITY[series.metricId]) problems.push("non_authoritative_source");
+  if (observation.definitionId !== `${series.metricId}@${CANONICAL_DEFINITION_VERSION}`) problems.push("canonical_definition_mismatch");
   if (observation.evidenceId === null) problems.push("evidence_reference_missing");
   if (!observation.complete) problems.push("period_incomplete");
   if (!observation.sourceScanComplete) problems.push("source_scan_incomplete");
@@ -147,8 +148,35 @@ function decomposeRevenue(input: DiagnosisInput, changes: readonly Change[]): Re
       partitionId = "sessions_x_cvr_x_aov";
     }
   } else reasons.push("traffic_conversion_partition_evidence_unavailable");
-  const factors = factorIds.map(id => byId.get(id)!);
-  const effects = roundEffects(allocateProductChange(factors.map(metric => metric.reference.value!), factors.map(metric => metric.current.value!)));
+  // Supported endpoint values do not guarantee safe mixed-period products.
+  // Try a coarser, equivalent accounting partition before abstaining. Never
+  // clamp effects, rescale money or hide numerical errors in "explained" totals.
+  const attempt = (ids: readonly MetricId[]) => {
+    const factors = ids.map(id => byId.get(id)!);
+    for (let mask = 0; mask < 2 ** factors.length; mask++) {
+      const vertex = factors.reduce((value, metric, index) => value * ((mask & (1 << index)) ? metric.current.value! : metric.reference.value!), 1);
+      if (!Number.isFinite(vertex) || Math.abs(vertex) > Number.MAX_SAFE_INTEGER / 8) return null;
+    }
+    try {
+      const effects = roundEffects(allocateProductChange(factors.map(metric => metric.reference.value!), factors.map(metric => metric.current.value!)));
+      const allocated = effects.reduce((sum, value) => sum + value, 0);
+      // Two period-identity tolerances plus at most one minor unit of rounding.
+      if (!Number.isSafeInteger(allocated) || Math.abs(totalDelta - allocated) > 2 * tolerance + 1) return null;
+      return { factors, effects };
+    } catch (error) {
+      if (error instanceof RangeError) return null;
+      throw error;
+    }
+  };
+  let allocation = attempt(factorIds);
+  if (allocation === null && partitionId === "sessions_x_cvr_x_aov") {
+    reasons.push("traffic_conversion_partition_numeric_range_exceeded");
+    factorIds = ["orders", "aov"];
+    partitionId = "orders_x_aov";
+    allocation = attempt(factorIds);
+  }
+  if (allocation === null) return unknown("arithmetic_allocation_out_of_range");
+  const { factors, effects } = allocation;
   const allocated = effects.reduce((sum, value) => sum + value, 0);
   const residual = totalDelta - allocated;
   const driverEvidence = seriesEvidence([...basic, ...factors]);
@@ -164,6 +192,7 @@ function decomposeRevenue(input: DiagnosisInput, changes: readonly Change[]): Re
     confidence: confidence(completeCoverage && residual === 0 ? "HIGH" : "MEDIUM", ["validated_accounting_identity", "interaction_terms_allocated_once", "not_causal_evidence", ...(completeCoverage ? [] : ["dependency_coverage_incomplete"]), ...(residual !== 0 ? ["nonzero_arithmetic_residual_retained"] : [])]) };
 }
 function evidenceNeeded(reason: string): string {
+  if (/numeric_range|arithmetic_allocation_out_of_range/.test(reason)) return "A higher-precision calculation or a numerically safe coarser decomposition using the same evidence and currency units.";
   if (/scope|population|merchant/.test(reason)) return "Same-merchant, same-scope, same-population evidence for both periods.";
   if (/measurement|definition|source_changed/.test(reason)) return "A reconciled comparison under the same versioned definition and measurement method.";
   if (/authority|authoritative/.test(reason)) return "The canonical source observation, not platform-attributed revenue substituted for store revenue.";

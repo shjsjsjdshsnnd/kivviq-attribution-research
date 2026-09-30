@@ -11,12 +11,14 @@ export const EXPECTED_UNIT: Readonly<Record<MetricId, Unit>> = {
 function fail(path: string, message: string): never {
   throw new DiagnosisInputError(`${path}: ${message}`);
 }
-function object(value: unknown, keys: readonly string[], path: string): Record<string, unknown> {
+function object(value: unknown, keys: readonly string[], path: string, requireAll = true): Record<string, unknown> {
   if (value === null || typeof value !== "object" || Array.isArray(value)) fail(path, "expected object");
   if (![Object.prototype, null].includes(Object.getPrototypeOf(value))) fail(path, "expected plain data object");
   const result = value as Record<string, unknown>;
   if (Reflect.ownKeys(result).some(key => typeof key !== "string" || !keys.includes(key))) fail(path, "unexpected field; input must be observable-only");
   if (Object.values(Object.getOwnPropertyDescriptors(result)).some(descriptor => !("value" in descriptor))) fail(path, "accessor properties are not observable data");
+  if (Object.values(Object.getOwnPropertyDescriptors(result)).some(descriptor => !descriptor.enumerable)) fail(path, "non-enumerable properties cannot be replayed as JSON");
+  if (requireAll && keys.some(key => !Object.hasOwn(result, key))) fail(path, "required own property missing");
   return result;
 }
 function text(value: unknown, path: string): asserts value is string {
@@ -53,6 +55,7 @@ export function parseDiagnosisInput(raw: unknown): DiagnosisInput {
   if (!Array.isArray(input["metrics"]) || input["metrics"].length > METRIC_IDS.length) fail("metrics", "expected a bounded metric array");
   if (Object.getPrototypeOf(input["metrics"]) !== Array.prototype || Reflect.ownKeys(input["metrics"]).some(key => typeof key !== "string" || (key !== "length" && !/^(0|[1-9]\d*)$/.test(key)))) fail("metrics", "unexpected array metadata");
   if (Object.values(Object.getOwnPropertyDescriptors(input["metrics"])).some(descriptor => !("value" in descriptor))) fail("metrics", "accessor properties are not observable data");
+  if (Object.entries(Object.getOwnPropertyDescriptors(input["metrics"])).some(([key, descriptor]) => key !== "length" && !descriptor.enumerable)) fail("metrics", "non-enumerable elements cannot be replayed as JSON");
   const seen = new Set<string>(), evidenceIds = new Set<string>();
   for (const [index, rawMetric] of input["metrics"].entries()) {
     const path = `metrics[${index}]`;
@@ -92,8 +95,8 @@ export function parseDiagnosisInput(raw: unknown): DiagnosisInput {
   number(policy["minimumCoverage"], "policy.minimumCoverage", 0, 1);
   number(policy["maxAgeSeconds"], "policy.maxAgeSeconds", 0);
   number(policy["identityToleranceMinorUnits"], "policy.identityToleranceMinorUnits", 0, 1);
-  const rules = object(policy["materiality"], METRIC_IDS, "policy.materiality");
-  for (const id of seen) if (!(id in rules)) fail("policy.materiality", "every supplied metric requires a rule");
+  const rules = object(policy["materiality"], METRIC_IDS, "policy.materiality", false);
+  for (const id of seen) if (!Object.hasOwn(rules, id)) fail("policy.materiality", "every supplied metric requires a rule");
   for (const id of Object.keys(rules)) {
     const rule = object(rules[id], ["absolute", "relative"], `policy.materiality.${id}`);
     number(rule["absolute"], "materiality.absolute", 0);
