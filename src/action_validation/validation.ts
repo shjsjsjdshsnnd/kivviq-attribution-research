@@ -109,12 +109,25 @@ function normalizeKey(key: string): string {
   return key.replace(/[_-]/g, "").toLowerCase();
 }
 
+const forbiddenKnowledgeReferencePattern =
+  /(^|[.:/_-])(ground[_-]?truth|oracle|god[_-]?mode|latent[_-]?state|future[_-]?state|actual[_-]?best[_-]?action|optimal[_-]?(action|value)|optimizer[_-]?(answer|truth)|evaluator[_-]?truth|true[_-]?incremental[_-]?(roas|profit))([.:/_-]|$)/i;
+
 function hiddenKnowledgeIssue(
   value: unknown,
   path: readonly (string | number)[] = [],
   ancestors = new WeakSet<object>(),
   state = { nodes: 0 },
 ): ActionSpaceValidationIssue | undefined {
+  if (
+    typeof value === "string" &&
+    forbiddenKnowledgeReferencePattern.test(value)
+  )
+    return {
+      code: "HIDDEN_GOD_MODE_REFERENCE",
+      path: path.join("."),
+      message:
+        "Action Space references cannot point to hidden truth, oracle, optimizer-answer, latent-state, or future-truth namespaces",
+    };
   if (value === null || typeof value !== "object") return undefined;
   state.nodes += 1;
   if (state.nodes > 20_000)
