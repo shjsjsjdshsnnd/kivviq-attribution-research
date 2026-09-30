@@ -915,6 +915,195 @@ async function level5Evidence() {
   };
 }
 
+
+type AdversarialAction =
+  | ConfoundedAction
+  | { readonly kind: "discount_20" };
+
+function adversarialEconomics(
+  action: AdversarialAction,
+  world: DynamicWorld,
+  p: DynamicParameters = dynamicParameters,
+): OracleEconomics {
+  const baseDemand =
+    world.highIntent.filter(Boolean).length * 2 +
+    (world.externalDemandShock ? p.shockAdditionalOrders : 0);
+  const discount = action.kind === "discount_20";
+  const demandedOrders = baseDemand + (discount ? 2 : 0);
+  const fulfilledOrders = Math.min(p.initialInventoryUnits, demandedOrders);
+  const unitPriceMinor = discount
+    ? Math.floor(p.unitPriceMinor * 0.8)
+    : p.unitPriceMinor;
+  const paidSpendMinor =
+    action.kind === "cut_meta"
+      ? 0
+      : action.kind === "scale_meta"
+        ? p.baselineMetaSpendMinor * 4
+        : p.baselineMetaSpendMinor * 2;
+  return {
+    netSalesMinor: fulfilledOrders * unitPriceMinor,
+    cogsMinor: fulfilledOrders * p.unitVariableCostMinor,
+    paymentFeesMinor: 0,
+    fulfillmentMinor: 0,
+    shippingCostMinor: 0,
+    variableOperatingCostMinor: 0,
+    paidSpendMinor,
+    actionCostMinor: 0,
+  };
+}
+
+export function buildAdversarialDifficultyControl(): ExactOracleInput<
+  AdversarialAction,
+  DynamicWorld,
+  DynamicParameters
+> {
+  return {
+    modelVersion: "difficulty-level-6-multiple-traps/1.0.0",
+    modelParameters: dynamicParameters,
+    actionSetVersion: "difficulty-level-6-actions/1.0.0",
+    completeActionSet: true,
+    completeOutcomeSupport: true,
+    baselineActionId: "baseline-meta",
+    candidates: [
+      { actionId: "baseline-meta", action: { kind: "baseline_meta" } },
+      { actionId: "scale-meta", action: { kind: "scale_meta" } },
+      { actionId: "cut-meta", action: { kind: "cut_meta" } },
+      { actionId: "discount-20", action: { kind: "discount_20" } },
+    ],
+    outcomes: dynamicWorlds(),
+    currency: "CAD",
+    scope: "adversarial_multi_trap_two_period_contribution",
+    horizon: {
+      start: "2026-01-01T00:00:00.000Z",
+      end: "2026-03-01T00:00:00.000Z",
+    },
+    maximumEvaluations: 128,
+    evaluate: ({ action, world, parameters }) =>
+      adversarialEconomics(action, world, parameters),
+  };
+}
+
+async function level6Evidence() {
+  const dynamic = await level5Evidence();
+  const input = buildAdversarialDifficultyControl();
+  const oracle = await evaluateExactActionSet(input);
+  const denominator = BigInt(oracle.probabilityDenominator);
+  const byAction = new Map(
+    input.candidates.map(({ actionId }) => [
+      actionId,
+      oracle.ledger.filter((row) => row.actionId === actionId),
+    ]),
+  );
+  const weightedRevenue = (actionId: string): bigint =>
+    (byAction.get(actionId) ?? []).reduce(
+      (sum, row) =>
+        sum + BigInt(row.weight) * BigInt(row.economics.netSalesMinor),
+      0n,
+    );
+  const weightedContribution = (actionId: string): bigint =>
+    BigInt(
+      oracle.ranking.find((row) => row.actionId === actionId)!
+        .weightedContribution,
+    );
+
+  const baselineRows = byAction.get("baseline-meta")!;
+  const scaleRows = new Map(
+    byAction.get("scale-meta")!.map((row) => [row.outcomeId, row]),
+  );
+  const scaleHasZeroIncrementalSales =
+    baselineRows.length > 0 &&
+    baselineRows.every((base) => {
+      const scaled = scaleRows.get(base.outcomeId)!;
+      return (
+        base.economics.netSalesMinor === scaled.economics.netSalesMinor &&
+        base.economics.cogsMinor === scaled.economics.cogsMinor &&
+        scaled.economics.paidSpendMinor > base.economics.paidSpendMinor
+      );
+    });
+  const scaleDestroysContribution =
+    weightedContribution("scale-meta") <
+    weightedContribution("baseline-meta");
+
+  const discountRaisesRevenue =
+    weightedRevenue("discount-20") > weightedRevenue("baseline-meta");
+  const discountLowersContribution =
+    weightedContribution("discount-20") <
+    weightedContribution("baseline-meta");
+
+  const inventoryBindingStates = input.outcomes.filter(({ world }) => {
+    const baseDemand =
+      world.highIntent.filter(Boolean).length * 2 +
+      (world.externalDemandShock ? dynamicParameters.shockAdditionalOrders : 0);
+    return baseDemand + 2 >= dynamicParameters.initialInventoryUnits;
+  }).length;
+
+  const trapChecks = {
+    confoundedPaidMedia:
+      dynamic.measurements["confoundingObserved"] === true &&
+      scaleHasZeroIncrementalSales &&
+      scaleDestroysContribution,
+    measurementCorruption:
+      dynamic.measurements["corruptionObserved"] === true &&
+      dynamic.measurements["preservedOrders"] === true,
+    discountRevenueProfitInversion:
+      discountRaisesRevenue && discountLowersContribution,
+    externalShockAndInventory:
+      dynamic.measurements["knownShockEffect"] === true &&
+      dynamic.measurements["stablePastAcrossShock"] === true &&
+      inventoryBindingStates > 0,
+  };
+  const independentTrapCount = Object.values(trapChecks).filter(Boolean).length;
+  const passed =
+    dynamic.passed &&
+    oracle.evaluations === 128 &&
+    oracle.bestActionId === "cut-meta" &&
+    independentTrapCount >= 3 &&
+    scaleHasZeroIncrementalSales &&
+    scaleDestroysContribution &&
+    discountRaisesRevenue &&
+    discountLowersContribution &&
+    inventoryBindingStates > 0;
+
+  return {
+    passed,
+    measurements: {
+      ...dynamic.measurements,
+      worldHash: sha256({
+        dynamicWorldHash: dynamic.measurements["worldHash"],
+        adversarialInputHash: oracle.inputHash,
+      }),
+      candidateSetHash: oracle.candidateSetHash,
+      oracleHash: oracle.resultHash,
+      verifiedFeatures: [
+        "stochastic",
+        "confounding",
+        "corruption",
+        "dynamics",
+        "multiple_traps",
+      ],
+      probabilityDenominator: denominator.toString(),
+      outcomeCount: input.outcomes.length,
+      scaleHasZeroIncrementalSales,
+      scaleDestroysContribution,
+      discountRaisesRevenue,
+      discountLowersContribution,
+      baselineExpectedRevenueMinor:
+        Number(weightedRevenue("baseline-meta")) / Number(denominator),
+      discountExpectedRevenueMinor:
+        Number(weightedRevenue("discount-20")) / Number(denominator),
+      baselineExpectedContributionMinor:
+        Number(weightedContribution("baseline-meta")) / Number(denominator),
+      discountExpectedContributionMinor:
+        Number(weightedContribution("discount-20")) / Number(denominator),
+      inventoryBindingStates,
+      trapChecks,
+      independentTrapCount,
+      qualification:
+        "executed_multi_trap_world_with_paid_selection_corruption_discount_inversion_shock_and_inventory",
+    },
+  };
+}
+
 export function buildExecutableDifficultyWorldCases(): readonly ExecutableValidationCase[] {
   return [
     {
@@ -966,6 +1155,16 @@ export function buildExecutableDifficultyWorldCases(): readonly ExecutableValida
         requirements: ["difficulty_levels"],
       },
       run: level5Evidence,
+    },
+    {
+      spec: {
+        caseId: "difficulty:level-6:multiple-traps",
+        implementationVersion: EXECUTABLE_DIFFICULTY_WORLD_VERSION,
+        kind: "qualified_difficulty_world",
+        difficultyLevel: 6,
+        requirements: ["difficulty_levels"],
+      },
+      run: level6Evidence,
     },
   ] as const;
 }
