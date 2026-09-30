@@ -13,6 +13,7 @@ import {
 } from "../../src/canonical_action/serialization.js";
 import { immediatePersistentBudgetTiming } from "../../src/action_timing/fixtures.js";
 import {
+  fingerprintCompoundAction,
   measurableCompoundActionSchema,
 } from "../../src/compound_action/schema.js";
 import { createCompoundFixtures } from "../../src/compound_action/fixtures.js";
@@ -183,5 +184,26 @@ describe("Step 23 measurable outcomes", () => {
         outcomePlan: outcomePlan("compound.profit"),
       }).success,
     ).toBe(true);
+  });
+
+  it("keeps compound identity invariant to outcome ordering", () => {
+    const historical = createCompoundFixtures()[0]!.action;
+    const measurable = measurableCompoundActionSchema.parse({
+      ...historical,
+      components: historical.components.map((component, index) => ({
+        ...component,
+        action: {
+          ...component.action,
+          outcomePlan: outcomePlan("component." + index),
+        },
+      })),
+      outcomePlan: outcomePlan("compound.profit"),
+    });
+    const reordered = structuredClone(measurable);
+    reordered.outcomePlan.outcomes.reverse();
+    reordered.components[0]!.action.outcomePlan!.outcomes.reverse();
+    expect(fingerprintCompoundAction(reordered)).toBe(
+      fingerprintCompoundAction(measurable),
+    );
   });
 });
