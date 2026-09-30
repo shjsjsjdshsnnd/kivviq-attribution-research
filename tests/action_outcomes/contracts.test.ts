@@ -26,6 +26,7 @@ function outcomePlan(id = "profit.primary") {
         family: "CONTRIBUTION_PROFIT" as const,
         metricRef: "metric.contribution_profit",
         role: "PRIMARY" as const,
+        measurementScope: { kind: "GLOBAL" as const },
         valueType: { kind: "MONEY" as const, currency: "CAD" },
         comparison: {
           kind: "PRE_ACTION_BASELINE" as const,
@@ -53,6 +54,7 @@ function outcomePlan(id = "profit.primary") {
         family: "CONVERSION_RATE" as const,
         metricRef: "metric.conversion_rate",
         role: "GUARDRAIL" as const,
+        measurementScope: { kind: "ACTION_SCOPE" as const },
         valueType: { kind: "PERCENTAGE" as const },
         comparison: { kind: "ABSOLUTE_METRIC" as const },
         successCriterion: {
@@ -114,6 +116,17 @@ describe("Step 23 measurable outcomes", () => {
       unit: "DAY",
     };
     expect(actionOutcomePlanSchema.safeParse(reversed).success).toBe(false);
+  });
+
+  it("requires a success-defining primary outcome and a causal comparison for incremental customers", () => {
+    const observeOnly: any = structuredClone(outcomePlan());
+    observeOnly.outcomes[0].successCriterion = { kind: "OBSERVE_ONLY" };
+    expect(actionOutcomePlanSchema.safeParse(observeOnly).success).toBe(false);
+
+    const incremental: any = structuredClone(outcomePlan());
+    incremental.outcomes[0].family = "INCREMENTAL_CUSTOMERS";
+    incremental.outcomes[0].comparison = { kind: "ABSOLUTE_METRIC" };
+    expect(actionOutcomePlanSchema.safeParse(incremental).success).toBe(false);
   });
 
   it.each([
