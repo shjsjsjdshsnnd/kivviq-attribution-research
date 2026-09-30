@@ -49,7 +49,10 @@ describe("artifact-backed Phase 1 evidence", () => {
     const plan: ValidationPlan = { ...base, cases: cases.map(c => c.spec) };
     const artifact = await executeValidationPlan({ codeRevision: revision, runId: "test", plan, executors: cases });
     const row = assessArtifactBackedAcceptance(revision, [{ plan, artifact }]).requirements.find(r => r.requirement === "adversarial_scenarios")!;
-    expect(row.distinctCoverage).toBe(1); expect(row.status).toBe("FAIL");
+    expect(row.checkedCases).toBe(20);
+    expect(row.passedCases).toBe(0);
+    expect(row.distinctCoverage).toBe(0);
+    expect(row.status).toBe("FAIL");
   });
 
   it("does not count twenty unique adversarial labels without executed qualification evidence", async () => {
