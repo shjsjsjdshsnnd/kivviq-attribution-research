@@ -79,6 +79,11 @@ export interface MeasurementResult {
     readonly config: CorruptionConfig;
     readonly asOf: string;
     readonly rows: readonly CorruptionAuditRow[];
+    /** Evaluator-only opaque order identities claimed by each platform. */
+    readonly platformClaims: {
+      readonly meta: readonly string[];
+      readonly google: readonly string[];
+    };
   };
 }
 
@@ -261,6 +266,10 @@ export function measurePerfectWorld(
     });
   }
   const reports: CorruptedObservation["platformReports"] = [];
+  const platformClaims: { meta: string[]; google: string[] } = {
+    meta: [],
+    google: [],
+  };
   const reportEnd = cutoff - config.platformReportingDelayMs;
   if (reportEnd >= stamp(world.periodStart)) {
     const visibleToPlatforms = nativeReceipts.filter(e => stamp(e.observed.receivedAt) <= reportEnd);
@@ -283,7 +292,11 @@ export function measurePerfectWorld(
         const lastTouchClaim = last !== undefined && platform(last.raw.source) === name;
         const extraClaim = hit(`over-attribution:${name}`, orderId,
           name === "meta" ? config.metaOverAttributionRate : config.googleOverAttributionRate);
-        if (lastTouchClaim || extraClaim) { count += 1; claimedRevenue.push(order.amountMinor!); }
+        if (lastTouchClaim || extraClaim) {
+          count += 1;
+          claimedRevenue.push(order.amountMinor!);
+          platformClaims[name].push(opaque("platform-order", orderId));
+        }
       }
       reports.push({ platform: name, periodStart: world.periodStart,
         periodEnd: new Date(reportEnd).toISOString(), availableAt: asOf,
@@ -293,5 +306,16 @@ export function measurePerfectWorld(
   }
   const observation = parseOperatorObservation({ schemaVersion: "corrupted-observation/1.0.0",
     asOf, events, orders: [...orderById.values()].sort((a, b) => compareText(a.orderId, b.orderId)), platformReports: reports });
-  return { observation, audit: { version: MEASUREMENT_VERSION, config, asOf, rows: audit } };
+  platformClaims.meta.sort(compareText);
+  platformClaims.google.sort(compareText);
+  return {
+    observation,
+    audit: {
+      version: MEASUREMENT_VERSION,
+      config,
+      asOf,
+      rows: audit,
+      platformClaims,
+    },
+  };
 }
