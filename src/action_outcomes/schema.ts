@@ -299,15 +299,15 @@ export const actionOutcomePlanSchema = noOutcomeLeakageSchema.pipe(
   actionOutcomePlanObjectSchema,
 );
 
-export type OutcomeFamily = z.infer<typeof outcomeFamilySchema>;
-export type OutcomeRole = z.infer<typeof outcomeRoleSchema>;
-export type OutcomeHorizon = z.infer<typeof outcomeHorizonSchema>;
+export type ActionOutcomeFamily = z.infer<typeof outcomeFamilySchema>;
+export type ActionOutcomeRole = z.infer<typeof outcomeRoleSchema>;
+export type ActionOutcomeHorizon = z.infer<typeof outcomeHorizonSchema>;
 export type ActionOutcomeMeasurement = z.infer<
   typeof actionOutcomeMeasurementSchema
 >;
 export type ActionOutcomePlan = z.infer<typeof actionOutcomePlanSchema>;
 
-export function horizonSeconds(horizon: OutcomeHorizon): number {
+export function horizonSeconds(horizon: ActionOutcomeHorizon): number {
   const multiplier = {
     SECOND: 1,
     MINUTE: 60,
