@@ -54,8 +54,15 @@ export function buildMeasurementScenario(id: string, seed: number): {
     simulationSeed: seed, startTime: START, endTime: END,
     interventions: [{ variable: "promotion.discount_active", operation: "set", value: { kind: "boolean", value: false } }],
     config: { maxEvents: 180000, maxSessionsPerCustomer: 16 } };
+  // adv-015 is specifically an overlapping-claims world. Both paid platforms
+  // need enough observable delivery to make dual-touch orders structurally
+  // common across the preregistered seed set. Channel causal effects remain
+  // exactly zero, so this changes the measurement opportunity set, not sales.
+  const scenarioAllocation: ScenarioAllocation = id === "adv-015"
+    ? { ...BASE_ALLOCATION, meta: 500000, google_search: 500000 }
+    : { ...BASE_ALLOCATION };
   const spendPlan: ScenarioSpendPlan = { version: SCENARIO_SPEND_VERSION, periodStart: START, periodEnd: END,
-    scope: "explicit_simulated_agents", execution: "fully_spent_period_allocation", allocation: { ...BASE_ALLOCATION } };
+    scope: "explicit_simulated_agents", execution: "fully_spent_period_allocation", allocation: scenarioAllocation };
   const controlCorruption: CorruptionConfigInput = { version: MEASUREMENT_VERSION, seed: 88213,
     identitySalt: "scenario-validation-private-identity-v1" };
   return { request: requestWithScenarioSpend(initial, spendPlan), spendPlan, controlCorruption,
@@ -138,8 +145,12 @@ export function verifyMeasurementScenario(id: MeasurementScenarioId, bundle: Eva
     }
     case "adv-015": {
       const claims = observed.platformReports.reduce((s, r) => s + r.attributedRevenueMinor, 0);
-      check("independent_platform_claims_overlap", claims > revenue(observed),
-        { summedClaimsMinor: claims, storeRevenueMinor: revenue(observed) });
+      const metaClaims = new Set(bundle.measurementDiagnostics.platformClaims.meta);
+      const googleClaims = new Set(bundle.measurementDiagnostics.platformClaims.google);
+      const overlappingOrders = [...metaClaims].filter(orderId => googleClaims.has(orderId)).length;
+      check("independent_platform_claims_overlap", overlappingOrders > 0,
+        { metaClaimedOrders: metaClaims.size, googleClaimedOrders: googleClaims.size,
+          overlappingOrders, summedClaimsMinor: claims, storeRevenueMinor: revenue(observed) });
       break;
     }
     case "adv-016": {
