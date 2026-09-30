@@ -1,5 +1,9 @@
 import { z } from "zod";
-import { canonicalActionSchema } from "../canonical_action/schema.js";
+import {
+  canonicalActionSchema,
+  actionSpaceCanonicalActionSchema,
+  type ActionSpaceCanonicalAction,
+} from "../canonical_action/schema.js";
 import { canonicalizeForSerialization } from "../action_ontology/semantics.js";
 import { validateTimingDependencyGraph } from "../action_timing/validation.js";
 import type { TimingDependency } from "../action_timing/types.js";
@@ -222,6 +226,28 @@ export const measurableCompoundActionSchema = compoundActionSchema.superRefine(
   },
 ) as unknown as z.ZodType<MeasurableCompoundAction>;
 
+export type ActionSpaceCompoundAction = MeasurableCompoundAction & {
+  components: Array<
+    CompoundAction["components"][number] & {
+      action: ActionSpaceCanonicalAction;
+    }
+  >;
+};
+export const actionSpaceCompoundActionSchema =
+  measurableCompoundActionSchema.superRefine((action, context) => {
+    action.components.forEach((component, index) => {
+      const parsed = actionSpaceCanonicalActionSchema.safeParse(component.action);
+      if (!parsed.success)
+        parsed.error.issues.forEach((issue) =>
+          context.addIssue({
+            code: "custom",
+            path: ["components", index, "action", ...issue.path],
+            message: issue.message,
+          }),
+        );
+    });
+  }) as unknown as z.ZodType<ActionSpaceCompoundAction>;
+
 export function assertCompoundAction(value: unknown): CompoundAction {
   return compoundActionSchema.parse(value);
 }
@@ -229,6 +255,11 @@ export function assertMeasurableCompoundAction(
   value: unknown,
 ): MeasurableCompoundAction {
   return measurableCompoundActionSchema.parse(value);
+}
+export function assertActionSpaceCompoundAction(
+  value: unknown,
+): ActionSpaceCompoundAction {
+  return actionSpaceCompoundActionSchema.parse(value);
 }
 export function serializeCompoundAction(value: CompoundAction): string {
   return JSON.stringify(
