@@ -44,60 +44,60 @@ const sourceNames = ["SHOPIFY", "GA4", "DERIVED", "GOOGLE_ADS", "META_ADS", "PIN
 /** Strict runtime boundary: no permissive spreading of evaluator or model fields. */
 export function parseDiagnosisInput(raw: unknown): DiagnosisInput {
   const input = object(raw, ["version", "snapshotId", "merchantId", "asOf", "currency", "minorUnitsPerMajor", "comparisonKind", "metrics", "policy"], "input");
-  if (input.version !== INPUT_VERSION) fail("version", "unsupported diagnosis input version");
-  text(input.snapshotId, "snapshotId"); text(input.merchantId, "merchantId");
-  timestamp(input.asOf, "asOf");
-  if (typeof input.currency !== "string" || !/^[A-Z]{3}$/.test(input.currency)) fail("currency", "expected three-letter currency code");
-  if (![1, 10, 100, 1000].includes(input.minorUnitsPerMajor as number)) fail("minorUnitsPerMajor", "explicit currency scale is required");
-  if (!["PREVIOUS", "YOY", "SEASONAL_BASELINE"].includes(input.comparisonKind as string)) fail("comparisonKind", "unsupported comparison");
-  if (!Array.isArray(input.metrics) || input.metrics.length > METRIC_IDS.length) fail("metrics", "expected a bounded metric array");
-  if (Object.getPrototypeOf(input.metrics) !== Array.prototype || Reflect.ownKeys(input.metrics).some(key => typeof key !== "string" || (key !== "length" && !/^(0|[1-9]\d*)$/.test(key)))) fail("metrics", "unexpected array metadata");
-  if (Object.values(Object.getOwnPropertyDescriptors(input.metrics)).some(descriptor => !("value" in descriptor))) fail("metrics", "accessor properties are not observable data");
+  if (input["version"] !== INPUT_VERSION) fail("version", "unsupported diagnosis input version");
+  text(input["snapshotId"], "snapshotId"); text(input["merchantId"], "merchantId");
+  timestamp(input["asOf"], "asOf");
+  if (typeof input["currency"] !== "string" || !/^[A-Z]{3}$/.test(input["currency"])) fail("currency", "expected three-letter currency code");
+  if (![1, 10, 100, 1000].includes(input["minorUnitsPerMajor"] as number)) fail("minorUnitsPerMajor", "explicit currency scale is required");
+  if (!["PREVIOUS", "YOY", "SEASONAL_BASELINE"].includes(input["comparisonKind"] as string)) fail("comparisonKind", "unsupported comparison");
+  if (!Array.isArray(input["metrics"]) || input["metrics"].length > METRIC_IDS.length) fail("metrics", "expected a bounded metric array");
+  if (Object.getPrototypeOf(input["metrics"]) !== Array.prototype || Reflect.ownKeys(input["metrics"]).some(key => typeof key !== "string" || (key !== "length" && !/^(0|[1-9]\d*)$/.test(key)))) fail("metrics", "unexpected array metadata");
+  if (Object.values(Object.getOwnPropertyDescriptors(input["metrics"])).some(descriptor => !("value" in descriptor))) fail("metrics", "accessor properties are not observable data");
   const seen = new Set<string>(), evidenceIds = new Set<string>();
-  for (const [index, rawMetric] of input.metrics.entries()) {
+  for (const [index, rawMetric] of input["metrics"].entries()) {
     const path = `metrics[${index}]`;
     const metric = object(rawMetric, ["metricId", "unit", "reference", "current"], path);
-    if (!METRIC_IDS.includes(metric.metricId as MetricId)) fail(path, "unsupported metric ID; metric substitution is forbidden");
-    const id = metric.metricId as MetricId;
+    if (!METRIC_IDS.includes(metric["metricId"] as MetricId)) fail(path, "unsupported metric ID; metric substitution is forbidden");
+    const id = metric["metricId"] as MetricId;
     if (seen.has(id)) fail(path, "duplicate metric ID");
     seen.add(id);
-    if (metric.unit !== EXPECTED_UNIT[id]) fail(path, "canonical unit mismatch");
+    if (metric["unit"] !== EXPECTED_UNIT[id]) fail(path, "canonical unit mismatch");
     for (const period of ["reference", "current"] as const) {
       const p = `${path}.${period}`;
       const observation = object(metric[period], ["value", "merchantId", "scopeId", "populationId", "definitionId", "measurementId", "source", "evidenceId", "observedAt", "dataThrough", "coverage", "complete", "sourceScanComplete", "window", "currency"], p);
       for (const field of ["merchantId", "scopeId", "populationId", "definitionId", "measurementId"]) text(observation[field], `${p}.${field}`);
-      if (observation.value !== null) {
-        number(observation.value, `${p}.value`);
-        if (metric.unit === "COUNT" && (!Number.isSafeInteger(observation.value) || observation.value < 0)) fail(p, "counts must be nonnegative integers");
-        if (id === "revenue_net" && !Number.isSafeInteger(observation.value)) fail(p, "revenue must use integer minor units");
-        if (id === "cvr" && observation.value < 0) fail(p, "conversion ratio cannot be negative");
+      if (observation["value"] !== null) {
+        number(observation["value"], `${p}.value`);
+        if (metric["unit"] === "COUNT" && (!Number.isSafeInteger(observation["value"]) || observation["value"] < 0)) fail(p, "counts must be nonnegative integers");
+        if (id === "revenue_net" && !Number.isSafeInteger(observation["value"])) fail(p, "revenue must use integer minor units");
+        if (id === "cvr" && observation["value"] < 0) fail(p, "conversion ratio cannot be negative");
       }
-      if (observation.source !== null && !sourceNames.includes(observation.source as string)) fail(p, "unrecognized canonical source");
-      if (observation.evidenceId !== null) {
-        text(observation.evidenceId, `${p}.evidenceId`);
-        if (evidenceIds.has(observation.evidenceId)) fail(p, "atomic evidence IDs must be unique");
-        evidenceIds.add(observation.evidenceId);
+      if (observation["source"] !== null && !sourceNames.includes(observation["source"] as string)) fail(p, "unrecognized canonical source");
+      if (observation["evidenceId"] !== null) {
+        text(observation["evidenceId"], `${p}.evidenceId`);
+        if (evidenceIds.has(observation["evidenceId"])) fail(p, "atomic evidence IDs must be unique");
+        evidenceIds.add(observation["evidenceId"]);
       }
       for (const field of ["observedAt", "dataThrough"] as const) if (observation[field] !== null) timestamp(observation[field], `${p}.${field}`);
-      if (observation.coverage !== null) number(observation.coverage, `${p}.coverage`, 0, 1);
-      bool(observation.complete, `${p}.complete`); bool(observation.sourceScanComplete, `${p}.sourceScanComplete`);
-      const window = object(observation.window, ["start", "end"], `${p}.window`);
-      if (timestamp(window.start, `${p}.window.start`) >= timestamp(window.end, `${p}.window.end`)) fail(p, "window must have positive duration");
-      if (metric.unit === "MONEY") {
-        if (typeof observation.currency !== "string" || !/^[A-Z]{3}$/.test(observation.currency)) fail(p, "monetary observation needs currency");
-      } else if (observation.currency !== null) fail(p, "nonmonetary observation cannot carry currency");
+      if (observation["coverage"] !== null) number(observation["coverage"], `${p}.coverage`, 0, 1);
+      bool(observation["complete"], `${p}.complete`); bool(observation["sourceScanComplete"], `${p}.sourceScanComplete`);
+      const window = object(observation["window"], ["start", "end"], `${p}.window`);
+      if (timestamp(window["start"], `${p}.window.start`) >= timestamp(window["end"], `${p}.window.end`)) fail(p, "window must have positive duration");
+      if (metric["unit"] === "MONEY") {
+        if (typeof observation["currency"] !== "string" || !/^[A-Z]{3}$/.test(observation["currency"])) fail(p, "monetary observation needs currency");
+      } else if (observation["currency"] !== null) fail(p, "nonmonetary observation cannot carry currency");
     }
   }
-  const policy = object(input.policy, ["materiality", "minimumCoverage", "maxAgeSeconds", "identityToleranceMinorUnits"], "policy");
-  number(policy.minimumCoverage, "policy.minimumCoverage", 0, 1);
-  number(policy.maxAgeSeconds, "policy.maxAgeSeconds", 0);
-  number(policy.identityToleranceMinorUnits, "policy.identityToleranceMinorUnits", 0, 1);
-  const rules = object(policy.materiality, METRIC_IDS, "policy.materiality");
+  const policy = object(input["policy"], ["materiality", "minimumCoverage", "maxAgeSeconds", "identityToleranceMinorUnits"], "policy");
+  number(policy["minimumCoverage"], "policy.minimumCoverage", 0, 1);
+  number(policy["maxAgeSeconds"], "policy.maxAgeSeconds", 0);
+  number(policy["identityToleranceMinorUnits"], "policy.identityToleranceMinorUnits", 0, 1);
+  const rules = object(policy["materiality"], METRIC_IDS, "policy.materiality");
   for (const id of seen) if (!(id in rules)) fail("policy.materiality", "every supplied metric requires a rule");
   for (const id of Object.keys(rules)) {
     const rule = object(rules[id], ["absolute", "relative"], `policy.materiality.${id}`);
-    number(rule.absolute, "materiality.absolute", 0);
-    number(rule.relative, "materiality.relative", 0, 1);
+    number(rule["absolute"], "materiality.absolute", 0);
+    number(rule["relative"], "materiality.relative", 0, 1);
   }
   // This cast follows field-by-field runtime validation, not trust in caller types.
   return raw as DiagnosisInput;

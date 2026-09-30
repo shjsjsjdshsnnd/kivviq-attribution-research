@@ -3,7 +3,9 @@
     "target": "ES2022",
     "module": "NodeNext",
     "moduleResolution": "NodeNext",
-    "lib": ["ES2022"],
+    "lib": [
+      "ES2022"
+    ],
     "types": [],
     "strict": true,
     "noUncheckedIndexedAccess": true,
@@ -13,7 +15,13 @@
     "declaration": true,
     "rootDir": "src/diagnosis",
     "outDir": ".diagnosis-build",
-    "skipLibCheck": true
+    "skipLibCheck": true,
+    "noPropertyAccessFromIndexSignature": true,
+    "noFallthroughCasesInSwitch": true,
+    "noImplicitOverride": true,
+    "verbatimModuleSyntax": true
   },
-  "include": ["src/diagnosis/**/*.ts"]
+  "include": [
+    "src/diagnosis/**/*.ts"
+  ]
 }
