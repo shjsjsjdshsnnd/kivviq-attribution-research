@@ -222,9 +222,13 @@ function normalizedKey(key: string): string {
   return key.replace(/[_-]/g, "").toLowerCase();
 }
 
+const forbiddenKnowledgeReferencePattern =
+  /(^|[.:/_-])(ground[_-]?truth|oracle|god[_-]?mode|latent[_-]?state|future[_-]?state|actual[_-]?best[_-]?action|optimal[_-]?(action|value)|optimizer[_-]?(answer|truth)|evaluator[_-]?truth|true[_-]?incremental[_-]?(roas|profit))([.:/_-]|$)/i;
+
 type ScanResult =
   | { kind: "VALID" }
   | { kind: "FORBIDDEN_KEY"; key: string }
+  | { kind: "FORBIDDEN_REFERENCE"; value: string }
   | { kind: "CYCLIC" }
   | { kind: "TOO_DEEP" }
   | { kind: "TOO_COMPLEX" };
@@ -238,6 +242,11 @@ function scanOutcomeDefinition(
   },
 ): ScanResult {
   if (depth > 48) return { kind: "TOO_DEEP" };
+  if (
+    typeof value === "string" &&
+    forbiddenKnowledgeReferencePattern.test(value)
+  )
+    return { kind: "FORBIDDEN_REFERENCE", value };
   if (value === null || typeof value !== "object") return { kind: "VALID" };
   state.nodes += 1;
   if (state.nodes > 10_000) return { kind: "TOO_COMPLEX" };
@@ -269,6 +278,13 @@ const noOutcomeLeakageSchema = z.unknown().superRefine((value, context) => {
       message:
         "Outcome definitions may specify measurement contracts, never realized, predicted, counterfactual, or God-mode values: " +
         result.key,
+    });
+  } else if (result.kind === "FORBIDDEN_REFERENCE") {
+    context.addIssue({
+      code: z.ZodIssueCode.custom,
+      message:
+        "Outcome definitions cannot reference hidden truth, oracle, optimizer-answer, latent-state, or future-truth namespaces: " +
+        result.value,
     });
   } else if (result.kind === "CYCLIC") {
     context.addIssue({
