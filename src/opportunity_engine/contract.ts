@@ -101,50 +101,46 @@ export const estimateUnitSchema = z.enum([
 ]);
 export type EstimateUnit = z.infer<typeof estimateUnitSchema>;
 
+const estimatedBoundedEstimateSchema = z.object({
+  state: z.literal("ESTIMATED"),
+  unit: estimateUnitSchema,
+  low: finite,
+  base: finite,
+  high: finite,
+  evidenceRefs: z.array(stableId).min(1),
+  method: z.enum([
+    "EXPERIMENT",
+    "CAUSAL_MODEL",
+    "OBSERVATIONAL_BOUND",
+    "ACCOUNTING",
+    "RESPONSE_CURVE",
+  ]),
+}).strict();
 export const boundedEstimateSchema = z.discriminatedUnion("state", [
-  z.object({
-    state: z.literal("ESTIMATED"),
-    unit: estimateUnitSchema,
-    low: finite,
-    base: finite,
-    high: finite,
-    evidenceRefs: z.array(stableId).min(1),
-    method: z.enum([
-      "EXPERIMENT",
-      "CAUSAL_MODEL",
-      "OBSERVATIONAL_BOUND",
-      "ACCOUNTING",
-      "RESPONSE_CURVE",
-    ]),
-  }).strict().superRefine((value, ctx) => {
-    if (value.low > value.base || value.base > value.high) {
-      ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["base"], message: "Estimate must satisfy low <= base <= high" });
-    }
-  }),
+  estimatedBoundedEstimateSchema,
   z.object({
     state: z.literal("UNKNOWN"),
     unit: estimateUnitSchema,
     reason: z.string().min(1),
     evidenceNeeded: z.array(z.string().min(1)).min(1),
   }).strict(),
-]);
+]).superRefine((value, ctx) => {
+  if (value.state === "ESTIMATED" && (value.low > value.base || value.base > value.high)) {
+    ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["base"], message: "Estimate must satisfy low <= base <= high" });
+  }
+});
 export type BoundedEstimate = z.infer<typeof boundedEstimateSchema>;
 
+const estimatedResponseCurveSchema = z.object({
+  state: z.literal("ESTIMATED"),
+  inputMetric: stableId,
+  outputMetric: stableId,
+  points: z.array(z.object({ input: finite, output: finite }).strict()).min(2),
+  evidenceRefs: z.array(stableId).min(1),
+  method: z.enum(["EXPERIMENT", "CAUSAL_MODEL", "OBSERVATIONAL_BOUND"]),
+}).strict();
 export const responseCurveSchema = z.discriminatedUnion("state", [
-  z.object({
-    state: z.literal("ESTIMATED"),
-    inputMetric: stableId,
-    outputMetric: stableId,
-    points: z.array(z.object({ input: finite, output: finite }).strict()).min(2),
-    evidenceRefs: z.array(stableId).min(1),
-    method: z.enum(["EXPERIMENT", "CAUSAL_MODEL", "OBSERVATIONAL_BOUND"]),
-  }).strict().superRefine((curve, ctx) => {
-    for (let index = 1; index < curve.points.length; index += 1) {
-      if (curve.points[index]!.input <= curve.points[index - 1]!.input) {
-        ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["points", index, "input"], message: "Response-curve inputs must strictly increase" });
-      }
-    }
-  }),
+  estimatedResponseCurveSchema,
   z.object({
     state: z.literal("UNKNOWN"),
     inputMetric: stableId,
@@ -152,7 +148,14 @@ export const responseCurveSchema = z.discriminatedUnion("state", [
     reason: z.string().min(1),
     evidenceNeeded: z.array(z.string().min(1)).min(1),
   }).strict(),
-]);
+]).superRefine((curve, ctx) => {
+  if (curve.state !== "ESTIMATED") return;
+  for (let index = 1; index < curve.points.length; index += 1) {
+    if (curve.points[index]!.input <= curve.points[index - 1]!.input) {
+      ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["points", index, "input"], message: "Response-curve inputs must strictly increase" });
+    }
+  }
+});
 export type ResponseCurve = z.infer<typeof responseCurveSchema>;
 
 export const opportunityAreaSchema = z.object({
