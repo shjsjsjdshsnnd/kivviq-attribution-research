@@ -16,18 +16,30 @@ describe("Opportunity candidate-set validation", () => {
           },
         },
         expectedTemplateIds: ["cro.checkout_fix", "cro.checkout_experiment"],
+        evaluatorTruth: {
+          availableInterventionTemplateIds: ["cro.checkout_fix", "cro.checkout_experiment"],
+          responseCurveRefs: ["truth.checkout.cvr_response"],
+        },
         forbiddenTemplateIds: ["promotion.reduce_discount"],
       },
       {
         scenarioId: "inventory-shortage",
         operatorInput: { snapshot: makeSnapshot({ signals: ["inventory_constrained"] }) },
         expectedTemplateIds: ["inventory.reorder", "inventory.protect"],
+        evaluatorTruth: {
+          availableInterventionTemplateIds: ["inventory.reorder", "inventory.protect"],
+          responseCurveRefs: ["truth.inventory.availability_response"],
+        },
         forbiddenTemplateIds: ["paid.scale_incremental"],
       },
       {
         scenarioId: "margin-promo-trap",
         operatorInput: { snapshot: makeSnapshot({ signals: ["margin_compression", "discount_driven_growth"] }) },
         expectedTemplateIds: ["promotion.reduce_discount", "pricing.test_price", "merch.feature_high_margin"],
+        evaluatorTruth: {
+          availableInterventionTemplateIds: ["promotion.reduce_discount", "pricing.test_price", "merch.feature_high_margin"],
+          responseCurveRefs: ["truth.price.elasticity", "truth.promotion.incrementality"],
+        },
       },
     ]);
     expect(suite.passed).toBe(true);
