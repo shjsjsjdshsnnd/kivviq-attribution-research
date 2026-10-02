@@ -45,6 +45,27 @@ describe("Step 6 Opportunity Engine", () => {
     expect(checkout.consequences).toHaveLength(6);
   });
 
+  it("blocks impossible parameters and incompatible target kinds", () => {
+    const result = generateOpportunities({
+      snapshot: makeSnapshot(),
+      diagnosis: {
+        merchantId: "merchant-1",
+        changes: [{ id: "change:sessions", metricId: "sessions", status: "material", delta: -200, evidenceIds: ["diag.sessions"] }],
+        unknowns: [],
+      },
+      supportedActionTypes: ["advertising.adjust_budget"],
+      candidateHints: [{
+        templateId: "paid.scale_incremental",
+        target: { kind: "PRODUCT", ref: "product-1" },
+        parameters: { budget_delta_minor: -1000 },
+      }],
+    });
+    const paid = result.opportunities.find((item) => item.intervention.templateId === "paid.scale_incremental")!;
+    expect(paid.intervention.target.state).toBe("UNRESOLVED");
+    expect(paid.feasibility.status).toBe("BLOCKED");
+    expect(paid.feasibility.reasons.some((reason) => reason.includes("budget_delta_minor"))).toBe(true);
+  });
+
   it("blocks interventions that violate merchant constraints", () => {
     const result = generateOpportunities({
       snapshot: makeSnapshot({
