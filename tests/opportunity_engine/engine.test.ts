@@ -45,6 +45,30 @@ describe("Step 6 Opportunity Engine", () => {
     expect(checkout.consequences).toHaveLength(6);
   });
 
+  it("blocks interventions that violate merchant constraints", () => {
+    const result = generateOpportunities({
+      snapshot: makeSnapshot({
+        signals: ["margin_compression"],
+        constraints: [{
+          constraintId: "margin-floor",
+          kind: "MARGIN_FLOOR",
+          status: "VIOLATED",
+          metricId: "gross_margin",
+          comparator: "GTE",
+          threshold: 0.4,
+          observedValue: 0.3,
+          unit: "RATIO",
+          evidenceMetricIds: ["gross_margin"],
+          reason: "Projected margin is below the merchant floor.",
+        }],
+      }),
+      supportedActionTypes: ["promotion.modify"],
+    });
+    const promotion = result.opportunities.find((item) => item.intervention.templateId === "promotion.reduce_discount")!;
+    expect(promotion.feasibility.status).toBe("BLOCKED");
+    expect(promotion.constraints.some((item) => item.status === "VIOLATED")).toBe(true);
+  });
+
   it("requires conversion remediation before paid scaling when conversion has declined", () => {
     const result = generateOpportunities({ snapshot: makeSnapshot(), diagnosis });
     const checkout = result.opportunities.find((item) => item.intervention.templateId === "cro.checkout_fix")!;
