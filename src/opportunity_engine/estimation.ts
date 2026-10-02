@@ -109,7 +109,7 @@ function estimateFromEvidence(
     if (uncertainty === undefined) return undefined;
     const spread = Math.abs(base) * uncertainty;
     return estimatedRange(
-      "MONEY",
+      evidence.responseCurve.outputUnit,
       base - spread,
       base,
       base + spread,
@@ -184,8 +184,21 @@ export function estimateOpportunityImpact(
   const evidence = rawEvidence === undefined ? undefined : opportunityEstimateEvidenceSchema.parse(rawEvidence);
   if (evidence && evidence.templateId !== template.templateId) throw new Error("Estimate evidence template mismatch");
 
-  const effect = estimateFromEvidence(evidence);
+  let effect = estimateFromEvidence(evidence);
   const metric = evidence?.incrementalEffect?.metric ?? evidence?.responseCurve?.outputMetric ?? "unknown";
+  const addressableInput = evidence?.addressableUpside;
+  if (
+    effect?.state === "ESTIMATED" &&
+    addressableInput &&
+    effect.unit === addressableInput.unit &&
+    effect.high > addressableInput.high
+  ) {
+    effect = unknownEstimate(
+      effect.unit,
+      "Specific intervention effect exceeds the evidenced addressable-upside bound",
+      ["Reconcile the intervention effect estimate with the addressable opportunity bound"],
+    );
+  }
 
   const incrementalRevenue =
     metric === "incremental_revenue" || metric === "revenue_net"
@@ -222,7 +235,9 @@ export function estimateOpportunityImpact(
   const responseCurve: ResponseCurve = evidence?.responseCurve ?? {
     state: "UNKNOWN",
     inputMetric: "intervention_intensity",
+    inputUnit: "RATIO",
     outputMetric: template.primaryMetric,
+    outputUnit: "RATIO",
     reason: "No merchant-specific response curve is established",
     evidenceNeeded: ["Experiment, causal model, or observational response evidence"],
   };
