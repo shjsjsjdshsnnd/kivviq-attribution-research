@@ -8,3 +8,4 @@ export * from "./coverage.js";
 export * from "./operator-safety.js";
 export * from "./compile.js";
 export * from "./scenario-validation.js";
+export * from "./binding.js";\n
