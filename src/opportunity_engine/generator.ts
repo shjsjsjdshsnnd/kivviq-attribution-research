@@ -27,6 +27,7 @@ import {
   type OpportunityEstimateEvidence,
 } from "./estimation.js";
 import { OPPORTUNITY_TEMPLATES, templatesForArea, type OpportunityTemplate } from "./templates.js";
+import { assertOperatorSafeOpportunityInput } from "./operator-safety.js";
 
 const hintSchema = z.object({
   templateId: z.string().min(1),
@@ -90,6 +91,8 @@ function area(code: string, source: OpportunityArea["source"], domain: Opportuni
 }
 
 export function deriveOpportunityAreas(snapshotInput: unknown, diagnosisInput?: unknown): OpportunityArea[] {
+  assertOperatorSafeOpportunityInput(snapshotInput);
+  if (diagnosisInput !== undefined) assertOperatorSafeOpportunityInput(diagnosisInput);
   const snapshot = businessStateSnapshotSchema.parse(snapshotInput);
   const areas = new Map<string, OpportunityArea>();
 
@@ -468,6 +471,7 @@ function wireDependencies(opportunities: Opportunity[], areas: readonly Opportun
 }
 
 export function generateOpportunities(input: OpportunityEngineInput): OpportunitySet {
+  assertOperatorSafeOpportunityInput(input);
   const snapshot = businessStateSnapshotSchema.parse(input.snapshot);
   const hints = (input.candidateHints ?? []).map((item) => hintSchema.parse(item));
   const evidence = (input.estimateEvidence ?? []).map((item) => opportunityEstimateEvidenceSchema.parse(item));
