@@ -179,7 +179,16 @@ function relevantConstraint(domain: OpportunityDomain, constraint: BusinessConst
 }
 
 function targetFor(template: OpportunityTemplate, snapshot: BusinessStateSnapshot, hint?: ParsedOpportunityCandidateHint): OpportunityTarget {
-  if (hint?.target) return { state: "RESOLVED", kind: hint.target.kind, ref: safe(hint.target.ref) };
+  if (hint?.target) {
+    if (template.targetKind !== "MERCHANT" && hint.target.kind !== template.targetKind) {
+      return {
+        state: "UNRESOLVED",
+        requiredKind: template.targetKind as Exclude<OpportunityTarget, { state: "RESOLVED" }>["requiredKind"],
+        evidenceNeeded: ["Provided target kind " + hint.target.kind + " is incompatible with required " + template.targetKind],
+      };
+    }
+    return { state: "RESOLVED", kind: hint.target.kind, ref: safe(hint.target.ref) };
+  }
   if (template.targetKind === "MERCHANT") return { state: "RESOLVED", kind: "MERCHANT", ref: safe(snapshot.merchantId) };
   if (template.targetKind === "FUNNEL_STAGE" && template.templateId.startsWith("cro.checkout")) return { state: "RESOLVED", kind: "FUNNEL_STAGE", ref: "checkout" };
   return {
@@ -410,7 +419,7 @@ function noAction(snapshot: BusinessStateSnapshot, createdAt: string, evidenceCo
     },
     impact: {
       addressableUpside: unknownMoney,
-      responseCurve: { state: "UNKNOWN", inputMetric: "time", outputMetric: "evidence_quality", reason: "No response is assumed for no-action", evidenceNeeded: ["Future evidence"] },
+      responseCurve: { state: "UNKNOWN", inputMetric: "time", inputUnit: "DAYS", outputMetric: "evidence_quality", outputUnit: "RATIO", reason: "No response is assumed for no-action", evidenceNeeded: ["Future evidence"] },
       incrementalRevenue: unknownMoney,
       grossProfit: unknownMoney,
       contributionProfit: unknownMoney,
