@@ -134,7 +134,9 @@ export type BoundedEstimate = z.infer<typeof boundedEstimateSchema>;
 const estimatedResponseCurveSchema = z.object({
   state: z.literal("ESTIMATED"),
   inputMetric: stableId,
+  inputUnit: estimateUnitSchema,
   outputMetric: stableId,
+  outputUnit: estimateUnitSchema,
   points: z.array(z.object({ input: finite, output: finite }).strict()).min(2),
   evidenceRefs: z.array(stableId).min(1),
   method: z.enum(["EXPERIMENT", "CAUSAL_MODEL", "OBSERVATIONAL_BOUND"]),
@@ -144,7 +146,9 @@ export const responseCurveSchema = z.discriminatedUnion("state", [
   z.object({
     state: z.literal("UNKNOWN"),
     inputMetric: stableId,
+    inputUnit: estimateUnitSchema,
     outputMetric: stableId,
+    outputUnit: estimateUnitSchema,
     reason: z.string().min(1),
     evidenceNeeded: z.array(z.string().min(1)).min(1),
   }).strict(),
