@@ -5,6 +5,11 @@ export interface OpportunityValidationScenario {
   readonly operatorInput: OpportunityEngineInput;
   /** Evaluator-only expected candidates. Never passed to the Opportunity Engine. */
   readonly expectedTemplateIds: readonly string[];
+  /** Optional simulator/oracle metadata retained only by the evaluator. */
+  readonly evaluatorTruth?: {
+    readonly availableInterventionTemplateIds: readonly string[];
+    readonly responseCurveRefs: readonly string[];
+  };
   /** Evaluator-only candidates that would be invalid or harmful in this scenario. */
   readonly forbiddenTemplateIds?: readonly string[];
 }
@@ -29,6 +34,12 @@ export function validateOpportunityScenario(
   )].sort();
   const generatedSet = new Set(generatedTemplateIds);
   const expected = [...new Set(scenario.expectedTemplateIds)].sort();
+  if (scenario.evaluatorTruth) {
+    const available = new Set(scenario.evaluatorTruth.availableInterventionTemplateIds);
+    for (const templateId of expected) {
+      if (!available.has(templateId)) throw new Error("Expected candidate is not available in evaluator truth: " + templateId);
+    }
+  }
   const forbidden = [...new Set(scenario.forbiddenTemplateIds ?? [])].sort();
   const missingExpected = expected.filter((templateId) => !generatedSet.has(templateId));
   const generatedForbidden = forbidden.filter((templateId) => generatedSet.has(templateId));
