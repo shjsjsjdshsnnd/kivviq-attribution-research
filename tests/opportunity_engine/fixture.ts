@@ -8,6 +8,7 @@ import {
   type StateDomain,
   type MetricUnit,
 } from "../../src/business_state/schema.js";
+import type { OpportunityEstimateEvidenceInput } from "../../src/opportunity_engine/estimation.js";
 
 const START = "2026-09-01T00:00:00.000Z";
 const END = "2026-10-01T00:00:00.000Z";
@@ -161,4 +162,4 @@ export const causalCheckoutEvidence = {
     high: 14,
     evidenceRefs: ["history.checkout"],
   },
-} as const;
+} satisfies OpportunityEstimateEvidenceInput;
