@@ -15,7 +15,7 @@ import {
 const evidenceRef = z.string().regex(/^[A-Za-z][A-Za-z0-9_.:-]*$/);
 const effectMethod = z.enum(["EXPERIMENT", "CAUSAL_MODEL", "OBSERVATIONAL_BOUND"]);
 
-const effectSchema = z.object({
+const effectObjectSchema = z.object({
   metric: z.string().min(1),
   unit: z.enum(["MONEY", "COUNT", "RATIO", "PERCENTAGE", "DAYS", "HOURS", "UNITS"]),
   low: z.number().finite(),
@@ -23,15 +23,23 @@ const effectSchema = z.object({
   high: z.number().finite(),
   evidenceRefs: z.array(evidenceRef).min(1),
   method: effectMethod,
-}).strict().superRefine((value, ctx) => {
+}).strict();
+const orderedEffect = <T extends { low: number; base: number; high: number }>(value: T, ctx: z.RefinementCtx): void => {
   if (value.low > value.base || value.base > value.high) {
     ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["base"], message: "Effect estimate must satisfy low <= base <= high" });
   }
-});
+};
+const effectSchema = effectObjectSchema.superRefine(orderedEffect);
 
-const addressableSchema = effectSchema.extend({
+const addressableSchema = z.object({
+  metric: z.string().min(1),
+  unit: z.enum(["MONEY", "COUNT", "RATIO", "PERCENTAGE", "DAYS", "HOURS", "UNITS"]),
+  low: z.number().finite(),
+  base: z.number().finite(),
+  high: z.number().finite(),
+  evidenceRefs: z.array(evidenceRef).min(1),
   method: z.enum(["ACCOUNTING", "OBSERVATIONAL_BOUND", "CAUSAL_MODEL", "EXPERIMENT"]),
-}).strict();
+}).strict().superRefine(orderedEffect);
 
 const consequenceEvidenceSchema = z.object({
   dimension: z.enum(["CANNIBALIZATION", "CROSS_CHANNEL", "INVENTORY", "CUSTOMER", "PROMOTION", "OPERATIONAL"]),
