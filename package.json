@@ -94,7 +94,8 @@
     "./action-outcomes": "./dist/action_outcomes/index.js",
     "./action-validation": "./dist/action_validation/index.js",
     "./business-state": "./dist/business_state/index.js",
-    "./opportunity-engine": "./dist/opportunity_engine/index.js"
+    "./opportunity-engine": "./dist/opportunity_engine/index.js",
+    "./opportunity-engine-evaluation": "./dist/opportunity_engine/evaluation.js"
   },
   "devDependencies": {
     "@types/node": "22.15.30",
@@ -109,4 +110,4 @@
   "engines": {
     "node": "22.16.0"
   }
-}
+}\n
