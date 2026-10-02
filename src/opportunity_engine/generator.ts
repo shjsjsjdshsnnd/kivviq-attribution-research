@@ -40,7 +40,7 @@ const hintSchema = z.object({
     ]),
     ref: z.string().min(1),
   }).strict().optional(),
-  parameters: z.record(z.union([z.string(), z.number().finite(), z.boolean(), z.null()])).default({}),
+  parameters: z.record(z.union([z.string().min(1), z.number().finite(), z.boolean(), z.null()])).default({}),
   requiredResources: z.array(z.string().min(1)).default([]),
 }).strict();
 export type OpportunityCandidateHint = z.input<typeof hintSchema>;
@@ -207,6 +207,36 @@ function parametersFor(template: OpportunityTemplate, hint?: ParsedOpportunityCa
     : { state: "NEEDS_INPUT" as const, known, required: missing };
 }
 
+function parameterProblems(template: OpportunityTemplate, parameters: ReturnType<typeof parametersFor>): string[] {
+  if (parameters.state !== "READY") return [];
+  const problems: string[] = [];
+  for (const [key, value] of Object.entries(parameters.values)) {
+    if (key.endsWith("_ref") && (typeof value !== "string" || value.length === 0)) {
+      problems.push(key + " must be a non-empty reference");
+    }
+    if (key === "budget_delta_minor" && (typeof value !== "number" || !Number.isSafeInteger(value) || value <= 0)) {
+      problems.push("budget_delta_minor must be a positive integer");
+    }
+    if (key === "quantity" && (typeof value !== "number" || !Number.isSafeInteger(value) || value <= 0)) {
+      problems.push("quantity must be a positive integer");
+    }
+    if (key === "prospecting_share_basis_points" || key === "discount_basis_points") {
+      if (typeof value !== "number" || !Number.isInteger(value) || value < 0 || value > 10000) {
+        problems.push(key + " must be an integer from 0 to 10000");
+      }
+    }
+    if (key === "price_change_basis_points") {
+      if (typeof value !== "number" || !Number.isInteger(value) || value <= -10000 || value > 100000) {
+        problems.push("price_change_basis_points must be an integer greater than -10000 and no more than 100000");
+      }
+    }
+  }
+  for (const key of template.parameterKeys) {
+    if (!(key in parameters.values)) problems.push("Missing required parameter " + key);
+  }
+  return problems;
+}
+
 function mechanismFor(template: OpportunityTemplate) {
   const leverMetric: Record<OpportunityTemplate["primaryLever"], string> = {
     TRAFFIC: "qualified_traffic",
@@ -262,16 +292,18 @@ function feasibility(
 ) {
   const violated = checks.filter((check) => check.status === "VIOLATED");
   const unknown = checks.filter((check) => check.status === "UNKNOWN");
+  const invalidParameters = parameterProblems(template, parameters);
   const capabilityKnown = supportedActionTypes !== undefined;
   const missing = capabilityKnown && !supportedActionTypes.includes(template.actionType) ? [safe(template.actionType)] : [];
   const reasons: string[] = [];
   if (violated.length) reasons.push("Merchant constraint violated");
   if (unknown.length) reasons.push("Merchant constraint unresolved");
   if (missing.length) reasons.push("Required execution capability unavailable");
+  if (invalidParameters.length) reasons.push(...invalidParameters);
   if (target.state === "UNRESOLVED") reasons.push("Intervention target unresolved");
   if (parameters.state === "NEEDS_INPUT") reasons.push("Intervention parameters incomplete");
   if (!capabilityKnown) reasons.push("Execution capability not verified");
-  const status = violated.length || missing.length
+  const status = violated.length || missing.length || invalidParameters.length
     ? "BLOCKED" as const
     : unknown.length || target.state === "UNRESOLVED" || parameters.state === "NEEDS_INPUT" || !capabilityKnown
       ? "UNKNOWN" as const
