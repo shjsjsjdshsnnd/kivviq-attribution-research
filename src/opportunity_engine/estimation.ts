@@ -78,6 +78,7 @@ export const opportunityEstimateEvidenceSchema = z.object({
   }).strict().optional(),
   consequences: z.array(consequenceEvidenceSchema).default([]),
 }).strict();
+export type OpportunityEstimateEvidenceInput = z.input<typeof opportunityEstimateEvidenceSchema>;
 export type OpportunityEstimateEvidence = z.infer<typeof opportunityEstimateEvidenceSchema>;
 
 function curveValue(curve: Extract<ResponseCurve, { state: "ESTIMATED" }>, input: number): number {
