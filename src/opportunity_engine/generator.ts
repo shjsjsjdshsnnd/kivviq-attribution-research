@@ -25,6 +25,7 @@ import {
   estimateTimeToImpact,
   opportunityEstimateEvidenceSchema,
   type OpportunityEstimateEvidence,
+  type OpportunityEstimateEvidenceInput,
 } from "./estimation.js";
 import { OPPORTUNITY_TEMPLATES, templatesForArea, type OpportunityTemplate } from "./templates.js";
 import { assertOperatorSafeOpportunityInput } from "./operator-safety.js";
@@ -42,13 +43,14 @@ const hintSchema = z.object({
   parameters: z.record(z.union([z.string(), z.number().finite(), z.boolean(), z.null()])).default({}),
   requiredResources: z.array(z.string().min(1)).default([]),
 }).strict();
-export type OpportunityCandidateHint = z.infer<typeof hintSchema>;
+export type OpportunityCandidateHint = z.input<typeof hintSchema>;
+type ParsedOpportunityCandidateHint = z.infer<typeof hintSchema>;
 
 export interface OpportunityEngineInput {
   readonly snapshot: unknown;
   readonly diagnosis?: unknown;
   readonly candidateHints?: readonly OpportunityCandidateHint[];
-  readonly estimateEvidence?: readonly OpportunityEstimateEvidence[];
+  readonly estimateEvidence?: readonly OpportunityEstimateEvidenceInput[];
   readonly supportedActionTypes?: readonly string[];
 }
 
@@ -176,7 +178,7 @@ function relevantConstraint(domain: OpportunityDomain, constraint: BusinessConst
   return false;
 }
 
-function targetFor(template: OpportunityTemplate, snapshot: BusinessStateSnapshot, hint?: OpportunityCandidateHint): OpportunityTarget {
+function targetFor(template: OpportunityTemplate, snapshot: BusinessStateSnapshot, hint?: ParsedOpportunityCandidateHint): OpportunityTarget {
   if (hint?.target) return { state: "RESOLVED", kind: hint.target.kind, ref: safe(hint.target.ref) };
   if (template.targetKind === "MERCHANT") return { state: "RESOLVED", kind: "MERCHANT", ref: safe(snapshot.merchantId) };
   if (template.targetKind === "FUNNEL_STAGE" && template.templateId.startsWith("cro.checkout")) return { state: "RESOLVED", kind: "FUNNEL_STAGE", ref: "checkout" };
@@ -187,7 +189,7 @@ function targetFor(template: OpportunityTemplate, snapshot: BusinessStateSnapsho
   };
 }
 
-function parametersFor(template: OpportunityTemplate, hint?: OpportunityCandidateHint) {
+function parametersFor(template: OpportunityTemplate, hint?: ParsedOpportunityCandidateHint) {
   if (template.parameterKeys.length === 0) return { state: "NOT_APPLICABLE" as const };
   const known = hint?.parameters ?? {};
   const missing = template.parameterKeys.filter((key) => !(key in known));
@@ -295,7 +297,7 @@ function buildOpportunity(
   template: OpportunityTemplate,
   snapshot: BusinessStateSnapshot,
   createdAt: string,
-  hint: OpportunityCandidateHint | undefined,
+  hint: ParsedOpportunityCandidateHint | undefined,
   evidence: OpportunityEstimateEvidence | undefined,
   supportedActionTypes?: readonly string[],
 ): Opportunity {
