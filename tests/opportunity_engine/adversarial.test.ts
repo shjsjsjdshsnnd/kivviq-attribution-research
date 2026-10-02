@@ -156,6 +156,34 @@ describe("Opportunity Engine adversarial behavior", () => {
     })).toThrow();
   });
 
+  it("fails closed when a claimed effect exceeds the addressable-upside bound", () => {
+    const template = availableOpportunityTemplates().find((item) => item.templateId === "paid.scale_incremental")!;
+    const impact = estimateOpportunityImpact(template, makeSnapshot(), {
+      templateId: "paid.scale_incremental",
+      addressableUpside: {
+        metric: "incremental_revenue",
+        unit: "MONEY",
+        low: 1000,
+        base: 2000,
+        high: 3000,
+        evidenceRefs: ["analysis.addressable"],
+        method: "OBSERVATIONAL_BOUND",
+      },
+      incrementalEffect: {
+        metric: "incremental_revenue",
+        unit: "MONEY",
+        low: 4000,
+        base: 5000,
+        high: 6000,
+        evidenceRefs: ["model.effect"],
+        method: "CAUSAL_MODEL",
+      },
+      contributionMarginRate: 0.3,
+    });
+    expect(impact.incrementalRevenue.state).toBe("UNKNOWN");
+    expect(impact.contributionProfit.state).toBe("UNKNOWN");
+  });
+
   it("supports nonlinear response curves without assuming linear scaling", () => {
     const template = availableOpportunityTemplates().find((item) => item.templateId === "paid.scale_incremental")!;
     const impact = estimateOpportunityImpact(template, makeSnapshot(), {
@@ -163,7 +191,9 @@ describe("Opportunity Engine adversarial behavior", () => {
       responseCurve: {
         state: "ESTIMATED",
         inputMetric: "budget_delta_minor",
+        inputUnit: "MONEY",
         outputMetric: "incremental_revenue",
+        outputUnit: "MONEY",
         points: [
           { input: 0, output: 0 },
           { input: 1000, output: 5000 },
@@ -187,7 +217,9 @@ describe("Opportunity Engine adversarial behavior", () => {
       responseCurve: {
         state: "ESTIMATED",
         inputMetric: "budget_delta_minor",
+        inputUnit: "MONEY",
         outputMetric: "incremental_revenue",
+        outputUnit: "MONEY",
         points: [
           { input: 0, output: 0 },
           { input: 1000, output: 5000 },
