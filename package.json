@@ -44,7 +44,8 @@
     "test:experiment-eligibility-constraints": "vitest run tests/action_constraints tests/action_eligibility tests/experiment tests/canonical_action/constraints.test.ts tests/action_translation/experiment-canonical.test.ts tests/action_translation/compound-canonical.test.ts tests/compound_action/compound.test.ts tests/architecture --maxWorkers=1",
     "test:action-portfolio": "npm run build && node tests/public-api/action-portfolio-built.mjs && vitest run tests/action_dependencies tests/action_conflicts tests/action_characteristics tests/action_risk tests/canonical_action tests/action_timing tests/action_constraints tests/action_eligibility tests/experiment tests/compound_action tests/action_translation tests/architecture tests/compatibility/action-portfolio-legacy.test.ts tests/public-api/action-risk-types.test.ts --maxWorkers=1",
     "test:action-space-validation": "vitest run tests/action_outcomes tests/action_validation tests/action_translation tests/public-api/action-outcomes-validation.test.ts --maxWorkers=1",
-    "test:business-state": "vitest run tests/business_state --maxWorkers=1 --reporter=verbose"
+    "test:business-state": "vitest run tests/business_state --maxWorkers=1 --reporter=verbose",
+    "test:opportunity": "vitest run tests/opportunity_engine --maxWorkers=1 --reporter=verbose"
   },
   "exports": {
     ".": "./dist/index.js",
@@ -92,7 +93,8 @@
     "./action-risk": "./dist/action_risk/index.js",
     "./action-outcomes": "./dist/action_outcomes/index.js",
     "./action-validation": "./dist/action_validation/index.js",
-    "./business-state": "./dist/business_state/index.js"
+    "./business-state": "./dist/business_state/index.js",
+    "./opportunity-engine": "./dist/opportunity_engine/index.js"
   },
   "devDependencies": {
     "@types/node": "22.15.30",
