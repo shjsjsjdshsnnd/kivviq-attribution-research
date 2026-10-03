@@ -1,0 +1,33 @@
+name: Step 8 Decision Optimizer
+on:
+  push:
+    branches: [decision/step8-optimizer-foundation]
+  pull_request:
+    branches: [opportunity/step6-1-37-complete]
+permissions:
+  contents: read
+concurrency:
+  group: decision-optimizer-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22.16.0'
+          cache: npm
+      - run: npm ci --no-audit --no-fund
+      - name: Operator boundary and TypeScript
+        run: |
+          npm run architecture
+          npm exec -- depcruise --config .dependency-cruiser.optimizer.cjs src
+          npm run typecheck
+      - name: Optimizer core adversaries
+        run: node scripts/test-decision-optimizer.mjs
+      - name: Opportunity integration and existing regression
+        run: npm test
+      - name: Production declaration build and reproducibility stamp
+        run: npm run build
