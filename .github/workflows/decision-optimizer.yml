@@ -1,0 +1,97 @@
+name: Step 8 Decision Optimizer
+on:
+  push:
+    branches: [decision/step8-optimizer-foundation]
+  pull_request:
+    branches: [opportunity/step6-1-37-complete]
+permissions:
+  contents: read
+concurrency:
+  group: decision-optimizer-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+jobs:
+  focused:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+      - run: npm ci --no-audit --no-fund
+      - name: Optimizer core adversaries
+        run: node scripts/test-decision-optimizer.mjs
+      - name: Opportunity and optimizer integration
+        run: npm exec -- vitest run tests/decision_optimizer tests/opportunity_engine --maxWorkers=1
+      - name: Public source and locked dependencies for offline reproduction
+        if: github.event_name == 'push'
+        run: |
+          mkdir -p verification
+          git rev-parse HEAD > verification/commit.txt
+          tar -czf verification/source-and-dependencies.tar.gz src tests scripts node_modules package.json package-lock.json tsconfig.json tsconfig.build.json .nvmrc .dependency-cruiser.cjs .dependency-cruiser.optimizer.cjs
+          sha256sum verification/source-and-dependencies.tar.gz > verification/SHA256SUMS
+      - uses: actions/upload-artifact@v4
+        if: github.event_name == 'push'
+        with:
+          name: optimizer-offline-verification-${{ github.sha }}
+          path: verification/
+          retention-days: 1
+          if-no-files-found: error
+  static:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+      - run: npm ci --no-audit --no-fund
+      - name: Operator boundary and TypeScript
+        run: |
+          npm run architecture
+          npm exec -- depcruise --config .dependency-cruiser.optimizer.cjs src
+          npm run typecheck
+      - name: Production declaration build and reproducibility stamp
+        run: npm run build
+  regression:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [1, 2, 3, 4, 5, 6, 7, 8]
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+      - run: npm ci --no-audit --no-fund
+      - name: Full inherited regression shard
+        run: |
+          mkdir -p reports
+          npm test -- --shard=${{ matrix.shard }}/8 --reporter=default --reporter=json --outputFile=reports/shard-${{ matrix.shard }}.json
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: optimizer-regression-${{ github.event_name }}-${{ matrix.shard }}
+          path: reports/
+          if-no-files-found: error
+  validate:
+    if: always()
+    needs: [focused, static, regression]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Require focused tests, static checks, build and every regression shard
+        env:
+          NEEDS_JSON: ${{ toJSON(needs) }}
+        run: |
+          node -e 'const n=JSON.parse(process.env.NEEDS_JSON); const expected=["focused","static","regression"]; if(Object.keys(n).length!==expected.length || expected.some(k=>n[k]?.result!=="success")) { console.error(n); process.exit(1); }'
