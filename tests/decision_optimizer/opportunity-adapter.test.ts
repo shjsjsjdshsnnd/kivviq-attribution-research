@@ -20,6 +20,29 @@ const statusQuoTwin: CanonicalTwinGateway = {
   },
 };
 const unusedCompatibility = (): never => { throw new Error("No action portfolio should reach this callback"); };
+
+// The real generator emits BOTH a checkout fix and a checkout experiment.
+// Supply independent synthetic evidence for the second alternative when testing
+// the later canonical-binding boundary. Never overwrite evidenceComplete.
+function checkoutSet(completeAlternatives: boolean) {
+  const alternativeEvidence = {
+    ...causalCheckoutEvidence,
+    templateId: "cro.checkout_experiment",
+    incrementalEffect: {
+      ...causalCheckoutEvidence.incrementalEffect,
+      low: 1000, base: 2000, high: 3000,
+      evidenceRefs: ["experiment.checkout_alternative"],
+    },
+  };
+  return generateOpportunities({
+    snapshot: makeSnapshot(),
+    diagnosis: { merchantId: "merchant-1", changes: [{ id: "change:cvr", metricId: "cvr", status: "material", delta: -0.02, evidenceIds: ["diag.cvr"] }], unknowns: [] },
+    supportedActionTypes: ["cro.modify_checkout"],
+    candidateHints: [{ templateId: "cro.checkout_fix", parameters: { change_ref: "checkout-v2" }, requiredResources: ["engineering.checkout"] }],
+    estimateEvidence: completeAlternatives ? [causalCheckoutEvidence, alternativeEvidence] : [causalCheckoutEvidence],
+  });
+}
+
 describe("Opportunity-to-optimizer integration", () => {
   it("consumes the real generated OpportunitySet without inventing executable Actions", async () => {
     const set = generateOpportunities({ snapshot: makeSnapshot() });
@@ -40,9 +63,27 @@ describe("Opportunity-to-optimizer integration", () => {
     await expect(optimizeOpportunities(set, request(), [], unusedCompatibility, statusQuoTwin)).rejects.toThrow("INCOMPLETE_OPPORTUNITY_EVIDENCE");
   });
   it("actionable estimates without canonical Actions are blocked, not converted into forecasts", async () => {
-    const set = generateOpportunities({ snapshot: makeSnapshot(), diagnosis: { merchantId: "merchant-1", changes: [{ id: "change:cvr", metricId: "cvr", status: "material", delta: -0.02, evidenceIds: ["diag.cvr"] }], unknowns: [] },
-      supportedActionTypes: ["cro.modify_checkout"], candidateHints: [{ templateId: "cro.checkout_fix", parameters: { change_ref: "checkout-v2" }, requiredResources: ["engineering.checkout"] }], estimateEvidence: [causalCheckoutEvidence] });
+    const set = checkoutSet(true);
+    expect(set.evidenceComplete).toBe(true);
     expect(set.opportunities.some(item => item.status === "ACTIONABLE")).toBe(true);
+    let predictions = 0;
+    const twin: CanonicalTwinGateway = { predict() { predictions += 1; throw new Error("Unexpected prediction"); } };
+    await expect(optimizeOpportunities(set, request(), [], unusedCompatibility, twin)).rejects.toThrow("CANONICAL_BINDING_REQUIRED");
+    expect(predictions).toBe(0);
+  });
+  it("keeps incomplete-evidence precedence when an actionable fix has an unestimated alternative", async () => {
+    const set = checkoutSet(false);
+    expect(set.opportunities.some(item => item.status === "ACTIONABLE")).toBe(true);
+    expect(set.opportunities.some(item => item.status === "INSUFFICIENT_EVIDENCE")).toBe(true);
+    expect(set.evidenceComplete).toBe(false);
+    let predictions = 0;
+    const twin: CanonicalTwinGateway = { predict() { predictions += 1; throw new Error("Unexpected prediction"); } };
+    await expect(optimizeOpportunities(set, request(), [], unusedCompatibility, twin)).rejects.toThrow("INCOMPLETE_OPPORTUNITY_EVIDENCE");
+    expect(predictions).toBe(0);
+  });
+  it("missing canonical bindings remain blocked regardless of opportunity ordering", async () => {
+    const set = checkoutSet(true);
+    set.opportunities.reverse();
     await expect(optimizeOpportunities(set, request(), [], unusedCompatibility, statusQuoTwin)).rejects.toThrow("CANONICAL_BINDING_REQUIRED");
   });
   it("rejects hidden evaluator data before parsing the OpportunitySet", async () => {
