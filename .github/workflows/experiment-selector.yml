@@ -1,0 +1,26 @@
+name: Experiment Selector
+on:
+  pull_request:
+    paths:
+      - 'src/experiment_selector/**'
+      - 'tests/experiment_selector/**'
+      - 'scripts/test-experiment-selector.mjs'
+      - '.github/workflows/experiment-selector.yml'
+  push:
+    branches: ['decision/experiment-selector-v1']
+permissions:
+  contents: read
+jobs:
+  selector:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22.16.0'
+          cache: npm
+      - run: npm ci --ignore-scripts --no-audit --no-fund
+      - run: node scripts/test-experiment-selector.mjs
+      - run: npm run typecheck
+      - run: npm run architecture
