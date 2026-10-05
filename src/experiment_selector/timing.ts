@@ -9,8 +9,8 @@ export function measurementWindowFits(args: {
     const civil = (iso: string, requireMidnight: boolean): number => {
       if (!iso.endsWith('Z') || !Number.isFinite(Date.parse(iso))) throw Error('invalid timestamp')
       const parts = Object.fromEntries(formatter.formatToParts(new Date(iso)).map(p => [p.type, p.value]))
-      if (requireMidnight && (parts.hour !== '00' || parts.minute !== '00' || parts.second !== '00' || new Date(iso).getUTCMilliseconds() !== 0)) throw Error('not local midnight')
-      return Date.UTC(Number(parts.year), Number(parts.month) - 1, Number(parts.day)) / 86400000
+      if (requireMidnight && (parts['hour'] !== '00' || parts['minute'] !== '00' || parts['second'] !== '00' || new Date(iso).getUTCMilliseconds() !== 0)) throw Error('not local midnight')
+      return Date.UTC(Number(parts['year']), Number(parts['month']) - 1, Number(parts['day'])) / 86400000
     }
     const start = civil(args.start, true), end = civil(args.end, true), asOf = civil(args.asOf, false)
     return Date.parse(args.start) >= Date.parse(args.asOf) && end - start >= args.minimumDurationDays && end <= asOf + args.horizonDays
